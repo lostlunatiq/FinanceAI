@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual envs
+venv/
+.venv/
+
+# uv cache
+.uv/
+
+# Git
+.git
+.gitignore
+
+# Mac/Linux junk
+.DS_Store
+
+# Env files
+.env
+
+# Node (future frontend)
+node_modules/
+
+# Logs
+*.log
+
+# DB
+*.sqlite3
+
+# Docker
+docker-compose.override.yml
+
+# Build artifacts
+dist/
+build/
+
+# Coverage
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
