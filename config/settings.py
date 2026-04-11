@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -43,6 +44,15 @@ INSTALLED_APPS = [
     "apps.forecast",
     "apps.query",
     "apps.reports",
+    "clickhouse_backend",
+    "rest_framework",
+    "rest_framework_simplejwt",
+    "corsheaders",
+    "drf_spectacular",
+    "django_celery_beat",
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
 ]
 
 MIDDLEWARE = [
@@ -86,8 +96,18 @@ DATABASES = {
         "PASSWORD": "postgres",
         "HOST": "db",
         "PORT": "5432",
-    }
+    },
+    "clickhouse": {
+        "ENGINE": "clickhouse_backend.backend",
+        "NAME": "default",
+        "USER": "default",
+        "PASSWORD": "",
+        "HOST": os.getenv("CLICKHOUSE_HOST", "clickhouse"),
+        "PORT": "9000",
+    },
 }
+
+DATABASE_ROUTERS = ["config.routers.ClickHouseRouter"]
 
 
 # Password validation
@@ -125,3 +145,5 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = "static/"
+
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

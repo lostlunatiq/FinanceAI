@@ -1,4 +1,9 @@
-FROM python:3.12-slim
+FROM python:3.14-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  build-essential \
+  libpq-dev \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -8,7 +13,7 @@ RUN pip install uv
 # copy only dependency files first (cache optimization)
 COPY pyproject.toml uv.lock ./
 
-RUN uv sync
+RUN uv sync --frozen --no-install-project
 
 # now copy rest
 COPY . .
