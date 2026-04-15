@@ -30,11 +30,11 @@ from clickhouse_backend.models import ClickhouseModel
 
 
 def get_subclass(class_):
-    classes = class_.__subclass__()
+    classes = class_.__subclasses__()
 
     index = 0
     while index < len(classes):
-        classes.extend(classes[index].__subclass__())
+        classes.extend(classes[index].__subclasses__())
         index += 1
 
     return list(set(classes))

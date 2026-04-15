@@ -50,9 +50,9 @@ INSTALLED_APPS = [
     "corsheaders",
     "drf_spectacular",
     "django_celery_beat",
-    "allauth",
-    "allauth.account",
-    "allauth.socialaccount",
+    # "allauth",
+    # "allauth.account",
+    # "allauth.socialaccount",
 ]
 
 MIDDLEWARE = [
@@ -97,14 +97,6 @@ DATABASES = {
         "HOST": "db",
         "PORT": "5432",
     },
-    "clickhouse": {
-        "ENGINE": "clickhouse_backend.backend",
-        "NAME": "default",
-        "USER": "default",
-        "PASSWORD": "",
-        "HOST": os.getenv("CLICKHOUSE_HOST", "clickhouse"),
-        "PORT": "9000",
-    },
 }
 
 DATABASE_ROUTERS = ["config.routers.ClickHouseRouter"]
@@ -147,3 +139,5 @@ USE_TZ = True
 STATIC_URL = "static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+AUTH_USER_MODEL = "core.User"

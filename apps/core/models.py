@@ -1,52 +1,107 @@
-from django.db import models
+import uuid
+import hashlib
+import json
 from django.contrib.auth.models import AbstractUser
-from clickhouse_backend import models as ch_models
+from django.db import models
 
 
 class Department(models.Model):
-    name = models.CharField(max_length=50, unique=True)
-
-
-class Employee(models.Model):
-    department = models.ForeignKey(Department, on_delete=models.CASCADE)
-    level = models.IntegerField(default=1)
-
-
-class Invoice(models.Model):
-    class Status(models.TextChoices):
-        SUBMITTED = "SUBMITTED", "Submitted"
-        PENDING = "PENDING", "Pending"
-        APPROVED = "APPROVED", "Approved"
-        REJECTED = "REJECTED", "Rejected"
-        PENDING_D365 = "PENDING_D365", "Pending D365 Integration"
-
-    submitter = models.ForeignKey(
-        Employee, on_delete=models.CASCADE, related_name="submitted_invoices"
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100)
+    cost_centre_code = models.CharField(max_length=20, blank=True)
+    head = models.ForeignKey(
+        "User",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="headed_dept",
     )
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
-    status = models.CharField(
-        max_length=20, choices=Status.choices, default=Status.SUBMITTED
-    )
-    current_step_index = models.IntegerField(default=0)
+    budget_annual = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    budget_q1 = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    budget_q2 = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    budget_q3 = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    budget_q4 = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return str(self.name)
 
 
-class InvoiceEvent(ch_models.ClickhouseModel):
-    class Action(models.TextChoices):
-        SUBMITTED = "SUBMITTED", "Submitted"
-        APPROVED = "APPROVED", "Approved Step"
-        REJECTED = "REJECTED", "Rejected"
-        DELEGATED = "DELEGATED", "Delegated"
-        D365_SYNC = "D365_SYNC", "D365 Sync Attempt"
-
-    invoice = ch_models.UInt64Field(db_index=True)
-    actor = ch_models.UInt64Field(null=True)
-
-    action = models.CharField(max_length=20, choices=Action.choices)
-    idempotency_key = models.CharField(max_length=256, null=True, blank=True)
-    timestamp = models.DateTimeField(auto_now_add=True)
+class User(AbstractUser):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    azure_oid = models.CharField(max_length=100, unique=True, null=True, blank=True)
+    role = models.CharField(
+        max_length=30,
+        choices=[
+            ("finance_admin", "Finance Admin"),
+            ("finance_manager", "Finance Manager"),
+            ("dept_head", "Department Head"),
+            ("employee", "Employee"),
+        ],
+        default="employee",
+    )
+    department = models.ForeignKey(
+        Department, null=True, blank=True, on_delete=models.SET_NULL
+    )
+    manager = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.SET_NULL
+    )
+    employee_grade = models.CharField(max_length=10, default="L1")
 
     class Meta:
-        verbose_name = "Invoice Event"
-        engine = ch_models.MergeTree(order_by=("timestamp",))
+        db_table = "core_user"
+
+
+class AuditLogManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset()
+
+    def create(self, **kwargs):
+        # Compute hash chain: SHA256(prev_hash + this entry's content)
+        last = self.order_by("-created_at").first()
+        prev_hash = last.entry_hash if last else "0" * 64
+
+        # Build deterministic content string before saving
+        content = json.dumps(
+            {
+                "action": kwargs.get("action"),
+                "entity_type": kwargs.get("entity_type"),
+                "entity_id": str(kwargs.get("entity_id", "")),
+                "masked_after": kwargs.get("masked_after"),
+            },
+            sort_keys=True,
+        )
+
+        entry_hash = hashlib.sha256(f"{prev_hash}{content}".encode()).hexdigest()
+
+        kwargs["prev_hash"] = prev_hash
+        kwargs["entry_hash"] = entry_hash
+        return super().create(**kwargs)
+
+
+class AuditLog(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
+    action = models.CharField(max_length=80)  # e.g. 'expense.submitted'
+    entity_type = models.CharField(max_length=60)
+    entity_id = models.UUIDField(null=True)
+    masked_before = models.JSONField(null=True)  # NEVER plaintext financial data
+    masked_after = models.JSONField(null=True)
+    ip_address = models.GenericIPAddressField(null=True)
+    prev_hash = models.CharField(max_length=64, default="0" * 64)
+    entry_hash = models.CharField(max_length=64, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = AuditLogManager()
+
+    def save(self, *args, **kwargs):
+        if self.pk and AuditLog.objects.filter(pk=self.pk).exists():
+            raise PermissionError("AuditLog entries are immutable.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise PermissionError("AuditLog entries cannot be deleted.")
+
+    class Meta:
+        db_table = "core_auditlog"
+        ordering = ["created_at"]
