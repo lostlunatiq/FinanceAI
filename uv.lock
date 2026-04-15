@@ -777,6 +777,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "pytest-django" },
     { name = "ruff" },
+    { name = "scikit-learn" },
 ]
 
 [package.metadata]
