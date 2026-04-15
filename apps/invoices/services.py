@@ -1,4 +1,4 @@
-# apps/invoices/services.py
+import uuid
 from django.utils import timezone
 from django.db import transaction
 from apps.core.models import AuditLog
@@ -70,4 +70,45 @@ def transition_expense(
             masked_after={"status": new_status, "reason": reason},
         )
 
+        _mirror_to_clickhouse(expense, actor, old_status, new_status, reason)
+
     return expense
+
+
+def _mirror_to_clickhouse(
+    expense: Expense,
+    actor,
+    old_status: str,
+    new_status: str,
+    reason: str,
+) -> None:
+    """
+    Fire-and-forget mirror to ClickHouse Omega log.
+    Called AFTER the transaction commits — never inside atomic().
+    If Celery is down, the event is lost from ClickHouse but Postgres AuditLog is intact.
+    """
+    try:
+        from apps.core.tasks import mirror_event_to_clickhouse
+
+        mirror_event_to_clickhouse.delay(
+            event_id=str(uuid.uuid4()),
+            event_type=f"expense.{new_status.lower()}",
+            entity_type="Expense",
+            entity_id=str(expense.id),
+            actor_id=str(actor.id),
+            actor_role=getattr(actor, "role", "unknown"),
+            department_id=str(actor.department_id) if actor.department_id else "",
+            vendor_id=str(expense.vendor_id),
+            amount=float(expense.total_amount or 0),
+            status_from=old_status,
+            status_to=new_status,
+            anomaly_severity=expense.anomaly_severity or "NONE",
+            category="",
+            metadata={"reason": reason},
+            event_ts=timezone.now().isoformat(),
+        )
+    except Exception as e:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.error(f"ClickHouse mirror task failed to enqueue: {e}")
