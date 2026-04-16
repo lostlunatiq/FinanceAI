@@ -41,6 +41,7 @@ THIRD_PARTY_APPS = [
 ]
 
 LOCAL_APPS = [
+    "apps.accounts",
     "apps.core",
     "apps.invoices",
     "apps.expenses",
@@ -88,7 +89,7 @@ DATABASES = {"default": env.db("DATABASE_URL")}
 DATABASES["default"]["CONN_MAX_AGE"] = 60
 
 # --- Auth ---
-AUTH_USER_MODEL = "core.User"
+AUTH_USER_MODEL = "accounts.User"
 SITE_ID = 1
 
 AUTHENTICATION_BACKENDS = [
