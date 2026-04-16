@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Vendor Portal | FinanceAI</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+tailwind.config = {
+  darkMode: "class",
+  theme: { extend: {
+    colors: {
+      "primary": "#00535b", "primary-container": "#006d77", "on-primary": "#ffffff",
+      "on-primary-container": "#9becf7", "primary-fixed": "#9ff0fb", "primary-fixed-dim": "#82d3de",
+      "on-primary-fixed": "#001f23", "on-primary-fixed-variant": "#004f56",
+      "secondary": "#495f84", "secondary-container": "#bcd2fe", "on-secondary-container": "#445a7f",
+      "error": "#ba1a1a", "error-container": "#ffdad6", "on-error-container": "#93000a",
+      "surface": "#fbf9f9", "surface-container-lowest": "#ffffff", "surface-container-low": "#f5f3f3",
+      "surface-container": "#efeded", "surface-container-high": "#e9e8e7", "surface-container-highest": "#e3e2e2",
+      "on-surface": "#1b1c1c", "on-surface-variant": "#3e494a", "outline": "#6f797a",
+      "outline-variant": "#bec8ca", "inverse-surface": "#303031", "background": "#fbf9f9",
+    },
+    fontFamily: { headline: ["Manrope"], body: ["Inter"] }
+  }}
+}
+</script>
+<style>
+body { font-family: 'Inter', sans-serif; background: #fbf9f9; }
+.material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+.primary-gradient { background: linear-gradient(135deg, #00535b 0%, #006d77 100%); }
+.status-badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 9999px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
+</style>
+</head>
+<body class="text-on-surface">
+
+<div id="sidebar-container" class="z-40"></div>
+
+<!-- Page Header (layout.js will make sticky + ml-64) -->
+<header class="flex justify-between items-center bg-surface-container-lowest px-8 py-4 border-b border-outline-variant/30 lg:ml-64 relative z-30 shadow-sm">
+  <div>
+    <div class="flex items-center gap-2 text-xs text-on-surface-variant font-medium mb-1">
+      <span>Vendor Portal</span>
+      <span class="material-symbols-outlined text-[12px]">chevron_right</span>
+      <span class="text-primary font-bold" id="vendor-name-breadcrumb">My Bills</span>
+    </div>
+    <h2 class="text-xl font-extrabold tracking-tight text-primary" style="font-family:'Manrope',sans-serif" id="vendor-display-name">Loading...</h2>
+  </div>
+  <button id="open-submit-modal" class="flex items-center gap-2 primary-gradient text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity">
+    <span class="material-symbols-outlined text-[18px]">upload_file</span>
+    Submit Invoice
+  </button>
+</header>
+
+<main class="lg:ml-64 min-h-screen">
+
+  <!-- Stats row -->
+  <div class="px-8 pt-6 pb-4">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/20">
+        <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Pending Payouts</p>
+        <p class="text-2xl font-extrabold text-on-surface font-headline" id="stat-pending-amount">—</p>
+      </div>
+      <div class="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/20">
+        <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Total Submitted</p>
+        <p class="text-2xl font-extrabold text-on-surface font-headline" id="stat-total">—</p>
+      </div>
+      <div class="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/20">
+        <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">In Progress</p>
+        <p class="text-2xl font-extrabold text-primary font-headline" id="stat-active">—</p>
+      </div>
+      <div class="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/20">
+        <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Paid</p>
+        <p class="text-2xl font-extrabold font-headline" style="color:#059669" id="stat-paid">—</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main content grid -->
+  <div class="px-8 pb-8 grid grid-cols-1 xl:grid-cols-12 gap-6">
+
+    <!-- Bills List (left) -->
+    <div class="xl:col-span-7">
+      <div class="bg-surface-container-lowest rounded-xl border border-outline-variant/20 overflow-hidden">
+        <!-- Header + filter -->
+        <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between flex-wrap gap-3">
+          <h3 class="font-extrabold text-lg text-on-surface font-headline">My Invoices</h3>
+          <div class="flex items-center gap-2 flex-wrap">
+            <button class="filter-btn text-xs font-bold px-3 py-1.5 rounded-full transition-colors bg-primary text-white active-filter" data-filter="ALL">All</button>
+            <button class="filter-btn text-xs font-bold px-3 py-1.5 rounded-full transition-colors bg-surface-container text-on-surface-variant hover:bg-surface-container-high" data-filter="IN_PROGRESS">In Progress</button>
+            <button class="filter-btn text-xs font-bold px-3 py-1.5 rounded-full transition-colors bg-surface-container text-on-surface-variant hover:bg-surface-container-high" data-filter="QUERY_RAISED">Query</button>
+            <button class="filter-btn text-xs font-bold px-3 py-1.5 rounded-full transition-colors bg-surface-container text-on-surface-variant hover:bg-surface-container-high" data-filter="PAID">Paid</button>
+            <button class="filter-btn text-xs font-bold px-3 py-1.5 rounded-full transition-colors bg-surface-container text-on-surface-variant hover:bg-surface-container-high" data-filter="REJECTED">Rejected</button>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead class="bg-surface-container-low border-b border-outline-variant/10">
+              <tr>
+                <th class="px-5 py-3 text-left text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Invoice / Ref</th>
+                <th class="px-5 py-3 text-left text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Date</th>
+                <th class="px-5 py-3 text-left text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Amount</th>
+                <th class="px-5 py-3 text-left text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Status</th>
+                <th class="px-5 py-3"></th>
+              </tr>
+            </thead>
+            <tbody id="bills-tbody" class="divide-y divide-outline-variant/10">
+              <tr><td colspan="5" class="px-5 py-12 text-center text-on-surface-variant">
+                <div class="animate-pulse">Loading your invoices...</div>
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bill Detail / Timeline (right) -->
+    <div class="xl:col-span-5">
+      <div id="detail-panel" class="bg-surface-container-lowest rounded-xl border border-outline-variant/20 p-6 min-h-[400px]">
+        <div class="flex items-center justify-center h-64 text-on-surface-variant flex-col gap-2">
+          <span class="material-symbols-outlined text-4xl opacity-30">receipt_long</span>
+          <p class="text-sm font-medium">Select an invoice to view details</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<!-- ═══ Submit Invoice Modal ═══ -->
+<div id="invoice-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div class="p-8">
+      <div class="flex justify-between items-center mb-6">
+        <div>
+          <h2 class="text-2xl font-headline font-bold text-on-surface">Submit Invoice</h2>
+          <p class="text-sm text-on-surface-variant mt-1">Upload your document. AI will extract details automatically.</p>
+        </div>
+        <button id="close-modal" class="w-10 h-10 rounded-full bg-surface-container hover:bg-surface-container-high text-on-surface-variant flex items-center justify-center transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <!-- Upload Zone -->
+      <div id="upload-zone" class="border-2 border-dashed border-outline-variant rounded-xl p-8 text-center mb-6 cursor-pointer hover:bg-surface-container-low transition-colors">
+        <span class="material-symbols-outlined text-3xl text-primary mb-2 block">cloud_upload</span>
+        <p class="font-semibold text-on-surface">Drag & drop invoice PDF / image</p>
+        <p class="text-sm text-on-surface-variant mt-1">Supports PDF, JPEG, PNG (max 10MB)</p>
+        <input type="file" id="invoice-file-input" class="hidden" accept="image/*,.pdf"/>
+      </div>
+
+      <!-- OCR Status -->
+      <div id="ocr-status" class="hidden mb-5">
+        <div class="flex items-center gap-3 p-4 bg-primary/5 rounded-xl border border-primary/20">
+          <div id="ocr-spinner" class="animate-spin w-5 h-5 border-2 border-primary border-t-transparent rounded-full shrink-0"></div>
+          <span id="ocr-status-text" class="text-sm font-medium text-primary">Extracting invoice data with AI...</span>
+        </div>
+        <div id="ocr-confidence-bar" class="hidden mt-3 p-3 bg-primary/5 rounded-lg">
+          <p class="text-xs font-bold text-primary mb-1">AI Confidence: <span id="ocr-confidence-value"></span></p>
+          <div class="h-1.5 bg-surface-container rounded-full overflow-hidden">
+            <div id="ocr-confidence-fill" class="h-full bg-primary transition-all"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Form -->
+      <form id="invoice-form" class="space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Invoice Number *</label>
+            <input id="inv-number" type="text" required class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="INV-001">
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Invoice Date *</label>
+            <input id="inv-date" type="date" required class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Pre-GST Amount (₹) *</label>
+            <input id="inv-pre-gst" type="number" step="0.01" min="0" required class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="0.00">
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Total Amount (₹) *</label>
+            <input id="inv-total" type="number" step="0.01" min="0" required class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="0.00">
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">CGST (₹)</label>
+            <input id="inv-cgst" type="number" step="0.01" min="0" class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm" placeholder="0.00">
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">SGST (₹)</label>
+            <input id="inv-sgst" type="number" step="0.01" min="0" class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm" placeholder="0.00">
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">IGST (₹)</label>
+            <input id="inv-igst" type="number" step="0.01" min="0" class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm" placeholder="0.00">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Business Purpose *</label>
+          <textarea id="inv-purpose" required rows="2" class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="Describe the services/goods (min 5 chars)"></textarea>
+        </div>
+        <div id="inv-errors" class="hidden text-sm text-error bg-error-container p-3 rounded-lg"></div>
+        <button type="submit" id="submit-invoice-btn" class="w-full primary-gradient text-white py-3 rounded-xl font-bold hover:opacity-90 transition-opacity">
+          Submit Invoice for Approval
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Query Response Modal ═══ -->
+<div id="query-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-xl font-headline font-bold text-on-surface">Respond to Query</h3>
+      <button id="close-query-modal" class="text-on-surface-variant hover:text-on-surface">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div id="query-question" class="bg-secondary-container/30 text-on-surface p-4 rounded-xl text-sm mb-4 border border-secondary-container"></div>
+    <textarea id="query-response-text" rows="4" class="w-full border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="Your response to the query (required)..."></textarea>
+    <div id="query-error" class="hidden text-sm text-error bg-error-container p-3 rounded-lg mt-3"></div>
+    <div class="flex gap-3 mt-4">
+      <button id="cancel-query" class="flex-1 py-2.5 border border-outline-variant rounded-xl text-sm font-bold text-on-surface-variant">Cancel</button>
+      <button id="submit-query-response" class="flex-1 py-2.5 primary-gradient text-white rounded-xl text-sm font-bold">Send Response</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container" class="fixed bottom-6 right-6 z-[200] flex flex-col gap-3"></div>
+
+<script src="/frontend/shared/api.js"></script>
+<script src="/frontend/shared/auth.js"></script>
+<script src="/frontend/shared/layout.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  let allBills = [];
+  let selectedBillId = null;
+  let activeFilter = 'ALL';
+  let queryBillId = null;
+  let uploadedFileId = null;
+
+  // ── Toast ──────────────────────────────────────────────────────
+  function showToast(msg, type = 'success') {
+    const t = document.createElement('div');
+    const colors = { success: 'bg-primary text-white', error: 'bg-error text-white', info: 'bg-secondary text-white' };
+    t.className = `${colors[type] || colors.success} px-5 py-3 rounded-xl shadow-lg text-sm font-semibold flex items-center gap-2 max-w-xs`;
+    t.innerHTML = `<span class="material-symbols-outlined text-[18px]">${type==='error'?'error_outline':'check_circle'}</span>${msg}`;
+    document.getElementById('toast-container').appendChild(t);
+    setTimeout(() => t.remove(), 4000);
+  }
+
+  // ── Status helpers ─────────────────────────────────────────────
+  const STATUS_META = {
+    'SUBMITTED':        { label:'Submitted',        color:'bg-secondary-container text-on-secondary-container', step:0 },
+    'PENDING_L1':       { label:'L1 Review',         color:'bg-primary-fixed text-on-primary-fixed-variant', step:1 },
+    'PENDING_L2':       { label:'L2 Review',         color:'bg-primary-fixed text-on-primary-fixed-variant', step:2 },
+    'PENDING_HOD':      { label:'Dept Head',          color:'bg-primary-fixed text-on-primary-fixed-variant', step:3 },
+    'PENDING_FIN_L1':   { label:'Finance L1',         color:'bg-primary-fixed text-on-primary-fixed-variant', step:4 },
+    'PENDING_FIN_L2':   { label:'Finance L2',         color:'bg-primary-fixed text-on-primary-fixed-variant', step:5 },
+    'PENDING_FIN_HEAD': { label:'CFO Review',         color:'bg-primary-fixed text-on-primary-fixed-variant', step:6 },
+    'QUERY_RAISED':     { label:'Query Raised',       color:'bg-error-container text-on-error-container', step:-2 },
+    'APPROVED':         { label:'Approved',           color:'bg-primary/10 text-primary', step:7 },
+    'PENDING_D365':     { label:'Processing',         color:'bg-primary/10 text-primary', step:7 },
+    'BOOKED_D365':      { label:'Booked',             color:'bg-primary/10 text-primary', step:7 },
+    'POSTED_D365':      { label:'Posted',             color:'bg-primary/10 text-primary', step:7 },
+    'PAID':             { label:'Paid',               color:'bg-emerald-100 text-emerald-700', step:8 },
+    'REJECTED':         { label:'Rejected',           color:'bg-error-container text-on-error-container', step:-1 },
+    'AUTO_REJECT':      { label:'Auto Rejected',      color:'bg-error-container text-on-error-container', step:-1 },
+    'WITHDRAWN':        { label:'Withdrawn',          color:'bg-surface-container-high text-on-surface-variant', step:-1 },
+  };
+
+  function statusBadge(status) {
+    const m = STATUS_META[status] || { label: status, color: 'bg-surface-container text-on-surface-variant' };
+    return `<span class="status-badge ${m.color}">${m.label}</span>`;
+  }
+
+  const IN_PROGRESS = new Set(['SUBMITTED','PENDING_L1','PENDING_L2','PENDING_HOD','PENDING_FIN_L1','PENDING_FIN_L2','PENDING_FIN_HEAD','QUERY_RAISED']);
+
+  // ── Load bills ─────────────────────────────────────────────────
+  async function loadBills() {
+    try {
+      allBills = await window.api.getVendorBills() || [];
+      updateStats();
+      renderBills();
+    } catch (e) {
+      document.getElementById('bills-tbody').innerHTML =
+        `<tr><td colspan="5" class="px-5 py-8 text-center text-error text-sm">Failed to load invoices. ${e.message || ''}</td></tr>`;
+    }
+  }
+
+  function updateStats() {
+    const pending = allBills.filter(b => IN_PROGRESS.has(b.status));
+    const paid = allBills.filter(b => b.status === 'PAID');
+    const pendingAmt = pending.reduce((s, b) => s + parseFloat(b.total_amount || 0), 0);
+    document.getElementById('stat-pending-amount').textContent = '₹' + pendingAmt.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+    document.getElementById('stat-total').textContent = allBills.length;
+    document.getElementById('stat-active').textContent = pending.length;
+    document.getElementById('stat-paid').textContent = paid.length;
+  }
+
+  function getFilteredBills() {
+    if (activeFilter === 'ALL') return allBills;
+    if (activeFilter === 'IN_PROGRESS') return allBills.filter(b => IN_PROGRESS.has(b.status) && b.status !== 'QUERY_RAISED');
+    if (activeFilter === 'QUERY_RAISED') return allBills.filter(b => b.status === 'QUERY_RAISED');
+    if (activeFilter === 'PAID') return allBills.filter(b => b.status === 'PAID');
+    if (activeFilter === 'REJECTED') return allBills.filter(b => ['REJECTED','AUTO_REJECT','WITHDRAWN'].includes(b.status));
+    return allBills;
+  }
+
+  function renderBills() {
+    const bills = getFilteredBills();
+    const tbody = document.getElementById('bills-tbody');
+    if (!bills.length) {
+      tbody.innerHTML = `<tr><td colspan="5" class="px-5 py-12 text-center text-on-surface-variant">
+        <span class="material-symbols-outlined text-3xl block mb-2 opacity-30">inbox</span>
+        <p class="text-sm font-medium">No invoices found</p>
+      </td></tr>`;
+      return;
+    }
+    tbody.innerHTML = bills.map(b => {
+      const dateStr = b.invoice_date
+        ? new Date(b.invoice_date).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })
+        : new Date(b.created_at).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+      const isSelected = b.id === selectedBillId;
+      const isQuery = b.status === 'QUERY_RAISED';
+      return `
+        <tr class="cursor-pointer transition-colors ${isSelected ? 'bg-primary/5 border-l-2 border-primary' : 'hover:bg-surface-container-low'}" data-bill-id="${b.id}">
+          <td class="px-5 py-4">
+            <p class="text-sm font-bold text-on-surface">${b.invoice_number || b.ref_no || '—'}</p>
+            <p class="text-xs text-on-surface-variant">${b.ref_no || ''}</p>
+          </td>
+          <td class="px-5 py-4 text-sm text-on-surface-variant whitespace-nowrap">${dateStr}</td>
+          <td class="px-5 py-4 text-sm font-bold text-on-surface whitespace-nowrap">₹${parseFloat(b.total_amount||0).toLocaleString('en-IN',{maximumFractionDigits:0})}</td>
+          <td class="px-5 py-4">${statusBadge(b.status)}</td>
+          <td class="px-5 py-4 text-right">
+            ${isQuery
+              ? `<button class="respond-query-btn text-xs font-bold text-error bg-error-container px-3 py-1.5 rounded-lg hover:opacity-90" data-id="${b.id}">Respond</button>`
+              : `<span class="material-symbols-outlined text-outline-variant text-[16px]">chevron_right</span>`
+            }
+          </td>
+        </tr>`;
+    }).join('');
+
+    tbody.querySelectorAll('tr[data-bill-id]').forEach(row => {
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('.respond-query-btn')) return;
+        selectBill(row.dataset.billId);
+      });
+    });
+    tbody.querySelectorAll('.respond-query-btn').forEach(btn => {
+      btn.addEventListener('click', () => openQueryModal(btn.dataset.id));
+    });
+  }
+
+  // ── Bill Detail / Timeline ────────────────────────────────────
+  async function selectBill(billId) {
+    selectedBillId = billId;
+    renderBills();
+    const panel = document.getElementById('detail-panel');
+    panel.innerHTML = '<div class="flex items-center justify-center h-48"><div class="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full"></div></div>';
+    try {
+      const bill = await window.api.getVendorBillDetail(billId);
+      renderDetailPanel(bill);
+    } catch (e) {
+      panel.innerHTML = `<p class="text-error text-sm p-4">Failed to load details: ${e.message}</p>`;
+    }
+  }
+
+  const TIMELINE_STEPS = [
+    { label: 'Submitted', icon: 'upload_file' },
+    { label: 'L1 Review', icon: 'rate_review' },
+    { label: 'L2 Review', icon: 'rate_review' },
+    { label: 'Dept Head', icon: 'supervisor_account' },
+    { label: 'Finance L1', icon: 'account_balance' },
+    { label: 'Finance L2', icon: 'account_balance' },
+    { label: 'CFO Approval', icon: 'verified' },
+    { label: 'Paid', icon: 'payments' },
+  ];
+
+  function renderDetailPanel(bill) {
+    const m = STATUS_META[bill.status] || {};
+    const currentStep = m.step ?? 0;
+    const isRejected = bill.status === 'REJECTED' || bill.status === 'AUTO_REJECT';
+    const isQuery = bill.status === 'QUERY_RAISED';
+    const isPaid = bill.status === 'PAID';
+
+    const timelineHTML = TIMELINE_STEPS.map((step, i) => {
+      let state = 'future';
+      if (isPaid || currentStep > i) state = 'done';
+      else if (isRejected && i <= (bill.current_step || 1)) state = i < (bill.current_step || 1) ? 'done' : 'rejected';
+      else if (currentStep === i) state = isQuery ? 'query' : 'current';
+
+      const colors = {
+        done:     'primary-gradient text-white',
+        current:  'border-2 border-primary bg-primary/10 text-primary',
+        query:    'border-2 border-error bg-error-container text-error',
+        rejected: 'border-2 border-error bg-error-container text-error',
+        future:   'border-2 border-outline-variant bg-surface-container text-on-surface-variant opacity-50',
+      };
+      const lineColor = state === 'done' ? 'bg-primary' : 'bg-outline-variant/30';
+      return `
+        <div class="flex items-center ${i < TIMELINE_STEPS.length - 1 ? 'flex-1' : ''}">
+          <div class="flex flex-col items-center gap-1 relative">
+            <div class="w-10 h-10 rounded-full ${colors[state]} flex items-center justify-center">
+              <span class="material-symbols-outlined text-[18px]">${state==='done' ? 'check' : state==='rejected' ? 'close' : step.icon}</span>
+            </div>
+            <p class="text-[9px] font-bold text-center text-on-surface-variant w-16 leading-tight">${step.label}</p>
+          </div>
+          ${i < TIMELINE_STEPS.length - 1 ? `<div class="flex-1 h-0.5 ${lineColor} mx-1 mb-4"></div>` : ''}
+        </div>`;
+    }).join('');
+
+    const anomalyHTML = bill.anomaly_severity && bill.anomaly_severity !== 'NONE' ? `
+      <div class="bg-error/5 border border-error/20 rounded-xl p-3 flex items-start gap-3 mt-4">
+        <span class="material-symbols-outlined text-error text-[18px] mt-0.5">warning</span>
+        <div>
+          <p class="text-xs font-bold text-error">Anomaly: ${bill.anomaly_severity}</p>
+          <p class="text-xs text-on-surface-variant">Finance team has been notified to review.</p>
+        </div>
+      </div>` : '';
+
+    const queryBtn = isQuery ? `
+      <button onclick="document.getElementById('query-modal').classList.remove('hidden')" data-open-query="${bill.id}"
+        class="w-full mt-4 py-3 bg-error-container text-error font-bold rounded-xl text-sm hover:opacity-90 flex items-center justify-center gap-2">
+        <span class="material-symbols-outlined text-[18px]">help</span>
+        Respond to Query
+      </button>` : '';
+
+    const ocrBadge = bill.ocr_confidence ? `
+      <div class="flex items-center gap-2">
+        <div class="flex-1 h-1 bg-surface-container rounded-full overflow-hidden">
+          <div class="h-full bg-primary" style="width:${Math.round(bill.ocr_confidence*100)}%"></div>
+        </div>
+        <span class="text-xs font-bold text-primary">${Math.round(bill.ocr_confidence*100)}%</span>
+      </div>` : '<span class="text-xs text-on-surface-variant">Manual entry</span>';
+
+    document.getElementById('detail-panel').innerHTML = `
+      <div class="space-y-5">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-xs text-on-surface-variant font-medium">${bill.ref_no}</p>
+            <p class="text-lg font-bold font-headline text-on-surface">${bill.invoice_number || '—'}</p>
+          </div>
+          ${statusBadge(bill.status)}
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 text-sm">
+          <div class="bg-surface-container-low rounded-lg p-3">
+            <p class="text-xs text-on-surface-variant mb-1">Amount</p>
+            <p class="font-bold text-on-surface">₹${parseFloat(bill.total_amount||0).toLocaleString('en-IN',{maximumFractionDigits:0})}</p>
+          </div>
+          <div class="bg-surface-container-low rounded-lg p-3">
+            <p class="text-xs text-on-surface-variant mb-1">Invoice Date</p>
+            <p class="font-bold text-on-surface">${bill.invoice_date || '—'}</p>
+          </div>
+          <div class="bg-surface-container-low rounded-lg p-3">
+            <p class="text-xs text-on-surface-variant mb-1">CGST / SGST</p>
+            <p class="font-bold text-on-surface">₹${parseFloat(bill.cgst||0).toLocaleString('en-IN')} / ₹${parseFloat(bill.sgst||0).toLocaleString('en-IN')}</p>
+          </div>
+          <div class="bg-surface-container-low rounded-lg p-3">
+            <p class="text-xs text-on-surface-variant mb-1">OCR Confidence</p>
+            ${ocrBadge}
+          </div>
+        </div>
+
+        ${bill.business_purpose ? `<p class="text-sm text-on-surface-variant border-l-2 border-primary pl-3">${bill.business_purpose}</p>` : ''}
+
+        ${anomalyHTML}
+
+        <div>
+          <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-3">Approval Progress</p>
+          <div class="flex items-start overflow-x-auto pb-2">${timelineHTML}</div>
+        </div>
+
+        ${bill.d365_payment_utr ? `
+          <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+            <p class="text-xs font-bold text-emerald-700">✅ Payment Confirmed</p>
+            <p class="text-xs text-emerald-600 mt-1">UTR: ${bill.d365_payment_utr}</p>
+          </div>` : ''}
+
+        ${queryBtn}
+      </div>`;
+
+    // Wire query button
+    const qBtn = document.querySelector(`[data-open-query="${bill.id}"]`);
+    if (qBtn) qBtn.addEventListener('click', () => openQueryModal(bill.id));
+  }
+
+  // ── Filter buttons ─────────────────────────────────────────────
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeFilter = btn.dataset.filter;
+      document.querySelectorAll('.filter-btn').forEach(b => {
+        b.className = 'filter-btn text-xs font-bold px-3 py-1.5 rounded-full transition-colors bg-surface-container text-on-surface-variant hover:bg-surface-container-high';
+      });
+      btn.className = 'filter-btn text-xs font-bold px-3 py-1.5 rounded-full transition-colors bg-primary text-white';
+      renderBills();
+    });
+  });
+
+  // ── Submit Modal ───────────────────────────────────────────────
+  const modal = document.getElementById('invoice-modal');
+  document.getElementById('open-submit-modal').addEventListener('click', () => { modal.classList.remove('hidden'); document.body.style.overflow='hidden'; });
+  document.getElementById('close-modal').addEventListener('click', () => { modal.classList.add('hidden'); document.body.style.overflow=''; });
+  modal.addEventListener('click', e => { if (e.target === modal) { modal.classList.add('hidden'); document.body.style.overflow=''; }});
+
+  // Upload zone
+  const uploadZone = document.getElementById('upload-zone');
+  const fileInput = document.getElementById('invoice-file-input');
+  uploadZone.addEventListener('click', () => fileInput.click());
+  uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('bg-surface-container-low'); });
+  uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('bg-surface-container-low'));
+  uploadZone.addEventListener('drop', e => { e.preventDefault(); uploadZone.classList.remove('bg-surface-container-low'); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+  fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+
+  async function handleFile(file) {
+    uploadZone.innerHTML = `<span class="material-symbols-outlined text-2xl text-primary block mb-2">description</span>
+      <p class="font-semibold text-primary">${file.name}</p>
+      <p class="text-xs text-on-surface-variant mt-1">${(file.size/1024).toFixed(1)} KB · Click to change</p>`;
+    uploadZone.addEventListener('click', () => fileInput.click(), { once: true });
+
+    const ocrEl = document.getElementById('ocr-status');
+    const ocrText = document.getElementById('ocr-status-text');
+    const spinner = document.getElementById('ocr-spinner');
+    ocrEl.classList.remove('hidden');
+    ocrText.textContent = 'Uploading file...';
+
+    try {
+      const uploaded = await window.api.uploadFile(file);
+      uploadedFileId = uploaded.id;
+      ocrText.textContent = 'Extracting data with AI...';
+      const trigger = await window.api.triggerOCR(uploadedFileId);
+      const result = await window.api.waitForOCR(trigger.task_id, p => {
+        ocrText.textContent = p.status === 'PROCESSING' ? 'AI analyzing invoice...' : 'Processing...';
+      });
+      spinner.classList.add('hidden');
+      if (result.status === 'COMPLETE') {
+        ocrText.textContent = '✅ Data extracted successfully!';
+        ocrEl.querySelector('.bg-primary\\/5')?.classList.replace('bg-primary/5','bg-emerald-50');
+        document.getElementById('ocr-confidence-bar').classList.remove('hidden');
+        const pct = Math.round((result.confidence||0)*100);
+        document.getElementById('ocr-confidence-value').textContent = `${pct}%`;
+        document.getElementById('ocr-confidence-fill').style.width = `${pct}%`;
+        const f = result.extracted_fields || {};
+        if (f.invoice_number) document.getElementById('inv-number').value = f.invoice_number;
+        if (f.invoice_date) document.getElementById('inv-date').value = f.invoice_date;
+        if (f.pre_gst_amount) document.getElementById('inv-pre-gst').value = f.pre_gst_amount;
+        if (f.total_amount) document.getElementById('inv-total').value = f.total_amount;
+        if (f.cgst) document.getElementById('inv-cgst').value = f.cgst;
+        if (f.sgst) document.getElementById('inv-sgst').value = f.sgst;
+        if (f.igst) document.getElementById('inv-igst').value = f.igst;
+      } else {
+        ocrText.textContent = '⚠️ OCR failed — please fill manually';
+      }
+    } catch (e) {
+      spinner.classList.add('hidden');
+      ocrText.textContent = '⚠️ Upload failed — please try again';
+    }
+  }
+
+  // Submit form
+  document.getElementById('invoice-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = document.getElementById('submit-invoice-btn');
+    const errDiv = document.getElementById('inv-errors');
+    errDiv.classList.add('hidden');
+    btn.disabled = true; btn.textContent = 'Submitting...';
+
+    try {
+      const user = AUTH.getUser();
+      // Get vendor ID from vendor profile
+      let vendorId = null;
+      try {
+        const profile = await window.api.getVendorProfile();
+        vendorId = profile.id;
+      } catch(e2) { throw new Error('Could not load vendor profile. Please refresh.'); }
+
+      const payload = {
+        vendor: vendorId,
+        invoice_number: document.getElementById('inv-number').value,
+        invoice_date: document.getElementById('inv-date').value,
+        pre_gst_amount: document.getElementById('inv-pre-gst').value || '0',
+        total_amount: document.getElementById('inv-total').value || '0',
+        cgst: document.getElementById('inv-cgst').value || '0',
+        sgst: document.getElementById('inv-sgst').value || '0',
+        igst: document.getElementById('inv-igst').value || '0',
+        business_purpose: document.getElementById('inv-purpose').value,
+      };
+      if (uploadedFileId) payload.invoice_file = uploadedFileId;
+
+      const bill = await window.api.submitBill(payload);
+      modal.classList.add('hidden');
+      document.body.style.overflow = '';
+      showToast(`Invoice ${bill.ref_no} submitted successfully!`);
+      uploadedFileId = null;
+      document.getElementById('invoice-form').reset();
+      document.getElementById('ocr-status').classList.add('hidden');
+      uploadZone.innerHTML = `<span class="material-symbols-outlined text-3xl text-primary mb-2 block">cloud_upload</span>
+        <p class="font-semibold text-on-surface">Drag & drop invoice PDF / image</p>
+        <p class="text-sm text-on-surface-variant mt-1">Supports PDF, JPEG, PNG (max 10MB)</p>`;
+      await loadBills();
+      selectBill(bill.id);
+    } catch (err) {
+      errDiv.textContent = err.message || 'Submission failed. Please try again.';
+      errDiv.classList.remove('hidden');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Submit Invoice for Approval';
+    }
+  });
+
+  // ── Query Modal ────────────────────────────────────────────────
+  function openQueryModal(billId) {
+    queryBillId = billId;
+    const bill = allBills.find(b => b.id === billId);
+    document.getElementById('query-question').textContent = 'The finance team has raised a query on this invoice. Please provide a detailed response.';
+    document.getElementById('query-response-text').value = '';
+    document.getElementById('query-error').classList.add('hidden');
+    document.getElementById('query-modal').classList.remove('hidden');
+  }
+  document.getElementById('close-query-modal').addEventListener('click', () => document.getElementById('query-modal').classList.add('hidden'));
+  document.getElementById('cancel-query').addEventListener('click', () => document.getElementById('query-modal').classList.add('hidden'));
+  document.getElementById('submit-query-response').addEventListener('click', async () => {
+    const response = document.getElementById('query-response-text').value.trim();
+    const errDiv = document.getElementById('query-error');
+    if (!response || response.length < 5) {
+      errDiv.textContent = 'Response must be at least 5 characters.';
+      errDiv.classList.remove('hidden');
+      return;
+    }
+    const btn = document.getElementById('submit-query-response');
+    btn.disabled = true; btn.textContent = 'Sending...';
+    try {
+      await window.api.respondQuery(queryBillId, response);
+      document.getElementById('query-modal').classList.add('hidden');
+      showToast('Response sent successfully!');
+      await loadBills();
+      if (selectedBillId === queryBillId) selectBill(queryBillId);
+    } catch (e) {
+      errDiv.textContent = e.message || 'Failed to send response.';
+      errDiv.classList.remove('hidden');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Send Response';
+    }
+  });
+
+  // ── Load vendor profile ────────────────────────────────────────
+  try {
+    const profile = await window.api.getVendorProfile();
+    document.getElementById('vendor-display-name').textContent = profile.name;
+    document.getElementById('vendor-name-breadcrumb').textContent = profile.name;
+  } catch (e) {
+    const user = AUTH.getUser();
+    document.getElementById('vendor-display-name').textContent = user?.full_name || user?.username || 'Vendor';
+  }
+
+  // ── Init ───────────────────────────────────────────────────────
+  await loadBills();
+  setInterval(loadBills, 30000);
+});
+</script>
+</body>
+</html>

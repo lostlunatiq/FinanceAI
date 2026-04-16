@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expense Management - FinanceAI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface-variant": "#e3e2e2",
+                      "outline": "#6f797a",
+                      "error": "#ba1a1a",
+                      "surface-container-lowest": "#ffffff",
+                      "surface-container-high": "#e9e8e7",
+                      "surface-container-low": "#f5f3f3",
+                      "inverse-surface": "#303031",
+                      "on-surface": "#1b1c1c",
+                      "surface-container-highest": "#e3e2e2",
+                      "outline-variant": "#bec8ca",
+                      "on-surface-variant": "#3e494a",
+                      "on-background": "#1b1c1c",
+                      "inverse-on-surface": "#f2f0f0",
+                      "surface-container": "#efeded",
+                      "primary": "#00535b",
+                      "primary-container": "#006d77",
+                      "on-primary-container": "#9becf7",
+                      "on-primary": "#ffffff",
+                      "error": "#ba1a1a",
+                      "error-container": "#ffdad6",
+                      "on-error-container": "#93000a",
+                      "secondary": "#495f84",
+                      "secondary-container": "#bcd2fe",
+                      "on-secondary-container": "#445a7f",
+                      "surface-container-highest": "#e3e2e2",
+                      "primary-fixed": "#9ff0fb",
+                      "primary-fixed-dim": "#82d3de",
+                      "on-primary-fixed": "#001f23",
+                      "on-primary-fixed-variant": "#004f56"
+              },
+               "fontFamily": {
+                      "headline": ["Manrope"],
+                      "body": ["Inter"],
+                      "label": ["Inter"]
+              }
+            }
+          }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #fbf9f9; }
+        .font-manrope { font-family: 'Manrope', sans-serif; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen">
+    <header class="flex justify-between items-center bg-surface-container-lowest px-8 py-4 border-b border-outline-variant lg:ml-64 relative z-30 shadow-sm">
+        <div class="flex items-center gap-4 text-sm text-outline font-medium tracking-wide" id="breadcrumb-area">
+            <span>Finance Hub</span>
+            <span class="material-symbols-outlined text-sm">chevron_right</span>
+            <span class="text-on-surface font-bold text-primary">Expense Management</span>
+        </div>
+        <div class="flex items-center gap-4">
+            <div class="relative group">
+                <span class="material-symbols-outlined text-on-surface-variant cursor-pointer p-2 hover:bg-slate-100 rounded-full transition-colors">notifications</span>
+            </div>
+            <span class="material-symbols-outlined text-on-surface-variant cursor-pointer p-2 hover:bg-slate-100 rounded-full transition-colors">account_circle</span>
+        </div>
+    </header>
+
+    <div id="sidebar-container" class="z-40"></div>
+
+    <main class="lg:ml-64 p-8 relative">
+        <section class="max-w-7xl mx-auto space-y-6">
+            <div class="flex justify-between items-end mb-8">
+                <div>
+                    <h1 class="text-3xl font-headline font-extrabold tracking-tight">Internal Expenses</h1>
+                    <p class="text-on-surface-variant mt-2 max-w-lg">Manage employee reimbursements and operational expenditures.</p>
+                </div>
+                <button id="open-file-expense" class="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-bold font-manrope shadow hover:opacity-90">
+                    <span class="material-symbols-outlined">add</span> File Expense
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <!-- Data cards here... -->
+                <div class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/30">
+                    <p class="text-sm font-bold text-on-surface-variant">Unapproved Spend</p>
+                    <h2 class="text-2xl font-headline font-black mt-2">₹12,450</h2>
+                </div>
+            </div>
+
+            <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/30 overflow-hidden">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-surface-container-low border-b border-outline-variant/30 text-xs uppercase tracking-wider font-bold text-on-surface-variant">
+                        <tr>
+                            <th class="p-4">Report ID</th>
+                            <th class="p-4">Employee</th>
+                            <th class="p-4">Amount</th>
+                            <th class="p-4">Date</th>
+                            <th class="p-4">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="expense-tbody" class="text-sm">
+                        <!-- Dynamic content injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+<!-- ═══ File Expense Modal ═══ -->
+<div id="file-expense-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div class="p-8">
+      <div class="flex justify-between items-center mb-6">
+        <div>
+          <h2 class="text-xl font-headline font-bold text-on-surface">File Expense / Bill</h2>
+          <p class="text-sm text-on-surface-variant mt-1">Submit a vendor bill or internal expense for approval</p>
+        </div>
+        <button id="close-file-expense" class="w-10 h-10 rounded-full bg-surface-container hover:bg-surface-container-high flex items-center justify-center">
+          <span class="material-symbols-outlined text-on-surface-variant">close</span>
+        </button>
+      </div>
+
+      <!-- Upload Zone -->
+      <div id="fe-upload-zone" class="border-2 border-dashed border-outline-variant rounded-xl p-6 text-center mb-5 cursor-pointer hover:bg-surface-container-low transition-colors">
+        <span class="material-symbols-outlined text-2xl text-primary block mb-2">cloud_upload</span>
+        <p class="font-semibold text-on-surface text-sm">Upload invoice for AI extraction (optional)</p>
+        <p class="text-xs text-on-surface-variant mt-1">PDF, JPEG, PNG (max 10MB)</p>
+        <input type="file" id="fe-file-input" class="hidden" accept="image/*,.pdf"/>
+      </div>
+      <div id="fe-ocr-status" class="hidden mb-4">
+        <div class="flex items-center gap-3 p-3 bg-primary/5 rounded-lg">
+          <div id="fe-spinner" class="animate-spin w-4 h-4 border-2 border-primary border-t-transparent rounded-full shrink-0"></div>
+          <span id="fe-ocr-text" class="text-sm text-primary font-medium">Processing...</span>
+        </div>
+      </div>
+
+      <!-- Vendor selection -->
+      <div id="fe-vendor-section" class="mb-5">
+        <label class="block text-xs font-bold uppercase text-on-surface-variant mb-2">Vendor *</label>
+        <select id="fe-vendor" required class="w-full border border-outline-variant rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+          <option value="">Loading vendors...</option>
+        </select>
+      </div>
+
+      <form id="file-expense-form" class="space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Invoice Number *</label>
+            <input id="fe-inv-number" type="text" required class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm" placeholder="INV-2026-001">
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Invoice Date *</label>
+            <input id="fe-inv-date" type="date" required class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Pre-GST Amount (₹) *</label>
+            <input id="fe-pre-gst" type="number" step="0.01" min="0" required class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm" placeholder="0.00">
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Total Amount (₹) *</label>
+            <input id="fe-total" type="number" step="0.01" min="0" required class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm" placeholder="0.00">
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">CGST (₹)</label>
+            <input id="fe-cgst" type="number" step="0.01" min="0" class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm" placeholder="0.00">
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">SGST (₹)</label>
+            <input id="fe-sgst" type="number" step="0.01" min="0" class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm" placeholder="0.00">
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">IGST (₹)</label>
+            <input id="fe-igst" type="number" step="0.01" min="0" class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm" placeholder="0.00">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Business Purpose *</label>
+          <textarea id="fe-purpose" required rows="2" class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm" placeholder="Describe the services / goods received"></textarea>
+        </div>
+        <div id="fe-errors" class="hidden text-sm text-error bg-error-container p-3 rounded-lg"></div>
+        <div class="flex gap-3 pt-2">
+          <button type="button" id="fe-cancel" class="flex-1 py-3 border border-outline-variant rounded-xl text-sm font-bold text-on-surface-variant">Cancel</button>
+          <button type="submit" id="fe-submit-btn" class="flex-1 py-3 bg-primary text-white rounded-xl text-sm font-bold hover:opacity-90">Submit for Approval</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+    <script src="/frontend/shared/api.js"></script>
+    <script src="/frontend/shared/auth.js"></script>
+    <script src="/frontend/shared/layout.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            // ── File Expense Modal ────────────────────────────────
+            const feModal = document.getElementById('file-expense-modal');
+            const openBtn = document.getElementById('open-file-expense');
+            const closeBtn = document.getElementById('close-file-expense');
+            const cancelBtn = document.getElementById('fe-cancel');
+            let feFileId = null;
+
+            openBtn.addEventListener('click', async () => {
+                feModal.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+                // Load vendors
+                try {
+                    const vendors = await window.api.getVendors({ status: 'ACTIVE' });
+                    const sel = document.getElementById('fe-vendor');
+                    sel.innerHTML = '<option value="">Select vendor...</option>' +
+                        vendors.map(v => `<option value="${v.id}">${v.name}</option>`).join('');
+                } catch (e) { console.warn('Could not load vendors:', e); }
+            });
+            [closeBtn, cancelBtn].forEach(b => b.addEventListener('click', () => {
+                feModal.classList.add('hidden'); document.body.style.overflow='';
+            }));
+            feModal.addEventListener('click', e => { if(e.target===feModal){feModal.classList.add('hidden');document.body.style.overflow='';} });
+
+            // OCR upload
+            const uploadZone = document.getElementById('fe-upload-zone');
+            const fileInput = document.getElementById('fe-file-input');
+            uploadZone.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', async () => {
+                if (!fileInput.files[0]) return;
+                const file = fileInput.files[0];
+                uploadZone.innerHTML = `<span class="material-symbols-outlined text-xl text-primary block mb-1">description</span><p class="text-sm font-semibold text-primary">${file.name}</p>`;
+                const ocrEl = document.getElementById('fe-ocr-status');
+                const ocrText = document.getElementById('fe-ocr-text');
+                ocrEl.classList.remove('hidden');
+                ocrText.textContent = 'Uploading...';
+                try {
+                    const up = await window.api.uploadFile(file);
+                    feFileId = up.id;
+                    ocrText.textContent = 'Extracting with AI...';
+                    const trigger = await window.api.triggerOCR(feFileId);
+                    const result = await window.api.waitForOCR(trigger.task_id);
+                    document.getElementById('fe-spinner').classList.add('hidden');
+                    if (result.status === 'COMPLETE') {
+                        ocrText.textContent = `✅ Extracted (confidence: ${Math.round((result.confidence||0)*100)}%)`;
+                        const f = result.extracted_fields || {};
+                        if (f.invoice_number) document.getElementById('fe-inv-number').value = f.invoice_number;
+                        if (f.invoice_date) document.getElementById('fe-inv-date').value = f.invoice_date;
+                        if (f.pre_gst_amount) document.getElementById('fe-pre-gst').value = f.pre_gst_amount;
+                        if (f.total_amount) document.getElementById('fe-total').value = f.total_amount;
+                        if (f.cgst) document.getElementById('fe-cgst').value = f.cgst;
+                        if (f.sgst) document.getElementById('fe-sgst').value = f.sgst;
+                        if (f.igst) document.getElementById('fe-igst').value = f.igst;
+                    } else {
+                        ocrText.textContent = '⚠️ OCR failed — fill manually';
+                    }
+                } catch (e) {
+                    document.getElementById('fe-spinner').classList.add('hidden');
+                    ocrText.textContent = '⚠️ Upload failed';
+                }
+            });
+
+            document.getElementById('file-expense-form').addEventListener('submit', async e => {
+                e.preventDefault();
+                const btn = document.getElementById('fe-submit-btn');
+                const errDiv = document.getElementById('fe-errors');
+                errDiv.classList.add('hidden');
+                btn.disabled = true; btn.textContent = 'Submitting...';
+                try {
+                    const vendorId = document.getElementById('fe-vendor').value;
+                    if (!vendorId) throw new Error('Please select a vendor');
+                    const payload = {
+                        vendor: vendorId,
+                        invoice_number: document.getElementById('fe-inv-number').value,
+                        invoice_date: document.getElementById('fe-inv-date').value,
+                        pre_gst_amount: document.getElementById('fe-pre-gst').value || '0',
+                        total_amount: document.getElementById('fe-total').value || '0',
+                        cgst: document.getElementById('fe-cgst').value || '0',
+                        sgst: document.getElementById('fe-sgst').value || '0',
+                        igst: document.getElementById('fe-igst').value || '0',
+                        business_purpose: document.getElementById('fe-purpose').value,
+                    };
+                    if (feFileId) payload.invoice_file = feFileId;
+                    const bill = await window.api.submitBill(payload);
+                    feModal.classList.add('hidden');
+                    document.body.style.overflow='';
+                    document.getElementById('file-expense-form').reset();
+                    feFileId = null;
+                    // Refresh list
+                    const newExpenses = await window.api.getInternalExpenses();
+                    renderExpenses(newExpenses || []);
+                } catch (err) {
+                    const detail = err.data ? Object.values(err.data).flat().join(' | ') : err.message;
+                    errDiv.textContent = detail || 'Submission failed.';
+                    errDiv.classList.remove('hidden');
+                } finally { btn.disabled=false; btn.textContent='Submit for Approval'; }
+            });
+
+            // ── Load expenses ─────────────────────────────────────
+            function renderExpenses(expenses) {
+                const tbody = document.getElementById('expense-tbody');
+                if (!expenses || expenses.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-on-surface-variant font-medium">No expenses found.</td></tr>';
+                    return;
+                }
+                let totalUnapproved = 0;
+                tbody.innerHTML = expenses.map(exp => {
+                    const s = exp.status || exp._status || '';
+                    const statusColor = (s==='REJECTED'||s==='AUTO_REJECT') ? 'bg-error-container text-on-error-container' :
+                                        (s==='PAID'||s.includes('APPROVED')) ? 'bg-primary/10 text-primary' :
+                                        s==='QUERY_RAISED' ? 'bg-error-container text-on-error-container' :
+                                        'bg-amber-100 text-amber-700';
+                    if (!['APPROVED','PAID','REJECTED','WITHDRAWN'].some(x => s.includes(x))) {
+                        totalUnapproved += parseFloat(exp.total_amount || 0);
+                    }
+                    return `<tr class="border-b border-outline-variant/10 hover:bg-surface-container transition-colors cursor-pointer">
+                        <td class="p-4 font-bold text-primary">${exp.ref_no || exp.id.substring(0,8)}</td>
+                        <td class="p-4">${exp.vendor_name || exp.vendor?.name || 'Internal'}</td>
+                        <td class="p-4 font-bold">₹${parseFloat(exp.total_amount||0).toLocaleString('en-IN',{maximumFractionDigits:0})}</td>
+                        <td class="p-4 text-on-surface-variant text-sm">${new Date(exp.created_at).toLocaleDateString()}</td>
+                        <td class="p-4"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${statusColor}">${s.replace(/_/g,' ')}</span></td>
+                    </tr>`;
+                }).join('');
+                const spendMetric = document.querySelector('#expense-tbody').closest('section').querySelector('h2.text-2xl');
+                if (spendMetric) spendMetric.textContent = '₹' + totalUnapproved.toLocaleString('en-IN',{maximumFractionDigits:0});
+            }
+
+            try {
+                const expenses = await window.api.getInternalExpenses();
+                renderExpenses(expenses || []);
+            } catch (err) {
+                console.error('Failed to load expenses', err);
+                document.getElementById('expense-tbody').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-error">Failed to load expenses.</td></tr>';
+            }
+        });
+    </script>
+</body>
+</html>

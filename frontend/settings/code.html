@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>FinanceAI | Settings</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;400;600;700;800&amp;family=Inter:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-fixed": "#001b3d",
+                        "surface-variant": "#e3e2e2",
+                        "on-primary-fixed-variant": "#004f56",
+                        "outline": "#6f797a",
+                        "tertiary-fixed": "#ecdcff",
+                        "error": "#ba1a1a",
+                        "tertiary": "#6300c9",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-high": "#e9e8e7",
+                        "surface-dim": "#dbdad9",
+                        "surface-container-low": "#f5f3f3",
+                        "on-secondary-fixed-variant": "#31476b",
+                        "inverse-surface": "#303031",
+                        "on-secondary": "#ffffff",
+                        "surface-tint": "#006972",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-container": "#9becf7",
+                        "on-tertiary-fixed-variant": "#5f00c0",
+                        "background": "#fbf9f9",
+                        "secondary-container": "#bcd2fe",
+                        "error-container": "#ffdad6",
+                        "surface": "#fbf9f9",
+                        "primary": "#00535b",
+                        "on-secondary-container": "#445a7f",
+                        "primary-container": "#006d77",
+                        "surface-bright": "#fbf9f9",
+                        "on-tertiary-container": "#e9d7ff",
+                        "on-surface": "#1b1c1c",
+                        "tertiary-fixed-dim": "#d5baff",
+                        "on-error-container": "#93000a",
+                        "surface-container-highest": "#e3e2e2",
+                        "on-primary": "#ffffff",
+                        "outline-variant": "#bec8ca",
+                        "on-error": "#ffffff",
+                        "primary-fixed": "#9ff0fb",
+                        "inverse-primary": "#82d3de",
+                        "secondary": "#495f84",
+                        "on-surface-variant": "#3e494a",
+                        "secondary-fixed-dim": "#b1c7f2",
+                        "on-primary-fixed": "#001f23",
+                        "primary-fixed-dim": "#82d3de",
+                        "on-background": "#1b1c1c",
+                        "secondary-fixed": "#d6e3ff",
+                        "tertiary-container": "#7d30e6",
+                        "inverse-on-surface": "#f2f0f0",
+                        "surface-container": "#efeded",
+                        "on-tertiary-fixed": "#270057"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3 { font-family: 'Manrope', sans-serif; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(24px);
+            box-shadow: 0 12px 40px rgba(0, 83, 91, 0.06);
+        }
+        .primary-gradient {
+            background: linear-gradient(135deg, #00535b 0%, #006d77 100%);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen">
+<!-- TopNavBar -->
+
+<!-- SideNavBar (Desktop Only) -->
+
+<!-- Main Content Canvas -->
+<div id="sidebar-container" class="z-40"></div>
+<main class="lg:ml-64 p-8 lg:p-12 max-w-7xl">
+<div class="mb-12">
+<h1 class="text-2xl font-extrabold tracking-tighter text-primary mb-2">Account Architecture</h1>
+<p class="text-on-surface-variant font-medium">Manage your institutional identity, access controls, and intelligence flows.</p>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+<!-- Bento Grid - Section 1: User Profile & Quick Actions -->
+<section class="lg:col-span-4 space-y-8">
+<!-- User Profile Card -->
+<div class="bg-surface-container-lowest rounded-full p-8 transition-all hover:shadow-lg hover:shadow-primary/5 group">
+<div class="flex flex-col items-center text-center">
+<div class="relative mb-6">
+<div class="w-32 h-32 rounded-full overflow-hidden p-1 border-2 border-primary/10 group-hover:border-primary/30 transition-colors">
+<img alt="Julian Vance" class="w-full h-full object-cover rounded-full" data-alt="headshot of a man with sharp features and a confident expression, soft corporate lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAnKMSHiV0WisD80hdY4jzZ9uFULImPCYGuthdHhPfnj3WwjirZA4eYVpUZPrDFrLf2JHajpEsabAxZTUIH3vOEsrT9vXdIu6x1jDqaiZaMTZj3VIWJ7eRxyvWSxMpVkjZqji_KU8FiMgi1kdR0dwLY9Xc8Qd1H9N7Ymt5nXZ_t2cjm0Q6Md70GnkvpxUX0Z-DjaXl5Msfyv-1REJRV5h4FT-8M-jtAAKFzXDjhjADnLtRyH7Mc-cyD1WyrWj3US3ezqjjeZ8KYrsir"/>
+</div>
+<button class="absolute bottom-1 right-1 w-10 h-10 primary-gradient text-white rounded-full flex items-center justify-center shadow-lg border-4 border-white">
+<span class="material-symbols-outlined text-sm">edit</span>
+</button>
+</div>
+<h3 class="text-2xl font-bold text-on-surface">Julian Vance</h3>
+<p class="text-on-surface-variant text-sm mb-6">Chief Financial Controller</p>
+<div class="w-full space-y-3">
+<div class="flex items-center justify-between p-4 bg-surface-container-low rounded-xl">
+<span class="text-xs font-bold text-on-surface-variant uppercase tracking-tighter">ID Number</span>
+<span class="text-sm font-mono font-medium">FA-992-X</span>
+</div>
+<div class="flex items-center justify-between p-4 bg-surface-container-low rounded-xl">
+<span class="text-xs font-bold text-on-surface-variant uppercase tracking-tighter">Status</span>
+<span class="flex items-center gap-2 text-sm font-semibold text-primary">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                                    Verified
+                                </span>
+</div>
+</div>
+</div>
+</div>
+<!-- Notification Toggles Card -->
+<div class="bg-surface-container-lowest rounded-full p-8 space-y-6">
+<h4 class="text-lg font-bold text-primary flex items-center gap-2">
+<span class="material-symbols-outlined">notifications_active</span>
+                        Intelligence Feed
+                    </h4>
+<div class="space-y-6">
+<!-- Email Toggle -->
+<div class="flex items-center justify-between">
+<div>
+<p class="font-bold text-on-surface">Email Summaries</p>
+<p class="text-xs text-on-surface-variant">Daily automated ledger digest</p>
+</div>
+<button class="w-12 h-6 bg-primary rounded-full relative transition-colors">
+<div class="absolute right-1 top-1 w-4 h-4 bg-white rounded-full"></div>
+</button>
+</div>
+<!-- App Toggle -->
+<div class="flex items-center justify-between">
+<div>
+<p class="font-bold text-on-surface">System Alerts</p>
+<p class="text-xs text-on-surface-variant">Critical transaction anomalies</p>
+</div>
+<button class="w-12 h-6 bg-primary rounded-full relative transition-colors">
+<div class="absolute right-1 top-1 w-4 h-4 bg-white rounded-full"></div>
+</button>
+</div>
+<!-- Push Toggle -->
+<div class="flex items-center justify-between">
+<div>
+<p class="font-bold text-on-surface">Mobile Push</p>
+<p class="text-xs text-on-surface-variant">Real-time biometrics auth</p>
+</div>
+<button class="w-12 h-6 bg-surface-container-high rounded-full relative transition-colors">
+<div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full"></div>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Role Permissions Matrix - Section 2: Core Table -->
+<section class="lg:col-span-8 space-y-8">
+<div class="bg-surface-container-low rounded-full overflow-hidden p-1">
+<div class="bg-white rounded-full p-8">
+<div class="flex justify-between items-end mb-8">
+<div>
+<h4 class="text-xl font-bold text-primary mb-1">Access Hierarchy</h4>
+<p class="text-on-surface-variant text-sm">Define organizational depth for team members.</p>
+</div>
+<button class="primary-gradient text-white px-6 py-2 rounded-full font-bold text-sm transition-transform active:opacity-80">
+                                Apply Changes
+                            </button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead>
+<tr class="text-on-surface-variant border-none">
+<th class="py-4 px-2 text-xs font-black uppercase tracking-widest">Permission Type</th>
+<th class="py-4 px-2 text-xs font-black uppercase tracking-widest text-center">Admin</th>
+<th class="py-4 px-2 text-xs font-black uppercase tracking-widest text-center">Analyst</th>
+<th class="py-4 px-2 text-xs font-black uppercase tracking-widest text-center">Auditor</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container-high">
+<tr>
+<td class="py-6 px-2">
+<p class="font-bold text-on-surface">Transaction Execution</p>
+<p class="text-xs text-on-surface-variant">Ability to trigger external wire flows</p>
+</td>
+<td class="py-6 text-center">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</td>
+<td class="py-6 text-center">
+<span class="material-symbols-outlined text-outline-variant">circle</span>
+</td>
+<td class="py-6 text-center">
+<span class="material-symbols-outlined text-outline-variant">circle</span>
+</td>
+</tr>
+<tr>
+<td class="py-6 px-2">
+<p class="font-bold text-on-surface">Ledger Reconciliation</p>
+<p class="text-xs text-on-surface-variant">Full access to historical balancing</p>
+</td>
+<td class="py-6 text-center">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</td>
+<td class="py-6 text-center">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</td>
+<td class="py-6 text-center">
+<span class="material-symbols-outlined text-outline-variant">circle</span>
+</td>
+</tr>
+<tr>
+<td class="py-6 px-2">
+<p class="font-bold text-on-surface">API Key Governance</p>
+<p class="text-xs text-on-surface-variant">Generating and revoking service tokens</p>
+</td>
+<td class="py-6 text-center">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</td>
+<td class="py-6 text-center">
+<span class="material-symbols-outlined text-outline-variant">circle</span>
+</td>
+<td class="py-6 text-center">
+<span class="material-symbols-outlined text-outline-variant">circle</span>
+</td>
+</tr>
+<tr>
+<td class="py-6 px-2">
+<p class="font-bold text-on-surface">Export Intelligence</p>
+<p class="text-xs text-on-surface-variant">Downloading CSV/PDF data clusters</p>
+</td>
+<td class="py-6 text-center">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</td>
+<td class="py-6 text-center">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</td>
+<td class="py-6 text-center">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<!-- Strategic Security Section -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div class="bg-primary p-8 rounded-full text-white relative overflow-hidden group">
+<div class="relative z-10">
+<h4 class="text-lg font-bold mb-2">Dual-Auth Bio-Sync</h4>
+<p class="text-primary-fixed opacity-80 text-sm mb-6">Synchronize hardware keys for high-value vault access.</p>
+<button class="bg-white/10 hover:bg-white/20 px-6 py-2 rounded-xl text-sm font-bold transition-all border border-white/20">
+                                Configure Security
+                            </button>
+</div>
+<span class="material-symbols-outlined absolute -bottom-4 -right-4 text-9xl opacity-10 rotate-12 group-hover:rotate-0 transition-transform duration-500">fingerprint</span>
+</div>
+<div class="bg-surface-container-low p-8 rounded-full border border-outline-variant border-opacity-10">
+<h4 class="text-lg font-bold text-primary mb-2">Institutional Audit</h4>
+<p class="text-on-surface-variant text-sm mb-6">Last login: Today, 09:42 AM from London, UK (Trusted IP).</p>
+<button class="text-primary text-sm font-bold flex items-center gap-2 hover:translate-x-1 transition-transform">
+                            View Recent Activity <span class="material-symbols-outlined">trending_flat</span>
+</button>
+</div>
+</div>
+</section>
+</div>
+</main>
+<!-- Command Palette (Glassmorphism Modal State) -->
+<div class="fixed inset-0 z-50 flex items-start justify-center pt-32 px-4 pointer-events-none">
+<div class="glass-panel w-full max-w-2xl rounded-full p-4 pointer-events-auto border border-white/40 hidden">
+<div class="flex items-center gap-4 px-4 py-2">
+<span class="material-symbols-outlined text-primary">search</span>
+<input class="w-full bg-transparent border-none focus:ring-0 text-lg font-manrope font-medium text-on-surface" placeholder="Search accounts, ledgers, or settings..." type="text"/>
+<span class="bg-surface-container text-on-surface-variant text-[10px] font-bold px-2 py-1 rounded">ESC</span>
+</div>
+</div>
+</div>
+<script src="/frontend/shared/api.js"></script>
+<script src="/frontend/shared/auth.js"></script>
+<script src="/frontend/shared/layout.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  const user = AUTH.getUser();
+  if (!user) return;
+
+  // Fill profile from stored user
+  const nameEl = document.querySelector('h3.text-2xl.font-bold');
+  const roleEl = document.querySelector('p.text-on-surface-variant.text-sm.mb-6');
+  if (nameEl) nameEl.textContent = user.full_name || user.username;
+  if (roleEl) roleEl.textContent = (user.role || '').replace(/_/g,' ').replace(/\b\w/g, l=>l.toUpperCase());
+
+  // Replace avatar with initials
+  const avatarWrapper = document.querySelector('.w-32.h-32.rounded-full');
+  if (avatarWrapper) {
+    const initials = (user.full_name || user.username || 'U').split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+    avatarWrapper.innerHTML = `<div class="w-full h-full rounded-full primary-gradient flex items-center justify-center text-white text-3xl font-bold">${initials}</div>`;
+  }
+
+  // Load fresh profile from API
+  try {
+    const profile = await window.api.getMe();
+    if (nameEl) nameEl.textContent = profile.full_name || profile.username;
+    if (roleEl) roleEl.textContent = (profile.role || '').replace(/_/g,' ').replace(/\b\w/g, l=>l.toUpperCase());
+    if (avatarWrapper) {
+      const initials = (profile.full_name || profile.username || 'U').split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+      avatarWrapper.innerHTML = `<div class="w-full h-full rounded-full primary-gradient flex items-center justify-center text-white text-3xl font-bold">${initials}</div>`;
+    }
+    // Update email field if present
+    const emailField = document.querySelector('input[type="email"]');
+    if (emailField) emailField.value = profile.email || '';
+  } catch (e) { console.warn('Could not load profile', e); }
+});
+</script>
+</body></html>

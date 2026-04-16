@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anomaly Detection - FinanceAI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface-variant": "#e3e2e2",
+                      "outline": "#6f797a",
+                      "error": "#ba1a1a",
+                      "surface-container-lowest": "#ffffff",
+                      "surface-container-high": "#e9e8e7",
+                      "surface-container-low": "#f5f3f3",
+                      "inverse-surface": "#303031",
+                      "on-surface": "#1b1c1c",
+                      "surface-container-highest": "#e3e2e2",
+                      "outline-variant": "#bec8ca",
+                      "on-surface-variant": "#3e494a",
+                      "on-background": "#1b1c1c",
+                      "inverse-on-surface": "#f2f0f0",
+                      "surface-container": "#efeded",
+                      "primary": "#00535b",
+                      "primary-container": "#006d77",
+                      "on-primary-container": "#9becf7",
+                      "on-primary": "#ffffff",
+                      "error": "#ba1a1a",
+                      "error-container": "#ffdad6",
+                      "on-error-container": "#93000a",
+                      "secondary": "#495f84",
+                      "secondary-container": "#bcd2fe",
+                      "on-secondary-container": "#445a7f",
+                      "surface-container-highest": "#e3e2e2",
+                      "primary-fixed": "#9ff0fb",
+                      "primary-fixed-dim": "#82d3de",
+                      "on-primary-fixed": "#001f23",
+                      "on-primary-fixed-variant": "#004f56"
+              },
+               "fontFamily": {
+                      "headline": ["Manrope"],
+                      "body": ["Inter"],
+                      "label": ["Inter"]
+              }
+            }
+          }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #fbf9f9; }
+        .font-manrope { font-family: 'Manrope', sans-serif; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen">
+    <header class="flex justify-between items-center bg-surface-container-lowest px-8 py-4 border-b border-outline-variant lg:ml-64 relative z-30 shadow-sm">
+        <div class="flex items-center gap-4 text-sm text-outline font-medium tracking-wide" id="breadcrumb-area">
+            <span>Finance Hub</span>
+            <span class="material-symbols-outlined text-sm">chevron_right</span>
+            <span class="text-on-surface font-bold text-error">Anomaly Engine</span>
+        </div>
+        <div class="flex items-center gap-4">
+            <div class="relative group">
+                <span class="material-symbols-outlined text-on-surface-variant cursor-pointer p-2 hover:bg-slate-100 rounded-full transition-colors">notifications</span>
+            </div>
+            <span class="material-symbols-outlined text-on-surface-variant cursor-pointer p-2 hover:bg-slate-100 rounded-full transition-colors">account_circle</span>
+        </div>
+    </header>
+
+    <div id="sidebar-container" class="z-40"></div>
+
+    <main class="lg:ml-64 p-8 relative">
+        <section class="max-w-7xl mx-auto space-y-6">
+            <div class="flex justify-between items-end mb-8">
+                <div>
+                    <h1 class="text-3xl font-headline font-extrabold tracking-tight">AI Fraud & Anomaly Engine</h1>
+                    <p class="text-on-surface-variant mt-2 max-w-lg">Continuous monitoring for duplicate invoices, inflated values, and abnormal velocity.</p>
+                </div>
+                <button class="flex items-center gap-2 bg-surface-container-high text-on-surface px-5 py-2.5 rounded-xl font-bold font-manrope shadow hover:bg-surface-variant transition">
+                    <span class="material-symbols-outlined">sync</span> Force Scan
+                </button>
+            </div>
+
+            <!-- Dashboard Map -->
+            <div class="bg-error/10 p-6 rounded-xl border border-error/20 flex gap-6 items-start">
+                <span class="material-symbols-outlined text-error text-4xl">warning</span>
+                <div>
+                    <h3 class="font-headline font-bold text-error text-xl">High Probability Flags Detected</h3>
+                    <p class="text-sm mt-1 text-on-surface">3 Invoices match known structural signatures of double-billing logic. 1 Expense matches off-shift pattern.</p>
+                </div>
+            </div>
+
+            <!-- List -->
+            <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/30 overflow-hidden mt-8">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-surface-container-low border-b border-outline-variant/30 text-xs uppercase tracking-wider font-bold text-on-surface-variant">
+                        <tr>
+                            <th class="p-4">Confidence</th>
+                            <th class="p-4">Entity Ref</th>
+                            <th class="p-4">Anomaly Details</th>
+                            <th class="p-4">Extracted AI Logic</th>
+                            <th class="p-4">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="anomaly-tbody" class="text-sm">
+                        <!-- Content dynamically injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script src="/frontend/shared/api.js"></script>
+    <script src="/frontend/shared/auth.js"></script>
+    <script src="/frontend/shared/layout.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const anomalies = await window.api.getAnomalies();
+                const tbody = document.getElementById('anomaly-tbody');
+
+                if (!anomalies || anomalies.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-on-surface-variant font-medium">System nominal. No critical anomalies detected matching signatures.</td></tr>';
+                    return;
+                }
+
+                let html = '';
+                anomalies.forEach(ano => {
+                    const sev = ano.anomaly_severity || 'HIGH';
+                    const cssColor = (sev === 'CRITICAL') ? 'text-error' : 'text-orange-600';
+                    const badgeClass = (sev === 'CRITICAL') ? 'bg-error/10 text-error' : 'bg-orange-100 text-orange-800';
+
+                    html += `
+                        <tr class="border-b border-outline-variant/10 hover:bg-surface-container transition-colors cursor-pointer ${cssColor} font-medium">
+                            <td class="p-4 font-bold">${sev === 'CRITICAL' ? '98%' : '75%'}</td>
+                            <td class="p-4">${ano.ref_no || ano.id.substring(0,8)} (${ano.vendor?.name})</td>
+                            <td class="p-4">Detected variance. Check exact matching parameters.</td>
+                            <td class="p-4"><span class="${badgeClass} px-2 py-1 rounded text-[10px] uppercase font-bold tracking-widest">${sev} FLAG</span></td>
+                            <td class="p-4">
+                                <button class="text-xs ${sev==='CRITICAL' ? 'bg-error text-on-error' : 'bg-surface-container-high'} px-3 py-1 rounded font-bold hover:opacity-90">Investigate</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                tbody.innerHTML = html;
+
+            } catch (err) {
+                console.error('Failed to load anomalies', err);
+            }
+        });
+    </script>
+</body>
+</html>

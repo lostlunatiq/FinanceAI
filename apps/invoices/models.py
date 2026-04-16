@@ -72,26 +72,49 @@ ROLE_FOR_STEP = {
 }
 
 
+VENDOR_STATUS_CHOICES = [
+    ("PENDING_APPROVAL", "Pending Approval"),
+    ("ACTIVE", "Active"),
+    ("SUSPENDED", "Suspended"),
+    ("BLACKLISTED", "Blacklisted"),
+    ("INACTIVE", "Inactive"),
+]
+
+
 class Vendor(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="vendor_profile"
+    )
     name = models.CharField(max_length=200)
     name_normalized = models.CharField(
         max_length=200
     )  # lowercased+stripped, for fuzzy match
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=20, blank=True)
     gstin = models.CharField(max_length=15, blank=True)
     pan = models.CharField(max_length=10, blank=True)
     is_approved = models.BooleanField(default=False)
-    vendor_type = models.CharField(max_length=30)  # saas, cloud_infra, logistics, etc.
+    status = models.CharField(
+        max_length=20, choices=VENDOR_STATUS_CHOICES, default="PENDING_APPROVAL"
+    )
+    vendor_type = models.CharField(max_length=30, default="general")  # saas, cloud_infra, logistics, etc.
     avg_invoice_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True)
     invoice_count = models.IntegerField(default=0)
     last_renewal_date = models.DateField(null=True)
     last_seat_count = models.IntegerField(null=True)
     tds_section = models.CharField(max_length=10, blank=True)
     msme_registered = models.BooleanField(default=False)
+    bank_account_name = models.CharField(max_length=200, blank=True)
+    bank_account_number = models.CharField(max_length=30, blank=True)
+    bank_ifsc = models.CharField(max_length=11, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
         self.name_normalized = self.name.lower().strip()
+        if self.is_approved and self.status == "PENDING_APPROVAL":
+            self.status = "ACTIVE"
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -123,8 +146,8 @@ class Expense(models.Model):
     )
 
     # Invoice data
-    invoice_number = models.CharField(max_length=100)
-    invoice_date = models.DateField()
+    invoice_number = models.CharField(max_length=100, blank=True)
+    invoice_date = models.DateField(null=True, blank=True)
     pre_gst_amount = models.DecimalField(max_digits=18, decimal_places=2)
     cgst = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     sgst = models.DecimalField(max_digits=18, decimal_places=2, default=0)
@@ -132,7 +155,7 @@ class Expense(models.Model):
     total_amount = models.DecimalField(max_digits=18, decimal_places=2)
     tds_section = models.CharField(max_length=10, blank=True)
     tds_amount = models.DecimalField(max_digits=18, decimal_places=2, default=0)
-    business_purpose = models.TextField()
+    business_purpose = models.TextField(blank=True)
 
     # State
     _status = models.CharField(
@@ -143,6 +166,9 @@ class Expense(models.Model):
     )
     current_step = models.IntegerField(null=True, blank=True)
     anomaly_severity = models.CharField(max_length=10, null=True, blank=True)
+
+    # Version tracking
+    version = models.IntegerField(default=1)
 
     # Files
     invoice_file = models.ForeignKey(
@@ -156,6 +182,13 @@ class Expense(models.Model):
         FileRef, related_name="evidence_for", blank=True
     )
 
+    # OCR data
+    ocr_raw = models.JSONField(null=True, blank=True)
+    ocr_confidence = models.DecimalField(
+        max_digits=5, decimal_places=4, null=True, blank=True
+    )
+    ocr_task_id = models.CharField(max_length=100, blank=True)
+
     # D365
     d365_document_no = models.CharField(max_length=100, blank=True)
     d365_posted_at = models.DateTimeField(null=True)
@@ -167,6 +200,7 @@ class Expense(models.Model):
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     submitted_at = models.DateTimeField(null=True)
     approved_at = models.DateTimeField(null=True)
 
@@ -229,7 +263,7 @@ class ExpenseApprovalStep(models.Model):
         ],
         default="PENDING",
     )
-    sla_due_at = models.DateTimeField()
+    sla_due_at = models.DateTimeField(null=True, blank=True)
     decided_at = models.DateTimeField(null=True)
     decision_reason = models.TextField(blank=True)
     anomaly_override_reason = models.TextField(blank=True)
