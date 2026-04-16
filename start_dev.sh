@@ -19,7 +19,7 @@ fi
 # ─── 2. Install Dependencies ─────────────────────────────────────
 echo "📦 Installing dependencies..."
 .venv/bin/pip install -q django djangorestframework djangorestframework-simplejwt \
-    django-cors-headers django-environ openai pillow 2>&1 | tail -3
+    django-cors-headers django-environ openai pillow celery clickhouse-connect redis 2>&1 | tail -3
 
 # ─── 3. Run Migrations ───────────────────────────────────────────
 echo "🗄️  Running migrations..."

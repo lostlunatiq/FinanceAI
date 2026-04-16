@@ -79,6 +79,8 @@ PASSWORD_HASHERS = [
 # ─── Celery: run tasks synchronously (no Redis needed) ───────────
 CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
+CELERY_BROKER_URL = "memory://"
+CELERY_RESULT_BACKEND = "cache+memory://"
 
 # ─── OpenRouter model config ────────────────────────────────────
 OPENROUTER_MODEL_PRIMARY = "google/gemini-2.0-flash-001"
