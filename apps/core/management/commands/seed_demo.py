@@ -268,6 +268,78 @@ class Command(BaseCommand):
             else:
                 self.stdout.write(f"  ⏩ Expense exists: {expense.ref_no}")
 
+        # ─── Budgets ──────────────────────────────────────────────
+        self.stdout.write("🌱 Seeding budgets...")
+        from apps.invoices.models import Budget
+        from datetime import date as dt_date
+
+        budget_specs = [
+            {
+                "name": "Engineering Q2 2026",
+                "department": engineering,
+                "fiscal_year": 2026,
+                "period": "quarterly",
+                "start_date": dt_date(2026, 4, 1),
+                "end_date": dt_date(2026, 6, 30),
+                "total_amount": Decimal("2400000.00"),
+                "warning_threshold": 80,
+                "critical_threshold": 95,
+            },
+            {
+                "name": "Marketing H1 2026",
+                "department": operations,
+                "fiscal_year": 2026,
+                "period": "semi_annual",
+                "start_date": dt_date(2026, 1, 1),
+                "end_date": dt_date(2026, 6, 30),
+                "total_amount": Decimal("1200000.00"),
+                "warning_threshold": 75,
+                "critical_threshold": 90,
+            },
+            {
+                "name": "Operations Annual 2026",
+                "department": operations,
+                "fiscal_year": 2026,
+                "period": "annual",
+                "start_date": dt_date(2026, 1, 1),
+                "end_date": dt_date(2026, 12, 31),
+                "total_amount": Decimal("3000000.00"),
+                "warning_threshold": 80,
+                "critical_threshold": 95,
+            },
+        ]
+        for spec in budget_specs:
+            b, created = Budget.objects.get_or_create(
+                name=spec["name"],
+                defaults={**spec, "status": "active", "created_by": users["fin_admin"]},
+            )
+            if created:
+                self.stdout.write(f"  ✅ Created budget: {b.name}")
+            else:
+                self.stdout.write(f"  ⏩ Budget exists: {b.name}")
+
+        # ─── Audit Log entries ────────────────────────────────────
+        from apps.core.models import AuditLog
+        if AuditLog.objects.count() == 0:
+            self.stdout.write("🌱 Creating audit log entries...")
+            sample_actions = [
+                ("expense.submitted", "Expense", "Vendor submitted BILL-2026-0001", users["vendor1"]),
+                ("expense.approved_l1", "Expense", "L1 approved BILL-2026-0001", users["l1_approver"]),
+                ("expense.approved_hod", "Expense", "HoD approved BILL-2026-0001", users["hod"]),
+                ("vendor.created", "Vendor", "Admin created TechServe Solutions Pvt Ltd", users["fin_admin"]),
+                ("vendor.activated", "Vendor", "Finance admin activated TechServe Solutions", users["fin_admin"]),
+                ("expense.paid", "Expense", "BILL-2026-0001 payment processed via D365", users["fin_admin"]),
+                ("user.login", "User", "Finance admin logged in from trusted IP", users["fin_admin"]),
+            ]
+            for action, entity, desc, actor in sample_actions:
+                AuditLog.objects.create(
+                    user=actor,
+                    action=action,
+                    entity_type=entity,
+                    masked_after={"description": desc},
+                )
+            self.stdout.write("  ✅ Created audit log entries")
+
         self.stdout.write(self.style.SUCCESS("\n🎉 Demo data seeded successfully!"))
         self.stdout.write("\n📋 Login Credentials:")
         self.stdout.write("  Vendor:           vendor1 / demo1234")

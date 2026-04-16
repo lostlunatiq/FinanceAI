@@ -1,6 +1,6 @@
 # apps/invoices/urls.py
 from django.urls import path
-from . import views, vendor_views, employee_views
+from . import views, vendor_views, employee_views, budget_views
 
 urlpatterns = [
     # ─── Original expense endpoints ──────────────────────────────
@@ -34,4 +34,12 @@ urlpatterns = [
     path("dashboard/stats/", vendor_views.DashboardStatsView.as_view(), name="dashboard-stats"),
     path("finance/expenses/", employee_views.InternalExpenseListView.as_view(), name="finance-expenses"),
     path("finance/anomalies/", employee_views.AnomalyListView.as_view(), name="finance-anomalies"),
+
+    # ─── Budget Management ────────────────────────────────────────
+    path("budgets/", budget_views.BudgetListView.as_view(), name="budget-list"),
+    path("budgets/<uuid:pk>/", budget_views.BudgetDetailView.as_view(), name="budget-detail"),
+    path("budgets/<uuid:pk>/utilization/", budget_views.BudgetUtilizationView.as_view(), name="budget-utilization"),
+
+    # ─── Cash Flow Forecasting ───────────────────────────────────
+    path("forecasting/cashflow/", budget_views.CashFlowForecastView.as_view(), name="cashflow-forecast"),
 ]

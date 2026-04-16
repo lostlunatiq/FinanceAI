@@ -80,6 +80,47 @@ class FileUploadView(APIView):
         )
 
 
+class OCRSyncView(APIView):
+    """
+    POST /api/v1/files/ocr/
+    Synchronous OCR — no Celery required.
+    Body: {"file_id": "uuid"}
+    Returns extracted fields immediately.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        file_id = request.data.get("file_id")
+        if not file_id:
+            return Response({"error": "file_id required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            file_ref = FileRef.objects.get(pk=file_id)
+        except FileRef.DoesNotExist:
+            return Response({"error": "File not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        full_path = os.path.join(settings.MEDIA_ROOT, file_ref.path)
+        if not os.path.exists(full_path):
+            return Response({"error": "File not found on disk."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            from ai.pipelines.ocr_pipeline import run as run_ocr
+            result = run_ocr(full_path)
+            return Response({
+                "status": "COMPLETE" if result.success else ("FAILED" if result.error else "LOW_CONFIDENCE"),
+                "confidence": result.confidence,
+                "extracted_fields": result.extracted_fields,
+                "validation_errors": result.validation_errors,
+                "flagged_manual": result.flagged_manual,
+                "raw_text": result.raw_text[:500] if result.raw_text else "",
+                "model_used": result.model_used,
+                "pages_processed": result.pages_processed,
+                "error": result.error,
+            })
+        except Exception as e:
+            return Response({"status": "FAILED", "error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 class FileDownloadView(APIView):
     """
     GET /api/v1/files/<uuid:pk>/
