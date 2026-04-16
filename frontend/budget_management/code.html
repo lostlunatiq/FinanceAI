@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Budget Management | FinanceAI</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+tailwind.config = {
+  darkMode: "class",
+  theme: { extend: {
+    colors: {
+      "primary": "#00535b", "primary-container": "#006d77", "on-primary": "#ffffff",
+      "on-primary-container": "#9becf7", "primary-fixed": "#9ff0fb", "primary-fixed-dim": "#82d3de",
+      "on-primary-fixed": "#001f23", "on-primary-fixed-variant": "#004f56",
+      "secondary": "#495f84", "secondary-container": "#bcd2fe", "on-secondary-container": "#445a7f",
+      "error": "#ba1a1a", "error-container": "#ffdad6", "on-error-container": "#93000a",
+      "surface": "#fbf9f9", "surface-container-lowest": "#ffffff", "surface-container-low": "#f5f3f3",
+      "surface-container": "#efeded", "surface-container-high": "#e9e8e7",
+      "on-surface": "#1b1c1c", "on-surface-variant": "#3e494a", "outline": "#6f797a",
+      "outline-variant": "#bec8ca", "background": "#fbf9f9",
+    },
+    fontFamily: { headline: ["Manrope"], body: ["Inter"] }
+  }}
+}
+</script>
+<style>
+body { font-family: 'Inter', sans-serif; background: #fbf9f9; }
+.material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+.primary-gradient { background: linear-gradient(135deg, #00535b 0%, #006d77 100%); }
+</style>
+</head>
+<body class="text-on-surface">
+<div id="sidebar-container" class="z-40"></div>
+
+<header class="flex justify-between items-center bg-surface-container-lowest px-8 py-4 border-b border-outline-variant/30 lg:ml-64 relative z-30 shadow-sm">
+  <div>
+    <div class="flex items-center gap-2 text-xs text-on-surface-variant mb-1">
+      <span>Finance</span>
+      <span class="material-symbols-outlined text-[12px]">chevron_right</span>
+      <span class="text-primary font-bold">Budgetary Controls</span>
+    </div>
+    <h2 class="text-xl font-extrabold tracking-tight text-primary font-headline">Budget Management</h2>
+  </div>
+  <button id="open-create-budget" class="flex items-center gap-2 primary-gradient text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:opacity-90">
+    <span class="material-symbols-outlined text-[18px]">add</span>
+    New Budget
+  </button>
+</header>
+
+<main class="lg:ml-64 min-h-screen px-8 py-6">
+
+  <!-- Summary Stats -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" id="budget-stats">
+    <div class="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/20">
+      <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1">Total Budget</p>
+      <p class="text-2xl font-extrabold text-on-surface font-headline" id="s-total">—</p>
+    </div>
+    <div class="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/20">
+      <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1">Total Spent</p>
+      <p class="text-2xl font-extrabold text-primary font-headline" id="s-spent">—</p>
+    </div>
+    <div class="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/20">
+      <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1">Remaining</p>
+      <p class="text-2xl font-extrabold font-headline" style="color:#059669" id="s-remaining">—</p>
+    </div>
+    <div class="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/20">
+      <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1">Active Budgets</p>
+      <p class="text-2xl font-extrabold text-on-surface font-headline" id="s-count">—</p>
+    </div>
+  </div>
+
+  <!-- Alert Banner -->
+  <div id="alert-banner" class="hidden mb-6 p-4 bg-error-container rounded-xl flex items-start gap-4 border border-error/20">
+    <span class="material-symbols-outlined text-error text-2xl">warning</span>
+    <div>
+      <p class="font-bold text-error" id="alert-title">Budget Alert</p>
+      <p class="text-sm text-on-error-container" id="alert-body"></p>
+    </div>
+  </div>
+
+  <!-- Budget Cards Grid -->
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6" id="budget-grid">
+    <div class="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/20 col-span-full text-center py-12 text-on-surface-variant">
+      <div class="animate-pulse">Loading budgets...</div>
+    </div>
+  </div>
+</main>
+
+<!-- Create Budget Modal -->
+<div id="create-budget-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-8 max-h-[90vh] overflow-y-auto">
+    <div class="flex justify-between items-center mb-6">
+      <h2 class="text-xl font-headline font-bold">Create Budget</h2>
+      <button id="close-create-budget" class="text-on-surface-variant hover:text-on-surface">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <form id="create-budget-form" class="space-y-4">
+      <div>
+        <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Budget Name *</label>
+        <input id="b-name" type="text" required class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm" placeholder="Engineering Q2 2026">
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Start Date *</label>
+          <input id="b-start" type="date" required class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">End Date *</label>
+          <input id="b-end" type="date" required class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm">
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Total Amount (₹) *</label>
+          <input id="b-amount" type="number" min="0" step="1000" required class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm" placeholder="1000000">
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Period</label>
+          <select id="b-period" class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm">
+            <option value="monthly">Monthly</option>
+            <option value="quarterly" selected>Quarterly</option>
+            <option value="semi_annual">Semi-Annual</option>
+            <option value="annual">Annual</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Warning Threshold (%)</label>
+          <input id="b-warn" type="number" min="50" max="99" value="80" class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Critical Threshold (%)</label>
+          <input id="b-crit" type="number" min="50" max="100" value="95" class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Notes</label>
+        <textarea id="b-notes" rows="2" class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm" placeholder="Budget notes..."></textarea>
+      </div>
+      <div id="b-error" class="hidden text-sm text-error bg-error-container p-3 rounded-lg"></div>
+      <button type="submit" id="create-budget-btn" class="w-full py-3 primary-gradient text-white rounded-xl font-bold text-sm">Create Budget</button>
+    </form>
+  </div>
+</div>
+
+<!-- Budget Detail Modal -->
+<div id="budget-detail-modal" class="hidden fixed inset-y-0 right-0 w-[480px] bg-white shadow-2xl z-[80] overflow-y-auto border-l border-outline-variant/20">
+  <div class="p-6">
+    <div class="flex justify-between items-center mb-6">
+      <h3 class="text-lg font-headline font-bold">Budget Details</h3>
+      <button id="close-detail" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button>
+    </div>
+    <div id="budget-detail-content"></div>
+  </div>
+</div>
+
+<div id="toast-container" class="fixed bottom-6 right-6 z-[200] flex flex-col gap-3"></div>
+
+<script src="/frontend/shared/api.js"></script>
+<script src="/frontend/shared/auth.js"></script>
+<script src="/frontend/shared/layout.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  function showToast(msg, type = 'success') {
+    const t = document.createElement('div');
+    t.className = `${type==='error'?'bg-error':'bg-primary'} text-white px-5 py-3 rounded-xl shadow-lg text-sm font-semibold flex items-center gap-2`;
+    t.innerHTML = `<span class="material-symbols-outlined text-[18px]">${type==='error'?'error_outline':'check_circle'}</span>${msg}`;
+    document.getElementById('toast-container').appendChild(t);
+    setTimeout(() => t.remove(), 4000);
+  }
+
+  const alertColors = { OK: null, WARNING: 'amber', CRITICAL: 'error' };
+
+  function renderBudgetCard(b) {
+    const pct = b.utilization_pct;
+    const barColor = b.alert_level === 'CRITICAL' ? '#ba1a1a' : b.alert_level === 'WARNING' ? '#d97706' : '#00535b';
+    const badgeColor = b.alert_level === 'CRITICAL' ? 'bg-error-container text-on-error-container' :
+                       b.alert_level === 'WARNING' ? 'bg-amber-100 text-amber-700' :
+                       'bg-primary/10 text-primary';
+    return `
+      <div class="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/20 hover:shadow-md transition-shadow cursor-pointer" data-budget-id="${b.id}">
+        <div class="flex justify-between items-start mb-4">
+          <div>
+            <p class="font-bold text-on-surface font-headline">${b.name}</p>
+            <p class="text-xs text-on-surface-variant">${b.department || 'All Departments'} · ${b.period}</p>
+          </div>
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${badgeColor}">${b.alert_level}</span>
+        </div>
+        <div class="space-y-3">
+          <div class="flex justify-between text-sm">
+            <span class="text-on-surface-variant">Spent</span>
+            <span class="font-bold">₹${b.spent_amount.toLocaleString('en-IN', {maximumFractionDigits:0})}</span>
+          </div>
+          <div>
+            <div class="flex justify-between text-xs mb-1">
+              <span class="text-on-surface-variant">Utilization</span>
+              <span class="font-bold" style="color:${barColor}">${pct}%</span>
+            </div>
+            <div class="h-2 bg-surface-container rounded-full overflow-hidden">
+              <div class="h-full rounded-full transition-all" style="width:${Math.min(pct,100)}%;background:${barColor}"></div>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-2 pt-2 border-t border-outline-variant/10">
+            <div><p class="text-[10px] text-on-surface-variant">Total</p><p class="text-sm font-bold">₹${b.total_amount.toLocaleString('en-IN',{maximumFractionDigits:0})}</p></div>
+            <div><p class="text-[10px] text-on-surface-variant">Remaining</p><p class="text-sm font-bold" style="color:#059669">₹${b.remaining_amount.toLocaleString('en-IN',{maximumFractionDigits:0})}</p></div>
+          </div>
+          <div class="text-xs text-on-surface-variant">${b.start_date} → ${b.end_date}</div>
+        </div>
+      </div>`;
+  }
+
+  async function loadBudgets() {
+    try {
+      const budgets = await window.api.getBudgets() || [];
+      const grid = document.getElementById('budget-grid');
+
+      // Stats
+      const totalBudget = budgets.reduce((s,b) => s + b.total_amount, 0);
+      const totalSpent = budgets.reduce((s,b) => s + b.spent_amount, 0);
+      document.getElementById('s-total').textContent = '₹' + totalBudget.toLocaleString('en-IN',{maximumFractionDigits:0});
+      document.getElementById('s-spent').textContent = '₹' + totalSpent.toLocaleString('en-IN',{maximumFractionDigits:0});
+      document.getElementById('s-remaining').textContent = '₹' + (totalBudget-totalSpent).toLocaleString('en-IN',{maximumFractionDigits:0});
+      document.getElementById('s-count').textContent = budgets.filter(b=>b.status==='active').length;
+
+      // Alerts
+      const criticals = budgets.filter(b => b.alert_level === 'CRITICAL');
+      const warnings = budgets.filter(b => b.alert_level === 'WARNING');
+      if (criticals.length > 0) {
+        document.getElementById('alert-banner').classList.remove('hidden');
+        document.getElementById('alert-title').textContent = `🔴 ${criticals.length} Budget${criticals.length>1?'s':''} at Critical Utilization`;
+        document.getElementById('alert-body').textContent = criticals.map(b => `${b.name}: ${b.utilization_pct}%`).join(' | ');
+      } else if (warnings.length > 0) {
+        const banner = document.getElementById('alert-banner');
+        banner.classList.remove('hidden');
+        banner.classList.replace('bg-error-container', 'bg-amber-50');
+        banner.classList.replace('border-error/20', 'border-amber-200');
+        document.getElementById('alert-title').className = 'font-bold text-amber-700';
+        document.getElementById('alert-title').textContent = `⚠️ ${warnings.length} Budget${warnings.length>1?'s':''} Approaching Threshold`;
+        document.getElementById('alert-body').textContent = warnings.map(b => `${b.name}: ${b.utilization_pct}%`).join(' | ');
+      }
+
+      if (!budgets.length) {
+        grid.innerHTML = `<div class="bg-surface-container-lowest rounded-xl p-12 border border-outline-variant/20 col-span-full text-center text-on-surface-variant">
+          <span class="material-symbols-outlined text-4xl block mb-2 opacity-30">account_balance_wallet</span>
+          <p class="font-medium">No budgets yet. Create your first budget to start tracking.</p>
+        </div>`;
+        return;
+      }
+
+      grid.innerHTML = budgets.map(renderBudgetCard).join('');
+      grid.querySelectorAll('[data-budget-id]').forEach(card => {
+        card.addEventListener('click', () => openBudgetDetail(card.dataset.budgetId));
+      });
+    } catch (e) {
+      document.getElementById('budget-grid').innerHTML = `<p class="text-error col-span-full text-center p-8">Failed to load budgets: ${e.message}</p>`;
+    }
+  }
+
+  async function openBudgetDetail(id) {
+    const panel = document.getElementById('budget-detail-modal');
+    const content = document.getElementById('budget-detail-content');
+    panel.classList.remove('hidden');
+    content.innerHTML = '<div class="flex justify-center py-12"><div class="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full"></div></div>';
+    try {
+      const util = await window.api.getBudgetUtilization(id);
+      const b = util.budget;
+      const pct = b.utilization_pct;
+      const barColor = b.alert_level === 'CRITICAL' ? '#ba1a1a' : b.alert_level === 'WARNING' ? '#d97706' : '#00535b';
+
+      const monthlyRows = (util.monthly_spend || []).map(m =>
+        `<tr class="border-b border-outline-variant/10">
+          <td class="py-2 text-sm">${m.month}</td>
+          <td class="py-2 text-sm font-bold text-right">₹${m.amount.toLocaleString('en-IN',{maximumFractionDigits:0})}</td>
+          <td class="py-2 text-sm text-right text-on-surface-variant">${m.invoices}</td>
+        </tr>`
+      ).join('');
+
+      const vendorRows = (util.top_vendors || []).slice(0,5).map(v =>
+        `<div class="flex justify-between py-2 border-b border-outline-variant/10">
+          <span class="text-sm text-on-surface">${v.vendor}</span>
+          <span class="text-sm font-bold">₹${v.amount.toLocaleString('en-IN',{maximumFractionDigits:0})}</span>
+        </div>`
+      ).join('');
+
+      content.innerHTML = `
+        <div class="space-y-5">
+          <div class="bg-surface-container-low rounded-xl p-4">
+            <p class="font-bold text-base font-headline">${b.name}</p>
+            <p class="text-xs text-on-surface-variant">${b.department || 'All Departments'} · ${b.period}</p>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            ${[['Total Budget','₹'+b.total_amount.toLocaleString('en-IN')],['Spent','₹'+b.spent_amount.toLocaleString('en-IN')],['Remaining','₹'+b.remaining_amount.toLocaleString('en-IN')],['Utilization',pct+'%'],['Period',b.start_date+' → '+b.end_date],['Status',b.status]].map(([k,v])=>
+              `<div class="bg-surface-container-low rounded-lg p-3"><p class="text-xs text-on-surface-variant mb-1">${k}</p><p class="text-sm font-bold">${v}</p></div>`
+            ).join('')}
+          </div>
+          <div>
+            <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Utilization</p>
+            <div class="flex justify-between text-xs mb-1"><span>${pct}%</span><span class="text-on-surface-variant">Warning: ${b.warning_threshold}% | Critical: ${b.critical_threshold}%</span></div>
+            <div class="h-3 bg-surface-container rounded-full overflow-hidden">
+              <div class="h-full" style="width:${Math.min(pct,100)}%;background:${barColor}"></div>
+            </div>
+          </div>
+          ${monthlyRows ? `<div>
+            <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Monthly Spend</p>
+            <table class="w-full"><thead class="text-xs text-on-surface-variant border-b border-outline-variant/20"><tr><th class="pb-1 text-left">Month</th><th class="pb-1 text-right">Amount</th><th class="pb-1 text-right">Invoices</th></tr></thead><tbody>${monthlyRows}</tbody></table>
+          </div>` : ''}
+          ${vendorRows ? `<div>
+            <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Top Vendors</p>
+            ${vendorRows}
+          </div>` : ''}
+          <button onclick="closeBudget('${b.id}')" class="w-full py-2.5 bg-error text-white rounded-xl text-sm font-bold hover:opacity-90">Close Budget</button>
+        </div>`;
+    } catch (e) {
+      content.innerHTML = `<p class="text-error text-sm">Failed to load: ${e.message}</p>`;
+    }
+  }
+
+  window.closeBudget = async (id) => {
+    try {
+      await window.api.updateBudget(id, { status: 'closed' });
+      document.getElementById('budget-detail-modal').classList.add('hidden');
+      showToast('Budget closed');
+      loadBudgets();
+    } catch (e) { showToast(e.message, 'error'); }
+  };
+
+  document.getElementById('close-detail').addEventListener('click', () => {
+    document.getElementById('budget-detail-modal').classList.add('hidden');
+  });
+
+  // Create modal
+  const createModal = document.getElementById('create-budget-modal');
+  document.getElementById('open-create-budget').addEventListener('click', () => { createModal.classList.remove('hidden'); document.body.style.overflow='hidden'; });
+  document.getElementById('close-create-budget').addEventListener('click', () => { createModal.classList.add('hidden'); document.body.style.overflow=''; });
+
+  document.getElementById('create-budget-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = document.getElementById('create-budget-btn');
+    const errDiv = document.getElementById('b-error');
+    errDiv.classList.add('hidden');
+    btn.disabled = true; btn.textContent = 'Creating...';
+    try {
+      await window.api.createBudget({
+        name: document.getElementById('b-name').value,
+        start_date: document.getElementById('b-start').value,
+        end_date: document.getElementById('b-end').value,
+        total_amount: parseFloat(document.getElementById('b-amount').value),
+        period: document.getElementById('b-period').value,
+        warning_threshold: parseInt(document.getElementById('b-warn').value),
+        critical_threshold: parseInt(document.getElementById('b-crit').value),
+        notes: document.getElementById('b-notes').value,
+        fiscal_year: new Date(document.getElementById('b-start').value).getFullYear(),
+      });
+      createModal.classList.add('hidden');
+      document.body.style.overflow='';
+      document.getElementById('create-budget-form').reset();
+      showToast('Budget created successfully');
+      loadBudgets();
+    } catch (e) {
+      errDiv.textContent = e.message || 'Failed to create budget';
+      errDiv.classList.remove('hidden');
+    } finally { btn.disabled=false; btn.textContent='Create Budget'; }
+  });
+
+  await loadBudgets();
+  setInterval(loadBudgets, 60000);
+});
+</script>
+</body>
+</html>

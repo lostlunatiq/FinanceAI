@@ -292,6 +292,74 @@ class ExpenseQuery(models.Model):
     attachments = models.ManyToManyField(FileRef, blank=True)
 
 
+class Budget(models.Model):
+    """Department / project budget with threshold alerts."""
+    PERIOD_CHOICES = [
+        ("monthly", "Monthly"), ("quarterly", "Quarterly"),
+        ("semi_annual", "Semi-Annual"), ("annual", "Annual"),
+    ]
+    STATUS_CHOICES = [
+        ("draft", "Draft"), ("active", "Active"),
+        ("locked", "Locked"), ("closed", "Closed"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=200)
+    department = models.ForeignKey(
+        "core.Department", null=True, blank=True, on_delete=models.SET_NULL
+    )
+    fiscal_year = models.IntegerField(default=2026)
+    period = models.CharField(max_length=20, choices=PERIOD_CHOICES, default="quarterly")
+    start_date = models.DateField()
+    end_date = models.DateField()
+    total_amount = models.DecimalField(max_digits=18, decimal_places=2)
+    currency = models.CharField(max_length=3, default="INR")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="active")
+    warning_threshold = models.IntegerField(default=80)   # % at which amber alert fires
+    critical_threshold = models.IntegerField(default=95)  # % at which red alert fires
+    created_by = models.ForeignKey(
+        "core.User", null=True, on_delete=models.SET_NULL, related_name="created_budgets"
+    )
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.name} ({self.fiscal_year})"
+
+    @property
+    def spent_amount(self):
+        """Calculate actual spend from approved/paid expenses for this dept+period."""
+        from django.db.models import Sum
+        qs = Expense.objects.filter(
+            _status__in=["APPROVED", "PENDING_D365", "BOOKED_D365", "POSTED_D365", "PAID"],
+            invoice_date__gte=self.start_date,
+            invoice_date__lte=self.end_date,
+        )
+        if self.department:
+            qs = qs.filter(submitted_by__department=self.department)
+        result = qs.aggregate(total=Sum("total_amount"))["total"]
+        return float(result or 0)
+
+    @property
+    def utilization_pct(self):
+        if float(self.total_amount) <= 0:
+            return 0
+        return round((self.spent_amount / float(self.total_amount)) * 100, 1)
+
+    @property
+    def alert_level(self):
+        pct = self.utilization_pct
+        if pct >= self.critical_threshold:
+            return "CRITICAL"
+        elif pct >= self.warning_threshold:
+            return "WARNING"
+        return "OK"
+
+
 class VendorL1Mapping(models.Model):
     vendor = models.ForeignKey(
         Vendor, on_delete=models.CASCADE, related_name="l1_mappings"

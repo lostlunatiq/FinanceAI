@@ -48,7 +48,7 @@ class VendorListView(APIView):
 
 
 class VendorCreateView(APIView):
-    """POST /api/v1/vendors/ — Create a new vendor."""
+    """POST /api/v1/vendors/create/ — Create vendor + optionally create linked user."""
 
     permission_classes = [IsAuthenticated]
 
@@ -56,9 +56,34 @@ class VendorCreateView(APIView):
         serializer = VendorOnboardSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         vendor = serializer.save()
-        return Response(
-            VendorDetailSerializer(vendor).data, status=status.HTTP_201_CREATED
-        )
+
+        # Optionally create a linked portal user account
+        create_user = request.data.get("create_portal_user", False)
+        portal_username = request.data.get("portal_username", "")
+        portal_password = request.data.get("portal_password", "")
+
+        user_created = None
+        if create_user and portal_username and portal_password:
+            from apps.core.models import User as UserModel
+            if not UserModel.objects.filter(username=portal_username).exists():
+                portal_user = UserModel.objects.create(
+                    username=portal_username,
+                    email=vendor.email or f"{portal_username}@vendor.portal",
+                    first_name=vendor.name.split()[0] if vendor.name else portal_username,
+                    last_name=" ".join(vendor.name.split()[1:]) if len(vendor.name.split()) > 1 else "",
+                    role="vendor",
+                    is_active=True,
+                )
+                portal_user.set_password(portal_password)
+                portal_user.save()
+                vendor.user = portal_user
+                vendor.save(update_fields=["user"])
+                user_created = portal_username
+
+        data = VendorDetailSerializer(vendor).data
+        if user_created:
+            data["portal_user_created"] = user_created
+        return Response(data, status=status.HTTP_201_CREATED)
 
 
 class VendorDetailView(APIView):

@@ -286,6 +286,75 @@ class FinanceAPI {
     async getDashboardStats() {
         return this.request('/invoices/dashboard/stats/');
     }
+
+    // ─── OCR (sync, no Celery needed) ────────────────
+
+    async runOCRSync(fileId) {
+        return this.request('/files/ocr/', {
+            method: 'POST',
+            body: JSON.stringify({ file_id: fileId }),
+        });
+    }
+
+    // ─── User Management ─────────────────────────────
+
+    async getUsers(params = {}) {
+        const q = new URLSearchParams(params).toString();
+        return this.request(`/auth/users/${q ? '?' + q : ''}`);
+    }
+
+    async updateUser(userId, data) {
+        return this.request(`/auth/users/${userId}/`, {
+            method: 'PATCH',
+            body: JSON.stringify(data),
+        });
+    }
+
+    async deactivateUser(userId) {
+        return this.request(`/auth/users/${userId}/`, { method: 'DELETE' });
+    }
+
+    // ─── Budgets ──────────────────────────────────────
+
+    async getBudgets(params = {}) {
+        const q = new URLSearchParams(params).toString();
+        return this.request(`/invoices/budgets/${q ? '?' + q : ''}`);
+    }
+
+    async createBudget(data) {
+        return this.request('/invoices/budgets/', { method: 'POST', body: JSON.stringify(data) });
+    }
+
+    async getBudgetDetail(id) {
+        return this.request(`/invoices/budgets/${id}/`);
+    }
+
+    async updateBudget(id, data) {
+        return this.request(`/invoices/budgets/${id}/`, { method: 'PATCH', body: JSON.stringify(data) });
+    }
+
+    async getBudgetUtilization(id) {
+        return this.request(`/invoices/budgets/${id}/utilization/`);
+    }
+
+    // ─── Cash Flow ────────────────────────────────────
+
+    async getCashFlowForecast(days = 90) {
+        return this.request(`/invoices/forecasting/cashflow/?days=${days}`);
+    }
+
+    // ─── Audit Log ───────────────────────────────────
+
+    async getAuditLog(params = {}) {
+        const q = new URLSearchParams(params).toString();
+        return this.request(`/audit/${q ? '?' + q : ''}`);
+    }
+
+    // ─── NL Query ─────────────────────────────────────
+
+    async nlQuery(question) {
+        return this.request('/nl-query/', { method: 'POST', body: JSON.stringify({ question }) });
+    }
 }
 
 // Global singleton
