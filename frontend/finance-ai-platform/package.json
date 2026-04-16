@@ -1,0 +1,13 @@
+{
+  "name": "finance-ai-platform",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "frontend/packages/*",
+    "frontend/apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@finance-ai/app-main",
+    "build": "npm run build --workspace=@finance-ai/app-main"
+  }
+}

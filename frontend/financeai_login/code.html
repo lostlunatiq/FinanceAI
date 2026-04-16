@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Login - FinanceAI</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Inter:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-secondary-fixed": "#001b3d",
+                    "surface-variant": "#e3e2e2",
+                    "on-primary-fixed-variant": "#004f56",
+                    "outline": "#6f797a",
+                    "tertiary-fixed": "#ecdcff",
+                    "error": "#ba1a1a",
+                    "tertiary": "#6300c9",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-container-high": "#e9e8e7",
+                    "surface-dim": "#dbdad9",
+                    "surface-container-low": "#f5f3f3",
+                    "on-secondary-fixed-variant": "#31476b",
+                    "inverse-surface": "#303031",
+                    "on-secondary": "#ffffff",
+                    "surface-tint": "#006972",
+                    "on-tertiary": "#ffffff",
+                    "on-primary-container": "#9becf7",
+                    "on-tertiary-container": "#e9d7ff",
+                    "on-surface": "#1b1c1c",
+                    "tertiary-fixed-dim": "#d5baff",
+                    "on-error-container": "#93000a",
+                    "surface-container-highest": "#e3e2e2",
+                    "on-primary": "#ffffff",
+                    "outline-variant": "#bec8ca",
+                    "on-error": "#ffffff",
+                    "primary-fixed": "#9ff0fb",
+                    "inverse-primary": "#82d3de",
+                    "secondary": "#495f84",
+                    "on-surface-variant": "#3e494a",
+                    "secondary-fixed-dim": "#b1c7f2",
+                    "on-primary-fixed": "#001f23",
+                    "primary-fixed-dim": "#82d3de",
+                    "on-background": "#1b1c1c",
+                    "secondary-fixed": "#d6e3ff",
+                    "tertiary-container": "#7d30e6",
+                    "inverse-on-surface": "#f2f0f0",
+                    "surface-container": "#efeded",
+                    "on-tertiary-fixed": "#270057"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "fontFamily": {
+                    "headline": ["Manrope"],
+                    "body": ["Inter"],
+                    "label": ["Inter"]
+            }
+          },
+        }
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #fbf9f9; }
+        .font-manrope { font-family: 'Manrope', sans-serif; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(24px);
+            box-shadow: 0 12px 40px rgba(0, 83, 91, 0.06);
+        }
+        .primary-gradient {
+            background: linear-gradient(135deg, #00535b 0%, #006d77 100%);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen flex items-center justify-center p-4">
+<!-- Suppression of Nav Shell as per instructions for Transactional Login Screen -->
+<main class="w-full max-w-[1200px] grid grid-cols-1 lg:grid-cols-2 bg-surface-container-low rounded-xl overflow-hidden min-h-[700px]">
+<!-- Branding & Aesthetics Side (Left) -->
+<section class="hidden lg:flex flex-col justify-between p-12 bg-primary-container relative overflow-hidden">
+<!-- Decorative Grain/Abstract Element -->
+<div class="absolute inset-0 opacity-20 pointer-events-none" data-alt="abstract geometric structures with high contrast shadows and clean lines representing modern architectural ledger and financial precision" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDbStq4-qhVShS8ayGQCiQdMBN79gw4RVSjTDnv9e0sR3-4-rv-BJKVPNhABHkbwIBKJup-Avfi_GfYzPkRcEWs-OnJIoqcsa3a7YfswJ6uaLbLwf5dNWDqulPF9W1ROb5k5IZOsHYDeQY4iwf6B1OCWI2BjRAXY6RUj2-qWb_qBs9XK1ZEH-G7BQMM7Hcvjurs56jm5DoB3KzSLfc-FQjQQE1hvGaxJ3c5c14jPojrU4NUNwxXnDtPIxN4zZkvLscmPQoS1HHVaQVi');">
+</div>
+<div class="relative z-10">
+<div class="flex items-center gap-2 mb-12">
+<span class="material-symbols-outlined text-primary text-4xl" data-icon="account_balance">account_balance</span>
+<h1 class="text-3xl font-manrope font-extrabold tracking-tighter text-primary">FinanceAI</h1>
+</div>
+<div class="space-y-6">
+<h2 class="text-3xl font-manrope font-extrabold text-primary leading-tight tracking-tight">
+                        The Architectural <br/> Ledger for Enterprise.
+                    </h2>
+<p class="text-lg text-on-primary-fixed-variant max-w-md font-body leading-relaxed">
+                        Reimagining finance automation through an expansive, airy experience that feels both authoritative and effortless.
+                    </p>
+</div>
+</div>
+<div class="relative z-10 mt-auto">
+<div class="p-6 glass-panel rounded-xl max-w-sm border border-outline-variant/10">
+<p class="text-sm font-label text-on-surface-variant italic mb-4">
+                        "FinanceAI has transformed our audit cycle from weeks to hours. The clarity of data is unparalleled."
+                    </p>
+<div class="flex items-center gap-3">
+<img alt="Executive profile" class="w-10 h-10 rounded-full object-cover" data-alt="professional male executive in a sharp navy suit looking confident and authoritative with clean studio lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBaz9fzUfwZDfJIgWHy81O4dNc4x4Hd7cqsKDS3HkkN4DYjXO3vHSQqUIth20Alq3ayYN3oMRv7yagHRH8HBX5BaZm__SnsEHa1WBSi8PDd92kFLtQz71kBt5HNwr9qGQBKDFmf_i-jINQZ-LohoOQ_v5tQGiJuR40FA3gZdSqHNOrzlFTliuTGSwBAld7gPPPF8iSu9Zw3Jefa_Wicipcq1yw_HcHUxyqvou8VCROuo8RuQX-aLFwqir1cuG7BBecHEkOLvHWi2KnN"/>
+<div>
+<p class="text-xs font-bold font-manrope text-primary uppercase tracking-widest">Marcus Chen</p>
+<p class="text-[10px] text-on-surface-variant uppercase tracking-tighter">CFO, Global Logistics Corp</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Login Form Side (Right) -->
+<section class="bg-surface-container-lowest p-8 md:p-16 flex flex-col justify-center">
+<div class="max-w-md w-full mx-auto space-y-8">
+<div class="space-y-2">
+<h3 class="text-3xl font-manrope font-extrabold text-on-surface tracking-tight">Welcome Back</h3>
+<p class="text-on-surface-variant font-body">Access your enterprise financial command center.</p>
+</div>
+<!-- Microsoft Login CTA -->
+<button class="w-full flex items-center justify-center gap-3 px-6 py-3 bg-surface-container-high rounded-xl text-on-surface font-manrope font-semibold hover:bg-surface-variant transition-colors group">
+<svg class="w-5 h-5" viewbox="0 0 23 23" xmlns="http://www.w3.org/2000/svg"><path d="M0 0h23v23H0z" fill="#f3f3f3"></path><path d="M1 1h10v10H1z" fill="#f35325"></path><path d="M12 1h10v10H12z" fill="#81bc06"></path><path d="M1 12h10v10H1z" fill="#05a6f0"></path><path d="M12 12h10v10H12z" fill="#ffba08"></path></svg>
+<span>Login with Microsoft (Azure AD)</span>
+</button>
+<div class="relative flex items-center py-4">
+<div class="flex-grow border-t border-outline-variant/20"></div>
+<span class="flex-shrink mx-4 text-outline text-xs uppercase tracking-widest font-bold">OR</span>
+<div class="flex-grow border-t border-outline-variant/20"></div>
+</div>
+<form class="space-y-6">
+
+<!-- Email Field -->
+<div class="space-y-2">
+<label class="block text-xs font-bold font-manrope text-on-surface-variant uppercase tracking-widest">Corporate Email</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline" data-icon="mail">mail</span>
+<input id="login-email" class="w-full bg-surface-container-low border-none rounded-xl pl-12 pr-4 py-3 text-on-surface font-body focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-outline/50" placeholder="name@company.com" type="text"/>
+</div>
+</div>
+<!-- Password Field -->
+<div class="space-y-2">
+<div class="flex justify-between items-center">
+<label class="block text-xs font-bold font-manrope text-on-surface-variant uppercase tracking-widest">Password</label>
+<a class="text-xs font-bold text-primary hover:underline decoration-primary/30" href="#">Forgot password?</a>
+</div>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline" data-icon="lock">lock</span>
+<input id="login-password" class="w-full bg-surface-container-low border-none rounded-xl pl-12 pr-4 py-3 text-on-surface font-body focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-outline/50" placeholder="••••••••" type="password"/>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-outline cursor-pointer hover:text-primary transition-colors" data-icon="visibility">visibility</span>
+</div>
+</div>
+<!-- Login Button -->
+<button id="login-btn" class="w-full primary-gradient text-white py-4 rounded-xl font-manrope font-bold text-lg shadow-lg shadow-primary/10 hover:opacity-90 active:scale-[0.98] transition-all" type="submit">
+                        Sign In to Dashboard
+                    </button>
+<div id="login-error" class="hidden text-center text-sm text-error font-medium py-2 px-4 bg-error/10 rounded-xl"></div>
+</form>
+<div class="text-center">
+<p class="text-sm text-on-surface-variant">
+                        Don't have an account? 
+                        <a class="text-primary font-bold hover:underline" href="#">Contact Administrator</a>
+</p>
+</div>
+</div>
+<!-- Footer Compliance -->
+<div class="mt-auto pt-12 flex justify-between items-center text-[10px] text-outline uppercase tracking-widest font-bold">
+<span>© 2024 FinanceAI Enterprise</span>
+<div class="flex gap-4">
+<a class="hover:text-primary transition-colors" href="#">Privacy</a>
+<a class="hover:text-primary transition-colors" href="#">Security</a>
+</div>
+</div>
+</section>
+</main>
+
+<!-- Shared Scripts -->
+<script src="/frontend/shared/api.js"></script>
+<script src="/frontend/shared/auth.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.querySelector('form');
+    const emailInput = document.getElementById('login-email');
+    const passInput = document.getElementById('login-password');
+    const loginBtn = document.getElementById('login-btn');
+    const errorDiv = document.getElementById('login-error');
+
+    // If already logged in, redirect
+    if (localStorage.getItem('financeai_access_token')) {
+        AUTH.routeToDashboard();
+        return;
+    }
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errorDiv.classList.add('hidden');
+
+        const username = emailInput.value.trim();
+        const password = passInput.value;
+
+        if (!username || !password) {
+            errorDiv.textContent = 'Please enter email and password';
+            errorDiv.classList.remove('hidden');
+            return;
+        }
+
+        // Show loading state
+        loginBtn.disabled = true;
+        loginBtn.innerHTML = '<span class="animate-pulse">Authenticating...</span>';
+
+        try {
+            const data = await window.api.login(username, password);
+            if (data) {
+                AUTH.routeToDashboard();
+            }
+        } catch (err) {
+            console.error('Login error:', err);
+            errorDiv.textContent = err.message || 'Invalid credentials. Please try again.';
+            errorDiv.classList.remove('hidden');
+        } finally {
+            loginBtn.disabled = false;
+            loginBtn.innerHTML = 'Sign In to Dashboard';
+        }
+    });
+
+    // Password visibility toggle
+    const visToggle = document.querySelector('[data-icon="visibility"]');
+    if (visToggle) {
+        visToggle.addEventListener('click', () => {
+            const type = passInput.type === 'password' ? 'text' : 'password';
+            passInput.type = type;
+            visToggle.textContent = type === 'password' ? 'visibility' : 'visibility_off';
+        });
+    }
+});
+</script>
+</body></html>

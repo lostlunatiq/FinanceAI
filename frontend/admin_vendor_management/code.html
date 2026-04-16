@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Vendor Management | FinanceAI</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+tailwind.config = {
+  darkMode: "class",
+  theme: { extend: {
+    colors: {
+      "primary": "#00535b", "primary-container": "#006d77", "on-primary": "#ffffff",
+      "on-primary-container": "#9becf7", "primary-fixed": "#9ff0fb", "primary-fixed-dim": "#82d3de",
+      "on-primary-fixed": "#001f23", "on-primary-fixed-variant": "#004f56",
+      "secondary": "#495f84", "secondary-container": "#bcd2fe", "on-secondary-container": "#445a7f",
+      "error": "#ba1a1a", "error-container": "#ffdad6", "on-error-container": "#93000a",
+      "surface": "#fbf9f9", "surface-container-lowest": "#ffffff", "surface-container-low": "#f5f3f3",
+      "surface-container": "#efeded", "surface-container-high": "#e9e8e7",
+      "on-surface": "#1b1c1c", "on-surface-variant": "#3e494a", "outline": "#6f797a",
+      "outline-variant": "#bec8ca", "background": "#fbf9f9",
+    },
+    fontFamily: { headline: ["Manrope"], body: ["Inter"] }
+  }}
+}
+</script>
+<style>
+body { font-family: 'Inter', sans-serif; background: #fbf9f9; }
+.material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+.primary-gradient { background: linear-gradient(135deg, #00535b 0%, #006d77 100%); }
+</style>
+</head>
+<body class="text-on-surface">
+
+<div id="sidebar-container" class="z-40"></div>
+
+<header class="flex justify-between items-center bg-surface-container-lowest px-8 py-4 border-b border-outline-variant/30 lg:ml-64 relative z-30 shadow-sm">
+  <div>
+    <div class="flex items-center gap-2 text-xs text-on-surface-variant mb-1">
+      <span>Admin</span>
+      <span class="material-symbols-outlined text-[12px]">chevron_right</span>
+      <span class="text-primary font-bold">Vendor Registry</span>
+    </div>
+    <h2 class="text-xl font-extrabold tracking-tight text-primary font-headline">Vendor Management</h2>
+  </div>
+  <button id="open-create-modal" class="flex items-center gap-2 primary-gradient text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:opacity-90">
+    <span class="material-symbols-outlined text-[18px]">add</span>
+    Register Vendor
+  </button>
+</header>
+
+<main class="lg:ml-64 min-h-screen px-8 py-6">
+
+  <!-- Stats -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/20">
+      <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1">Total Vendors</p>
+      <p class="text-2xl font-extrabold text-on-surface font-headline" id="stat-total">—</p>
+    </div>
+    <div class="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/20">
+      <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1">Active</p>
+      <p class="text-2xl font-extrabold text-primary font-headline" id="stat-active">—</p>
+    </div>
+    <div class="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/20">
+      <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1">Pending Approval</p>
+      <p class="text-2xl font-extrabold font-headline" style="color:#d97706" id="stat-pending">—</p>
+    </div>
+    <div class="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/20">
+      <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1">Suspended</p>
+      <p class="text-2xl font-extrabold text-error font-headline" id="stat-suspended">—</p>
+    </div>
+  </div>
+
+  <!-- Filters + Search -->
+  <div class="bg-surface-container-lowest rounded-xl border border-outline-variant/20 overflow-hidden">
+    <div class="px-6 py-4 border-b border-outline-variant/10 flex flex-wrap items-center gap-4">
+      <div class="relative flex-1 min-w-[200px]">
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-on-surface-variant text-[16px]">search</span>
+        <input id="search-input" type="text" placeholder="Search by name, GSTIN, email..."
+          class="w-full pl-9 pr-4 py-2 bg-surface-container-low rounded-lg text-sm border-none focus:outline-none focus:ring-2 focus:ring-primary/20"/>
+      </div>
+      <div class="flex items-center gap-2">
+        <button class="status-filter text-xs font-bold px-3 py-1.5 rounded-full bg-primary text-white" data-status="">All</button>
+        <button class="status-filter text-xs font-bold px-3 py-1.5 rounded-full bg-surface-container text-on-surface-variant hover:bg-surface-container-high" data-status="ACTIVE">Active</button>
+        <button class="status-filter text-xs font-bold px-3 py-1.5 rounded-full bg-surface-container text-on-surface-variant hover:bg-surface-container-high" data-status="PENDING_APPROVAL">Pending</button>
+        <button class="status-filter text-xs font-bold px-3 py-1.5 rounded-full bg-surface-container text-on-surface-variant hover:bg-surface-container-high" data-status="SUSPENDED">Suspended</button>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="overflow-x-auto">
+      <table class="w-full">
+        <thead class="bg-surface-container-low border-b border-outline-variant/10">
+          <tr>
+            <th class="px-6 py-3 text-left text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Vendor</th>
+            <th class="px-6 py-3 text-left text-[10px] font-black uppercase tracking-widest text-on-surface-variant">GSTIN / PAN</th>
+            <th class="px-6 py-3 text-left text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Type</th>
+            <th class="px-6 py-3 text-left text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Status</th>
+            <th class="px-6 py-3 text-left text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Total Invoices</th>
+            <th class="px-6 py-3 text-right text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="vendors-tbody" class="divide-y divide-outline-variant/10">
+          <tr><td colspan="6" class="px-6 py-12 text-center text-on-surface-variant">
+            <div class="animate-pulse">Loading vendors...</div>
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<!-- ═══ Create Vendor Modal ═══ -->
+<div id="create-vendor-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div class="p-8">
+      <div class="flex justify-between items-center mb-6">
+        <div>
+          <h2 class="text-2xl font-headline font-bold">Register New Vendor</h2>
+          <p class="text-sm text-on-surface-variant mt-1">Add a new vendor to the FinanceAI registry</p>
+        </div>
+        <button id="close-create-modal" class="w-10 h-10 rounded-full bg-surface-container hover:bg-surface-container-high flex items-center justify-center">
+          <span class="material-symbols-outlined text-on-surface-variant">close</span>
+        </button>
+      </div>
+
+      <form id="create-vendor-form" class="space-y-5">
+        <div class="grid grid-cols-2 gap-4">
+          <div class="col-span-2">
+            <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Company Name *</label>
+            <input id="v-name" type="text" required class="w-full border border-outline-variant rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="TechServe Solutions Pvt Ltd">
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Email *</label>
+            <input id="v-email" type="email" required class="w-full border border-outline-variant rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="billing@vendor.com">
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Phone</label>
+            <input id="v-phone" type="text" class="w-full border border-outline-variant rounded-lg px-3 py-2.5 text-sm" placeholder="+91 98765 43210">
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">GSTIN (15 chars)</label>
+            <input id="v-gstin" type="text" maxlength="15" class="w-full border border-outline-variant rounded-lg px-3 py-2.5 text-sm uppercase" placeholder="27AABCT1234A1Z5">
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">PAN (10 chars)</label>
+            <input id="v-pan" type="text" maxlength="10" class="w-full border border-outline-variant rounded-lg px-3 py-2.5 text-sm uppercase" placeholder="AABCT1234A">
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Vendor Type</label>
+            <select id="v-type" class="w-full border border-outline-variant rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+              <option value="general">General</option>
+              <option value="saas">SaaS</option>
+              <option value="cloud_infra">Cloud / Infra</option>
+              <option value="logistics">Logistics</option>
+              <option value="consulting">Consulting</option>
+              <option value="hardware">Hardware</option>
+              <option value="professional_services">Professional Services</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-3 pt-5">
+            <input id="v-msme" type="checkbox" class="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary/30">
+            <label for="v-msme" class="text-sm font-medium text-on-surface">MSME Registered</label>
+          </div>
+        </div>
+
+        <div class="border-t border-outline-variant/20 pt-4">
+          <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-3">Bank Details</p>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="col-span-2">
+              <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Account Name</label>
+              <input id="v-bank-name" type="text" class="w-full border border-outline-variant rounded-lg px-3 py-2.5 text-sm" placeholder="Same as company name">
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Account Number</label>
+              <input id="v-bank-acc" type="text" class="w-full border border-outline-variant rounded-lg px-3 py-2.5 text-sm" placeholder="XXXXXXXXXXXX">
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">IFSC Code</label>
+              <input id="v-bank-ifsc" type="text" class="w-full border border-outline-variant rounded-lg px-3 py-2.5 text-sm uppercase" placeholder="SBIN0001234">
+            </div>
+          </div>
+        </div>
+
+        <div id="create-vendor-error" class="hidden text-sm text-error bg-error-container p-3 rounded-lg"></div>
+        <div class="flex gap-3 pt-2">
+          <button type="button" id="cancel-create" class="flex-1 py-3 border border-outline-variant rounded-xl text-sm font-bold text-on-surface-variant">Cancel</button>
+          <button type="submit" id="create-vendor-btn" class="flex-1 py-3 primary-gradient text-white rounded-xl text-sm font-bold">Register Vendor</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Vendor Detail Side Panel ═══ -->
+<div id="vendor-detail-panel" class="hidden fixed inset-y-0 right-0 w-[420px] bg-white shadow-2xl z-[80] overflow-y-auto border-l border-outline-variant/20">
+  <div class="p-6">
+    <div class="flex justify-between items-center mb-6">
+      <h3 class="text-lg font-headline font-bold">Vendor Details</h3>
+      <button id="close-detail-panel" class="text-on-surface-variant hover:text-on-surface">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div id="vendor-detail-content"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast-container" class="fixed bottom-6 right-6 z-[200] flex flex-col gap-3"></div>
+
+<script src="/frontend/shared/api.js"></script>
+<script src="/frontend/shared/auth.js"></script>
+<script src="/frontend/shared/layout.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  let allVendors = [];
+  let activeStatus = '';
+  let searchQuery = '';
+
+  function showToast(msg, type = 'success') {
+    const t = document.createElement('div');
+    const colors = { success: 'bg-primary text-white', error: 'bg-error text-white' };
+    t.className = `${colors[type]||colors.success} px-5 py-3 rounded-xl shadow-lg text-sm font-semibold flex items-center gap-2`;
+    t.innerHTML = `<span class="material-symbols-outlined text-[18px]">${type==='error'?'error_outline':'check_circle'}</span>${msg}`;
+    document.getElementById('toast-container').appendChild(t);
+    setTimeout(() => t.remove(), 4000);
+  }
+
+  const STATUS_COLORS = {
+    'ACTIVE':           'bg-primary/10 text-primary',
+    'PENDING_APPROVAL': 'bg-amber-100 text-amber-700',
+    'SUSPENDED':        'bg-error-container text-on-error-container',
+    'BLACKLISTED':      'bg-inverse-surface text-white',
+    'INACTIVE':         'bg-surface-container-high text-on-surface-variant',
+  };
+
+  function statusBadge(status) {
+    const cls = STATUS_COLORS[status] || 'bg-surface-container text-on-surface-variant';
+    return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${cls}">${status.replace(/_/g,' ')}</span>`;
+  }
+
+  async function loadVendors() {
+    try {
+      const params = {};
+      if (activeStatus) params.status = activeStatus;
+      if (searchQuery) params.search = searchQuery;
+      allVendors = await window.api.getVendors(params) || [];
+      updateStats(allVendors);
+      renderVendors(allVendors);
+    } catch (e) {
+      document.getElementById('vendors-tbody').innerHTML =
+        `<tr><td colspan="6" class="px-6 py-8 text-center text-error text-sm">Failed to load: ${e.message}</td></tr>`;
+    }
+  }
+
+  function updateStats(vendors) {
+    document.getElementById('stat-total').textContent = vendors.length;
+    document.getElementById('stat-active').textContent = vendors.filter(v => v.status === 'ACTIVE').length;
+    document.getElementById('stat-pending').textContent = vendors.filter(v => v.status === 'PENDING_APPROVAL').length;
+    document.getElementById('stat-suspended').textContent = vendors.filter(v => v.status === 'SUSPENDED').length;
+  }
+
+  function renderVendors(vendors) {
+    const tbody = document.getElementById('vendors-tbody');
+    if (!vendors.length) {
+      tbody.innerHTML = `<tr><td colspan="6" class="px-6 py-12 text-center text-on-surface-variant">
+        <span class="material-symbols-outlined text-3xl block mb-2 opacity-30">business</span>
+        <p class="text-sm">No vendors found</p>
+      </td></tr>`;
+      return;
+    }
+    tbody.innerHTML = vendors.map(v => {
+      const initials = v.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+      const canActivate = v.status === 'PENDING_APPROVAL';
+      const canSuspend = v.status === 'ACTIVE';
+      const canUnsuspend = v.status === 'SUSPENDED';
+      return `
+        <tr class="hover:bg-surface-container-low cursor-pointer transition-colors" data-vendor-id="${v.id}">
+          <td class="px-6 py-4">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-xl bg-primary/10 text-primary font-bold flex items-center justify-center text-sm">${initials}</div>
+              <div>
+                <p class="font-bold text-sm text-on-surface">${v.name}</p>
+                <p class="text-xs text-on-surface-variant">${v.email || '—'}</p>
+              </div>
+            </div>
+          </td>
+          <td class="px-6 py-4">
+            <p class="text-sm font-mono text-on-surface">${v.gstin || '—'}</p>
+            <p class="text-xs text-on-surface-variant">${v.pan || '—'}</p>
+          </td>
+          <td class="px-6 py-4 text-sm text-on-surface-variant capitalize">${(v.vendor_type||'').replace(/_/g,' ')}</td>
+          <td class="px-6 py-4">${statusBadge(v.status)}</td>
+          <td class="px-6 py-4 text-sm font-bold text-on-surface">${v.total_invoices || 0}</td>
+          <td class="px-6 py-4">
+            <div class="flex items-center justify-end gap-2">
+              ${canActivate ? `<button class="action-btn text-xs font-bold text-primary bg-primary/10 px-3 py-1.5 rounded-lg hover:bg-primary/20" data-id="${v.id}" data-action="activate">Activate</button>` : ''}
+              ${canSuspend ? `<button class="action-btn text-xs font-bold text-error bg-error/10 px-3 py-1.5 rounded-lg hover:bg-error/20" data-id="${v.id}" data-action="suspend">Suspend</button>` : ''}
+              ${canUnsuspend ? `<button class="action-btn text-xs font-bold text-primary bg-primary/10 px-3 py-1.5 rounded-lg hover:bg-primary/20" data-id="${v.id}" data-action="activate">Unsuspend</button>` : ''}
+              <button class="view-btn p-1.5 rounded-lg hover:bg-surface-container text-on-surface-variant" data-id="${v.id}" title="View">
+                <span class="material-symbols-outlined text-[18px]">open_in_new</span>
+              </button>
+            </div>
+          </td>
+        </tr>`;
+    }).join('');
+
+    tbody.querySelectorAll('.action-btn').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        e.stopPropagation();
+        try {
+          await window.api.activateVendor(btn.dataset.id, btn.dataset.action);
+          showToast(`Vendor ${btn.dataset.action}d successfully`);
+          loadVendors();
+        } catch (err) {
+          showToast(err.message || 'Action failed', 'error');
+        }
+      });
+    });
+
+    tbody.querySelectorAll('.view-btn').forEach(btn => {
+      btn.addEventListener('click', e => { e.stopPropagation(); openVendorDetail(btn.dataset.id); });
+    });
+
+    tbody.querySelectorAll('tr[data-vendor-id]').forEach(row => {
+      row.addEventListener('click', () => openVendorDetail(row.dataset.vendorId));
+    });
+  }
+
+  async function openVendorDetail(vendorId) {
+    const panel = document.getElementById('vendor-detail-panel');
+    const content = document.getElementById('vendor-detail-content');
+    panel.classList.remove('hidden');
+    content.innerHTML = '<div class="flex justify-center py-12"><div class="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full"></div></div>';
+    try {
+      const v = await window.api.getVendorDetail(vendorId);
+      content.innerHTML = `
+        <div class="space-y-5">
+          <div class="bg-surface-container-low rounded-xl p-4 flex items-center gap-4">
+            <div class="w-14 h-14 rounded-xl primary-gradient flex items-center justify-center text-white font-bold text-xl">
+              ${v.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
+            </div>
+            <div>
+              <p class="font-bold text-on-surface text-base">${v.name}</p>
+              <p class="text-sm text-on-surface-variant">${v.email || '—'}</p>
+              <div class="mt-1">${statusBadge(v.status)}</div>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            ${[
+              ['GSTIN', v.gstin || '—'],
+              ['PAN', v.pan || '—'],
+              ['Type', (v.vendor_type||'').replace(/_/g,' ')],
+              ['MSME', v.msme_registered ? 'Yes' : 'No'],
+              ['Total Invoices', v.total_invoices || 0],
+              ['Total Spend', v.total_spend ? '₹' + parseFloat(v.total_spend).toLocaleString('en-IN',{maximumFractionDigits:0}) : '₹0'],
+            ].map(([k,val]) => `<div class="bg-surface-container-low rounded-lg p-3"><p class="text-xs text-on-surface-variant mb-1">${k}</p><p class="text-sm font-bold text-on-surface">${val}</p></div>`).join('')}
+          </div>
+          <div class="border-t border-outline-variant/20 pt-4">
+            <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-3">Bank Details</p>
+            <div class="space-y-2 text-sm">
+              <div class="flex justify-between"><span class="text-on-surface-variant">Account Name</span><span class="font-medium">${v.bank_account_name || '—'}</span></div>
+              <div class="flex justify-between"><span class="text-on-surface-variant">Account No.</span><span class="font-mono">${v.bank_account_number || '—'}</span></div>
+              <div class="flex justify-between"><span class="text-on-surface-variant">IFSC</span><span class="font-mono">${v.bank_ifsc || '—'}</span></div>
+            </div>
+          </div>
+          <div class="flex gap-3 pt-2">
+            ${v.status === 'PENDING_APPROVAL' ? `<button class="flex-1 py-2.5 primary-gradient text-white rounded-xl text-sm font-bold detail-action" data-id="${v.id}" data-action="activate">✅ Activate Vendor</button>` : ''}
+            ${v.status === 'ACTIVE' ? `<button class="flex-1 py-2.5 bg-error text-white rounded-xl text-sm font-bold detail-action" data-id="${v.id}" data-action="suspend">⛔ Suspend</button>` : ''}
+            ${v.status === 'SUSPENDED' ? `<button class="flex-1 py-2.5 primary-gradient text-white rounded-xl text-sm font-bold detail-action" data-id="${v.id}" data-action="activate">✅ Unsuspend</button>` : ''}
+          </div>
+        </div>`;
+
+      content.querySelectorAll('.detail-action').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          try {
+            await window.api.activateVendor(btn.dataset.id, btn.dataset.action);
+            showToast('Vendor updated successfully');
+            panel.classList.add('hidden');
+            loadVendors();
+          } catch (e) { showToast(e.message||'Failed','error'); }
+        });
+      });
+    } catch (e) {
+      content.innerHTML = `<p class="text-error text-sm">Failed to load: ${e.message}</p>`;
+    }
+  }
+
+  document.getElementById('close-detail-panel').addEventListener('click', () => {
+    document.getElementById('vendor-detail-panel').classList.add('hidden');
+  });
+
+  // Filter buttons
+  document.querySelectorAll('.status-filter').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeStatus = btn.dataset.status;
+      document.querySelectorAll('.status-filter').forEach(b => {
+        b.className = 'status-filter text-xs font-bold px-3 py-1.5 rounded-full bg-surface-container text-on-surface-variant hover:bg-surface-container-high';
+      });
+      btn.className = 'status-filter text-xs font-bold px-3 py-1.5 rounded-full bg-primary text-white';
+      loadVendors();
+    });
+  });
+
+  // Search
+  let searchTimer;
+  document.getElementById('search-input').addEventListener('input', e => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => { searchQuery = e.target.value; loadVendors(); }, 400);
+  });
+
+  // Create Vendor Modal
+  const createModal = document.getElementById('create-vendor-modal');
+  document.getElementById('open-create-modal').addEventListener('click', () => { createModal.classList.remove('hidden'); document.body.style.overflow='hidden'; });
+  document.getElementById('close-create-modal').addEventListener('click', () => { createModal.classList.add('hidden'); document.body.style.overflow=''; });
+  document.getElementById('cancel-create').addEventListener('click', () => { createModal.classList.add('hidden'); document.body.style.overflow=''; });
+  createModal.addEventListener('click', e => { if(e.target===createModal){ createModal.classList.add('hidden'); document.body.style.overflow=''; }});
+
+  document.getElementById('create-vendor-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = document.getElementById('create-vendor-btn');
+    const errDiv = document.getElementById('create-vendor-error');
+    errDiv.classList.add('hidden');
+    btn.disabled = true; btn.textContent = 'Registering...';
+
+    try {
+      const payload = {
+        name: document.getElementById('v-name').value,
+        email: document.getElementById('v-email').value,
+        phone: document.getElementById('v-phone').value,
+        gstin: document.getElementById('v-gstin').value.toUpperCase(),
+        pan: document.getElementById('v-pan').value.toUpperCase(),
+        vendor_type: document.getElementById('v-type').value,
+        msme_registered: document.getElementById('v-msme').checked,
+        bank_account_name: document.getElementById('v-bank-name').value || document.getElementById('v-name').value,
+        bank_account_number: document.getElementById('v-bank-acc').value,
+        bank_ifsc: document.getElementById('v-bank-ifsc').value.toUpperCase(),
+      };
+
+      await window.api.createVendor(payload);
+      createModal.classList.add('hidden');
+      document.body.style.overflow = '';
+      document.getElementById('create-vendor-form').reset();
+      showToast('Vendor registered successfully! Awaiting activation.');
+      loadVendors();
+    } catch (err) {
+      const detail = err.data ? Object.entries(err.data).map(([k,v]) => `${k}: ${Array.isArray(v)?v.join(', '):v}`).join(' | ') : err.message;
+      errDiv.textContent = detail || 'Registration failed.';
+      errDiv.classList.remove('hidden');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Register Vendor';
+    }
+  });
+
+  await loadVendors();
+  setInterval(loadVendors, 60000);
+});
+</script>
+</body>
+</html>

@@ -37,9 +37,18 @@ class User(AbstractUser):
             ("finance_manager", "Finance Manager"),
             ("dept_head", "Department Head"),
             ("employee", "Employee"),
+            ("vendor", "Vendor"),
         ],
         default="employee",
     )
+
+    @property
+    def is_vendor(self):
+        return self.role == "vendor"
+
+    @property
+    def is_finance(self):
+        return self.role in ("finance_admin", "finance_manager")
     department = models.ForeignKey(
         Department, null=True, blank=True, on_delete=models.SET_NULL
     )

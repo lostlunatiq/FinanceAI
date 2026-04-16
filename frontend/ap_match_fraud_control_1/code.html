@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "tertiary-fixed": "#ecdcff",
+                    "surface-container-lowest": "#ffffff",
+                    "secondary-container": "#bcd2fe",
+                    "on-tertiary-container": "#e9d7ff",
+                    "outline": "#6f797a",
+                    "on-surface": "#1b1c1c",
+                    "surface-container-low": "#f5f3f3",
+                    "on-secondary-fixed": "#001b3d",
+                    "surface-dim": "#dbdad9",
+                    "on-primary-fixed": "#001f23",
+                    "on-tertiary-fixed": "#270057",
+                    "on-primary-container": "#9becf7",
+                    "on-secondary-fixed-variant": "#31476b",
+                    "tertiary-container": "#7d30e6",
+                    "primary": "#00535b",
+                    "tertiary": "#6300c9",
+                    "secondary-fixed": "#d6e3ff",
+                    "on-tertiary-fixed-variant": "#5f00c0",
+                    "surface-container-high": "#e9e8e7",
+                    "on-primary": "#ffffff",
+                    "on-secondary": "#ffffff",
+                    "error-container": "#ffdad6",
+                    "on-secondary-container": "#445a7f",
+                    "surface-variant": "#e3e2e2",
+                    "error": "#ba1a1a",
+                    "primary-fixed": "#9ff0fb",
+                    "secondary": "#495f84",
+                    "on-primary-fixed-variant": "#004f56",
+                    "inverse-surface": "#303031",
+                    "on-error-container": "#93000a",
+                    "on-surface-variant": "#3e494a",
+                    "surface-container-highest": "#e3e2e2",
+                    "primary-container": "#006d77",
+                    "background": "#fbf9f9",
+                    "inverse-primary": "#82d3de",
+                    "surface-tint": "#006972",
+                    "surface": "#fbf9f9",
+                    "inverse-on-surface": "#f2f0f0",
+                    "on-background": "#1b1c1c",
+                    "surface-bright": "#fbf9f9",
+                    "secondary-fixed-dim": "#b1c7f2",
+                    "outline-variant": "#bec8ca",
+                    "on-tertiary": "#ffffff",
+                    "on-error": "#ffffff",
+                    "tertiary-fixed-dim": "#d5baff",
+                    "primary-fixed-dim": "#82d3de",
+                    "surface-container": "#efeded"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "fontFamily": {
+                    "headline": ["Manrope"],
+                    "body": ["Inter"],
+                    "label": ["Inter"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3, .font-headline { font-family: 'Manrope', sans-serif; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(24px);
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .gradient-cta {
+            background: linear-gradient(135deg, #00535b 0%, #006d77 100%);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface">
+<!-- Sidebar Navigation -->
+
+<!-- Main Content Canvas -->
+<div id="sidebar-container" class="z-40"></div>
+<main class="ml-64 min-h-screen p-10 flex flex-col gap-10">
+<!-- Header Section with Match Score & Fraud Shield -->
+<header class="flex justify-between items-start">
+<div class="space-y-2">
+<div class="flex items-center gap-2 text-primary font-bold tracking-tight">
+<span class="material-symbols-outlined">security</span>
+<span class="uppercase text-xs tracking-[0.2em]">High-Precision Audit</span>
+</div>
+<h1 class="text-2xl font-extrabold tracking-tighter text-on-surface">Invoice #INV-2024-082</h1>
+<p class="text-on-surface-variant text-sm font-medium">Vendor: TechLogistics Solutions Global</p>
+</div>
+<div class="flex gap-8 items-center">
+<!-- Fraud Shield Countdown -->
+<div class="bg-on-tertiary-container/30 px-6 py-4 rounded-xl flex items-center gap-4 border border-tertiary-fixed">
+<div class="flex flex-col">
+<span class="text-[10px] font-bold uppercase tracking-widest text-tertiary-container">Fraud Shield Active</span>
+<div class="flex items-baseline gap-1">
+<span class="text-2xl font-black text-tertiary-container">31:14:02</span>
+</div>
+<span class="text-[10px] text-on-surface-variant font-medium">Cooling period for bank change</span>
+</div>
+<div class="relative">
+<div class="w-10 h-10 rounded-full border-2 border-tertiary-fixed flex items-center justify-center">
+<span class="material-symbols-outlined text-tertiary-container text-lg" style="font-variation-settings: 'FILL' 1;">shield</span>
+</div>
+</div>
+</div>
+<!-- Match Confidence Score -->
+<div class="relative w-24 h-24 flex items-center justify-center">
+<svg class="w-full h-full transform -rotate-90">
+<circle class="text-surface-container-high" cx="48" cy="48" fill="transparent" r="40" stroke="currentColor" stroke-width="8"></circle>
+<circle class="text-primary" cx="48" cy="48" fill="transparent" r="40" stroke="currentColor" stroke-dasharray="251.2" stroke-dashoffset="30.1" stroke-width="8"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="text-xl font-black text-on-surface leading-none">88%</span>
+<span class="text-[8px] font-bold uppercase tracking-tighter text-on-surface-variant">Confidence</span>
+</div>
+</div>
+</div>
+</header>
+<!-- 3-Way Match Grid -->
+<section class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+<!-- Column 1: Purchase Order (PO) -->
+<div class="bg-surface-container-low rounded-xl p-6 flex flex-col gap-6 shadow-sm">
+<div class="flex justify-between items-center">
+<div class="flex flex-col">
+<span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Document A</span>
+<h2 class="text-lg font-bold">Purchase Order</h2>
+<span class="text-xs font-mono text-primary font-bold">#PO-98122</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant">receipt_long</span>
+</div>
+<div class="space-y-4">
+<div class="p-4 bg-surface-container-lowest rounded-lg">
+<div class="flex justify-between mb-2">
+<span class="text-xs font-semibold text-on-surface-variant">Server Rack Units (24U)</span>
+<span class="text-xs font-bold">Qty: 10</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-sm font-bold">$14,500.00</span>
+<span class="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded font-bold">AUTHORIZED</span>
+</div>
+</div>
+<div class="p-4 bg-surface-container-lowest rounded-lg border-l-4 border-primary">
+<div class="flex justify-between mb-2">
+<span class="text-xs font-semibold text-on-surface-variant">Cat6e Cabling (1000ft)</span>
+<span class="text-xs font-bold">Qty: 25</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-sm font-bold">$3,125.00</span>
+<span class="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded font-bold">AUTHORIZED</span>
+</div>
+</div>
+<div class="p-4 bg-surface-container-lowest rounded-lg">
+<div class="flex justify-between mb-2">
+<span class="text-xs font-semibold text-on-surface-variant">Installation Service</span>
+<span class="text-xs font-bold">Qty: 1</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-sm font-bold">$2,000.00</span>
+<span class="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded font-bold">AUTHORIZED</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Column 2: Goods Receipt Note (GRN) -->
+<div class="bg-surface-container-low rounded-xl p-6 flex flex-col gap-6 shadow-sm">
+<div class="flex justify-between items-center">
+<div class="flex flex-col">
+<span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Document B</span>
+<h2 class="text-lg font-bold">Goods Receipt</h2>
+<span class="text-xs font-mono text-primary font-bold">#GRN-5541</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant">package_2</span>
+</div>
+<div class="space-y-4">
+<div class="p-4 bg-surface-container-lowest rounded-lg">
+<div class="flex justify-between mb-2">
+<span class="text-xs font-semibold text-on-surface-variant">Server Rack Units (24U)</span>
+<span class="text-xs font-bold">Qty: 10</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-[10px] text-primary flex items-center gap-1 font-bold">
+<span class="material-symbols-outlined text-xs">check_circle</span> Verified by J. Doe
+                            </span>
+<span class="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded font-bold">RECEIVED</span>
+</div>
+</div>
+<!-- MISMATCH QTY -->
+<div class="p-4 bg-surface-container-lowest rounded-lg border-l-4 border-error">
+<div class="flex justify-between mb-2">
+<span class="text-xs font-semibold text-on-surface-variant">Cat6e Cabling (1000ft)</span>
+<span class="text-xs font-bold text-error">Qty: 24</span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="text-[10px] text-error font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">warning</span> Short shipment detected (-1 unit)
+                            </span>
+<span class="text-[10px] bg-error/10 text-error px-2 py-0.5 rounded font-bold w-fit">PARTIAL</span>
+</div>
+</div>
+<div class="p-4 bg-surface-container-lowest rounded-lg">
+<div class="flex justify-between mb-2">
+<span class="text-xs font-semibold text-on-surface-variant">Installation Service</span>
+<span class="text-xs font-bold">Qty: 1</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-[10px] text-primary flex items-center gap-1 font-bold">
+<span class="material-symbols-outlined text-xs">check_circle</span> Field Approved
+                            </span>
+<span class="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded font-bold">COMPLETED</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Column 3: Vendor Invoice -->
+<div class="bg-surface-container-low rounded-xl p-6 flex flex-col gap-6 shadow-sm border border-primary-container/20">
+<div class="flex justify-between items-center">
+<div class="flex flex-col">
+<span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Document C</span>
+<h2 class="text-lg font-bold">Vendor Invoice</h2>
+<span class="text-xs font-mono text-primary font-bold">#INV-2024-082</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant">payments</span>
+</div>
+<div class="space-y-4">
+<div class="p-4 bg-surface-container-lowest rounded-lg">
+<div class="flex justify-between mb-2">
+<span class="text-xs font-semibold text-on-surface-variant">Server Rack Units (24U)</span>
+<span class="text-xs font-bold">Qty: 10</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-sm font-bold">$14,500.00</span>
+<span class="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded font-bold">MATCHED</span>
+</div>
+</div>
+<!-- PRICE MISMATCH -->
+<div class="p-4 bg-surface-container-lowest rounded-lg border-l-4 border-error">
+<div class="flex justify-between mb-2">
+<span class="text-xs font-semibold text-on-surface-variant">Cat6e Cabling (1000ft)</span>
+<span class="text-xs font-bold">Qty: 25</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-sm font-bold text-error">$3,450.00</span>
+<div class="flex flex-col items-end">
+<span class="text-[10px] text-error font-bold">+10.4% vs PO Price</span>
+<span class="text-[10px] bg-error/10 text-error px-2 py-0.5 rounded font-bold">DISCREPANCY</span>
+</div>
+</div>
+</div>
+<div class="p-4 bg-surface-container-lowest rounded-lg">
+<div class="flex justify-between mb-2">
+<span class="text-xs font-semibold text-on-surface-variant">Installation Service</span>
+<span class="text-xs font-bold">Qty: 1</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-sm font-bold">$2,000.00</span>
+<span class="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded font-bold">MATCHED</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Asymmetric Analysis Section -->
+<section class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+<!-- Contextual Insights (Left - 8 Cols) -->
+<div class="lg:col-span-8 flex flex-col gap-6">
+<div class="bg-surface-container-lowest rounded-xl p-8 shadow-sm">
+<h3 class="text-xl font-bold mb-6">Line Item Audit Intelligence</h3>
+<div class="space-y-6">
+<div class="flex items-start gap-4 pb-6 border-b border-surface-container">
+<div class="w-10 h-10 rounded-full bg-error-container/20 flex items-center justify-center text-error">
+<span class="material-symbols-outlined">analytics</span>
+</div>
+<div class="flex-grow">
+<h4 class="font-bold text-sm">Unit Cost Deviation</h4>
+<p class="text-xs text-on-surface-variant mt-1 leading-relaxed">
+                                    Cat6e Cabling unit price of <strong class="text-on-surface">$138.00</strong> exceeds the agreed PO rate of <strong class="text-on-surface">$125.00</strong>. This vendor has a historical trend of +2.4% over-billing in Q3.
+                                </p>
+</div>
+<button class="text-xs font-bold text-primary hover:underline">Reconcile</button>
+</div>
+<div class="flex items-start gap-4 pb-6 border-b border-surface-container">
+<div class="w-10 h-10 rounded-full bg-secondary-container/20 flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined">inventory_2</span>
+</div>
+<div class="flex-grow">
+<h4 class="font-bold text-sm">Inventory Discrepancy</h4>
+<p class="text-xs text-on-surface-variant mt-1 leading-relaxed">
+                                    The warehouse recorded 24 units received vs 25 units invoiced. Warehouse sensor logs confirm only one pallet was unloaded at Bay 4.
+                                </p>
+</div>
+<button class="text-xs font-bold text-primary hover:underline">Request Proof</button>
+</div>
+<div class="flex items-start gap-4">
+<div class="w-10 h-10 rounded-full bg-primary-container/20 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">rule</span>
+</div>
+<div class="flex-grow">
+<h4 class="font-bold text-sm">Policy Compliance</h4>
+<p class="text-xs text-on-surface-variant mt-1 leading-relaxed">
+                                    Overall variance is $325.00 (1.6%). This falls within the automatic tolerance threshold for "Strategic Vendors," but bank cooling period overrides auto-approval.
+                                </p>
+</div>
+<span class="text-[10px] font-bold text-primary bg-primary-fixed py-1 px-2 rounded-full uppercase tracking-widest">Pass</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Fraud & Security (Right - 4 Cols) -->
+<div class="lg:col-span-4 flex flex-col gap-6">
+<div class="glass-panel p-6 rounded-xl border border-outline-variant/15 shadow-2xl shadow-primary/5">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-tertiary-container" style="font-variation-settings: 'FILL' 1;">gpp_maybe</span>
+<h3 class="text-lg font-bold">Fraud Control Center</h3>
+</div>
+<div class="space-y-4">
+<div class="bg-surface-container-low p-4 rounded-lg">
+<div class="flex justify-between items-center mb-2">
+<span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Bank Account Update</span>
+<span class="text-[10px] bg-tertiary-container text-on-tertiary px-2 py-0.5 rounded font-bold">CRITICAL</span>
+</div>
+<div class="flex flex-col gap-1">
+<div class="flex justify-between text-xs font-mono">
+<span class="opacity-50">Old:</span>
+<span>**** 8821</span>
+</div>
+<div class="flex justify-between text-xs font-mono font-bold text-tertiary-container">
+<span>New:</span>
+<span>**** 0042</span>
+</div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-sm">verified</span>
+<span class="text-xs font-medium">Domain verification successful</span>
+</div>
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-sm">verified</span>
+<span class="text-xs font-medium">IP Address matches vendor location</span>
+</div>
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-error text-sm">cancel</span>
+<span class="text-xs font-medium text-error">Voice confirmation pending</span>
+</div>
+</div>
+<div class="pt-4 flex flex-col gap-2">
+<button class="w-full bg-surface-container-highest text-on-surface py-3 rounded-xl font-bold text-sm hover:bg-surface-variant transition-colors">
+                                Flag for Manual Review
+                            </button>
+<button class="w-full gradient-cta text-on-primary py-3 rounded-xl font-bold text-sm shadow-md opacity-50 cursor-not-allowed">
+                                Release Payment (Locked)
+                            </button>
+</div>
+</div>
+</div>
+<!-- Vendor Visual Identification -->
+<div class="rounded-xl overflow-hidden h-40 relative group">
+<img alt="Vendor Logistics Facility" class="w-full h-full object-cover grayscale transition-all duration-700 group-hover:grayscale-0" data-alt="industrial logistics warehouse with rows of high shelving and blue LED lighting, clean modern aesthetic with motion blur of a forklift" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBwmyuMxXUUiJQjdY9O12-4u88ZlFI2SoeYFdonlZ6L9KaOh8TPIl6zq-PXqcXZgzVIRZK5WX7jttqgqLnoLL9eAFpM2m5ZFtYBklmVXggEEXC1MNbmh9dgLo5scJzcxlxIEhibIay-2jYR8_NTfdCHqZchV1z0zlFoP_KjgzzuP2tFeeAKyI06xy6_XYs0YV0yoszVd5ppev8fPwlQKKbpR_2GkgVVN1vd4_crqw6UdGPtU9UIw91qcBVN7SIvd0_gsR36FUMLfSHM"/>
+<div class="absolute inset-0 bg-primary/40 mix-blend-multiply"></div>
+<div class="absolute bottom-4 left-4 text-on-primary">
+<p class="text-[10px] font-bold uppercase tracking-widest opacity-80">Verified Facility</p>
+<p class="font-headline font-bold">West Coast Hub - SFO</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<script src="/frontend/shared/layout.js"></script>
+</body></html>

@@ -31,9 +31,9 @@ class ExpenseSubmitSerializer(serializers.ModelSerializer):
         ]
 
     def validate_business_purpose(self, value):
-        if len(value.strip()) < 20:
+        if value and len(value.strip()) < 5:
             raise serializers.ValidationError(
-                "Business purpose must be at least 20 characters."
+                "Business purpose must be at least 5 characters."
             )
         return value
 
