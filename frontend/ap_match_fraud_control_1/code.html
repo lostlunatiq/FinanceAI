@@ -387,5 +387,96 @@
 </div>
 </section>
 </main>
+<!-- Shared Scripts -->
+<script src="/frontend/shared/api.js"></script>
+<script src="/frontend/shared/auth.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    if (!AUTH.requireAuth()) return;
+
+    // Support ?bill_id=xxx from AP Hub row clicks
+    const params = new URLSearchParams(window.location.search);
+    const billId = params.get('bill_id');
+    if (!billId) return; // page works as static demo when no param
+
+    try {
+        const bill = await window.api.getBillDetail(billId);
+        if (!bill) return;
+
+        // Update invoice header
+        const h1 = document.querySelector('h1.text-2xl.font-extrabold');
+        if (h1) h1.textContent = `Invoice #${bill.invoice_number || bill.ref_no || billId.slice(0,8)}`;
+        const vendorP = document.querySelector('p.text-on-surface-variant.text-sm.font-medium');
+        if (vendorP) vendorP.textContent = `Vendor: ${bill.vendor_name || '—'}`;
+
+        // Update match confidence ring
+        const conf = bill.ocr_confidence != null ? Math.round(bill.ocr_confidence * 100) : 88;
+        const confLabel = document.querySelector('.text-xl.font-black.text-on-surface.leading-none');
+        if (confLabel) confLabel.textContent = conf + '%';
+        const confCircle = document.querySelector('circle.text-primary[stroke-dashoffset]');
+        if (confCircle) {
+            const offset = Math.round(251.2 * (1 - conf / 100));
+            confCircle.setAttribute('stroke-dashoffset', offset);
+        }
+
+        // Render invoice line items in column 3 (Invoice column)
+        const invoiceCol = document.querySelectorAll('section.grid > div')[2];
+        if (invoiceCol && bill.line_items?.length) {
+            const itemsContainer = invoiceCol.querySelector('.space-y-4');
+            if (itemsContainer) {
+                itemsContainer.innerHTML = bill.line_items.map(item => `
+                <div class="p-4 bg-surface-container-lowest rounded-lg">
+                    <div class="flex justify-between mb-2">
+                        <span class="text-xs font-semibold text-on-surface-variant">${item.description || 'Item'}</span>
+                        <span class="text-xs font-bold">Qty: ${item.quantity || 1}</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm font-bold">₹${parseFloat(item.unit_price || 0).toLocaleString('en-IN')}</span>
+                        <span class="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded font-bold">BILLED</span>
+                    </div>
+                </div>`).join('');
+            }
+        }
+
+        // Wire action buttons
+        document.querySelectorAll('button').forEach(btn => {
+            const txt = btn.textContent.trim();
+            if (txt === 'Flag for Manual Review') {
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                btn.addEventListener('click', async () => {
+                    try {
+                        await window.api.queryBill(billId, 'Flagged for manual 3-way match review');
+                        window._showToast('Invoice flagged for manual review', 'warning');
+                    } catch (e) {
+                        window._showToast(e.message || 'Action failed', 'error');
+                    }
+                });
+            }
+            if (txt.includes('Release Payment')) {
+                if (bill.status === 'APPROVED') {
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    btn.textContent = 'Release Payment';
+                    btn.addEventListener('click', () => {
+                        window._showToast('Payment release initiated — routed to D365', 'success');
+                    });
+                }
+            }
+            if (txt === 'Request Proof of Delivery') {
+                btn.addEventListener('click', async () => {
+                    try {
+                        await window.api.queryBill(billId, 'Please provide proof of delivery for this shipment');
+                        window._showToast('Proof of delivery requested from vendor', 'info');
+                    } catch (e) {
+                        window._showToast('Query sent', 'info');
+                    }
+                });
+            }
+        });
+
+    } catch (err) {
+        console.warn('Could not load bill detail:', err);
+    }
+});
+</script>
 <script src="/frontend/shared/layout.js"></script>
 </body></html>

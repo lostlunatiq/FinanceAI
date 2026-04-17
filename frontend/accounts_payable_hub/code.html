@@ -1,519 +1,812 @@
 <!DOCTYPE html>
 
-<html class="light" lang="en"><head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Accounts Payable Hub | FinanceAI</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<script id="tailwind-config">
-      tailwind.config = {
-        darkMode: "class",
-        theme: {
-          extend: {
-            "colors": {
-                    "on-secondary-fixed": "#001b3d",
-                    "surface-variant": "#e3e2e2",
-                    "on-primary-fixed-variant": "#004f56",
-                    "outline": "#6f797a",
-                    "tertiary-fixed": "#ecdcff",
-                    "error": "#ba1a1a",
-                    "tertiary": "#6300c9",
-                    "surface-container-lowest": "#ffffff",
-                    "surface-container-high": "#e9e8e7",
-                    "surface-dim": "#dbdad9",
-                    "surface-container-low": "#f5f3f3",
-                    "on-secondary-fixed-variant": "#31476b",
-                    "inverse-surface": "#303031",
-                    "on-secondary": "#ffffff",
-                    "surface-tint": "#006972",
-                    "on-tertiary": "#ffffff",
-                    "on-primary-container": "#9becf7",
-                    "on-tertiary-fixed-variant": "#5f00c0",
-                    "background": "#fbf9f9",
-                    "secondary-container": "#bcd2fe",
-                    "error-container": "#ffdad6",
-                    "surface": "#fbf9f9",
-                    "primary": "#00535b",
-                    "on-secondary-container": "#445a7f",
-                    "primary-container": "#006d77",
-                    "surface-bright": "#fbf9f9",
-                    "on-tertiary-container": "#e9d7ff",
-                    "on-surface": "#1b1c1c",
-                    "tertiary-fixed-dim": "#d5baff",
-                    "on-error-container": "#93000a",
-                    "surface-container-highest": "#e3e2e2",
-                    "on-primary": "#ffffff",
-                    "outline-variant": "#bec8ca",
-                    "on-error": "#ffffff",
-                    "primary-fixed": "#9ff0fb",
-                    "inverse-primary": "#82d3de",
-                    "secondary": "#495f84",
-                    "on-surface-variant": "#3e494a",
-                    "secondary-fixed-dim": "#b1c7f2",
-                    "on-primary-fixed": "#001f23",
-                    "primary-fixed-dim": "#82d3de",
-                    "on-background": "#1b1c1c",
-                    "secondary-fixed": "#d6e3ff",
-                    "tertiary-container": "#7d30e6",
-                    "inverse-on-surface": "#f2f0f0",
-                    "surface-container": "#efeded",
-                    "on-tertiary-fixed": "#270057"
+<html class="light" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Accounts Payable Hub | FinanceAI</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-fixed": "#001b3d",
+                        "surface-variant": "#e3e2e2",
+                        "on-primary-fixed-variant": "#004f56",
+                        "outline": "#6f797a",
+                        "tertiary-fixed": "#ecdcff",
+                        "error": "#ba1a1a",
+                        "tertiary": "#6300c9",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-high": "#e9e8e7",
+                        "surface-dim": "#dbdad9",
+                        "surface-container-low": "#f5f3f3",
+                        "on-secondary-fixed-variant": "#31476b",
+                        "inverse-surface": "#303031",
+                        "on-secondary": "#ffffff",
+                        "surface-tint": "#006972",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-container": "#9becf7",
+                        "on-tertiary-fixed-variant": "#5f00c0",
+                        "background": "#fbf9f9",
+                        "secondary-container": "#bcd2fe",
+                        "error-container": "#ffdad6",
+                        "surface": "#fbf9f9",
+                        "primary": "#00535b",
+                        "on-secondary-container": "#445a7f",
+                        "primary-container": "#006d77",
+                        "surface-bright": "#fbf9f9",
+                        "on-tertiary-container": "#e9d7ff",
+                        "on-surface": "#1b1c1c",
+                        "tertiary-fixed-dim": "#d5baff",
+                        "on-error-container": "#93000a",
+                        "surface-container-highest": "#e3e2e2",
+                        "on-primary": "#ffffff",
+                        "outline-variant": "#bec8ca",
+                        "on-error": "#ffffff",
+                        "primary-fixed": "#9ff0fb",
+                        "inverse-primary": "#82d3de",
+                        "secondary": "#495f84",
+                        "on-surface-variant": "#3e494a",
+                        "secondary-fixed-dim": "#b1c7f2",
+                        "on-primary-fixed": "#001f23",
+                        "primary-fixed-dim": "#82d3de",
+                        "on-background": "#1b1c1c",
+                        "secondary-fixed": "#d6e3ff",
+                        "tertiary-container": "#7d30e6",
+                        "inverse-on-surface": "#f2f0f0",
+                        "surface-container": "#efeded",
+                        "on-tertiary-fixed": "#270057"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {},
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
             },
-            "borderRadius": {
-                    "DEFAULT": "0.125rem",
-                    "lg": "0.25rem",
-                    "xl": "0.5rem",
-                    "full": "0.75rem"
-            },
-            "spacing": {},
-            "fontFamily": {
-                    "headline": ["Manrope"],
-                    "body": ["Inter"],
-                    "label": ["Inter"]
-            }
-          },
-        },
-      }
+        }
     </script>
-<style>
+    <style>
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
         }
+
         .glass-panel {
             background: rgba(255, 255, 255, 0.85);
             backdrop-filter: blur(24px);
             box-shadow: 0 12px 40px rgba(0, 83, 91, 0.06);
         }
+
         .primary-gradient {
             background: linear-gradient(135deg, #00535b 0%, #006d77 100%);
         }
+
         ::-webkit-scrollbar {
             width: 6px;
         }
+
         ::-webkit-scrollbar-track {
             background: transparent;
         }
+
         ::-webkit-scrollbar-thumb {
             background: #bec8ca;
             border-radius: 10px;
         }
     </style>
 </head>
+
 <body class="bg-surface font-body text-on-surface antialiased">
-<!-- SideNavBar Anchor -->
+    <!-- SideNavBar Anchor -->
 
-<!-- Main Content Canvas -->
-<div id="sidebar-container" class="z-40"></div>
-<main class="lg:ml-64 min-h-screen">
-<!-- TopNavBar -->
-<div class="w-full h-16 sticky top-0 z-40 bg-surface-container-lowest flex justify-between items-center px-8 border-b border-outline-variant/30 shadow-sm">
-<div class="flex items-center gap-8">
-<div class="relative">
-<span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-sm">search</span>
-<input class="pl-10 pr-4 py-1.5 bg-surface-container-low rounded-full text-sm border-none focus:ring-1 focus:ring-primary w-64" placeholder="Search invoices, vendors..." type="text"/>
-</div>
-</div>
-<div class="flex items-center gap-6">
-<div class="flex items-center gap-4 text-on-surface-variant">
-<button class="p-1 hover:bg-[#f5f3f3] transition-colors rounded-lg"><span class="material-symbols-outlined">notifications</span></button>
-<button class="p-1 hover:bg-[#f5f3f3] transition-colors rounded-lg"><span class="material-symbols-outlined">help</span></button>
-<button class="p-1 hover:bg-[#f5f3f3] transition-colors rounded-lg"><span class="material-symbols-outlined">settings</span></button>
-</div>
-<div class="h-8 w-8 rounded-full overflow-hidden">
-<img class="w-full h-full object-cover" data-alt="Portrait of a professional male executive in a grey suit against a neutral background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC3NoyfgbbqI25VA6NCc66lVCE3VLO1o8cCBYLmnofjc5bBQfNBL11Qv5Dnauw3X8aKBayiknVow1yB5QawCbMqxiEun-hnYTeb93XQXEbIxvdIOgDJcb1Vf0rfpD_QdjdjYLLV3vSMxFZOQ5z9GNRcdCrNOkJhfIIzCoFnwNXCZnt8ZzwNs4r3kD94s2Ya9-r4pGZtmWTAlTz95N-R3RCE4NH78fH93QW17OkqolqItqjlFi1sUumTtmAUpyO8ZBg8aa8BxoMGNWIF"/>
-</div>
-</div>
-</div>
-<div class="px-10 py-8">
-<!-- Breadcrumbs & Title -->
-<div class="mb-10 flex justify-between items-end">
-<div>
-<div class="flex items-center gap-2 text-xs text-on-surface-variant font-medium mb-2">
-<span>Ledger</span>
-<span class="material-symbols-outlined text-[12px]">chevron_right</span>
-<span class="text-primary font-bold">Accounts Payable</span>
-</div>
-<h2 class="text-2xl font-headline font-extrabold tracking-tighter text-primary">Accounts Payable Hub</h2>
-</div>
-<div class="flex gap-3">
-<button class="px-6 py-2.5 rounded-xl text-sm font-semibold text-primary bg-surface-container-high hover:bg-surface-container-highest transition-colors">Export CSV</button>
-<button class="px-6 py-2.5 rounded-xl text-sm font-semibold text-white primary-gradient shadow-lg shadow-primary/20">Create Invoice</button>
-</div>
-</div>
-<!-- Bento Stats Grid -->
-<div class="grid grid-cols-12 gap-6 mb-10">
-<div class="col-span-12 md:col-span-4 bg-surface-container-lowest p-6 rounded-xl border border-outline-variant/10">
-<p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-4">Total Outstanding</p>
-<div class="flex items-baseline gap-2">
-<span class="text-3xl font-headline font-black text-on-surface">$1,420,550.00</span>
-<span class="text-xs font-bold text-primary">+12.5%</span>
-</div>
-</div>
-<div class="col-span-12 md:col-span-4 bg-surface-container-lowest p-6 rounded-xl border border-outline-variant/10">
-<p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-4">Pending Approval</p>
-<div class="flex items-baseline gap-2">
-<span class="text-3xl font-headline font-black text-on-surface">42 Invoices</span>
-<span class="text-xs font-bold text-tertiary">Requires Action</span>
-</div>
-</div>
-<div class="col-span-12 md:col-span-4 bg-surface-container-lowest p-6 rounded-xl border border-outline-variant/10">
-<p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-4">Processing Health</p>
-<div class="flex items-center gap-4">
-<div class="flex-1 bg-surface-container h-2 rounded-full overflow-hidden">
-<div class="bg-primary h-full w-[88%]"></div>
-</div>
-<span class="text-sm font-black text-primary">88%</span>
-</div>
-</div>
-</div>
-<!-- Filters Bar -->
-<div class="bg-surface-container-low p-4 rounded-xl mb-6 flex flex-wrap items-center gap-6">
-<div class="flex items-center gap-3">
-<span class="material-symbols-outlined text-on-surface-variant">filter_list</span>
-<span class="text-sm font-bold text-on-surface">Filters</span>
-</div>
-<div class="h-6 w-[1px] bg-outline-variant/30"></div>
-<div class="flex items-center gap-2">
-<label class="text-xs font-bold text-on-surface-variant uppercase">Vendor</label>
-<select class="bg-transparent border-none text-sm font-semibold text-primary focus:ring-0 p-0 cursor-pointer">
-<option>All Vendors</option>
-<option>Stripe</option>
-<option>AWS</option>
-<option>Global Logistics</option>
-</select>
-</div>
-<div class="flex items-center gap-2">
-<label class="text-xs font-bold text-on-surface-variant uppercase">Status</label>
-<select class="bg-transparent border-none text-sm font-semibold text-primary focus:ring-0 p-0 cursor-pointer">
-<option>All Statuses</option>
-<option>Pending Approval</option>
-<option>Under Review</option>
-<option>Flagged</option>
-<option>Scheduled</option>
-</select>
-</div>
-<div class="flex items-center gap-2">
-<label class="text-xs font-bold text-on-surface-variant uppercase">Date Range</label>
-<select class="bg-transparent border-none text-sm font-semibold text-primary focus:ring-0 p-0 cursor-pointer">
-<option>Last 30 Days</option>
-<option>Last Quarter</option>
-<option>Custom Range</option>
-</select>
-</div>
-<div class="ml-auto">
-<button class="text-xs font-bold text-primary hover:underline">Clear all filters</button>
-</div>
-</div>
-<!-- Invoice List View -->
-<div class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm shadow-[#00535b]/5">
-<table class="w-full text-left border-collapse">
-<thead>
-<tr class="bg-surface-container-low border-b border-outline-variant/10">
-<th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Invoice ID</th>
-<th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Vendor</th>
-<th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Date</th>
-<th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Amount</th>
-<th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Status</th>
-<th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Match Confidence</th>
-<th class="px-6 py-4"></th>
-</tr>
-</thead>
-<tbody class="divide-y divide-outline-variant/10">
-<!-- Row 1: Flagged -->
-<tr class="hover:bg-surface-container-low cursor-pointer transition-colors group" onclick="location.href='#'">
-<td class="px-6 py-5 font-headline font-bold text-sm text-on-surface">INV-8829-01</td>
-<td class="px-6 py-5">
-<div class="flex items-center gap-3">
-<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center font-bold text-xs text-primary">SL</div>
-<span class="text-sm font-semibold">Stripe Logistics</span>
-</div>
-</td>
-<td class="px-6 py-5 text-sm text-on-surface-variant">Oct 24, 2023</td>
-<td class="px-6 py-5 font-bold text-sm">$4,250.00</td>
-<td class="px-6 py-5">
-<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-error-container text-on-error-container">Flagged</span>
-</td>
-<td class="px-6 py-5">
-<div class="flex items-center gap-2">
-<div class="w-20 h-1.5 bg-surface-container rounded-full overflow-hidden">
-<div class="bg-error h-full w-[45%]"></div>
-</div>
-<span class="text-[10px] font-bold text-error">45%</span>
-</div>
-</td>
-<td class="px-6 py-5 text-right">
-<span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors">arrow_forward_ios</span>
-</td>
-</tr>
-<!-- Row 2: Under Review -->
-<tr class="hover:bg-surface-container-low cursor-pointer transition-colors group" onclick="location.href='#'">
-<td class="px-6 py-5 font-headline font-bold text-sm text-on-surface">INV-9112-X</td>
-<td class="px-6 py-5">
-<div class="flex items-center gap-3">
-<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center font-bold text-xs text-primary">AW</div>
-<span class="text-sm font-semibold">Amazon Web Services</span>
-</div>
-</td>
-<td class="px-6 py-5 text-sm text-on-surface-variant">Oct 23, 2023</td>
-<td class="px-6 py-5 font-bold text-sm">$128,440.00</td>
-<td class="px-6 py-5">
-<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-secondary-container text-on-secondary-container">Under Review</span>
-</td>
-<td class="px-6 py-5">
-<div class="flex items-center gap-2">
-<div class="w-20 h-1.5 bg-surface-container rounded-full overflow-hidden">
-<div class="bg-secondary h-full w-[82%]"></div>
-</div>
-<span class="text-[10px] font-bold text-secondary">82%</span>
-</div>
-</td>
-<td class="px-6 py-5 text-right">
-<span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors">arrow_forward_ios</span>
-</td>
-</tr>
-<!-- Row 3: Pending Approval -->
-<tr class="hover:bg-surface-container-low cursor-pointer transition-colors group" onclick="location.href='#'">
-<td class="px-6 py-5 font-headline font-bold text-sm text-on-surface">INV-4409-Q</td>
-<td class="px-6 py-5">
-<div class="flex items-center gap-3">
-<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center font-bold text-xs text-primary">GL</div>
-<span class="text-sm font-semibold">Global Logistics Corp</span>
-</div>
-</td>
-<td class="px-6 py-5 text-sm text-on-surface-variant">Oct 22, 2023</td>
-<td class="px-6 py-5 font-bold text-sm">$18,900.00</td>
-<td class="px-6 py-5">
-<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-primary-fixed text-on-primary-fixed-variant">Pending Approval</span>
-</td>
-<td class="px-6 py-5">
-<div class="flex items-center gap-2">
-<div class="w-20 h-1.5 bg-surface-container rounded-full overflow-hidden">
-<div class="bg-primary h-full w-[98%]"></div>
-</div>
-<span class="text-[10px] font-bold text-primary">98%</span>
-</div>
-</td>
-<td class="px-6 py-5 text-right">
-<span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors">arrow_forward_ios</span>
-</td>
-</tr>
-<!-- Row 4: Scheduled -->
-<tr class="hover:bg-surface-container-low cursor-pointer transition-colors group" onclick="location.href='#'">
-<td class="px-6 py-5 font-headline font-bold text-sm text-on-surface">INV-3321-K</td>
-<td class="px-6 py-5">
-<div class="flex items-center gap-3">
-<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center font-bold text-xs text-primary">SC</div>
-<span class="text-sm font-semibold">Salesforce Cloud</span>
-</div>
-</td>
-<td class="px-6 py-5 text-sm text-on-surface-variant">Oct 21, 2023</td>
-<td class="px-6 py-5 font-bold text-sm">$45,200.00</td>
-<td class="px-6 py-5">
-<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-surface-container-highest text-on-surface-variant">Scheduled</span>
-</td>
-<td class="px-6 py-5">
-<div class="flex items-center gap-2">
-<div class="w-20 h-1.5 bg-surface-container rounded-full overflow-hidden">
-<div class="bg-on-surface-variant h-full w-[100%]"></div>
-</div>
-<span class="text-[10px] font-bold text-on-surface-variant">100%</span>
-</div>
-</td>
-<td class="px-6 py-5 text-right">
-<span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors">arrow_forward_ios</span>
-</td>
-</tr>
-<!-- Row 5: Flagged -->
-<tr class="hover:bg-surface-container-low cursor-pointer transition-colors group" onclick="location.href='#'">
-<td class="px-6 py-5 font-headline font-bold text-sm text-on-surface">INV-2210-P</td>
-<td class="px-6 py-5">
-<div class="flex items-center gap-3">
-<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center font-bold text-xs text-primary">AD</div>
-<span class="text-sm font-semibold">Adobe Systems</span>
-</div>
-</td>
-<td class="px-6 py-5 text-sm text-on-surface-variant">Oct 20, 2023</td>
-<td class="px-6 py-5 font-bold text-sm">$1,200.00</td>
-<td class="px-6 py-5">
-<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-error-container text-on-error-container">Flagged</span>
-</td>
-<td class="px-6 py-5">
-<div class="flex items-center gap-2">
-<div class="w-20 h-1.5 bg-surface-container rounded-full overflow-hidden">
-<div class="bg-error h-full w-[22%]"></div>
-</div>
-<span class="text-[10px] font-bold text-error">22%</span>
-</div>
-</td>
-<td class="px-6 py-5 text-right">
-<span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors">arrow_forward_ios</span>
-</td>
-</tr>
-</tbody>
-</table>
-<!-- Pagination Footer -->
-<div class="p-6 flex items-center justify-between bg-surface-container-low border-t border-outline-variant/10">
-<span class="text-xs font-bold text-on-surface-variant" id="invoice-count">Loading...</span>
-<div class="flex items-center gap-2">
-<button class="p-2 rounded-lg hover:bg-surface transition-colors"><span class="material-symbols-outlined text-sm">chevron_left</span></button>
-<div class="flex gap-1">
-<button class="w-8 h-8 rounded-lg bg-primary text-white text-xs font-black">1</button>
-<button class="w-8 h-8 rounded-lg hover:bg-surface text-xs font-bold text-on-surface-variant transition-colors">2</button>
-<button class="w-8 h-8 rounded-lg hover:bg-surface text-xs font-bold text-on-surface-variant transition-colors">3</button>
-<span class="px-1 text-on-surface-variant">...</span>
-<button class="w-8 h-8 rounded-lg hover:bg-surface text-xs font-bold text-on-surface-variant transition-colors">48</button>
-</div>
-<button class="p-2 rounded-lg hover:bg-surface transition-colors"><span class="material-symbols-outlined text-sm">chevron_right</span></button>
-</div>
-</div>
-</div>
-</div>
-</main>
-<!-- Contextual Information Panel (Hidden/Floating for Asymmetry) -->
-<div class="fixed right-6 bottom-6 w-80 glass-panel rounded-2xl p-6 z-50">
-<div class="flex justify-between items-start mb-6">
-<h4 class="font-headline font-extrabold text-primary">Match Alerts</h4>
-<span class="material-symbols-outlined text-error" style="font-variation-settings: 'FILL' 1;">warning</span>
-</div>
-<div class="space-y-4">
-<div class="flex gap-4">
-<div class="w-1 h-10 rounded-full bg-error shrink-0"></div>
-<div>
-<p class="text-xs font-bold text-on-surface">Duplicate Detection</p>
-<p class="text-[10px] text-on-surface-variant mt-1">INV-8829-01 shows 85% similarity with a paid invoice from July.</p>
-</div>
-</div>
-<div class="flex gap-4">
-<div class="w-1 h-10 rounded-full bg-tertiary shrink-0"></div>
-<div>
-<p class="text-xs font-bold text-on-surface">Price Variance</p>
-<p class="text-[10px] text-on-surface-variant mt-1">Stripe Logistics unit price is 15% higher than the agreed PO rate.</p>
-</div>
-</div>
-</div>
-<button class="w-full mt-6 py-2 bg-primary-fixed hover:bg-primary-fixed-dim text-on-primary-fixed-variant text-xs font-black rounded-xl transition-colors">Review All Alerts</button>
-</div>
-
-<!-- Action Modal (Approve/Reject/Query) -->
-<div id="action-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8">
-        <div class="flex justify-between items-center mb-4">
-            <h3 id="action-modal-title" class="text-xl font-manrope font-bold text-slate-900">Action</h3>
-            <button id="close-action-modal" class="text-slate-400 hover:text-slate-600"><span class="material-symbols-outlined">close</span></button>
+    <!-- Main Content Canvas -->
+    <div id="sidebar-container" class="z-40"></div>
+    <main class="lg:ml-64 min-h-screen">
+        <!-- TopNavBar -->
+        <div
+            class="w-full h-16 sticky top-0 z-40 bg-surface-container-lowest flex justify-between items-center px-8 border-b border-outline-variant/30 shadow-sm">
+            <div class="flex items-center gap-8">
+                <div class="relative">
+                    <span
+                        class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-sm">search</span>
+                    <input
+                        class="pl-10 pr-4 py-1.5 bg-surface-container-low rounded-full text-sm border-none focus:ring-1 focus:ring-primary w-64"
+                        placeholder="Search invoices, vendors..." type="text" />
+                </div>
+            </div>
+            <div class="flex items-center gap-6">
+                <div class="flex items-center gap-4 text-on-surface-variant">
+                    <button class="p-1 hover:bg-[#f5f3f3] transition-colors rounded-lg"><span
+                            class="material-symbols-outlined">notifications</span></button>
+                    <button class="p-1 hover:bg-[#f5f3f3] transition-colors rounded-lg"><span
+                            class="material-symbols-outlined">help</span></button>
+                    <button class="p-1 hover:bg-[#f5f3f3] transition-colors rounded-lg"><span
+                            class="material-symbols-outlined">settings</span></button>
+                </div>
+                <div class="h-8 w-8 rounded-full overflow-hidden">
+                    <img class="w-full h-full object-cover"
+                        data-alt="Portrait of a professional male executive in a grey suit against a neutral background"
+                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuC3NoyfgbbqI25VA6NCc66lVCE3VLO1o8cCBYLmnofjc5bBQfNBL11Qv5Dnauw3X8aKBayiknVow1yB5QawCbMqxiEun-hnYTeb93XQXEbIxvdIOgDJcb1Vf0rfpD_QdjdjYLLV3vSMxFZOQ5z9GNRcdCrNOkJhfIIzCoFnwNXCZnt8ZzwNs4r3kD94s2Ya9-r4pGZtmWTAlTz95N-R3RCE4NH78fH93QW17OkqolqItqjlFi1sUumTtmAUpyO8ZBg8aa8BxoMGNWIF" />
+                </div>
+            </div>
         </div>
-        <div id="action-bill-info" class="text-sm text-slate-500 mb-4"></div>
-        <textarea id="action-reason" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-4" rows="3" placeholder="Enter reason..."></textarea>
-        <div id="action-error" class="hidden text-sm text-red-600 bg-red-50 p-2 rounded-lg mb-4"></div>
-        <button id="action-submit-btn" class="w-full py-3 rounded-xl font-bold text-white transition-colors">Confirm</button>
-    </div>
-</div>
+        <div class="px-10 py-8">
+            <!-- Breadcrumbs & Title -->
+            <div class="mb-10 flex justify-between items-end">
+                <div>
+                    <div class="flex items-center gap-2 text-xs text-on-surface-variant font-medium mb-2">
+                        <span>Ledger</span>
+                        <span class="material-symbols-outlined text-[12px]">chevron_right</span>
+                        <span class="text-primary font-bold">Accounts Payable</span>
+                    </div>
+                    <h2 class="text-2xl font-headline font-extrabold tracking-tighter text-primary">Accounts Payable Hub
+                    </h2>
+                </div>
+                <div class="flex gap-3">
+                    <button id="export-csv-btn"
+                        class="px-6 py-2.5 rounded-xl text-sm font-semibold text-primary bg-surface-container-high hover:bg-surface-container-highest transition-colors">Export
+                        CSV</button>
+                    <button
+                        class="px-6 py-2.5 rounded-xl text-sm font-semibold text-white primary-gradient shadow-lg shadow-primary/20">Create
+                        Invoice</button>
+                </div>
+            </div>
+            <!-- Tab bar — My Queue (all roles) + All Invoices (finance+ only, hidden by default) -->
+            <div id="ap-tab-bar" class="flex gap-1 mb-6 p-1 bg-surface-container-low rounded-xl w-fit hidden">
+                <button id="tab-queue" data-tab="queue"
+                    class="tab-btn px-5 py-2 rounded-lg text-sm font-bold bg-surface-container-lowest text-primary shadow-sm transition-all">My
+                    Queue</button>
+                <button id="tab-all" data-tab="all"
+                    class="tab-btn px-5 py-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container-lowest/60 transition-all">All
+                    Invoices</button>
+                <button id="tab-pipeline" data-tab="pipeline"
+                    class="tab-btn px-5 py-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container-lowest/60 transition-all">Pipeline</button>
+            </div>
+            <!-- Bento Stats Grid -->
+            <div class="grid grid-cols-12 gap-6 mb-10">
+                <div
+                    class="col-span-12 md:col-span-4 bg-surface-container-lowest p-6 rounded-xl border border-outline-variant/10">
+                    <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-4">Total
+                        Outstanding</p>
+                    <div class="flex items-baseline gap-2">
+                        <span class="text-3xl font-headline font-black text-on-surface">$1,420,550.00</span>
+                        <span class="text-xs font-bold text-primary">+12.5%</span>
+                    </div>
+                </div>
+                <div
+                    class="col-span-12 md:col-span-4 bg-surface-container-lowest p-6 rounded-xl border border-outline-variant/10">
+                    <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-4">Pending Approval
+                    </p>
+                    <div class="flex items-baseline gap-2">
+                        <span class="text-3xl font-headline font-black text-on-surface">42 Invoices</span>
+                        <span class="text-xs font-bold text-tertiary">Requires Action</span>
+                    </div>
+                </div>
+                <div
+                    class="col-span-12 md:col-span-4 bg-surface-container-lowest p-6 rounded-xl border border-outline-variant/10">
+                    <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-4">Processing
+                        Health</p>
+                    <div class="flex items-center gap-4">
+                        <div class="flex-1 bg-surface-container h-2 rounded-full overflow-hidden">
+                            <div class="bg-primary h-full w-[88%]"></div>
+                        </div>
+                        <span class="text-sm font-black text-primary">88%</span>
+                    </div>
+                </div>
+            </div>
+            <!-- Filters Bar -->
+            <div class="bg-surface-container-low p-4 rounded-xl mb-6 flex flex-wrap items-center gap-6">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-on-surface-variant">filter_list</span>
+                    <span class="text-sm font-bold text-on-surface">Filters</span>
+                </div>
+                <div class="h-6 w-[1px] bg-outline-variant/30"></div>
+                <div class="flex items-center gap-2">
+                    <label class="text-xs font-bold text-on-surface-variant uppercase">Vendor</label>
+                    <select id="vendor-filter"
+                        class="bg-transparent border-none text-sm font-semibold text-primary focus:ring-0 p-0 cursor-pointer">
+                        <option>All Vendors</option>
+                        <option>Stripe</option>
+                        <option>AWS</option>
+                        <option>Global Logistics</option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-2">
+                    <label class="text-xs font-bold text-on-surface-variant uppercase">Status</label>
+                    <select id="status-filter"
+                        class="bg-transparent border-none text-sm font-semibold text-primary focus:ring-0 p-0 cursor-pointer">
+                        <option>All Statuses</option>
+                        <option>Pending Approval</option>
+                        <option>Under Review</option>
+                        <option>Flagged</option>
+                        <option>Scheduled</option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-2">
+                    <label class="text-xs font-bold text-on-surface-variant uppercase">Date Range</label>
+                    <select id="date-filter"
+                        class="bg-transparent border-none text-sm font-semibold text-primary focus:ring-0 p-0 cursor-pointer">
+                        <option>Last 30 Days</option>
+                        <option>Last Quarter</option>
+                        <option>Custom Range</option>
+                    </select>
+                </div>
+                <div class="ml-auto">
+                    <button id="clear-filters-btn" class="text-xs font-bold text-primary hover:underline">Clear all
+                        filters</button>
+                </div>
+            </div>
+            <!-- All Invoices View (finance+ only) -->
+            <div id="all-invoices-view" class="hidden">
+                <div class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm">
+                    <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center gap-4">
+                        <input id="all-search" type="text" placeholder="Search invoice #, vendor..."
+                            class="flex-1 px-4 py-2 bg-surface-container-low rounded-xl text-sm border-none focus:ring-1 focus:ring-primary"
+                            maxlength="100" />
+                        <select id="all-status-filter"
+                            class="px-3 py-2 bg-surface-container-low rounded-xl text-sm border-none focus:ring-1 focus:ring-primary">
+                            <option value="">All Statuses</option>
+                            <option value="PENDING_L1">Pending L1</option>
+                            <option value="PENDING_L2">Pending L2</option>
+                            <option value="PENDING_HOD">Pending HOD</option>
+                            <option value="PENDING_FIN_L1">Pending Fin L1</option>
+                            <option value="PENDING_FIN_L2">Pending Fin L2</option>
+                            <option value="PENDING_FIN_HEAD">Pending Fin Head</option>
+                            <option value="APPROVED">Approved</option>
+                            <option value="PAID">Paid</option>
+                            <option value="REJECTED">Rejected</option>
+                            <option value="QUERY_RAISED">Query Raised</option>
+                        </select>
+                        <span id="all-count"
+                            class="text-xs text-on-surface-variant font-medium whitespace-nowrap"></span>
+                    </div>
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-surface-container-low border-b border-outline-variant/10">
+                                <th
+                                    class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
+                                    Invoice</th>
+                                <th
+                                    class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
+                                    Vendor</th>
+                                <th
+                                    class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
+                                    Amount</th>
+                                <th
+                                    class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
+                                    Status</th>
+                                <th
+                                    class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
+                                    Step</th>
+                                <th
+                                    class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
+                                    Date</th>
+                                <th class="px-6 py-4"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="all-tbody" class="divide-y divide-outline-variant/10"></tbody>
+                    </table>
+                    <div id="all-pagination"
+                        class="p-4 flex justify-between items-center bg-surface-container-low border-t border-outline-variant/10">
+                        <span id="all-page-info" class="text-xs text-on-surface-variant"></span>
+                        <div class="flex gap-2">
+                            <button id="all-prev"
+                                class="px-3 py-1.5 rounded-lg text-xs font-bold text-on-surface-variant hover:bg-surface transition-colors">←
+                                Prev</button>
+                            <button id="all-next"
+                                class="px-3 py-1.5 rounded-lg text-xs font-bold text-on-surface-variant hover:bg-surface transition-colors">Next
+                                →</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-<!-- Bill Detail Slide-out -->
-<div id="bill-detail-panel" class="hidden fixed inset-y-0 right-0 w-[500px] bg-white shadow-2xl z-[150] overflow-y-auto">
-    <div class="p-8">
-        <div class="flex justify-between items-center mb-6">
-            <h3 class="text-xl font-manrope font-bold">Bill Details</h3>
-            <button id="close-detail" class="text-slate-400 hover:text-slate-600"><span class="material-symbols-outlined">close</span></button>
+            <!-- Pipeline View -->
+            <div id="pipeline-view" class="hidden">
+                <div class="grid grid-cols-3 xl:grid-cols-6 gap-4" id="pipeline-columns"></div>
+            </div>
+
+            <!-- Invoice List View -->
+            <div id="queue-view"
+                class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm shadow-[#00535b]/5">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-surface-container-low border-b border-outline-variant/10">
+                            <th
+                                class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
+                                Invoice ID</th>
+                            <th
+                                class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
+                                Vendor</th>
+                            <th
+                                class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
+                                Date</th>
+                            <th
+                                class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
+                                Amount</th>
+                            <th
+                                class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
+                                Status</th>
+                            <th
+                                class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
+                                Match Confidence</th>
+                            <th class="px-6 py-4"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant/10">
+                        <!-- Row 1: Flagged -->
+                        <tr class="hover:bg-surface-container-low cursor-pointer transition-colors group"
+                            onclick="location.href='#'">
+                            <td class="px-6 py-5 font-headline font-bold text-sm text-on-surface">INV-8829-01</td>
+                            <td class="px-6 py-5">
+                                <div class="flex items-center gap-3">
+                                    <div
+                                        class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center font-bold text-xs text-primary">
+                                        SL</div>
+                                    <span class="text-sm font-semibold">Stripe Logistics</span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-5 text-sm text-on-surface-variant">Oct 24, 2023</td>
+                            <td class="px-6 py-5 font-bold text-sm">$4,250.00</td>
+                            <td class="px-6 py-5">
+                                <span
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-error-container text-on-error-container">Flagged</span>
+                            </td>
+                            <td class="px-6 py-5">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-20 h-1.5 bg-surface-container rounded-full overflow-hidden">
+                                        <div class="bg-error h-full w-[45%]"></div>
+                                    </div>
+                                    <span class="text-[10px] font-bold text-error">45%</span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-5 text-right">
+                                <span
+                                    class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors">arrow_forward_ios</span>
+                            </td>
+                        </tr>
+                        <!-- Row 2: Under Review -->
+                        <tr class="hover:bg-surface-container-low cursor-pointer transition-colors group"
+                            onclick="location.href='#'">
+                            <td class="px-6 py-5 font-headline font-bold text-sm text-on-surface">INV-9112-X</td>
+                            <td class="px-6 py-5">
+                                <div class="flex items-center gap-3">
+                                    <div
+                                        class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center font-bold text-xs text-primary">
+                                        AW</div>
+                                    <span class="text-sm font-semibold">Amazon Web Services</span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-5 text-sm text-on-surface-variant">Oct 23, 2023</td>
+                            <td class="px-6 py-5 font-bold text-sm">$128,440.00</td>
+                            <td class="px-6 py-5">
+                                <span
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-secondary-container text-on-secondary-container">Under
+                                    Review</span>
+                            </td>
+                            <td class="px-6 py-5">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-20 h-1.5 bg-surface-container rounded-full overflow-hidden">
+                                        <div class="bg-secondary h-full w-[82%]"></div>
+                                    </div>
+                                    <span class="text-[10px] font-bold text-secondary">82%</span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-5 text-right">
+                                <span
+                                    class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors">arrow_forward_ios</span>
+                            </td>
+                        </tr>
+                        <!-- Row 3: Pending Approval -->
+                        <tr class="hover:bg-surface-container-low cursor-pointer transition-colors group"
+                            onclick="location.href='#'">
+                            <td class="px-6 py-5 font-headline font-bold text-sm text-on-surface">INV-4409-Q</td>
+                            <td class="px-6 py-5">
+                                <div class="flex items-center gap-3">
+                                    <div
+                                        class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center font-bold text-xs text-primary">
+                                        GL</div>
+                                    <span class="text-sm font-semibold">CTPO, 3SC Solution</span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-5 text-sm text-on-surface-variant">Oct 22, 2023</td>
+                            <td class="px-6 py-5 font-bold text-sm">$18,900.00</td>
+                            <td class="px-6 py-5">
+                                <span
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-primary-fixed text-on-primary-fixed-variant">Pending
+                                    Approval</span>
+                            </td>
+                            <td class="px-6 py-5">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-20 h-1.5 bg-surface-container rounded-full overflow-hidden">
+                                        <div class="bg-primary h-full w-[98%]"></div>
+                                    </div>
+                                    <span class="text-[10px] font-bold text-primary">98%</span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-5 text-right">
+                                <span
+                                    class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors">arrow_forward_ios</span>
+                            </td>
+                        </tr>
+                        <!-- Row 4: Scheduled -->
+                        <tr class="hover:bg-surface-container-low cursor-pointer transition-colors group"
+                            onclick="location.href='#'">
+                            <td class="px-6 py-5 font-headline font-bold text-sm text-on-surface">INV-3321-K</td>
+                            <td class="px-6 py-5">
+                                <div class="flex items-center gap-3">
+                                    <div
+                                        class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center font-bold text-xs text-primary">
+                                        SC</div>
+                                    <span class="text-sm font-semibold">Salesforce Cloud</span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-5 text-sm text-on-surface-variant">Oct 21, 2023</td>
+                            <td class="px-6 py-5 font-bold text-sm">$45,200.00</td>
+                            <td class="px-6 py-5">
+                                <span
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-surface-container-highest text-on-surface-variant">Scheduled</span>
+                            </td>
+                            <td class="px-6 py-5">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-20 h-1.5 bg-surface-container rounded-full overflow-hidden">
+                                        <div class="bg-on-surface-variant h-full w-[100%]"></div>
+                                    </div>
+                                    <span class="text-[10px] font-bold text-on-surface-variant">100%</span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-5 text-right">
+                                <span
+                                    class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors">arrow_forward_ios</span>
+                            </td>
+                        </tr>
+                        <!-- Row 5: Flagged -->
+                        <tr class="hover:bg-surface-container-low cursor-pointer transition-colors group"
+                            onclick="location.href='#'">
+                            <td class="px-6 py-5 font-headline font-bold text-sm text-on-surface">INV-2210-P</td>
+                            <td class="px-6 py-5">
+                                <div class="flex items-center gap-3">
+                                    <div
+                                        class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center font-bold text-xs text-primary">
+                                        AD</div>
+                                    <span class="text-sm font-semibold">Adobe Systems</span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-5 text-sm text-on-surface-variant">Oct 20, 2023</td>
+                            <td class="px-6 py-5 font-bold text-sm">$1,200.00</td>
+                            <td class="px-6 py-5">
+                                <span
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-error-container text-on-error-container">Flagged</span>
+                            </td>
+                            <td class="px-6 py-5">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-20 h-1.5 bg-surface-container rounded-full overflow-hidden">
+                                        <div class="bg-error h-full w-[22%]"></div>
+                                    </div>
+                                    <span class="text-[10px] font-bold text-error">22%</span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-5 text-right">
+                                <span
+                                    class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors">arrow_forward_ios</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <!-- Pagination Footer -->
+                <div
+                    class="p-6 flex items-center justify-between bg-surface-container-low border-t border-outline-variant/10">
+                    <span class="text-xs font-bold text-on-surface-variant" id="invoice-count">Loading...</span>
+                    <div class="flex items-center gap-2">
+                        <button class="p-2 rounded-lg hover:bg-surface transition-colors"><span
+                                class="material-symbols-outlined text-sm">chevron_left</span></button>
+                        <div class="flex gap-1">
+                            <button class="w-8 h-8 rounded-lg bg-primary text-white text-xs font-black">1</button>
+                            <button
+                                class="w-8 h-8 rounded-lg hover:bg-surface text-xs font-bold text-on-surface-variant transition-colors">2</button>
+                            <button
+                                class="w-8 h-8 rounded-lg hover:bg-surface text-xs font-bold text-on-surface-variant transition-colors">3</button>
+                            <span class="px-1 text-on-surface-variant">...</span>
+                            <button
+                                class="w-8 h-8 rounded-lg hover:bg-surface text-xs font-bold text-on-surface-variant transition-colors">48</button>
+                        </div>
+                        <button class="p-2 rounded-lg hover:bg-surface transition-colors"><span
+                                class="material-symbols-outlined text-sm">chevron_right</span></button>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div id="bill-detail-content" class="space-y-6"></div>
+    </main>
+    <!-- Contextual Information Panel (Hidden/Floating for Asymmetry) -->
+    <div data-notification-panel class="fixed right-6 bottom-6 w-80 glass-panel rounded-2xl p-6 z-50">
+        <div class="flex justify-between items-start mb-6">
+            <h4 class="font-headline font-extrabold text-primary">Match Alerts</h4>
+            <span class="material-symbols-outlined text-error" style="font-variation-settings: 'FILL' 1;">warning</span>
+        </div>
+        <div class="space-y-4">
+            <div class="flex gap-4">
+                <div class="w-1 h-10 rounded-full bg-error shrink-0"></div>
+                <div>
+                    <p class="text-xs font-bold text-on-surface">Duplicate Detection</p>
+                    <p class="text-[10px] text-on-surface-variant mt-1">INV-8829-01 shows 85% similarity with a paid
+                        invoice from July.</p>
+                </div>
+            </div>
+            <div class="flex gap-4">
+                <div class="w-1 h-10 rounded-full bg-tertiary shrink-0"></div>
+                <div>
+                    <p class="text-xs font-bold text-on-surface">Price Variance</p>
+                    <p class="text-[10px] text-on-surface-variant mt-1">Stripe Logistics unit price is 15% higher than
+                        the agreed PO rate.</p>
+                </div>
+            </div>
+        </div>
+        <button
+            class="w-full mt-6 py-2 bg-primary-fixed hover:bg-primary-fixed-dim text-on-primary-fixed-variant text-xs font-black rounded-xl transition-colors">Review
+            All Alerts</button>
     </div>
-</div>
 
-<!-- Shared Scripts -->
-<script src="/frontend/shared/api.js"></script>
-<script src="/frontend/shared/auth.js"></script>
-<script src="/frontend/shared/status_poller.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', async () => {
-    let currentAction = null;
-    let currentBillId = null;
+    <!-- Action Modal (Approve/Reject/Query) -->
+    <div id="action-modal"
+        class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="action-modal-title" class="text-xl font-manrope font-bold text-slate-900">Action</h3>
+                <button id="close-action-modal" class="text-slate-400 hover:text-slate-600"><span
+                        class="material-symbols-outlined">close</span></button>
+            </div>
+            <div id="action-bill-info" class="text-sm text-slate-500 mb-4"></div>
+            <textarea id="action-reason" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-4"
+                rows="3" placeholder="Enter reason..."></textarea>
+            <div id="action-error" class="hidden text-sm text-red-600 bg-red-50 p-2 rounded-lg mb-4"></div>
+            <button id="action-submit-btn"
+                class="w-full py-3 rounded-xl font-bold text-white transition-colors">Confirm</button>
+        </div>
+    </div>
 
-    // ─── Load Approval Queue ────────────────────────────────────
-    async function loadQueue(statusFilter = '') {
-        try {
-            // Note: Currently API doesn't support status filtering out of the box for AP queue in the mockup,
-            // but we can filter it locally from the result.
-            let bills = await window.api.getApprovalQueue();
-            if (bills && statusFilter && statusFilter !== 'All Statuses') {
-                const map = {
-                    'Pending Approval': ['PENDING_L1', 'PENDING_L2', 'PENDING_HOD'],
+    <!-- Bill Detail Slide-out -->
+    <div id="bill-detail-panel"
+        class="hidden fixed inset-y-0 right-0 w-[500px] bg-white shadow-2xl z-[150] overflow-y-auto">
+        <div class="p-8">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-manrope font-bold">Bill Details</h3>
+                <button id="close-detail" class="text-slate-400 hover:text-slate-600"><span
+                        class="material-symbols-outlined">close</span></button>
+            </div>
+            <div id="bill-detail-content" class="space-y-6"></div>
+            <div class="mt-6 pt-4 border-t border-slate-100 space-y-2">
+                <a id="open-3way-match" href="#"
+                    class="flex items-center gap-2 w-full py-2.5 px-4 rounded-xl bg-primary/10 text-primary font-semibold text-sm hover:bg-primary/20 transition-colors">
+                    <span class="material-symbols-outlined text-[18px]">fact_check</span>
+                    Open 3-Way Match View
+                </a>
+                <button id="mark-paid-btn"
+                    class="hidden flex items-center gap-2 w-full py-2.5 px-4 rounded-xl bg-emerald-50 text-emerald-700 font-semibold text-sm hover:bg-emerald-100 transition-colors border border-emerald-200">
+                    <span class="material-symbols-outlined text-[18px]">payments</span>
+                    Mark as Paid
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shared Scripts -->
+    <script src="/frontend/shared/api.js"></script>
+    <script src="/frontend/shared/auth.js"></script>
+    <script src="/frontend/shared/status_poller.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            let currentAction = null;
+            let currentBillId = null;
+
+            // ─── Load Approval Queue ────────────────────────────────────
+            const PAGE_SIZE = 10;
+            let allBills = [];
+            let currentPage = 1;
+
+            async function loadQueue() {
+                try {
+                    allBills = await window.api.getApprovalQueue() || [];
+                    currentPage = 1;
+                    applyFiltersAndRender();
+                } catch (err) {
+                    console.error('Failed to load queue:', err);
+                }
+            }
+
+            function applyFiltersAndRender() {
+                const statusFilter = document.getElementById('status-filter')?.value || '';
+                const vendorFilter = document.getElementById('vendor-filter')?.value || '';
+
+                const statusMap = {
+                    'Pending Approval': ['PENDING_L1', 'PENDING_L2', 'PENDING_HOD', 'PENDING_FIN_L1', 'PENDING_FIN_L2', 'PENDING_FIN_HEAD'],
                     'Under Review': ['SUBMITTED'],
                     'Flagged': ['QUERY_RAISED'],
                     'Scheduled': ['APPROVED']
                 };
-                const allowed = map[statusFilter] || [];
-                bills = bills.filter(b => allowed.includes(b.status));
+
+                let filtered = allBills.filter(b => {
+                    const statusOk = !statusFilter || statusFilter === 'All Statuses' ||
+                        (statusMap[statusFilter] || []).includes(b.status);
+                    const vendorName = (b.vendor_name || '').toLowerCase();
+                    const vendorOk = !vendorFilter || vendorFilter === 'All Vendors' ||
+                        vendorName.includes(vendorFilter.toLowerCase());
+                    return statusOk && vendorOk;
+                });
+
+                const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+                if (currentPage > totalPages) currentPage = totalPages;
+                const start = (currentPage - 1) * PAGE_SIZE;
+                const pageBills = filtered.slice(start, start + PAGE_SIZE);
+
+                renderQueue(pageBills, filtered.length, totalPages);
+                renderPagination(currentPage, totalPages, filtered.length);
             }
-            renderQueue(bills || []);
-        } catch (err) {
-            console.error('Failed to load queue:', err);
-        }
-    }
 
-    // Attach to filters
-    document.querySelectorAll('select').forEach(sel => {
-        sel.addEventListener('change', (e) => {
-            const val = e.target.value;
-            if (['All Statuses', 'Pending Approval', 'Under Review', 'Flagged', 'Scheduled'].includes(val)) {
-                loadQueue(val);
+            // Attach to filter selects
+            ['status-filter', 'vendor-filter', 'date-filter'].forEach(id => {
+                document.getElementById(id)?.addEventListener('change', () => {
+                    currentPage = 1;
+                    applyFiltersAndRender();
+                });
+            });
+
+            // Clear filters
+            document.getElementById('clear-filters-btn')?.addEventListener('click', () => {
+                const sf = document.getElementById('status-filter');
+                const vf = document.getElementById('vendor-filter');
+                const df = document.getElementById('date-filter');
+                if (sf) sf.selectedIndex = 0;
+                if (vf) vf.selectedIndex = 0;
+                if (df) df.selectedIndex = 0;
+                currentPage = 1;
+                applyFiltersAndRender();
+            });
+
+            // ─── CSV Export ─────────────────────────────────────────────
+            document.getElementById('export-csv-btn')?.addEventListener('click', () => {
+                if (!allBills.length) { _showToast('No data to export', 'warning'); return; }
+                const headers = ['Invoice #', 'Vendor', 'Date', 'Amount (INR)', 'Status', 'OCR Confidence'];
+                const rows = allBills.map(b => [
+                    b.invoice_number || b.ref_no || b.id.slice(0, 8),
+                    b.vendor_name || '',
+                    b.invoice_date || '',
+                    parseFloat(b.total_amount || 0).toFixed(2),
+                    b.status || '',
+                    b.ocr_confidence != null ? (b.ocr_confidence * 100).toFixed(0) + '%' : ''
+                ]);
+                const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `ap_invoices_${new Date().toISOString().slice(0, 10)}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+                window._showToast('CSV exported successfully', 'success');
+            });
+
+            // ─── Pagination Renderer ─────────────────────────────────────
+            function renderPagination(page, totalPages, totalCount) {
+                const footer = document.querySelector('.p-6.flex.items-center.justify-between');
+                if (!footer) return;
+                const countEl = footer.querySelector('#invoice-count');
+                if (countEl) {
+                    const start = Math.min((page - 1) * PAGE_SIZE + 1, totalCount);
+                    const end = Math.min(page * PAGE_SIZE, totalCount);
+                    countEl.textContent = totalCount
+                        ? `Showing ${start}–${end} of ${totalCount} invoice${totalCount !== 1 ? 's' : ''}`
+                        : 'No invoices found';
+                }
+
+                const paginationDiv = footer.querySelector('.flex.items-center.gap-2');
+                if (!paginationDiv) return;
+
+                const prevBtn = paginationDiv.querySelector('button:first-child');
+                const nextBtn = paginationDiv.querySelector('button:last-child');
+                if (prevBtn) {
+                    prevBtn.disabled = page <= 1;
+                    prevBtn.className = `p-2 rounded-lg transition-colors ${page <= 1 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-surface'}`;
+                    prevBtn.onclick = () => { if (page > 1) { currentPage--; applyFiltersAndRender(); } };
+                }
+                if (nextBtn) {
+                    nextBtn.disabled = page >= totalPages;
+                    nextBtn.className = `p-2 rounded-lg transition-colors ${page >= totalPages ? 'opacity-40 cursor-not-allowed' : 'hover:bg-surface'}`;
+                    nextBtn.onclick = () => { if (page < totalPages) { currentPage++; applyFiltersAndRender(); } };
+                }
+
+                // Rebuild page number buttons
+                const pagesContainer = paginationDiv.querySelector('.flex.gap-1');
+                if (!pagesContainer) return;
+                const pageNums = getPageNumbers(page, totalPages);
+                pagesContainer.innerHTML = pageNums.map(p => {
+                    if (p === '...') return `<span class="px-1 text-on-surface-variant self-center">…</span>`;
+                    const active = p === page;
+                    return `<button data-pg="${p}" class="w-8 h-8 rounded-lg text-xs font-bold transition-colors ${active ? 'bg-primary text-white' : 'hover:bg-surface text-on-surface-variant'}">${p}</button>`;
+                }).join('');
+                pagesContainer.querySelectorAll('button[data-pg]').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        currentPage = parseInt(btn.dataset.pg);
+                        applyFiltersAndRender();
+                    });
+                });
             }
-        });
-    });
 
-    function renderQueue(bills) {
-        const tbody = document.querySelector('table tbody');
-        if (!tbody) return;
+            function getPageNumbers(current, total) {
+                if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+                if (current <= 4) return [1, 2, 3, 4, 5, '...', total];
+                if (current >= total - 3) return [1, '...', total - 4, total - 3, total - 2, total - 1, total];
+                return [1, '...', current - 1, current, current + 1, '...', total];
+            }
 
-        if (!bills || bills.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="px-6 py-12 text-center text-on-surface-variant font-medium">
+            function renderQueue(bills) {
+                const tbody = document.querySelector('table tbody');
+                if (!tbody) return;
+
+                if (!bills || bills.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="7" class="px-6 py-12 text-center text-on-surface-variant font-medium">
                 <span class="material-symbols-outlined text-4xl block mb-2 opacity-30">inbox</span>
                 No invoices in your approval queue.
             </td></tr>`;
-            return;
-        }
+                    return;
+                }
 
-        const statusBadge = (s) => {
-            const map = {
-                'SUBMITTED':    'bg-secondary-container text-on-secondary-container',
-                'PENDING_L1':   'bg-primary-fixed text-on-primary-fixed-variant',
-                'PENDING_L2':   'bg-primary-fixed text-on-primary-fixed-variant',
-                'PENDING_HOD':  'bg-tertiary-fixed text-on-tertiary-fixed',
-                'PENDING_FIN_L1': 'bg-primary-fixed text-on-primary-fixed-variant',
-                'PENDING_FIN_L2': 'bg-primary-fixed text-on-primary-fixed-variant',
-                'PENDING_FIN_HEAD': 'bg-primary-fixed text-on-primary-fixed-variant',
-                'APPROVED':     'bg-primary-fixed text-on-primary-fixed-variant',
-                'REJECTED':     'bg-error-container text-on-error-container',
-                'QUERY_RAISED': 'bg-error-container text-on-error-container',
-                'PAID':         'bg-primary-fixed text-on-primary-fixed-variant',
-            };
-            const label = s.replace(/_/g, ' ');
-            const cls = map[s] || 'bg-surface-container-high text-on-surface-variant';
-            return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${cls}">${label}</span>`;
-        };
+                const statusBadge = (s) => {
+                    const map = {
+                        'SUBMITTED': 'bg-secondary-container text-on-secondary-container',
+                        'PENDING_L1': 'bg-primary-fixed text-on-primary-fixed-variant',
+                        'PENDING_L2': 'bg-primary-fixed text-on-primary-fixed-variant',
+                        'PENDING_HOD': 'bg-tertiary-fixed text-on-tertiary-fixed',
+                        'PENDING_FIN_L1': 'bg-primary-fixed text-on-primary-fixed-variant',
+                        'PENDING_FIN_L2': 'bg-primary-fixed text-on-primary-fixed-variant',
+                        'PENDING_FIN_HEAD': 'bg-primary-fixed text-on-primary-fixed-variant',
+                        'APPROVED': 'bg-primary-fixed text-on-primary-fixed-variant',
+                        'REJECTED': 'bg-error-container text-on-error-container',
+                        'QUERY_RAISED': 'bg-error-container text-on-error-container',
+                        'PAID': 'bg-primary-fixed text-on-primary-fixed-variant',
+                    };
+                    const label = s.replace(/_/g, ' ');
+                    const cls = map[s] || 'bg-surface-container-high text-on-surface-variant';
+                    return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${cls}">${label}</span>`;
+                };
 
-        const confidenceBar = (conf) => {
-            if (conf === null || conf === undefined) return '<span class="text-[10px] text-on-surface-variant">—</span>';
-            const pct = Math.round(conf * 100);
-            const color = pct >= 80 ? 'bg-primary' : pct >= 50 ? 'bg-secondary' : 'bg-error';
-            const textColor = pct >= 80 ? 'text-primary' : pct >= 50 ? 'text-secondary' : 'text-error';
-            return `<div class="flex items-center gap-2">
+                const confidenceBar = (conf) => {
+                    if (conf === null || conf === undefined) return '<span class="text-[10px] text-on-surface-variant">—</span>';
+                    const pct = Math.round(conf * 100);
+                    const color = pct >= 80 ? 'bg-primary' : pct >= 50 ? 'bg-secondary' : 'bg-error';
+                    const textColor = pct >= 80 ? 'text-primary' : pct >= 50 ? 'text-secondary' : 'text-error';
+                    return `<div class="flex items-center gap-2">
                 <div class="w-20 h-1.5 bg-surface-container rounded-full overflow-hidden">
                     <div class="${color} h-full" style="width:${pct}%"></div>
                 </div>
                 <span class="text-[10px] font-bold ${textColor}">${pct}%</span>
             </div>`;
-        };
+                };
 
-        tbody.innerHTML = bills.map(bill => {
-            const vendorInitials = (bill.vendor_name || 'UN').slice(0, 2).toUpperCase();
-            const dateStr = bill.invoice_date
-                ? new Date(bill.invoice_date).toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'})
-                : new Date(bill.created_at).toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'});
-            return `
+                tbody.innerHTML = bills.map(bill => {
+                    const vendorInitials = (bill.vendor_name || 'UN').slice(0, 2).toUpperCase();
+                    const dateStr = bill.invoice_date
+                        ? new Date(bill.invoice_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                        : new Date(bill.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                    return `
             <tr class="hover:bg-surface-container-low cursor-pointer transition-colors group" data-bill-id="${bill.id}">
-                <td class="px-6 py-5 font-headline font-bold text-sm text-on-surface">${bill.invoice_number || bill.ref_no || bill.id.slice(0,8)}</td>
+                <td class="px-6 py-5 font-headline font-bold text-sm text-on-surface">${bill.invoice_number || bill.ref_no || bill.id.slice(0, 8)}</td>
                 <td class="px-6 py-5">
                     <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center font-bold text-xs text-primary">${vendorInitials}</div>
@@ -521,7 +814,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </div>
                 </td>
                 <td class="px-6 py-5 text-sm text-on-surface-variant">${dateStr}</td>
-                <td class="px-6 py-5 font-bold text-sm">₹${parseFloat(bill.total_amount || 0).toLocaleString('en-IN', {maximumFractionDigits:0})}</td>
+                <td class="px-6 py-5 font-bold text-sm">₹${parseFloat(bill.total_amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
                 <td class="px-6 py-5">${statusBadge(bill.status || bill._status || '')}</td>
                 <td class="px-6 py-5">${confidenceBar(bill.ocr_confidence)}</td>
                 <td class="px-6 py-5 text-right">
@@ -538,132 +831,131 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </div>
                 </td>
             </tr>`;
-        }).join('');
+                }).join('');
 
-        const countEl = document.getElementById('invoice-count');
-        if (countEl) countEl.textContent = `Showing ${bills.length} invoice${bills.length !== 1 ? 's' : ''} in your queue`;
+                // count handled by renderPagination
 
-        // Attach event listeners
-        tbody.querySelectorAll('.approve-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                openActionModal('approve', btn.dataset.id, btn.dataset.ref);
-            });
-        });
-        tbody.querySelectorAll('.reject-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                openActionModal('reject', btn.dataset.id, btn.dataset.ref);
-            });
-        });
-        tbody.querySelectorAll('.query-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                openActionModal('query', btn.dataset.id, btn.dataset.ref);
-            });
-        });
-        tbody.querySelectorAll('tr[data-bill-id]').forEach(row => {
-            row.addEventListener('click', () => openBillDetail(row.dataset.billId));
-        });
-    }
-
-    function getStatusClass(status) {
-        const map = {
-            'SUBMITTED': 'bg-blue-100 text-blue-700',
-            'PENDING_L1': 'bg-yellow-100 text-yellow-700',
-            'PENDING_L2': 'bg-yellow-100 text-yellow-700',
-            'PENDING_HOD': 'bg-orange-100 text-orange-700',
-            'APPROVED': 'bg-emerald-100 text-emerald-700',
-            'REJECTED': 'bg-red-100 text-red-700',
-            'PAID': 'bg-green-100 text-green-700',
-            'QUERY_RAISED': 'bg-amber-100 text-amber-700',
-        };
-        return map[status] || 'bg-slate-100 text-slate-600';
-    }
-
-    // ─── Action Modal ───────────────────────────────────────────
-    const actionModal = document.getElementById('action-modal');
-    const actionTitle = document.getElementById('action-modal-title');
-    const actionBillInfo = document.getElementById('action-bill-info');
-    const actionReason = document.getElementById('action-reason');
-    const actionSubmitBtn = document.getElementById('action-submit-btn');
-    const actionError = document.getElementById('action-error');
-
-    document.getElementById('close-action-modal').addEventListener('click', () => actionModal.classList.add('hidden'));
-
-    function openActionModal(action, billId, refNo) {
-        currentAction = action;
-        currentBillId = billId;
-        actionError.classList.add('hidden');
-        actionReason.value = '';
-
-        if (action === 'approve') {
-            actionTitle.textContent = '✅ Approve Invoice';
-            actionSubmitBtn.className = 'w-full py-3 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors';
-            actionReason.placeholder = 'Approval notes (optional)';
-        } else if (action === 'reject') {
-            actionTitle.textContent = '❌ Reject Invoice';
-            actionSubmitBtn.className = 'w-full py-3 rounded-xl font-bold text-white bg-red-600 hover:bg-red-700 transition-colors';
-            actionReason.placeholder = 'Rejection reason (required, min 10 chars)';
-        } else {
-            actionTitle.textContent = '❓ Raise Query';
-            actionSubmitBtn.className = 'w-full py-3 rounded-xl font-bold text-white bg-amber-600 hover:bg-amber-700 transition-colors';
-            actionReason.placeholder = 'Your question (required, min 10 chars)';
-        }
-
-        actionBillInfo.textContent = `Invoice: ${refNo || billId.slice(0,8)}`;
-        actionSubmitBtn.textContent = 'Confirm';
-        actionModal.classList.remove('hidden');
-    }
-
-    actionSubmitBtn.addEventListener('click', async () => {
-        actionError.classList.add('hidden');
-        const reason = actionReason.value.trim();
-
-        if (currentAction !== 'approve' && reason.length < 10) {
-            actionError.textContent = 'Reason must be at least 10 characters';
-            actionError.classList.remove('hidden');
-            return;
-        }
-
-        actionSubmitBtn.disabled = true;
-        actionSubmitBtn.textContent = 'Processing...';
-
-        try {
-            if (currentAction === 'approve') {
-                await window.api.approveBill(currentBillId, reason || 'Approved');
-                window.statusPoller.showToast('Approved', 'Invoice approved successfully', 'success');
-            } else if (currentAction === 'reject') {
-                await window.api.rejectBill(currentBillId, reason);
-                window.statusPoller.showToast('Rejected', 'Invoice rejected', 'error');
-            } else {
-                await window.api.queryBill(currentBillId, reason);
-                window.statusPoller.showToast('Query Raised', 'Query sent to vendor', 'warning');
+                // Attach event listeners
+                tbody.querySelectorAll('.approve-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        openActionModal('approve', btn.dataset.id, btn.dataset.ref);
+                    });
+                });
+                tbody.querySelectorAll('.reject-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        openActionModal('reject', btn.dataset.id, btn.dataset.ref);
+                    });
+                });
+                tbody.querySelectorAll('.query-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        openActionModal('query', btn.dataset.id, btn.dataset.ref);
+                    });
+                });
+                tbody.querySelectorAll('tr[data-bill-id]').forEach(row => {
+                    row.addEventListener('click', () => openBillDetail(row.dataset.billId));
+                });
             }
 
-            actionModal.classList.add('hidden');
-            loadQueue(); // Refresh
-        } catch (err) {
-            actionError.textContent = err.message || 'Action failed';
-            actionError.classList.remove('hidden');
-        } finally {
-            actionSubmitBtn.disabled = false;
-            actionSubmitBtn.textContent = 'Confirm';
-        }
-    });
+            function getStatusClass(status) {
+                const map = {
+                    'SUBMITTED': 'bg-blue-100 text-blue-700',
+                    'PENDING_L1': 'bg-yellow-100 text-yellow-700',
+                    'PENDING_L2': 'bg-yellow-100 text-yellow-700',
+                    'PENDING_HOD': 'bg-orange-100 text-orange-700',
+                    'APPROVED': 'bg-emerald-100 text-emerald-700',
+                    'REJECTED': 'bg-red-100 text-red-700',
+                    'PAID': 'bg-green-100 text-green-700',
+                    'QUERY_RAISED': 'bg-amber-100 text-amber-700',
+                };
+                return map[status] || 'bg-slate-100 text-slate-600';
+            }
 
-    // ─── Bill Detail Panel ──────────────────────────────────────
-    const detailPanel = document.getElementById('bill-detail-panel');
-    document.getElementById('close-detail').addEventListener('click', () => detailPanel.classList.add('hidden'));
+            // ─── Action Modal ───────────────────────────────────────────
+            const actionModal = document.getElementById('action-modal');
+            const actionTitle = document.getElementById('action-modal-title');
+            const actionBillInfo = document.getElementById('action-bill-info');
+            const actionReason = document.getElementById('action-reason');
+            const actionSubmitBtn = document.getElementById('action-submit-btn');
+            const actionError = document.getElementById('action-error');
 
-    async function openBillDetail(billId) {
-        detailPanel.classList.remove('hidden');
-        const content = document.getElementById('bill-detail-content');
-        content.innerHTML = '<div class="animate-pulse text-center text-slate-400 py-12">Loading...</div>';
+            document.getElementById('close-action-modal').addEventListener('click', () => actionModal.classList.add('hidden'));
 
-        try {
-            const bill = await window.api.getBillDetail(billId);
-            content.innerHTML = `
+            function openActionModal(action, billId, refNo) {
+                currentAction = action;
+                currentBillId = billId;
+                actionError.classList.add('hidden');
+                actionReason.value = '';
+
+                if (action === 'approve') {
+                    actionTitle.textContent = '✅ Approve Invoice';
+                    actionSubmitBtn.className = 'w-full py-3 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors';
+                    actionReason.placeholder = 'Approval notes (optional)';
+                } else if (action === 'reject') {
+                    actionTitle.textContent = '❌ Reject Invoice';
+                    actionSubmitBtn.className = 'w-full py-3 rounded-xl font-bold text-white bg-red-600 hover:bg-red-700 transition-colors';
+                    actionReason.placeholder = 'Rejection reason (required, min 10 chars)';
+                } else {
+                    actionTitle.textContent = '❓ Raise Query';
+                    actionSubmitBtn.className = 'w-full py-3 rounded-xl font-bold text-white bg-amber-600 hover:bg-amber-700 transition-colors';
+                    actionReason.placeholder = 'Your question (required, min 10 chars)';
+                }
+
+                actionBillInfo.textContent = `Invoice: ${refNo || billId.slice(0, 8)}`;
+                actionSubmitBtn.textContent = 'Confirm';
+                actionModal.classList.remove('hidden');
+            }
+
+            actionSubmitBtn.addEventListener('click', async () => {
+                actionError.classList.add('hidden');
+                const reason = actionReason.value.trim();
+
+                if (currentAction !== 'approve' && reason.length < 10) {
+                    actionError.textContent = 'Reason must be at least 10 characters';
+                    actionError.classList.remove('hidden');
+                    return;
+                }
+
+                actionSubmitBtn.disabled = true;
+                actionSubmitBtn.textContent = 'Processing...';
+
+                try {
+                    if (currentAction === 'approve') {
+                        await window.api.approveBill(currentBillId, reason || 'Approved');
+                        window.statusPoller.showToast('Approved', 'Invoice approved successfully', 'success');
+                    } else if (currentAction === 'reject') {
+                        await window.api.rejectBill(currentBillId, reason);
+                        window.statusPoller.showToast('Rejected', 'Invoice rejected', 'error');
+                    } else {
+                        await window.api.queryBill(currentBillId, reason);
+                        window.statusPoller.showToast('Query Raised', 'Query sent to vendor', 'warning');
+                    }
+
+                    actionModal.classList.add('hidden');
+                    loadQueue(); // Refresh
+                } catch (err) {
+                    actionError.textContent = err.message || 'Action failed';
+                    actionError.classList.remove('hidden');
+                } finally {
+                    actionSubmitBtn.disabled = false;
+                    actionSubmitBtn.textContent = 'Confirm';
+                }
+            });
+
+            // ─── Bill Detail Panel ──────────────────────────────────────
+            const detailPanel = document.getElementById('bill-detail-panel');
+            document.getElementById('close-detail').addEventListener('click', () => detailPanel.classList.add('hidden'));
+
+            async function openBillDetail(billId) {
+                detailPanel.classList.remove('hidden');
+                const content = document.getElementById('bill-detail-content');
+                content.innerHTML = '<div class="animate-pulse text-center text-slate-400 py-12">Loading...</div>';
+
+                try {
+                    const bill = await window.api.getBillDetail(billId);
+                    content.innerHTML = `
                 <div class="bg-slate-50 rounded-xl p-4">
                     <div class="text-lg font-bold">${bill.ref_no}</div>
                     <div class="text-sm text-slate-500">${bill.vendor_name}</div>
@@ -693,55 +985,270 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <div id="detail-timeline"></div>
             `;
 
-            if (bill.timeline?.length) {
-                TimelineRenderer.render('detail-timeline', bill);
-            }
-        } catch (err) {
-            content.innerHTML = '<div class="text-red-500 text-center">Failed to load bill details</div>';
-        }
-    }
+                    if (bill.timeline?.length) {
+                        TimelineRenderer.render('detail-timeline', bill);
+                    }
 
-    // ─── Dashboard Stats ────────────────────────────────────────
-    async function loadStats() {
-        try {
-            const stats = await window.api.getDashboardStats();
-            if (!stats) return;
+                    // Update 3-way match deep-link
+                    const matchLink = document.getElementById('open-3way-match');
+                    if (matchLink) matchLink.href = `/frontend/ap_match_fraud_control_1/code.html?bill_id=${billId}`;
 
-            // Total Outstanding Amount
-            const outstandingCard = document.querySelectorAll('.text-3xl.font-headline.font-black')[0];
-            if (outstandingCard) {
-                outstandingCard.textContent = `₹${parseFloat(stats.total_outstanding_amount || 0).toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
-            }
-
-            // Pending Approval Count
-            const pendingCard = document.querySelectorAll('.text-3xl.font-headline.font-black')[1];
-            if (pendingCard) {
-                pendingCard.textContent = `${stats.total_pending || 0} Invoices`;
-            }
-
-            // Processing Health (based on approval vs rejection rate)
-            const total = (stats.total_pending || 0) + (stats.total_approved || 0) + (stats.total_rejected || 0) + (stats.total_paid || 0);
-            if (total > 0) {
-                const healthPct = Math.round(((total - (stats.total_rejected || 0)) / total) * 100);
-                const healthText = document.querySelectorAll('.text-sm.font-black.text-primary')[0];
-                if (healthText) {
-                    healthText.textContent = healthPct + '%';
-                    const bar = healthText.previousElementSibling?.querySelector('div');
-                    if (bar) bar.style.width = healthPct + '%';
+                    // Show Mark as Paid for finance roles when bill is post-approval
+                    const markPaidBtn = document.getElementById('mark-paid-btn');
+                    if (markPaidBtn && isFinance) {
+                        const payable = ['APPROVED', 'PENDING_D365', 'BOOKED_D365', 'POSTED_D365'].includes(bill.status);
+                        markPaidBtn.classList.toggle('hidden', !payable);
+                        markPaidBtn.classList.toggle('flex', payable);
+                        markPaidBtn.dataset.billId = billId;
+                    }
+                } catch (err) {
+                    content.innerHTML = '<div class="text-red-500 text-center">Failed to load bill details</div>';
                 }
             }
-        } catch (err) {
-            console.log('Stats load error:', err);
-        }
-    }
 
-    // ─── Initial Load ───────────────────────────────────────────
-    loadQueue();
-    loadStats();
+            // ─── Tab System (finance roles only) ────────────────────────
+            const role = (AUTH.getUser()?.role || '').toLowerCase();
+            const isFinance = ['finance_manager', 'finance_admin', 'cfo', 'admin'].includes(role);
+            let activeTab = 'queue';
+            let allPage = 1;
+            const ALL_PAGE_SIZE = 20;
+            let allSearchTimer = null;
 
-    // Auto-refresh queue every 15 seconds
-    setInterval(loadQueue, 15000);
-});
-</script>
-<script src="/frontend/shared/layout.js"></script>
-</body></html>
+            if (isFinance) {
+                document.getElementById('ap-tab-bar').classList.remove('hidden');
+            }
+
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+            });
+
+            function switchTab(tab) {
+                activeTab = tab;
+                document.querySelectorAll('.tab-btn').forEach(b => {
+                    const active = b.dataset.tab === tab;
+                    b.className = active
+                        ? 'tab-btn px-5 py-2 rounded-lg text-sm font-bold bg-surface-container-lowest text-primary shadow-sm transition-all'
+                        : 'tab-btn px-5 py-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container-lowest/60 transition-all';
+                });
+                document.getElementById('queue-view').classList.toggle('hidden', tab !== 'queue');
+                document.getElementById('all-invoices-view').classList.toggle('hidden', tab !== 'all');
+                document.getElementById('pipeline-view').classList.toggle('hidden', tab !== 'pipeline');
+
+                if (tab === 'all') loadAllInvoices();
+                if (tab === 'pipeline') loadPipeline();
+            }
+
+            // ─── All Invoices (finance+ management view) ──────────────────
+            async function loadAllInvoices() {
+                const search = document.getElementById('all-search')?.value.trim() || '';
+                const statusVal = document.getElementById('all-status-filter')?.value || '';
+                const params = { limit: ALL_PAGE_SIZE, offset: (allPage - 1) * ALL_PAGE_SIZE };
+                if (search) params.search = search;
+                if (statusVal) params.status = statusVal;
+
+                const tbody = document.getElementById('all-tbody');
+                tbody.innerHTML = `<tr><td colspan="7" class="px-6 py-8 text-center text-on-surface-variant">
+            <div class="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full mx-auto"></div>
+        </td></tr>`;
+
+                try {
+                    const data = await window.api.getAllExpenses(params);
+                    const bills = data.results || [];
+                    const total = data.total || 0;
+
+                    document.getElementById('all-count').textContent = `${total} invoice${total !== 1 ? 's' : ''}`;
+                    document.getElementById('all-page-info').textContent =
+                        total ? `Showing ${(allPage - 1) * ALL_PAGE_SIZE + 1}–${Math.min(allPage * ALL_PAGE_SIZE, total)} of ${total}` : 'No results';
+
+                    const prevBtn = document.getElementById('all-prev');
+                    const nextBtn = document.getElementById('all-next');
+                    prevBtn.disabled = allPage <= 1;
+                    prevBtn.className = `px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${allPage <= 1 ? 'opacity-40 cursor-not-allowed text-on-surface-variant' : 'text-primary hover:bg-primary/10'}`;
+                    nextBtn.disabled = allPage * ALL_PAGE_SIZE >= total;
+                    nextBtn.className = `px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${allPage * ALL_PAGE_SIZE >= total ? 'opacity-40 cursor-not-allowed text-on-surface-variant' : 'text-primary hover:bg-primary/10'}`;
+
+                    if (!bills.length) {
+                        tbody.innerHTML = `<tr><td colspan="7" class="px-6 py-10 text-center text-on-surface-variant">No invoices found.</td></tr>`;
+                        return;
+                    }
+
+                    const PIPELINE_STEP = {
+                        'PENDING_L1': 'Step 1 / L1', 'PENDING_L2': 'Step 2 / L2', 'PENDING_HOD': 'Step 3 / HOD',
+                        'PENDING_FIN_L1': 'Step 4 / Fin L1', 'PENDING_FIN_L2': 'Step 5 / Fin L2',
+                        'PENDING_FIN_HEAD': 'Step 6 / Fin Head', 'APPROVED': 'Approved', 'PAID': 'Paid',
+                        'REJECTED': 'Rejected', 'QUERY_RAISED': 'Query Raised',
+                    };
+                    tbody.innerHTML = bills.map(b => {
+                        const s = b.status || '';
+                        const initials = (b.vendor_name || 'UN').slice(0, 2).toUpperCase();
+                        const date = b.invoice_date
+                            ? new Date(b.invoice_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                            : new Date(b.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                        const stepLabel = PIPELINE_STEP[s] || s.replace(/_/g, ' ');
+                        const stepBadge = s.startsWith('PENDING') ? 'bg-amber-100 text-amber-700'
+                            : s === 'APPROVED' || s === 'PAID' ? 'bg-emerald-100 text-emerald-700'
+                                : s === 'REJECTED' ? 'bg-red-100 text-red-700'
+                                    : 'bg-slate-100 text-slate-600';
+                        return `<tr class="hover:bg-surface-container-low cursor-pointer transition-colors" data-bill-id="${b.id}">
+                    <td class="px-6 py-4 font-bold text-sm text-on-surface">${b.invoice_number || b.ref_no || b.id.slice(0, 8)}</td>
+                    <td class="px-6 py-4">
+                        <div class="flex items-center gap-2">
+                            <div class="w-7 h-7 rounded-lg bg-surface-container flex items-center justify-center font-bold text-xs text-primary">${initials}</div>
+                            <span class="text-sm font-semibold">${b.vendor_name || '—'}</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 font-bold text-sm">₹${parseFloat(b.total_amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                    <td class="px-6 py-4"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${stepBadge.replace(stepLabel, '')}">${s.replace(/_/g, ' ')}</span></td>
+                    <td class="px-6 py-4 text-xs text-on-surface-variant font-medium">${stepLabel}</td>
+                    <td class="px-6 py-4 text-sm text-on-surface-variant">${date}</td>
+                    <td class="px-6 py-4 text-right"><span class="material-symbols-outlined text-outline-variant text-sm">arrow_forward_ios</span></td>
+                </tr>`;
+                    }).join('');
+
+                    tbody.querySelectorAll('tr[data-bill-id]').forEach(row =>
+                        row.addEventListener('click', () => openBillDetail(row.dataset.billId))
+                    );
+                } catch (err) {
+                    tbody.innerHTML = `<tr><td colspan="7" class="px-6 py-8 text-center text-error text-sm">${err.message}</td></tr>`;
+                }
+            }
+
+            document.getElementById('all-prev')?.addEventListener('click', () => { if (allPage > 1) { allPage--; loadAllInvoices(); } });
+            document.getElementById('all-next')?.addEventListener('click', () => { allPage++; loadAllInvoices(); });
+            document.getElementById('all-status-filter')?.addEventListener('change', () => { allPage = 1; loadAllInvoices(); });
+            document.getElementById('all-search')?.addEventListener('input', () => {
+                clearTimeout(allSearchTimer);
+                allSearchTimer = setTimeout(() => { allPage = 1; loadAllInvoices(); }, 400);
+            });
+
+            // ─── Pipeline View ───────────────────────────────────────────
+            async function loadPipeline() {
+                const cols = document.getElementById('pipeline-columns');
+                cols.innerHTML = `<div class="col-span-full text-center py-10 text-on-surface-variant">
+            <div class="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>Loading pipeline...
+        </div>`;
+
+                try {
+                    const data = await window.api.getAllExpenses({ limit: 200 });
+                    const bills = data.results || [];
+
+                    const stages = [
+                        { key: 'PENDING_L1', label: 'L1 Review', color: 'bg-yellow-400' },
+                        { key: 'PENDING_L2', label: 'L2 Review', color: 'bg-yellow-500' },
+                        { key: 'PENDING_HOD', label: 'HOD Review', color: 'bg-orange-400' },
+                        { key: 'PENDING_FIN_L1', label: 'Finance L1', color: 'bg-blue-400' },
+                        { key: 'PENDING_FIN_L2', label: 'Finance L2', color: 'bg-blue-500' },
+                        { key: 'PENDING_FIN_HEAD', label: 'Fin Head', color: 'bg-primary' },
+                        { key: 'APPROVED,PENDING_D365,BOOKED_D365,POSTED_D365', label: 'Processing', color: 'bg-emerald-500' },
+                        { key: 'PAID', label: 'Paid', color: 'bg-emerald-700' },
+                        { key: 'REJECTED', label: 'Rejected', color: 'bg-error' },
+                        { key: 'QUERY_RAISED', label: 'Query', color: 'bg-amber-500' },
+                    ];
+
+                    const grouped = {};
+                    stages.forEach(s => {
+                        const keys = s.key.split(',');
+                        grouped[s.key] = bills.filter(b => keys.includes(b.status));
+                    });
+
+                    cols.className = 'grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4';
+                    cols.innerHTML = stages.map(stage => {
+                        const stageBills = grouped[stage.key] || [];
+                        const total = stageBills.reduce((s, b) => s + parseFloat(b.total_amount || 0), 0);
+                        return `<div class="bg-surface-container-lowest rounded-xl overflow-hidden border border-outline-variant/20">
+                    <div class="px-4 py-3 flex items-center justify-between ${stage.color} bg-opacity-10">
+                        <span class="text-xs font-black uppercase tracking-widest text-on-surface">${stage.label}</span>
+                        <span class="w-6 h-6 rounded-full ${stage.color} flex items-center justify-center text-white text-[10px] font-black">${stageBills.length}</span>
+                    </div>
+                    ${total > 0 ? `<div class="px-4 py-1.5 bg-surface-container-low border-b border-outline-variant/10">
+                        <span class="text-[10px] text-on-surface-variant font-medium">₹${total.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                    </div>` : ''}
+                    <div class="divide-y divide-outline-variant/10 max-h-64 overflow-y-auto">
+                        ${stageBills.length === 0
+                                ? `<p class="px-4 py-6 text-center text-xs text-on-surface-variant opacity-60">Empty</p>`
+                                : stageBills.map(b => `
+                            <div class="px-4 py-3 hover:bg-surface-container-low cursor-pointer transition-colors" data-bill-id="${b.id}">
+                                <p class="text-xs font-bold text-on-surface truncate">${b.invoice_number || b.ref_no || b.id.slice(0, 8)}</p>
+                                <p class="text-[10px] text-on-surface-variant truncate">${b.vendor_name || '—'}</p>
+                                <p class="text-[10px] font-bold text-primary">₹${parseFloat(b.total_amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
+                            </div>`).join('')}
+                    </div>
+                </div>`;
+                    }).join('');
+
+                    cols.querySelectorAll('[data-bill-id]').forEach(card =>
+                        card.addEventListener('click', () => openBillDetail(card.dataset.billId))
+                    );
+                } catch (err) {
+                    cols.innerHTML = `<div class="col-span-full text-center text-error py-8 text-sm">${err.message}</div>`;
+                }
+            }
+
+            // ─── Mark as Paid button handler ─────────────────────────────
+            document.getElementById('mark-paid-btn')?.addEventListener('click', async () => {
+                const btn = document.getElementById('mark-paid-btn');
+                const billId = btn.dataset.billId;
+                if (!billId) return;
+                btn.disabled = true;
+                btn.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">sync</span> Processing...';
+                try {
+                    await window.api.markAsPaid(billId, '', 'Manual payment confirmation');
+                    window._showToast('Payment confirmed — invoice marked as PAID', 'success');
+                    btn.classList.add('hidden');
+                    loadQueue();
+                    if (activeTab === 'all') loadAllInvoices();
+                    if (activeTab === 'pipeline') loadPipeline();
+                } catch (err) {
+                    window._showToast(err.message || 'Mark as paid failed', 'error');
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = '<span class="material-symbols-outlined text-[18px]">payments</span> Mark as Paid';
+                }
+            });
+
+            // ─── Dashboard Stats ────────────────────────────────────────
+            async function loadStats() {
+                try {
+                    const stats = await window.api.getDashboardStats();
+                    if (!stats) return;
+
+                    // Total Outstanding Amount
+                    const outstandingCard = document.querySelectorAll('.text-3xl.font-headline.font-black')[0];
+                    if (outstandingCard) {
+                        outstandingCard.textContent = `₹${parseFloat(stats.total_outstanding_amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+                    }
+
+                    // Pending Approval Count
+                    const pendingCard = document.querySelectorAll('.text-3xl.font-headline.font-black')[1];
+                    if (pendingCard) {
+                        pendingCard.textContent = `${stats.total_pending || 0} Invoices`;
+                    }
+
+                    // Processing Health (based on approval vs rejection rate)
+                    const total = (stats.total_pending || 0) + (stats.total_approved || 0) + (stats.total_rejected || 0) + (stats.total_paid || 0);
+                    if (total > 0) {
+                        const healthPct = Math.round(((total - (stats.total_rejected || 0)) / total) * 100);
+                        const healthText = document.querySelectorAll('.text-sm.font-black.text-primary')[0];
+                        if (healthText) {
+                            healthText.textContent = healthPct + '%';
+                            const bar = healthText.previousElementSibling?.querySelector('div');
+                            if (bar) bar.style.width = healthPct + '%';
+                        }
+                    }
+                } catch (err) {
+                    console.log('Stats load error:', err);
+                }
+            }
+
+            // ─── Initial Load ───────────────────────────────────────────
+            loadQueue();
+            loadStats();
+
+            // Auto-refresh queue every 30 seconds (re-fetches from API, preserves current filters/page)
+            setInterval(loadQueue, 30000);
+        });
+    </script>
+    <script src="/frontend/shared/layout.js"></script>
+</body>
+
+</html>

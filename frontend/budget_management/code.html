@@ -81,6 +81,40 @@ body { font-family: 'Inter', sans-serif; background: #fbf9f9; }
     </div>
   </div>
 
+  <!-- Filter Bar -->
+  <div class="flex flex-wrap items-center gap-3 mb-6 p-4 bg-surface-container-low rounded-xl">
+    <span class="material-symbols-outlined text-on-surface-variant text-[20px]">filter_list</span>
+    <input id="b-search" type="text" placeholder="Search budget name or department..." maxlength="100"
+      class="flex-1 min-w-48 px-3 py-2 bg-surface-container-lowest rounded-lg text-sm border border-outline-variant/30 focus:ring-1 focus:ring-primary focus:outline-none"/>
+    <select id="b-filter-status" class="px-3 py-2 bg-surface-container-lowest rounded-lg text-sm border border-outline-variant/30 focus:ring-1 focus:ring-primary">
+      <option value="">All Statuses</option>
+      <option value="active">Active</option>
+      <option value="closed">Closed</option>
+      <option value="draft">Draft</option>
+    </select>
+    <select id="b-filter-period" class="px-3 py-2 bg-surface-container-lowest rounded-lg text-sm border border-outline-variant/30 focus:ring-1 focus:ring-primary">
+      <option value="">All Periods</option>
+      <option value="monthly">Monthly</option>
+      <option value="quarterly">Quarterly</option>
+      <option value="semi_annual">Semi-Annual</option>
+      <option value="annual">Annual</option>
+    </select>
+    <select id="b-filter-year" class="px-3 py-2 bg-surface-container-lowest rounded-lg text-sm border border-outline-variant/30 focus:ring-1 focus:ring-primary">
+      <option value="">All Years</option>
+      <option value="2026">FY 2026</option>
+      <option value="2025">FY 2025</option>
+      <option value="2024">FY 2024</option>
+    </select>
+    <select id="b-filter-alert" class="px-3 py-2 bg-surface-container-lowest rounded-lg text-sm border border-outline-variant/30 focus:ring-1 focus:ring-primary">
+      <option value="">All Health</option>
+      <option value="CRITICAL">Critical</option>
+      <option value="WARNING">Warning</option>
+      <option value="OK">Healthy</option>
+    </select>
+    <button id="b-clear-filters" class="px-3 py-2 text-xs font-bold text-primary hover:underline">Clear</button>
+    <span id="b-filter-count" class="text-xs text-on-surface-variant ml-auto"></span>
+  </div>
+
   <!-- Budget Cards Grid -->
   <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6" id="budget-grid">
     <div class="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/20 col-span-full text-center py-12 text-on-surface-variant">
@@ -139,11 +173,73 @@ body { font-family: 'Inter', sans-serif; background: #fbf9f9; }
         </div>
       </div>
       <div>
+        <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Department</label>
+        <select id="b-dept" class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm">
+          <option value="">Company-Wide (no department)</option>
+        </select>
+      </div>
+      <div>
         <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Notes</label>
         <textarea id="b-notes" rows="2" class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm" placeholder="Budget notes..."></textarea>
       </div>
       <div id="b-error" class="hidden text-sm text-error bg-error-container p-3 rounded-lg"></div>
       <button type="submit" id="create-budget-btn" class="w-full py-3 primary-gradient text-white rounded-xl font-bold text-sm">Create Budget</button>
+    </form>
+  </div>
+</div>
+
+<!-- Edit Budget Modal -->
+<div id="edit-budget-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-8 max-h-[90vh] overflow-y-auto">
+    <div class="flex justify-between items-center mb-6">
+      <h2 class="text-xl font-headline font-bold">Edit Budget</h2>
+      <button id="close-edit-budget" class="text-on-surface-variant hover:text-on-surface">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <form id="edit-budget-form" class="space-y-4">
+      <input type="hidden" id="e-id"/>
+      <div>
+        <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Budget Name *</label>
+        <input id="e-name" type="text" required class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm">
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Total Amount (₹) *</label>
+          <input id="e-amount" type="number" min="0" step="1000" required class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">End Date *</label>
+          <input id="e-end" type="date" required class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm">
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Warning Threshold (%)</label>
+          <input id="e-warn" type="number" min="50" max="99" class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Critical Threshold (%)</label>
+          <input id="e-crit" type="number" min="50" max="100" class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Status</label>
+        <select id="e-status" class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm">
+          <option value="active">Active</option>
+          <option value="draft">Draft</option>
+          <option value="closed">Closed</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-bold uppercase text-on-surface-variant mb-1">Notes</label>
+        <textarea id="e-notes" rows="2" class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm"></textarea>
+      </div>
+      <div id="e-error" class="hidden text-sm text-error bg-error-container p-3 rounded-lg"></div>
+      <div class="flex gap-3">
+        <button type="submit" id="edit-budget-btn" class="flex-1 py-3 primary-gradient text-white rounded-xl font-bold text-sm">Save Changes</button>
+        <button type="button" id="delete-budget-btn" class="px-6 py-3 bg-error-container text-error rounded-xl font-bold text-sm hover:bg-error/20 transition-colors">Close Budget</button>
+      </div>
     </form>
   </div>
 </div>
@@ -166,6 +262,8 @@ body { font-family: 'Inter', sans-serif; background: #fbf9f9; }
 <script src="/frontend/shared/layout.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', async () => {
+  if (!AUTH.requireAuth()) return;
+
   function showToast(msg, type = 'success') {
     const t = document.createElement('div');
     t.className = `${type==='error'?'bg-error':'bg-primary'} text-white px-5 py-3 rounded-xl shadow-lg text-sm font-semibold flex items-center gap-2`;
@@ -174,27 +272,85 @@ document.addEventListener('DOMContentLoaded', async () => {
     setTimeout(() => t.remove(), 4000);
   }
 
-  const alertColors = { OK: null, WARNING: 'amber', CRITICAL: 'error' };
+  // ── State ──────────────────────────────────────────────────────
+  let allBudgets = [];
 
+  // ── Load departments into selector ────────────────────────────
+  async function loadDepartments() {
+    try {
+      const depts = await window.api.request('/auth/departments/');
+      const opts = (depts || []).map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+      document.getElementById('b-dept').innerHTML =
+        '<option value="">Company-Wide (no department)</option>' + opts;
+    } catch (_) { /* silently skip if endpoint unavailable */ }
+  }
+  loadDepartments();
+
+  // ── Filter logic ───────────────────────────────────────────────
+  function applyFilters() {
+    const search = document.getElementById('b-search').value.toLowerCase().trim();
+    const status = document.getElementById('b-filter-status').value;
+    const period = document.getElementById('b-filter-period').value;
+    const year   = document.getElementById('b-filter-year').value;
+    const alert  = document.getElementById('b-filter-alert').value;
+
+    const filtered = allBudgets.filter(b => {
+      if (search && !b.name.toLowerCase().includes(search) && !(b.department||'').toLowerCase().includes(search)) return false;
+      if (status && b.status !== status) return false;
+      if (period && b.period !== period) return false;
+      if (year   && String(b.fiscal_year) !== year) return false;
+      if (alert  && b.alert_level !== alert) return false;
+      return true;
+    });
+
+    document.getElementById('b-filter-count').textContent =
+      filtered.length !== allBudgets.length ? `${filtered.length} of ${allBudgets.length} budgets` : `${allBudgets.length} budgets`;
+
+    renderGrid(filtered);
+  }
+
+  ['b-search','b-filter-status','b-filter-period','b-filter-year','b-filter-alert'].forEach(id => {
+    document.getElementById(id)?.addEventListener('input', applyFilters);
+    document.getElementById(id)?.addEventListener('change', applyFilters);
+  });
+
+  document.getElementById('b-clear-filters')?.addEventListener('click', () => {
+    document.getElementById('b-search').value = '';
+    ['b-filter-status','b-filter-period','b-filter-year','b-filter-alert'].forEach(id => {
+      document.getElementById(id).selectedIndex = 0;
+    });
+    applyFilters();
+  });
+
+  // ── Budget card renderer ───────────────────────────────────────
   function renderBudgetCard(b) {
     const pct = b.utilization_pct;
     const barColor = b.alert_level === 'CRITICAL' ? '#ba1a1a' : b.alert_level === 'WARNING' ? '#d97706' : '#00535b';
     const badgeColor = b.alert_level === 'CRITICAL' ? 'bg-error-container text-on-error-container' :
-                       b.alert_level === 'WARNING' ? 'bg-amber-100 text-amber-700' :
+                       b.alert_level === 'WARNING'  ? 'bg-amber-100 text-amber-700' :
                        'bg-primary/10 text-primary';
+    const statusDot = b.status === 'active' ? 'bg-emerald-500' : b.status === 'closed' ? 'bg-slate-400' : 'bg-amber-400';
     return `
-      <div class="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/20 hover:shadow-md transition-shadow cursor-pointer" data-budget-id="${b.id}">
-        <div class="flex justify-between items-start mb-4">
-          <div>
-            <p class="font-bold text-on-surface font-headline">${b.name}</p>
-            <p class="text-xs text-on-surface-variant">${b.department || 'All Departments'} · ${b.period}</p>
+      <div class="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/20 hover:shadow-md transition-shadow" data-budget-id="${b.id}">
+        <div class="flex justify-between items-start mb-3">
+          <div class="flex-1 min-w-0 pr-2 cursor-pointer" data-open-detail="${b.id}">
+            <div class="flex items-center gap-2 mb-0.5">
+              <span class="w-2 h-2 rounded-full ${statusDot} shrink-0"></span>
+              <p class="font-bold text-on-surface font-headline truncate">${b.name}</p>
+            </div>
+            <p class="text-xs text-on-surface-variant">${b.department || 'All Departments'} · ${b.period} · FY${b.fiscal_year}</p>
           </div>
-          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${badgeColor}">${b.alert_level}</span>
+          <div class="flex items-center gap-1 shrink-0">
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${badgeColor}">${b.alert_level}</span>
+            <button class="edit-btn p-1.5 rounded-lg hover:bg-surface-container text-on-surface-variant transition-colors" data-budget='${JSON.stringify(b).replace(/'/g,"&#39;")}' title="Edit">
+              <span class="material-symbols-outlined text-[16px]">edit</span>
+            </button>
+          </div>
         </div>
         <div class="space-y-3">
           <div class="flex justify-between text-sm">
             <span class="text-on-surface-variant">Spent</span>
-            <span class="font-bold">₹${b.spent_amount.toLocaleString('en-IN', {maximumFractionDigits:0})}</span>
+            <span class="font-bold">₹${b.spent_amount.toLocaleString('en-IN',{maximumFractionDigits:0})}</span>
           </div>
           <div>
             <div class="flex justify-between text-xs mb-1">
@@ -202,7 +358,10 @@ document.addEventListener('DOMContentLoaded', async () => {
               <span class="font-bold" style="color:${barColor}">${pct}%</span>
             </div>
             <div class="h-2 bg-surface-container rounded-full overflow-hidden">
-              <div class="h-full rounded-full transition-all" style="width:${Math.min(pct,100)}%;background:${barColor}"></div>
+              <div class="h-full rounded-full transition-all duration-700" style="width:${Math.min(pct,100)}%;background:${barColor}"></div>
+            </div>
+            <div class="flex justify-between text-[10px] text-on-surface-variant mt-0.5">
+              <span>Warn: ${b.warning_threshold}%</span><span>Critical: ${b.critical_threshold}%</span>
             </div>
           </div>
           <div class="grid grid-cols-2 gap-2 pt-2 border-t border-outline-variant/10">
@@ -214,53 +373,68 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>`;
   }
 
+  function renderGrid(budgets) {
+    const grid = document.getElementById('budget-grid');
+    if (!budgets.length) {
+      grid.innerHTML = `<div class="col-span-full text-center py-12 text-on-surface-variant">
+        <span class="material-symbols-outlined text-4xl block mb-2 opacity-30">account_balance_wallet</span>
+        <p class="font-medium">No budgets match your filters.</p>
+      </div>`;
+      return;
+    }
+    grid.innerHTML = budgets.map(renderBudgetCard).join('');
+    grid.querySelectorAll('[data-open-detail]').forEach(el =>
+      el.addEventListener('click', () => openBudgetDetail(el.dataset.openDetail))
+    );
+    grid.querySelectorAll('.edit-btn').forEach(btn =>
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openEditModal(JSON.parse(btn.dataset.budget));
+      })
+    );
+  }
+
+  // ── Load all budgets ───────────────────────────────────────────
   async function loadBudgets() {
     try {
-      const budgets = await window.api.getBudgets() || [];
-      const grid = document.getElementById('budget-grid');
+      allBudgets = await window.api.getBudgets() || [];
 
-      // Stats
-      const totalBudget = budgets.reduce((s,b) => s + b.total_amount, 0);
-      const totalSpent = budgets.reduce((s,b) => s + b.spent_amount, 0);
+      // Stats (over ALL budgets, not filtered)
+      const active = allBudgets.filter(b => b.status === 'active');
+      const totalBudget = active.reduce((s,b) => s + b.total_amount, 0);
+      const totalSpent  = active.reduce((s,b) => s + b.spent_amount, 0);
       document.getElementById('s-total').textContent = '₹' + totalBudget.toLocaleString('en-IN',{maximumFractionDigits:0});
       document.getElementById('s-spent').textContent = '₹' + totalSpent.toLocaleString('en-IN',{maximumFractionDigits:0});
       document.getElementById('s-remaining').textContent = '₹' + (totalBudget-totalSpent).toLocaleString('en-IN',{maximumFractionDigits:0});
-      document.getElementById('s-count').textContent = budgets.filter(b=>b.status==='active').length;
+      document.getElementById('s-count').textContent = active.length;
 
-      // Alerts
-      const criticals = budgets.filter(b => b.alert_level === 'CRITICAL');
-      const warnings = budgets.filter(b => b.alert_level === 'WARNING');
+      // Alert banner
+      const criticals = active.filter(b => b.alert_level === 'CRITICAL');
+      const warnings  = active.filter(b => b.alert_level === 'WARNING');
+      const banner = document.getElementById('alert-banner');
       if (criticals.length > 0) {
-        document.getElementById('alert-banner').classList.remove('hidden');
-        document.getElementById('alert-title').textContent = `🔴 ${criticals.length} Budget${criticals.length>1?'s':''} at Critical Utilization`;
-        document.getElementById('alert-body').textContent = criticals.map(b => `${b.name}: ${b.utilization_pct}%`).join(' | ');
-      } else if (warnings.length > 0) {
-        const banner = document.getElementById('alert-banner');
+        banner.className = 'mb-6 p-4 bg-error-container rounded-xl flex items-start gap-4 border border-error/20';
         banner.classList.remove('hidden');
-        banner.classList.replace('bg-error-container', 'bg-amber-50');
-        banner.classList.replace('border-error/20', 'border-amber-200');
+        document.getElementById('alert-title').textContent = `${criticals.length} Budget${criticals.length>1?'s':''} at Critical Utilization`;
+        document.getElementById('alert-body').textContent = criticals.map(b=>`${b.name}: ${b.utilization_pct}%`).join(' | ');
+      } else if (warnings.length > 0) {
+        banner.className = 'mb-6 p-4 bg-amber-50 rounded-xl flex items-start gap-4 border border-amber-200';
+        banner.classList.remove('hidden');
         document.getElementById('alert-title').className = 'font-bold text-amber-700';
-        document.getElementById('alert-title').textContent = `⚠️ ${warnings.length} Budget${warnings.length>1?'s':''} Approaching Threshold`;
-        document.getElementById('alert-body').textContent = warnings.map(b => `${b.name}: ${b.utilization_pct}%`).join(' | ');
+        document.getElementById('alert-title').textContent = `${warnings.length} Budget${warnings.length>1?'s':''} Approaching Threshold`;
+        document.getElementById('alert-body').textContent = warnings.map(b=>`${b.name}: ${b.utilization_pct}%`).join(' | ');
+      } else {
+        banner.classList.add('hidden');
       }
 
-      if (!budgets.length) {
-        grid.innerHTML = `<div class="bg-surface-container-lowest rounded-xl p-12 border border-outline-variant/20 col-span-full text-center text-on-surface-variant">
-          <span class="material-symbols-outlined text-4xl block mb-2 opacity-30">account_balance_wallet</span>
-          <p class="font-medium">No budgets yet. Create your first budget to start tracking.</p>
-        </div>`;
-        return;
-      }
-
-      grid.innerHTML = budgets.map(renderBudgetCard).join('');
-      grid.querySelectorAll('[data-budget-id]').forEach(card => {
-        card.addEventListener('click', () => openBudgetDetail(card.dataset.budgetId));
-      });
+      applyFilters();
     } catch (e) {
-      document.getElementById('budget-grid').innerHTML = `<p class="text-error col-span-full text-center p-8">Failed to load budgets: ${e.message}</p>`;
+      document.getElementById('budget-grid').innerHTML =
+        `<p class="text-error col-span-full text-center p-8">Failed to load budgets: ${e.message}</p>`;
     }
   }
 
+  // ── Budget Detail Panel ────────────────────────────────────────
   async function openBudgetDetail(id) {
     const panel = document.getElementById('budget-detail-modal');
     const content = document.getElementById('budget-detail-content');
@@ -281,46 +455,93 @@ document.addEventListener('DOMContentLoaded', async () => {
       ).join('');
 
       const vendorRows = (util.top_vendors || []).slice(0,5).map(v =>
-        `<div class="flex justify-between py-2 border-b border-outline-variant/10">
-          <span class="text-sm text-on-surface">${v.vendor}</span>
-          <span class="text-sm font-bold">₹${v.amount.toLocaleString('en-IN',{maximumFractionDigits:0})}</span>
+        `<div class="flex justify-between items-center py-2 border-b border-outline-variant/10">
+          <span class="text-sm text-on-surface truncate">${v.vendor || '—'}</span>
+          <div class="text-right shrink-0 ml-3">
+            <p class="text-sm font-bold">₹${v.amount.toLocaleString('en-IN',{maximumFractionDigits:0})}</p>
+            <p class="text-[10px] text-on-surface-variant">${v.invoices} inv</p>
+          </div>
         </div>`
       ).join('');
+
+      // Burn rate: daily average based on elapsed days
+      const start = new Date(b.start_date);
+      const end   = new Date(b.end_date);
+      const today = new Date();
+      const elapsed = Math.max(1, Math.floor((Math.min(today,end) - start) / 86400000));
+      const totalDays = Math.max(1, Math.floor((end - start) / 86400000));
+      const burnRate = b.spent_amount / elapsed;
+      const projected = burnRate * totalDays;
+      const projectedPct = b.total_amount > 0 ? Math.round((projected / b.total_amount) * 100) : 0;
+      const daysRemaining = Math.max(0, Math.floor((end - today) / 86400000));
 
       content.innerHTML = `
         <div class="space-y-5">
           <div class="bg-surface-container-low rounded-xl p-4">
             <p class="font-bold text-base font-headline">${b.name}</p>
-            <p class="text-xs text-on-surface-variant">${b.department || 'All Departments'} · ${b.period}</p>
+            <p class="text-xs text-on-surface-variant">${b.department || 'All Departments'} · ${b.period} · FY${b.fiscal_year}</p>
           </div>
           <div class="grid grid-cols-2 gap-3">
-            ${[['Total Budget','₹'+b.total_amount.toLocaleString('en-IN')],['Spent','₹'+b.spent_amount.toLocaleString('en-IN')],['Remaining','₹'+b.remaining_amount.toLocaleString('en-IN')],['Utilization',pct+'%'],['Period',b.start_date+' → '+b.end_date],['Status',b.status]].map(([k,v])=>
-              `<div class="bg-surface-container-low rounded-lg p-3"><p class="text-xs text-on-surface-variant mb-1">${k}</p><p class="text-sm font-bold">${v}</p></div>`
+            ${[
+              ['Total Budget', '₹'+b.total_amount.toLocaleString('en-IN')],
+              ['Spent',        '₹'+b.spent_amount.toLocaleString('en-IN')],
+              ['Remaining',    '₹'+b.remaining_amount.toLocaleString('en-IN')],
+              ['Utilization',  pct+'%'],
+              ['Days Remaining', daysRemaining+'d'],
+              ['Status',       b.status],
+            ].map(([k,v]) =>
+              `<div class="bg-surface-container-low rounded-lg p-3">
+                <p class="text-xs text-on-surface-variant mb-1">${k}</p>
+                <p class="text-sm font-bold">${v}</p>
+              </div>`
             ).join('')}
           </div>
           <div>
-            <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Utilization</p>
-            <div class="flex justify-between text-xs mb-1"><span>${pct}%</span><span class="text-on-surface-variant">Warning: ${b.warning_threshold}% | Critical: ${b.critical_threshold}%</span></div>
-            <div class="h-3 bg-surface-container rounded-full overflow-hidden">
-              <div class="h-full" style="width:${Math.min(pct,100)}%;background:${barColor}"></div>
+            <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Utilization Bar</p>
+            <div class="flex justify-between text-xs mb-1">
+              <span>${pct}% used</span>
+              <span class="text-on-surface-variant">Warn: ${b.warning_threshold}% | Critical: ${b.critical_threshold}%</span>
             </div>
+            <div class="h-3 bg-surface-container rounded-full overflow-hidden relative">
+              <div class="h-full transition-all duration-700" style="width:${Math.min(pct,100)}%;background:${barColor}"></div>
+              <div class="absolute top-0 h-full w-px bg-amber-400" style="left:${b.warning_threshold}%"></div>
+              <div class="absolute top-0 h-full w-px bg-error"    style="left:${b.critical_threshold}%"></div>
+            </div>
+          </div>
+          <div class="bg-surface-container-low rounded-xl p-4">
+            <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Burn Rate Forecast</p>
+            <p class="text-sm">Daily avg: <strong>₹${burnRate.toLocaleString('en-IN',{maximumFractionDigits:0})}</strong></p>
+            <p class="text-sm mt-1">Projected end spend: <strong class="${projectedPct>b.critical_threshold?'text-error':projectedPct>b.warning_threshold?'text-amber-600':'text-primary'}">₹${projected.toLocaleString('en-IN',{maximumFractionDigits:0})} (${projectedPct}%)</strong></p>
           </div>
           ${monthlyRows ? `<div>
             <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Monthly Spend</p>
-            <table class="w-full"><thead class="text-xs text-on-surface-variant border-b border-outline-variant/20"><tr><th class="pb-1 text-left">Month</th><th class="pb-1 text-right">Amount</th><th class="pb-1 text-right">Invoices</th></tr></thead><tbody>${monthlyRows}</tbody></table>
+            <table class="w-full">
+              <thead class="text-xs text-on-surface-variant border-b border-outline-variant/20">
+                <tr><th class="pb-1 text-left">Month</th><th class="pb-1 text-right">Amount</th><th class="pb-1 text-right">Invoices</th></tr>
+              </thead>
+              <tbody>${monthlyRows}</tbody>
+            </table>
           </div>` : ''}
           ${vendorRows ? `<div>
             <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Top Vendors</p>
             ${vendorRows}
           </div>` : ''}
-          <button onclick="closeBudget('${b.id}')" class="w-full py-2.5 bg-error text-white rounded-xl text-sm font-bold hover:opacity-90">Close Budget</button>
+          <div class="flex gap-2 pt-2">
+            <button onclick="openEditFromDetail('${b.id}')" class="flex-1 py-2.5 bg-primary/10 text-primary rounded-xl text-sm font-bold hover:bg-primary/20 transition-colors">Edit Budget</button>
+            <button onclick="closeBudgetById('${b.id}')" class="flex-1 py-2.5 bg-error-container text-error rounded-xl text-sm font-bold hover:bg-error/20 transition-colors">Close Budget</button>
+          </div>
         </div>`;
     } catch (e) {
-      content.innerHTML = `<p class="text-error text-sm">Failed to load: ${e.message}</p>`;
+      content.innerHTML = `<p class="text-error text-sm p-4">Failed to load: ${e.message}</p>`;
     }
   }
 
-  window.closeBudget = async (id) => {
+  document.getElementById('close-detail').addEventListener('click', () => {
+    document.getElementById('budget-detail-modal').classList.add('hidden');
+  });
+
+  window.closeBudgetById = async (id) => {
+    if (!confirm('Close this budget? It will be marked as closed.')) return;
     try {
       await window.api.updateBudget(id, { status: 'closed' });
       document.getElementById('budget-detail-modal').classList.add('hidden');
@@ -329,14 +550,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (e) { showToast(e.message, 'error'); }
   };
 
-  document.getElementById('close-detail').addEventListener('click', () => {
-    document.getElementById('budget-detail-modal').classList.add('hidden');
-  });
+  window.openEditFromDetail = (id) => {
+    const b = allBudgets.find(x => x.id === id);
+    if (b) { document.getElementById('budget-detail-modal').classList.add('hidden'); openEditModal(b); }
+  };
 
-  // Create modal
+  // ── Create Modal ───────────────────────────────────────────────
   const createModal = document.getElementById('create-budget-modal');
-  document.getElementById('open-create-budget').addEventListener('click', () => { createModal.classList.remove('hidden'); document.body.style.overflow='hidden'; });
-  document.getElementById('close-create-budget').addEventListener('click', () => { createModal.classList.add('hidden'); document.body.style.overflow=''; });
+  document.getElementById('open-create-budget').addEventListener('click', () => {
+    createModal.classList.remove('hidden'); document.body.style.overflow = 'hidden';
+  });
+  document.getElementById('close-create-budget').addEventListener('click', () => {
+    createModal.classList.add('hidden'); document.body.style.overflow = '';
+  });
 
   document.getElementById('create-budget-form').addEventListener('submit', async e => {
     e.preventDefault();
@@ -345,6 +571,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     errDiv.classList.add('hidden');
     btn.disabled = true; btn.textContent = 'Creating...';
     try {
+      const deptVal = document.getElementById('b-dept').value;
       await window.api.createBudget({
         name: document.getElementById('b-name').value,
         start_date: document.getElementById('b-start').value,
@@ -355,16 +582,77 @@ document.addEventListener('DOMContentLoaded', async () => {
         critical_threshold: parseInt(document.getElementById('b-crit').value),
         notes: document.getElementById('b-notes').value,
         fiscal_year: new Date(document.getElementById('b-start').value).getFullYear(),
+        ...(deptVal ? { department_id: deptVal } : {}),
       });
       createModal.classList.add('hidden');
-      document.body.style.overflow='';
+      document.body.style.overflow = '';
       document.getElementById('create-budget-form').reset();
       showToast('Budget created successfully');
       loadBudgets();
     } catch (e) {
-      errDiv.textContent = e.message || 'Failed to create budget';
+      errDiv.textContent = e.data ? Object.values(e.data).flat().join(' | ') : (e.message || 'Failed to create budget');
       errDiv.classList.remove('hidden');
-    } finally { btn.disabled=false; btn.textContent='Create Budget'; }
+    } finally { btn.disabled = false; btn.textContent = 'Create Budget'; }
+  });
+
+  // ── Edit Modal ─────────────────────────────────────────────────
+  const editModal = document.getElementById('edit-budget-modal');
+  document.getElementById('close-edit-budget').addEventListener('click', () => {
+    editModal.classList.add('hidden'); document.body.style.overflow = '';
+  });
+
+  function openEditModal(b) {
+    document.getElementById('e-id').value       = b.id;
+    document.getElementById('e-name').value     = b.name;
+    document.getElementById('e-amount').value   = b.total_amount;
+    document.getElementById('e-end').value      = b.end_date;
+    document.getElementById('e-warn').value     = b.warning_threshold;
+    document.getElementById('e-crit').value     = b.critical_threshold;
+    document.getElementById('e-status').value   = b.status;
+    document.getElementById('e-notes').value    = b.notes || '';
+    document.getElementById('e-error').classList.add('hidden');
+    document.getElementById('delete-budget-btn').dataset.budgetId = b.id;
+    editModal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+
+  document.getElementById('edit-budget-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = document.getElementById('edit-budget-btn');
+    const errDiv = document.getElementById('e-error');
+    errDiv.classList.add('hidden');
+    btn.disabled = true; btn.textContent = 'Saving...';
+    const id = document.getElementById('e-id').value;
+    try {
+      await window.api.updateBudget(id, {
+        name: document.getElementById('e-name').value,
+        total_amount: parseFloat(document.getElementById('e-amount').value),
+        end_date: document.getElementById('e-end').value,
+        warning_threshold: parseInt(document.getElementById('e-warn').value),
+        critical_threshold: parseInt(document.getElementById('e-crit').value),
+        status: document.getElementById('e-status').value,
+        notes: document.getElementById('e-notes').value,
+      });
+      editModal.classList.add('hidden');
+      document.body.style.overflow = '';
+      showToast('Budget updated successfully');
+      loadBudgets();
+    } catch (e) {
+      errDiv.textContent = e.data ? Object.values(e.data).flat().join(' | ') : (e.message || 'Failed to update');
+      errDiv.classList.remove('hidden');
+    } finally { btn.disabled = false; btn.textContent = 'Save Changes'; }
+  });
+
+  document.getElementById('delete-budget-btn').addEventListener('click', async () => {
+    const id = document.getElementById('delete-budget-btn').dataset.budgetId;
+    if (!confirm('Close this budget? It will be marked as closed and removed from active tracking.')) return;
+    try {
+      await window.api.updateBudget(id, { status: 'closed' });
+      editModal.classList.add('hidden');
+      document.body.style.overflow = '';
+      showToast('Budget closed');
+      loadBudgets();
+    } catch (e) { showToast(e.message, 'error'); }
   });
 
   await loadBudgets();

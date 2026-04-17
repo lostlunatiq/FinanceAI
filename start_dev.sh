@@ -29,8 +29,8 @@ USE_SQLITE=true DJANGO_SETTINGS_MODULE=config.settings.dev \
     .venv/bin/python manage.py migrate --no-input 2>&1 | grep -v "^$\|WARNING\|HINT" || true
 
 # ─── 4. Seed Demo Data ───────────────────────────────────────────
-echo "🌱 Seeding demo data..."
-USE_SQLITE=true DJANGO_SETTINGS_MODULE=config.settings.dev \
+echo "Seeding demo data..."
+PYTHONIOENCODING=utf-8 USE_SQLITE=true DJANGO_SETTINGS_MODULE=config.settings.dev \
     .venv/bin/python manage.py seed_demo 2>&1 | grep -v "^$\|WARNING\|HINT"
 
 # ─── 5. Start Server ─────────────────────────────────────────────

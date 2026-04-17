@@ -12,15 +12,16 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.db.models import Sum, Count, Avg
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import logging
+from apps.core.permissions import IsFinanceOrAdmin, IsInternalUser
 
 logger = logging.getLogger(__name__)
 
 
 class BudgetListView(APIView):
     """GET /POST /api/v1/invoices/budgets/"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsInternalUser]
 
     def get(self, request):
         from .models import Budget
@@ -60,9 +61,39 @@ class BudgetListView(APIView):
         return Response(result)
 
     def post(self, request):
+        # Only finance team may create budgets
+        if request.user.role not in ("finance_admin", "finance_manager"):
+            return Response(
+                {"error": "Finance team access required to create budgets."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         from .models import Budget
         from apps.core.models import Department
         data = request.data
+
+        # Validate required fields
+        if not data.get("name", "").strip():
+            return Response({"error": "name is required."}, status=status.HTTP_400_BAD_REQUEST)
+        if not data.get("start_date") or not data.get("end_date"):
+            return Response({"error": "start_date and end_date are required."}, status=status.HTTP_400_BAD_REQUEST)
+        if not data.get("total_amount"):
+            return Response({"error": "total_amount is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            total_amount = Decimal(str(data["total_amount"]))
+            if total_amount <= 0:
+                return Response({"error": "total_amount must be positive."}, status=status.HTTP_400_BAD_REQUEST)
+        except (InvalidOperation, ValueError):
+            return Response({"error": "Invalid total_amount."}, status=status.HTTP_400_BAD_REQUEST)
+
+        warning_threshold = int(data.get("warning_threshold", 80))
+        critical_threshold = int(data.get("critical_threshold", 95))
+        if not (0 < warning_threshold < critical_threshold <= 100):
+            return Response(
+                {"error": "warning_threshold must be < critical_threshold and both must be 1–100."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             dept = None
@@ -70,17 +101,17 @@ class BudgetListView(APIView):
                 dept = Department.objects.get(pk=data["department_id"])
 
             budget = Budget.objects.create(
-                name=data["name"],
+                name=data["name"].strip(),
                 department=dept,
                 fiscal_year=int(data.get("fiscal_year", 2026)),
                 period=data.get("period", "quarterly"),
                 start_date=data["start_date"],
                 end_date=data["end_date"],
-                total_amount=Decimal(str(data["total_amount"])),
+                total_amount=total_amount,
                 currency=data.get("currency", "INR"),
                 status=data.get("status", "active"),
-                warning_threshold=int(data.get("warning_threshold", 80)),
-                critical_threshold=int(data.get("critical_threshold", 95)),
+                warning_threshold=warning_threshold,
+                critical_threshold=critical_threshold,
                 notes=data.get("notes", ""),
                 created_by=request.user,
             )
@@ -91,7 +122,7 @@ class BudgetListView(APIView):
 
 class BudgetDetailView(APIView):
     """GET/PATCH/DELETE /api/v1/invoices/budgets/<id>/"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsInternalUser]
 
     def get(self, request, pk):
         from .models import Budget
@@ -99,6 +130,8 @@ class BudgetDetailView(APIView):
         return Response(_budget_to_dict(b))
 
     def patch(self, request, pk):
+        if request.user.role not in ("finance_admin", "finance_manager"):
+            return Response({"error": "Finance team access required."}, status=status.HTTP_403_FORBIDDEN)
         from .models import Budget
         b = get_object_or_404(Budget, pk=pk)
         data = request.data
@@ -106,13 +139,23 @@ class BudgetDetailView(APIView):
         for field in updatable:
             if field in data:
                 if field == "total_amount":
-                    setattr(b, field, Decimal(str(data[field])))
+                    try:
+                        val = Decimal(str(data[field]))
+                        if val <= 0:
+                            return Response({"error": "total_amount must be positive."}, status=status.HTTP_400_BAD_REQUEST)
+                        setattr(b, field, val)
+                    except (InvalidOperation, ValueError):
+                        return Response({"error": "Invalid total_amount."}, status=status.HTTP_400_BAD_REQUEST)
+                elif field in ("warning_threshold", "critical_threshold"):
+                    setattr(b, field, int(data[field]))
                 else:
                     setattr(b, field, data[field])
         b.save()
         return Response(_budget_to_dict(b))
 
     def delete(self, request, pk):
+        if request.user.role != "finance_admin":
+            return Response({"error": "Finance administrator access required."}, status=status.HTTP_403_FORBIDDEN)
         from .models import Budget
         b = get_object_or_404(Budget, pk=pk)
         b.status = "closed"
@@ -122,7 +165,7 @@ class BudgetDetailView(APIView):
 
 class BudgetUtilizationView(APIView):
     """GET /api/v1/invoices/budgets/<id>/utilization/ — Detailed breakdown"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsInternalUser]
 
     def get(self, request, pk):
         from .models import Budget, Expense
@@ -189,10 +232,10 @@ def _budget_to_dict(b) -> dict:
 class CashFlowForecastView(APIView):
     """
     GET /api/v1/invoices/forecasting/cashflow/
-    Returns 90-day cash flow projection using historical expense data.
+    Returns 90-day cash flow projection. Finance team only (sensitive financial data).
     ?days=90&scenario=baseline
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsFinanceOrAdmin]
 
     def get(self, request):
         days = int(request.query_params.get("days", 90))

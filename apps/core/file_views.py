@@ -9,6 +9,7 @@ from django.conf import settings
 from django.http import FileResponse, Http404
 
 from apps.invoices.models import FileRef
+from .permissions import CanDownloadFile
 
 
 class FileUploadView(APIView):
@@ -131,9 +132,15 @@ class FileDownloadView(APIView):
 
     def get(self, request, pk):
         try:
-            file_ref = FileRef.objects.get(pk=pk)
+            file_ref = FileRef.objects.select_related("uploaded_by").get(pk=pk)
         except FileRef.DoesNotExist:
             raise Http404("File not found.")
+
+        # Object-level permission: vendors may only download files they uploaded
+        can_download = CanDownloadFile()
+        if not can_download.has_object_permission(request, self, file_ref):
+            from rest_framework.response import Response
+            return Response({"error": can_download.message}, status=403)
 
         full_path = os.path.join(settings.MEDIA_ROOT, file_ref.path)
         if not os.path.exists(full_path):

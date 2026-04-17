@@ -24,11 +24,13 @@ urlpatterns = [
 
     # ─── Finance / Employee Approval ─────────────────────────────
     path("finance/bills/queue/", employee_views.FinanceQueueView.as_view(), name="finance-queue"),
+    path("finance/bills/all/", employee_views.FinanceAllBillsView.as_view(), name="finance-all-bills"),
     path("finance/bills/<uuid:pk>/", employee_views.FinanceBillDetailView.as_view(), name="finance-bill-detail"),
     path("finance/bills/<uuid:pk>/approve/", employee_views.ApproveView.as_view(), name="finance-approve"),
     path("finance/bills/<uuid:pk>/reject/", employee_views.RejectView.as_view(), name="finance-reject"),
     path("finance/bills/<uuid:pk>/query/", employee_views.QueryView.as_view(), name="finance-query"),
     path("finance/bills/<uuid:pk>/respond-query/", employee_views.RespondQueryView.as_view(), name="finance-respond-query"),
+    path("finance/bills/<uuid:pk>/mark-paid/", employee_views.MarkPaidView.as_view(), name="finance-mark-paid"),
 
     # ─── Dashboard & Extra Modules ───────────────────────────────
     path("dashboard/stats/", vendor_views.DashboardStatsView.as_view(), name="dashboard-stats"),

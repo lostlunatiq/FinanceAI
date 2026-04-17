@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m venv .venv)",
+      "Bash(.venv/Scripts/pip install *)",
+      "Bash(USE_SQLITE=true DJANGO_SETTINGS_MODULE=config.settings.dev .venv/Scripts/python manage.py check)",
+      "Bash(USE_SQLITE=true DJANGO_SETTINGS_MODULE=config.settings.dev .venv/Scripts/python manage.py makemigrations --no-input)",
+      "Bash(USE_SQLITE=true DJANGO_SETTINGS_MODULE=config.settings.dev .venv/Scripts/python manage.py migrate --no-input)",
+      "Bash(USE_SQLITE=true DJANGO_SETTINGS_MODULE=config.settings.dev .venv/Scripts/python manage.py seed_demo)",
+      "Bash(PYTHONIOENCODING=utf-8 USE_SQLITE=true DJANGO_SETTINGS_MODULE=config.settings.dev .venv/Scripts/python manage.py seed_demo)",
+      "Bash(PYTHONIOENCODING=utf-8 USE_SQLITE=true DJANGO_SETTINGS_MODULE=config.settings.dev .venv/Scripts/python manage.py runserver 0.0.0.0:8000)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8000/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8000/frontend/financeai_login/code.html)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8000/api/v1/auth/login/ -X POST -H \"Content-Type: application/json\" -d '{\"username\":\"cfo\",\"password\":\"demo1234\"}')",
+      "Bash(curl -s http://localhost:8000/api/v1/auth/login/ -X POST -H \"Content-Type: application/json\" -d '{\"username\":\"cfo\",\"password\":\"demo1234\"}')",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('access_token:', bool\\(d.get\\('access'\\)\\)\\); print\\('role:', d.get\\('role'\\)\\); print\\('name:', d.get\\('first_name'\\)\\)\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)\\)\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('Count:', len\\(d\\) if isinstance\\(d,list\\) else '?'\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(python manage.py check)",
+      "Bash(USE_SQLITE=true DJANGO_SETTINGS_MODULE=config.settings.dev .venv/Scripts/python manage.py check --deploy)",
+      "Bash(.venv/Scripts/python -c ' *)"
+    ]
+  }
+}

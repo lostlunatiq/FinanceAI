@@ -252,12 +252,26 @@ class FinanceAPI {
     }
 
     // ─── Extra Modules (Expenses & Anomalies) ────────────────────
-    async getInternalExpenses() {
-        return this.request('/invoices/finance/expenses/');
+    async getInternalExpenses(params = {}) {
+        const q = new URLSearchParams(params).toString();
+        return this.request(`/invoices/finance/expenses/${q ? '?' + q : ''}`);
     }
 
-    async getAnomalies() {
-        return this.request('/invoices/finance/anomalies/');
+    async getAllExpenses(params = {}) {
+        const q = new URLSearchParams(params).toString();
+        return this.request(`/invoices/finance/bills/all/${q ? '?' + q : ''}`);
+    }
+
+    async markAsPaid(billId, utr = '', notes = '') {
+        return this.request(`/invoices/finance/bills/${billId}/mark-paid/`, {
+            method: 'POST',
+            body: JSON.stringify({ utr, notes }),
+        });
+    }
+
+    async getAnomalies(params = {}) {
+        const q = new URLSearchParams(params).toString();
+        return this.request(`/invoices/finance/anomalies/${q ? '?' + q : ''}`);
     }
 
     async rejectBill(billId, reason) {

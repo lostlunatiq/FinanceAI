@@ -401,12 +401,200 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Wire "View Audit Log" button
     document.querySelectorAll('button').forEach(btn => {
         if (btn.textContent.trim() === 'View Audit Log') {
+            btn.addEventListener('click', () => window.location.href = '/frontend/audit_log/code.html');
+        }
+    });
+
+    // Wire "Ask Your Data" button
+    document.querySelectorAll('button').forEach(btn => {
+        if (btn.textContent.includes('Ask Your Data')) {
+            btn.addEventListener('click', () => NL_QUERY.open());
+        }
+    });
+
+    // Wire Explain / Dismiss on anomaly cards
+    document.querySelectorAll('.space-y-4 button').forEach(btn => {
+        const text = btn.textContent.trim().toUpperCase();
+        const card = btn.closest('.bg-surface-container-low');
+        if (!card) return;
+        const title = card.querySelector('h3')?.textContent || 'Anomaly';
+        const desc = card.querySelector('p')?.textContent || '';
+
+        if (text === 'EXPLAIN') {
+            btn.addEventListener('click', () => NL_QUERY.explain(title, desc));
+        } else if (text === 'DISMISS') {
             btn.addEventListener('click', () => {
-                window.location.href = '/frontend/audit_log/code.html';
+                card.style.transition = 'opacity 0.3s, transform 0.3s';
+                card.style.opacity = '0';
+                card.style.transform = 'translateX(20px)';
+                setTimeout(() => card.remove(), 300);
+                _showToast('Anomaly dismissed and logged.');
             });
         }
     });
+
+    // Wire Fast Action Cards
+    document.querySelectorAll('.cursor-pointer').forEach(card => {
+        const title = card.querySelector('h4')?.textContent || '';
+        card.addEventListener('click', () => {
+            if (title.includes('10-Q')) NL_QUERY.open('Generate a Q2 2026 financial summary report for CFO review');
+            else if (title.includes('Audit')) NL_QUERY.open('Check expense compliance for the current week and flag anomalies');
+        });
+    });
+
+    // Wire notification bell
+    document.querySelector('button:has(.material-symbols-outlined)')?.addEventListener('click', () => {
+        _showToast('No new notifications.');
+    });
 });
+
+// ── NL Query Chatbot Panel ──────────────────────────────────────────────────
+const NL_QUERY = {
+    _panel: null,
+
+    open(prefill = '') {
+        if (!this._panel) this._build();
+        this._panel.classList.remove('translate-x-full');
+        document.getElementById('nl-overlay').classList.remove('hidden');
+        const input = document.getElementById('nl-input');
+        if (prefill) { input.value = prefill; }
+        input.focus();
+    },
+
+    close() {
+        this._panel?.classList.add('translate-x-full');
+        document.getElementById('nl-overlay')?.classList.add('hidden');
+    },
+
+    explain(title, desc) {
+        this.open(`Explain this anomaly and suggest corrective actions: "${title}". Context: ${desc}`);
+    },
+
+    _build() {
+        const overlay = document.createElement('div');
+        overlay.id = 'nl-overlay';
+        overlay.className = 'fixed inset-0 bg-black/20 z-40 backdrop-blur-sm';
+        overlay.addEventListener('click', () => this.close());
+        document.body.appendChild(overlay);
+
+        const panel = document.createElement('div');
+        panel.id = 'nl-panel';
+        panel.className = 'fixed right-0 top-0 h-screen w-full max-w-md bg-surface-container-lowest border-l border-outline-variant/30 shadow-2xl z-50 flex flex-col transition-transform duration-300 translate-x-full';
+        panel.innerHTML = `
+            <div class="flex items-center justify-between px-6 py-5 border-b border-outline-variant/20 bg-surface-container-low">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-xl bg-primary flex items-center justify-center">
+                        <span class="material-symbols-outlined text-white text-[16px]">auto_awesome</span>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-on-surface text-sm" style="font-family:'Manrope',sans-serif">CFO Copilot</h3>
+                        <p class="text-[10px] text-on-surface-variant">Ask anything about your finances</p>
+                    </div>
+                </div>
+                <button id="nl-close" class="p-2 rounded-xl hover:bg-surface-container transition-colors">
+                    <span class="material-symbols-outlined text-on-surface-variant text-[20px]">close</span>
+                </button>
+            </div>
+            <div id="nl-messages" class="flex-1 overflow-y-auto p-4 space-y-4">
+                <div class="flex gap-3">
+                    <div class="w-7 h-7 rounded-full bg-primary flex items-center justify-center shrink-0 mt-0.5">
+                        <span class="material-symbols-outlined text-white text-[14px]">auto_awesome</span>
+                    </div>
+                    <div class="bg-surface-container-low rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-on-surface max-w-[85%]">
+                        Hello! I'm your CFO Copilot. Ask me about outstanding invoices, vendor spend, cash flow, or anomalies.
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            <button data-suggestion="What are my top 5 vendors by spend?" class="nl-chip text-[11px] px-3 py-1.5 bg-primary/8 text-primary rounded-lg hover:bg-primary/15 transition-colors font-medium">Top vendors</button>
+                            <button data-suggestion="What is the total outstanding amount?" class="nl-chip text-[11px] px-3 py-1.5 bg-primary/8 text-primary rounded-lg hover:bg-primary/15 transition-colors font-medium">Outstanding amount</button>
+                            <button data-suggestion="How many invoices are pending approval?" class="nl-chip text-[11px] px-3 py-1.5 bg-primary/8 text-primary rounded-lg hover:bg-primary/15 transition-colors font-medium">Pending approvals</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="px-4 py-4 border-t border-outline-variant/20 bg-surface-container-low">
+                <div class="flex gap-2 items-end">
+                    <textarea id="nl-input" rows="1"
+                        class="flex-1 bg-surface-container-lowest border border-outline-variant/30 rounded-xl px-4 py-3 text-sm resize-none focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                        placeholder="Ask about cash flow, vendors, anomalies…" style="max-height:120px"></textarea>
+                    <button id="nl-send" class="p-3 bg-primary text-white rounded-xl hover:opacity-90 transition-opacity shrink-0">
+                        <span class="material-symbols-outlined text-[20px]">send</span>
+                    </button>
+                </div>
+                <p class="text-[10px] text-on-surface-variant/60 mt-2 text-center">Powered by FinanceAI — Real-time data</p>
+            </div>
+        `;
+        document.body.appendChild(panel);
+        this._panel = panel;
+
+        document.getElementById('nl-close').addEventListener('click', () => this.close());
+
+        const input = document.getElementById('nl-input');
+        input.addEventListener('input', () => {
+            input.style.height = 'auto';
+            input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+        });
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this._send(); }
+        });
+        document.getElementById('nl-send').addEventListener('click', () => this._send());
+        panel.addEventListener('click', (e) => {
+            const chip = e.target.closest('.nl-chip');
+            if (chip) { input.value = chip.dataset.suggestion; this._send(); }
+        });
+    },
+
+    _addMsg(role, html) {
+        const msgs = document.getElementById('nl-messages');
+        const div = document.createElement('div');
+        div.className = 'flex gap-3' + (role === 'user' ? ' justify-end' : '');
+        if (role === 'user') {
+            div.innerHTML = `<div class="bg-primary text-white rounded-2xl rounded-tr-sm px-4 py-3 text-sm max-w-[85%]">${html}</div>`;
+        } else {
+            const loading = html === '__loading__';
+            div.innerHTML = `
+                <div class="w-7 h-7 rounded-full bg-primary flex items-center justify-center shrink-0 mt-0.5">
+                    <span class="material-symbols-outlined text-white text-[14px] ${loading ? 'animate-spin' : ''}">
+                        ${loading ? 'progress_activity' : 'auto_awesome'}
+                    </span>
+                </div>
+                <div class="bg-surface-container-low rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-on-surface max-w-[85%]${loading ? ' nl-loading' : ''}" >
+                    ${loading ? '<span class="opacity-60">Analysing your financial data…</span>' : html}
+                </div>`;
+        }
+        msgs.appendChild(div);
+        msgs.scrollTop = msgs.scrollHeight;
+        return div;
+    },
+
+    async _send() {
+        const input = document.getElementById('nl-input');
+        const q = input.value.trim();
+        if (!q) return;
+        input.value = '';
+        input.style.height = 'auto';
+        document.getElementById('nl-send').disabled = true;
+
+        this._addMsg('user', q);
+        this._addMsg('assistant', '__loading__');
+
+        try {
+            const data = await window.api.nlQuery(q);
+            document.querySelector('.nl-loading')?.closest('.flex')?.remove();
+            if (data) {
+                let html = `<p>${data.answer || ''}</p>`;
+                if (data.insight) {
+                    html += `<div class="mt-3 p-3 bg-primary/5 rounded-lg text-xs text-primary font-medium border border-primary/10">
+                        <span class="material-symbols-outlined text-[14px] align-text-bottom mr-1">lightbulb</span>${data.insight}</div>`;
+                }
+                this._addMsg('assistant', html);
+            }
+        } catch (e) {
+            document.querySelector('.nl-loading')?.closest('.flex')?.remove();
+            this._addMsg('assistant', `<span class="text-error">Query failed: ${e.message}</span>`);
+        }
+        document.getElementById('nl-send').disabled = false;
+        document.getElementById('nl-input')?.focus();
+    },
+};
 </script>
 <script src="/frontend/shared/layout.js"></script>
 </body></html>

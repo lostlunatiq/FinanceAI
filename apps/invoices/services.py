@@ -1,8 +1,9 @@
 import uuid
+from datetime import timedelta
 from django.utils import timezone
 from django.db import transaction
 from apps.core.models import AuditLog
-from .models import Expense, ExpenseApprovalStep, VALID_TRANSITIONS, STEP_TO_STATUS
+from .models import Expense, ExpenseApprovalStep, VALID_TRANSITIONS, STEP_TO_STATUS, ROLE_FOR_STEP
 
 
 class InvalidTransition(Exception):
@@ -17,12 +18,151 @@ class InsufficientRole(Exception):
     pass
 
 
+# ── Approval step helpers ──────────────────────────────────────────────────────
+
+def _get_approver_for_step(step: int, expense: Expense):
+    """
+    Resolve the assigned approver for a given step level.
+    Priority order: explicit VendorL1Mapping → department-based lookup → role fallback.
+    Returns None if no suitable approver is found (step will be skipped).
+    """
+    from apps.core.models import User
+    from .models import VendorL1Mapping
+
+    submitter = expense.submitted_by
+
+    if step == 1:  # EMP_L1 — primary L1 from vendor mapping
+        mapping = VendorL1Mapping.objects.filter(
+            vendor=expense.vendor, is_primary=True
+        ).select_related("l1_user").first()
+        if mapping:
+            return mapping.l1_user
+        # Fallback: any employee who is not the submitter
+        return (
+            User.objects.filter(role="employee")
+            .exclude(pk=submitter.pk)
+            .first()
+        )
+
+    elif step == 2:  # EMP_L2 — secondary mapping or different employee
+        mapping = VendorL1Mapping.objects.filter(
+            vendor=expense.vendor, is_primary=False
+        ).select_related("l1_user").first()
+        if mapping:
+            return mapping.l1_user
+        # Fallback: finance_manager acts as L2
+        return User.objects.filter(role="finance_manager").first()
+
+    elif step == 3:  # DEPT_HEAD
+        dept = submitter.department
+        if dept:
+            head = User.objects.filter(role="dept_head", department=dept).first()
+            if head:
+                return head
+        return User.objects.filter(role="dept_head").first()
+
+    elif step == 4:  # FIN_L1 — first finance_manager
+        return User.objects.filter(role="finance_manager").order_by("date_joined").first()
+
+    elif step == 5:  # FIN_L2 — second finance_manager or finance_admin
+        mgrs = list(User.objects.filter(role="finance_manager").order_by("date_joined"))
+        if len(mgrs) >= 2:
+            return mgrs[1]
+        return User.objects.filter(role="finance_admin").first()
+
+    elif step == 6:  # FIN_HEAD — finance_admin
+        return User.objects.filter(role="finance_admin").first()
+
+    return None
+
+
+SLA_HOURS = {1: 24, 2: 24, 3: 48, 4: 48, 5: 48, 6: 72}
+
+
+def create_approval_steps(expense: Expense) -> list:
+    """
+    Create the full approval step chain for a newly submitted expense.
+    Called inside transition_expense when status → SUBMITTED.
+    Returns list of created steps.
+    """
+    steps_config = [
+        (1, "EMP_L1"),
+        (2, "EMP_L2"),
+        (3, "DEPT_HEAD"),
+        (4, "FIN_L1"),
+        (5, "FIN_L2"),
+        (6, "FIN_HEAD"),
+    ]
+
+    created = []
+    now = timezone.now()
+
+    for level, role_required in steps_config:
+        approver = _get_approver_for_step(level, expense)
+        if approver is None:
+            continue  # skip if no approver found for this step
+        step, _ = ExpenseApprovalStep.objects.get_or_create(
+            expense=expense,
+            level=level,
+            defaults={
+                "role_required": role_required,
+                "assigned_to": approver,
+                "status": "PENDING",
+                "sla_due_at": now + timedelta(hours=SLA_HOURS.get(level, 48)),
+            },
+        )
+        created.append(step)
+
+    # Immediately advance expense to PENDING_L1 inside the same transaction
+    if created:
+        expense._force_status("PENDING_L1")
+        expense.current_step = 1
+        expense.save(update_fields=["_status", "current_step"])
+
+    return created
+
+
+def create_next_step(expense: Expense, next_level: int) -> ExpenseApprovalStep | None:
+    """
+    After a step is approved, create (or reactivate) the next step record
+    so the next approver sees it in their queue.
+    """
+    approver = _get_approver_for_step(next_level, expense)
+    if approver is None:
+        return None
+
+    role_required = ROLE_FOR_STEP.get(next_level, "")
+    step, _ = ExpenseApprovalStep.objects.get_or_create(
+        expense=expense,
+        level=next_level,
+        defaults={
+            "role_required": role_required,
+            "assigned_to": approver,
+            "status": "PENDING",
+            "sla_due_at": timezone.now() + timedelta(hours=SLA_HOURS.get(next_level, 48)),
+        },
+    )
+    # If the step existed but was not yet active (e.g. re-routing after query), reset it
+    if step.status != "PENDING":
+        step.status = "PENDING"
+        step.decided_at = None
+        step.decision_reason = ""
+        step.save(update_fields=["status", "decided_at", "decision_reason"])
+
+    return step
+
+
+# ── Core state machine ────────────────────────────────────────────────────────
+
 def transition_expense(
     expense: Expense, new_status: str, actor, reason: str = ""
 ) -> Expense:
     """
     The single gate for all Expense state changes.
     Nothing else ever touches expense._status directly.
+
+    SECURITY: all callers must already have verified that `actor` is
+    authorised to perform this transition (see CanActOnExpenseStep permission).
     """
     with transaction.atomic():
         # 1. Lock the row
@@ -40,7 +180,7 @@ def transition_expense(
         ).exists()
         if already_approved and new_status not in ("QUERY_RAISED", "WITHDRAWN"):
             raise SoDViolation(
-                f"Actor {actor} already approved an earlier step on this expense."
+                f"Actor {actor.username} already approved an earlier step on this expense."
             )
 
         old_status = expense.status
@@ -60,7 +200,11 @@ def transition_expense(
 
         expense.save()
 
-        # 6. Write audit log
+        # 6. Create approval steps when expense is first submitted
+        if new_status == "SUBMITTED":
+            create_approval_steps(expense)
+
+        # 7. Write audit log
         AuditLog.objects.create(
             user=actor,
             action=f"expense.{new_status.lower()}",
@@ -109,6 +253,5 @@ def _mirror_to_clickhouse(
         )
     except Exception as e:
         import logging
-
         logger = logging.getLogger(__name__)
         logger.error(f"ClickHouse mirror task failed to enqueue: {e}")

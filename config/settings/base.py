@@ -163,7 +163,7 @@ CLICKHOUSE_USER = env("CLICKHOUSE_USER", default="default")
 CLICKHOUSE_PASSWORD = env("CLICKHOUSE_PASSWORD", default="")
 
 # --- OpenRouter ---
-OPENROUTER_API_KEY = env("OPENROUTER_API_KEY")
+OPENROUTER_API_KEY = env("OPENROUTER_API_KEY", default="")
 OPENROUTER_SITE_URL = env("OPENROUTER_SITE_URL", default="https://3sc.financeai")
 OPENROUTER_APP_NAME = env("OPENROUTER_APP_NAME", default="FinanceAI")
 

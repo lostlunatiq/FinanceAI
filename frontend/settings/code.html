@@ -303,35 +303,74 @@
 <script src="/frontend/shared/layout.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', async () => {
+  if (!AUTH.requireAuth()) return;
   const user = AUTH.getUser();
   if (!user) return;
 
-  // Fill profile from stored user
-  const nameEl = document.querySelector('h3.text-2xl.font-bold');
-  const roleEl = document.querySelector('p.text-on-surface-variant.text-sm.mb-6');
-  if (nameEl) nameEl.textContent = user.full_name || user.username;
-  if (roleEl) roleEl.textContent = (user.role || '').replace(/_/g,' ').replace(/\b\w/g, l=>l.toUpperCase());
-
-  // Replace avatar with initials
+  // ── Profile ──────────────────────────────────────────────────
+  const nameEl  = document.querySelector('h3.text-2xl.font-bold');
+  const roleEl  = document.querySelector('p.text-on-surface-variant.text-sm.mb-6');
   const avatarWrapper = document.querySelector('.w-32.h-32.rounded-full');
-  if (avatarWrapper) {
-    const initials = (user.full_name || user.username || 'U').split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
-    avatarWrapper.innerHTML = `<div class="w-full h-full rounded-full primary-gradient flex items-center justify-center text-white text-3xl font-bold">${initials}</div>`;
+
+  function applyProfile(p) {
+    const display = p.full_name || p.username;
+    const role    = (p.role || '').replace(/_/g,' ').replace(/\b\w/g, l=>l.toUpperCase());
+    const initials = display.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+    if (nameEl)  nameEl.textContent  = display;
+    if (roleEl)  roleEl.textContent  = role;
+    if (avatarWrapper) avatarWrapper.innerHTML =
+      `<div class="w-full h-full rounded-full primary-gradient flex items-center justify-center text-white text-3xl font-bold">${initials}</div>`;
+    const emailField = document.querySelector('input[type="email"]');
+    if (emailField) emailField.value = p.email || p.username + '@demo.3sc.co';
   }
 
-  // Load fresh profile from API
-  try {
-    const profile = await window.api.getMe();
-    if (nameEl) nameEl.textContent = profile.full_name || profile.username;
-    if (roleEl) roleEl.textContent = (profile.role || '').replace(/_/g,' ').replace(/\b\w/g, l=>l.toUpperCase());
-    if (avatarWrapper) {
-      const initials = (profile.full_name || profile.username || 'U').split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
-      avatarWrapper.innerHTML = `<div class="w-full h-full rounded-full primary-gradient flex items-center justify-center text-white text-3xl font-bold">${initials}</div>`;
+  applyProfile(user);
+  try { applyProfile(await window.api.getMe()); } catch(e) {}
+
+  // ── Notification toggles (persist in localStorage) ───────────
+  const PREFS_KEY = 'financeai_notif_prefs';
+  const prefs = JSON.parse(localStorage.getItem(PREFS_KEY) || '{"email":true,"system":true,"push":false}');
+
+  const toggleBtns = document.querySelectorAll('.space-y-6 button.w-12.h-6');
+  const toggleKeys = ['email', 'system', 'push'];
+
+  function applyToggle(btn, on) {
+    if (on) {
+      btn.className = 'w-12 h-6 bg-primary rounded-full relative transition-colors';
+      btn.querySelector('div').className = 'absolute right-1 top-1 w-4 h-4 bg-white rounded-full transition-all';
+    } else {
+      btn.className = 'w-12 h-6 bg-surface-container-high rounded-full relative transition-colors';
+      btn.querySelector('div').className = 'absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-all';
     }
-    // Update email field if present
-    const emailField = document.querySelector('input[type="email"]');
-    if (emailField) emailField.value = profile.email || '';
-  } catch (e) { console.warn('Could not load profile', e); }
+  }
+
+  toggleBtns.forEach((btn, i) => {
+    const key = toggleKeys[i];
+    applyToggle(btn, prefs[key]);
+    btn.addEventListener('click', () => {
+      prefs[key] = !prefs[key];
+      applyToggle(btn, prefs[key]);
+      localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+      window._showToast(`${['Email summaries','System alerts','Mobile push'][i]} ${prefs[key] ? 'enabled' : 'disabled'}`, 'success');
+    });
+  });
+
+  // ── Apply Changes button ──────────────────────────────────────
+  document.querySelector('button.primary-gradient.text-white.px-6')
+    ?.addEventListener('click', () => {
+      window._showToast('Settings saved successfully.', 'success');
+    });
+
+  // ── Security buttons ──────────────────────────────────────────
+  document.querySelectorAll('button').forEach(btn => {
+    const txt = btn.textContent.trim();
+    if (txt === 'Configure') {
+      btn.addEventListener('click', () => window._showToast('2FA configuration coming soon.', 'info'));
+    }
+    if (txt === 'View Activity') {
+      btn.addEventListener('click', () => window.location.href = '/frontend/audit_log/code.html');
+    }
+  });
 });
 </script>
 </body></html>

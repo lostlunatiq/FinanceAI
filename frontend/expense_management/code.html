@@ -203,6 +203,11 @@
     <script src="/frontend/shared/layout.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
+            if (!AUTH.requireAuth()) return;
+            const _role = (AUTH.getUser()?.role || '').toLowerCase();
+            const _isVendor = _role === 'vendor';
+            const _isFinance = ['finance_manager','finance_admin','cfo','admin'].includes(_role);
+
             // ── File Expense Modal ────────────────────────────────
             const feModal = document.getElementById('file-expense-modal');
             const openBtn = document.getElementById('open-file-expense');
@@ -210,16 +215,31 @@
             const cancelBtn = document.getElementById('fe-cancel');
             let feFileId = null;
 
-            openBtn.addEventListener('click', async () => {
+            // Vendors can't submit through internal flow — redirect to their portal
+            if (_isVendor && openBtn) {
+                openBtn.addEventListener('click', () => {
+                    window.location.href = '/frontend/vendor_portal/code.html';
+                });
+            }
+
+            if (!_isVendor && openBtn) openBtn.addEventListener('click', async () => {
                 feModal.classList.remove('hidden');
                 document.body.style.overflow = 'hidden';
-                // Load vendors
-                try {
-                    const vendors = await window.api.getVendors({ status: 'ACTIVE' });
-                    const sel = document.getElementById('fe-vendor');
-                    sel.innerHTML = '<option value="">Select vendor...</option>' +
-                        vendors.map(v => `<option value="${v.id}">${v.name}</option>`).join('');
-                } catch (e) { console.warn('Could not load vendors:', e); }
+                // Load vendors — only finance roles can see full list
+                const sel = document.getElementById('fe-vendor');
+                if (_isFinance) {
+                    try {
+                        const vendors = await window.api.getVendors({ status: 'ACTIVE' });
+                        sel.innerHTML = '<option value="">Select vendor...</option>' +
+                            (vendors || []).map(v => `<option value="${v.id}">${v.name}</option>`).join('');
+                    } catch (e) {
+                        // Fallback: replace select with text input for vendor name
+                        sel.outerHTML = `<input id="fe-vendor" type="text" placeholder="Vendor name" class="mt-1 block w-full border border-outline-variant rounded-lg px-3 py-2 text-sm" required/>`;
+                    }
+                } else {
+                    // Non-finance internal users: provide vendor name text input
+                    sel.outerHTML = `<input id="fe-vendor" type="text" placeholder="Vendor / payee name" class="mt-1 block w-full border border-outline-variant rounded-lg px-3 py-2 text-sm" required/>`;
+                }
             });
             [closeBtn, cancelBtn].forEach(b => b.addEventListener('click', () => {
                 feModal.classList.add('hidden'); document.body.style.overflow='';
@@ -291,8 +311,8 @@
                     document.getElementById('file-expense-form').reset();
                     feFileId = null;
                     // Refresh list
-                    const newExpenses = await window.api.getInternalExpenses();
-                    renderExpenses(newExpenses || []);
+                    const newData = await window.api.getInternalExpenses();
+                    renderExpenses(newData?.results ?? newData ?? []);
                 } catch (err) {
                     const detail = err.data ? Object.values(err.data).flat().join(' | ') : err.message;
                     errDiv.textContent = detail || 'Submission failed.';
@@ -330,11 +350,21 @@
             }
 
             try {
-                const expenses = await window.api.getInternalExpenses();
-                renderExpenses(expenses || []);
+                if (_isVendor) {
+                    // Vendors see their own submitted bills
+                    const bills = await window.api.getVendorBills();
+                    renderExpenses(Array.isArray(bills) ? bills : (bills?.results ?? []));
+                    // Hide "File Expense" button for vendors (they use vendor portal)
+                    if (openBtn) openBtn.textContent = 'Go to Vendor Portal';
+                } else {
+                    // Internal users — getInternalExpenses returns {total, results:[]}
+                    const data = await window.api.getInternalExpenses();
+                    renderExpenses(data?.results ?? data ?? []);
+                }
             } catch (err) {
                 console.error('Failed to load expenses', err);
-                document.getElementById('expense-tbody').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-error">Failed to load expenses.</td></tr>';
+                document.getElementById('expense-tbody').innerHTML =
+                    `<tr><td colspan="5" class="p-4 text-center text-error">Failed to load: ${err.message}</td></tr>`;
             }
         });
     </script>

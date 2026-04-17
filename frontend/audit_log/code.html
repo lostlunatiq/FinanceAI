@@ -144,176 +144,262 @@
 <h1 class="text-2xl font-extrabold tracking-tight font-headline text-primary mb-2">Audit Registry</h1>
 <p class="text-on-surface-variant text-lg max-w-xl leading-relaxed">A permanent, immutable record of every transaction and system alteration within the FinanceAI ecosystem.</p>
 </div>
-<button class="primary-gradient text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 signature-shadow active:opacity-80 transition-opacity">
-<span class="material-symbols-outlined" data-icon="file_download">file_download</span>
-                    Export to CSV
-                </button>
-</div>
-<!-- Contextual Filters Section -->
-<section class="bg-surface-container-low p-6 rounded-xl mb-8 flex flex-wrap gap-4 items-center">
-<div class="flex-1 min-w-[200px]">
-<label class="block text-[10px] uppercase font-bold text-on-surface-variant/70 mb-1 ml-1">User Entity</label>
-<select class="w-full bg-surface-container-lowest border-none rounded-lg text-sm px-3 py-2.5 focus:ring-2 focus:ring-primary/20">
-<option>All Users</option>
-<option>Jane Doe (Admin)</option>
-<option>Marcus Sterling (Auditor)</option>
-<option>Finance Automation Bot</option>
-</select>
-</div>
-<div class="flex-1 min-w-[200px]">
-<label class="block text-[10px] uppercase font-bold text-on-surface-variant/70 mb-1 ml-1">Action Type</label>
-<select class="w-full bg-surface-container-lowest border-none rounded-lg text-sm px-3 py-2.5 focus:ring-2 focus:ring-primary/20">
-<option>All Actions</option>
-<option>Invoice Approval</option>
-<option>Vendor Modification</option>
-<option>Access Permission Change</option>
-<option>System Update</option>
-</select>
-</div>
-<div class="flex-1 min-w-[200px]">
-<label class="block text-[10px] uppercase font-bold text-on-surface-variant/70 mb-1 ml-1">Date Range</label>
-<div class="flex items-center bg-surface-container-lowest rounded-lg px-3 py-2.5">
-<span class="material-symbols-outlined text-sm text-on-surface-variant mr-2" data-icon="calendar_today">calendar_today</span>
-<input class="bg-transparent border-none p-0 text-sm w-full focus:ring-0" type="text" value="Oct 01, 2023 - Oct 31, 2023"/>
-</div>
-</div>
-<div class="flex items-end h-full self-end">
-<button class="bg-surface-container-high text-primary px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-surface-container-highest transition-colors">
-                        Clear Filters
-                    </button>
-</div>
-</section>
-<!-- Timeline-Style Audit Log (Asymmetric Editorial Layout) -->
-<div class="relative">
-<!-- Vertical Timeline Guide -->
-<div class="absolute left-[31px] top-0 bottom-0 w-px bg-outline-variant/20 hidden md:block"></div>
-<div class="space-y-12">
-<!-- Date Header -->
-<div class="relative flex items-center gap-6">
-<div class="w-16 h-16 rounded-full bg-surface-container-high flex items-center justify-center z-10 signature-shadow">
-<span class="font-bold text-primary font-headline">24</span>
-</div>
-<div>
-<h3 class="text-xl font-bold font-headline text-on-surface">October 2023</h3>
-<p class="text-sm text-on-surface-variant">12 recorded events</p>
-</div>
-</div>
-<!-- Audit Item 1 -->
-<div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
-<div class="md:col-span-1 flex justify-center pt-4">
-<div class="w-3 h-3 rounded-full bg-primary-container ring-4 ring-background z-10"></div>
-</div>
-<div class="md:col-span-7">
-<div class="bg-surface-container-lowest p-6 rounded-xl signature-shadow border border-outline-variant/10">
-<div class="flex justify-between items-start mb-4">
-<span class="bg-primary/10 text-primary text-[10px] font-bold px-2 py-1 rounded">INVOICE_APPROVAL</span>
-<span class="text-xs text-on-surface-variant font-mono">ID: AL-98234-X</span>
-</div>
-<h4 class="text-lg font-semibold mb-2">Invoice #INV-2023-004 Approved</h4>
-<p class="text-on-surface-variant leading-relaxed text-sm">Action authorized for vendor <span class="font-bold text-on-surface">Global Logistics Corp</span> in the amount of <span class="font-bold text-on-surface">$12,450.00</span>. All compliance checks passed.</p>
-<div class="mt-4 pt-4 border-t border-outline-variant/10 flex items-center gap-3">
-<img alt="Jane Doe" class="w-6 h-6 rounded-full" data-alt="professional headshot of a diverse woman with glasses, smiling softly in a brightly lit modern office" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBwDnVxtGgsacxGOsdbT_F_kLFelCYRVjtjIV-zHgnaPqA_7unHntuhwrNAvqgACebgw4R165xEWe95wIj9Zruy6DA4ELAg3ExcKemuthNXETeMvzCJY9yeLLl7ZYg_WPE_2TLbr0PHjkFDv0mr6hjv71oMk2GlkeuAOY5x8N7oDzz4hSJ7Z_HyaiKz_qMUKiGFCKIuLDIdP_FGu0Zh2rz7lvQAIFde5J8qKveHcJ00vW3JbVy7_Dv4CKa0h4NyYebyljDu6O7Q7tVG"/>
-<span class="text-xs text-on-surface-variant">Initiated by <strong class="text-on-surface">Jane Doe</strong> (Controller) at 09:42 AM EST</span>
-</div>
-</div>
-</div>
-<div class="md:col-span-4 hidden md:block">
-<div class="p-6 bg-surface-container-low/50 rounded-xl">
-<h5 class="text-[10px] font-bold text-on-surface-variant/70 uppercase mb-3">Technical Metadata</h5>
-<div class="space-y-2 font-mono text-[11px] text-on-surface-variant">
-<div class="flex justify-between"><span>IP Address</span><span class="text-on-surface">192.168.1.14</span></div>
-<div class="flex justify-between"><span>User Agent</span><span class="text-on-surface truncate ml-4">Chrome 118 / MacOS</span></div>
-<div class="flex justify-between"><span>Auth Type</span><span class="text-on-surface">MFA_BIOMETRIC</span></div>
-</div>
-</div>
-</div>
-</div>
-<!-- Audit Item 2 - ALERT TYPE -->
-<div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
-<div class="md:col-span-1 flex justify-center pt-4">
-<div class="w-3 h-3 rounded-full bg-error ring-4 ring-background z-10"></div>
-</div>
-<div class="md:col-span-7">
-<div class="bg-surface-container-lowest p-6 rounded-xl signature-shadow border border-error/5">
-<div class="flex justify-between items-start mb-4">
-<span class="bg-error/10 text-error text-[10px] font-bold px-2 py-1 rounded">CRITICAL_CHANGE</span>
-<span class="text-xs text-on-surface-variant font-mono">ID: AL-98255-Y</span>
-</div>
-<h4 class="text-lg font-semibold mb-2 text-on-surface">Vendor Bank Details Modified</h4>
-<p class="text-on-surface-variant leading-relaxed text-sm">ACH Routing number for <span class="font-bold text-on-surface">Apex Software Solutions</span> was changed. This action triggered a mandatory 24-hour verification hold.</p>
-<div class="mt-4 flex gap-2">
-<div class="px-3 py-2 bg-surface-container-low rounded-lg text-xs">
-<span class="block text-[9px] text-on-surface-variant/70 mb-0.5">FROM</span>
-<span class="font-mono line-through opacity-50">**** 4421</span>
-</div>
-<div class="px-3 py-2 bg-surface-container-low rounded-lg text-xs">
-<span class="block text-[9px] text-on-surface-variant/70 mb-0.5">TO</span>
-<span class="font-mono text-primary">**** 8802</span>
-</div>
-</div>
-<div class="mt-4 pt-4 border-t border-outline-variant/10 flex items-center gap-3">
-<span class="material-symbols-outlined text-primary text-sm" data-icon="psychology">psychology</span>
-<span class="text-xs text-on-surface-variant">Automated trigger by <strong class="text-on-surface">Security Watchdog AI</strong> at 11:15 AM EST</span>
-</div>
-</div>
-</div>
-<div class="md:col-span-4 flex items-center h-full">
-<div class="flex items-center gap-3 text-error">
-<span class="material-symbols-outlined" data-icon="warning">warning</span>
-<span class="text-xs font-bold font-headline">Verification Pending</span>
-</div>
-</div>
-</div>
-<!-- Audit Item 3 -->
-<div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
-<div class="md:col-span-1 flex justify-center pt-4">
-<div class="w-3 h-3 rounded-full bg-outline ring-4 ring-background z-10"></div>
-</div>
-<div class="md:col-span-7">
-<div class="bg-surface-container-lowest p-6 rounded-xl signature-shadow border border-outline-variant/10">
-<div class="flex justify-between items-start mb-4">
-<span class="bg-secondary/10 text-secondary text-[10px] font-bold px-2 py-1 rounded">ACCESS_GRANT</span>
-<span class="text-xs text-on-surface-variant font-mono">ID: AL-98288-Z</span>
-</div>
-<h4 class="text-lg font-semibold mb-2">New Auditor Account Created</h4>
-<p class="text-on-surface-variant leading-relaxed text-sm">Role <span class="font-bold text-on-surface">External_Auditor</span> provisioned for <span class="font-bold text-on-surface">m.sterling@pwc-audit.com</span> with read-only ledger access.</p>
-<div class="mt-4 pt-4 border-t border-outline-variant/10 flex items-center gap-3">
-<div class="w-6 h-6 rounded-full bg-secondary-container flex items-center justify-center text-[10px] font-bold text-on-secondary-container">MS</div>
-<span class="text-xs text-on-surface-variant">Admin action by <strong class="text-on-surface">Marcus Sterling</strong> at 02:30 PM EST</span>
-</div>
-</div>
-</div>
-</div>
-</div>
-</div>
-<!-- Load More / Pagination -->
-<div class="mt-16 flex justify-center">
-<button class="bg-surface-container-lowest border border-outline-variant/30 text-on-surface-variant px-12 py-3 rounded-xl font-semibold hover:bg-surface-container-low transition-colors signature-shadow">
-                    Load previous records
-                </button>
-</div>
-</div>
-</main>
-<!-- Glassmorphism Command Palette (Contextual FAB Replacement for High-Focus Page) -->
-<div class="fixed bottom-8 right-8 z-50">
-<button class="w-14 h-14 primary-gradient text-white rounded-full flex items-center justify-center shadow-2xl active:scale-95 transition-transform">
-<span class="material-symbols-outlined" data-icon="search">search</span>
+<button id="export-csv-btn" class="primary-gradient text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 signature-shadow active:opacity-80 transition-opacity">
+<span class="material-symbols-outlined">file_download</span>
+Export to CSV
 </button>
 </div>
+<!-- Filters -->
+<section class="bg-surface-container-low p-6 rounded-xl mb-8 flex flex-wrap gap-4 items-center">
+<div class="flex-1 min-w-[200px]">
+<label class="block text-[10px] uppercase font-bold text-on-surface-variant/70 mb-1 ml-1">Action Type</label>
+<select id="filter-action" class="w-full bg-surface-container-lowest border-none rounded-lg text-sm px-3 py-2.5 focus:ring-2 focus:ring-primary/20">
+<option value="">All Actions</option>
+<option value="expense">Expense Events</option>
+<option value="vendor">Vendor Events</option>
+<option value="user">User Events</option>
+</select>
+</div>
+<div class="flex-1 min-w-[200px]">
+<label class="block text-[10px] uppercase font-bold text-on-surface-variant/70 mb-1 ml-1">Search</label>
+<div class="relative">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-[16px]">search</span>
+<input id="filter-search" type="text" placeholder="Search actions, actors…"
+    class="w-full pl-9 pr-4 py-2.5 bg-surface-container-lowest border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20"/>
+</div>
+</div>
+<div class="flex items-end self-end">
+<button id="clear-filters-btn" class="bg-surface-container-high text-primary px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-surface-container-highest transition-colors">
+Clear Filters
+</button>
+</div>
+<div class="ml-auto flex items-end self-end">
+<span id="audit-total" class="text-xs text-on-surface-variant font-medium">Loading…</span>
+</div>
+</section>
+<!-- Summary Cards -->
+<div id="audit-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"></div>
+<!-- Timeline -->
+<div class="relative">
+<div class="absolute left-[31px] top-0 bottom-0 w-px bg-outline-variant/20 hidden md:block"></div>
+<div id="audit-timeline" class="space-y-6">
+<div class="flex items-center justify-center py-16 text-on-surface-variant">
+<span class="material-symbols-outlined animate-spin mr-2">progress_activity</span> Loading audit records…
+</div>
+</div>
+</div>
+<!-- Pagination -->
+<div class="mt-12 flex justify-center gap-3" id="audit-pagination"></div>
+</div>
+</main>
+
+<!-- Search FAB -->
+<div class="fixed bottom-8 right-8 z-50">
+<button id="search-fab" class="w-14 h-14 primary-gradient text-white rounded-full flex items-center justify-center shadow-2xl active:scale-95 transition-transform" title="Search audit log">
+<span class="material-symbols-outlined">search</span>
+</button>
+</div>
+
 <!-- Shared Scripts -->
 <script src="/frontend/shared/api.js"></script>
 <script src="/frontend/shared/auth.js"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        // Wire Sign Out
-        const signOutEl = document.querySelector('[data-logout]');
-        if (signOutEl) {
-            signOutEl.addEventListener('click', () => {
-                AUTH.clearSession();
-                window.location.href = '/frontend/financeai_login/code.html';
-            });
+const AUDIT = {
+    offset: 0,
+    limit: 20,
+    action: '',
+    search: '',
+    total: 0,
+
+    async load() {
+        const timeline = document.getElementById('audit-timeline');
+        const totalEl = document.getElementById('audit-total');
+        timeline.innerHTML = `<div class="flex items-center justify-center py-16 text-on-surface-variant">
+            <span class="material-symbols-outlined animate-spin mr-2">progress_activity</span> Loading…</div>`;
+
+        const params = { limit: this.limit, offset: this.offset };
+        if (this.action) params.action = this.action;
+
+        try {
+            const data = await window.api.getAuditLog(params);
+            if (!data) return;
+
+            this.total = data.total || 0;
+            totalEl.textContent = `${this.total.toLocaleString()} total records`;
+
+            let results = data.results || [];
+            if (this.search) {
+                const q = this.search.toLowerCase();
+                results = results.filter(r =>
+                    r.action?.toLowerCase().includes(q) ||
+                    r.actor?.toLowerCase().includes(q) ||
+                    r.entity_type?.toLowerCase().includes(q)
+                );
+            }
+
+            this._renderTimeline(results);
+            this._renderPagination();
+            this._renderStats(data.results || []);
+        } catch (e) {
+            timeline.innerHTML = `<div class="text-error text-center py-8">Failed to load audit log: ${e.message}</div>`;
         }
+    },
+
+    _actionColor(action) {
+        if (action.includes('approved') || action.includes('paid')) return { bg: 'bg-green-100', text: 'text-green-800', dot: 'bg-green-500' };
+        if (action.includes('reject') || action.includes('error')) return { bg: 'bg-red-100', text: 'text-red-800', dot: 'bg-red-500' };
+        if (action.includes('vendor')) return { bg: 'bg-blue-100', text: 'text-blue-800', dot: 'bg-blue-500' };
+        if (action.includes('login') || action.includes('user')) return { bg: 'bg-purple-100', text: 'text-purple-800', dot: 'bg-purple-500' };
+        return { bg: 'bg-primary/10', text: 'text-primary', dot: 'bg-primary' };
+    },
+
+    _renderTimeline(entries) {
+        const timeline = document.getElementById('audit-timeline');
+        if (!entries.length) {
+            timeline.innerHTML = `<div class="text-center py-16 text-on-surface-variant">
+                <span class="material-symbols-outlined text-4xl block mb-3 opacity-40">history</span>
+                No audit records found for this filter.</div>`;
+            return;
+        }
+
+        timeline.innerHTML = entries.map(entry => {
+            const c = this._actionColor(entry.action || '');
+            const ts = new Date(entry.timestamp);
+            const timeStr = ts.toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }) +
+                ' · ' + ts.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+            const actionLabel = (entry.action || '').replace('.', ' › ').toUpperCase();
+            const details = entry.details ? Object.entries(entry.details).map(([k,v]) =>
+                `<div class="flex justify-between text-[11px]"><span class="text-on-surface-variant capitalize">${k}</span><span class="text-on-surface font-medium ml-4 truncate max-w-[180px]">${v}</span></div>`
+            ).join('') : '';
+
+            const initials = (entry.actor || 'SYS').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+
+            return `
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+                <div class="md:col-span-1 flex justify-center pt-2">
+                    <div class="w-3 h-3 rounded-full ${c.dot} ring-4 ring-background z-10 mt-1"></div>
+                </div>
+                <div class="md:col-span-8">
+                    <div class="bg-surface-container-lowest p-5 rounded-xl signature-shadow border border-outline-variant/10">
+                        <div class="flex justify-between items-start mb-3">
+                            <span class="${c.bg} ${c.text} text-[10px] font-bold px-2 py-1 rounded">${actionLabel}</span>
+                            <span class="text-[10px] text-on-surface-variant/60 font-mono">${entry.entity_type || ''}</span>
+                        </div>
+                        <p class="text-sm text-on-surface-variant">${entry.details?.description || entry.details?.reason || entry.action || ''}</p>
+                        <div class="mt-3 pt-3 border-t border-outline-variant/10 flex items-center gap-2">
+                            <div class="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-white text-[9px] font-bold">${initials}</div>
+                            <span class="text-xs text-on-surface-variant">
+                                <strong class="text-on-surface">${entry.actor || 'System'}</strong>
+                                <span class="opacity-60"> · ${entry.actor_role || ''}</span>
+                                <span class="ml-2 opacity-50">${timeStr}</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                ${details ? `<div class="md:col-span-3 hidden md:block">
+                    <div class="p-4 bg-surface-container-low/60 rounded-xl space-y-1">${details}</div>
+                </div>` : ''}
+            </div>`;
+        }).join('');
+    },
+
+    _renderPagination() {
+        const el = document.getElementById('audit-pagination');
+        if (this.total <= this.limit) { el.innerHTML = ''; return; }
+
+        const pages = Math.ceil(this.total / this.limit);
+        const current = Math.floor(this.offset / this.limit);
+        let html = '';
+
+        if (current > 0) html += `<button data-page="${current - 1}" class="px-4 py-2 rounded-lg border border-outline-variant/30 hover:bg-surface-container-low text-sm font-medium transition-colors">Previous</button>`;
+
+        for (let i = Math.max(0, current-2); i <= Math.min(pages-1, current+2); i++) {
+            const active = i === current ? 'bg-primary text-white' : 'hover:bg-surface-container-low text-on-surface-variant';
+            html += `<button data-page="${i}" class="px-4 py-2 rounded-lg border border-outline-variant/30 text-sm font-medium transition-colors ${active}">${i+1}</button>`;
+        }
+
+        if (current < pages - 1) html += `<button data-page="${current + 1}" class="px-4 py-2 rounded-lg border border-outline-variant/30 hover:bg-surface-container-low text-sm font-medium transition-colors">Next</button>`;
+
+        el.innerHTML = html;
+        el.querySelectorAll('[data-page]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.offset = parseInt(btn.dataset.page) * this.limit;
+                this.load();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+        });
+    },
+
+    _renderStats(entries) {
+        const el = document.getElementById('audit-stats');
+        const counts = {};
+        entries.forEach(e => {
+            const type = (e.action || '').split('.')[0] || 'other';
+            counts[type] = (counts[type] || 0) + 1;
+        });
+        const cards = Object.entries(counts).slice(0, 4).map(([k, v]) => `
+            <div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/10 signature-shadow">
+                <p class="text-[10px] uppercase font-bold text-on-surface-variant/60 mb-1">${k} events</p>
+                <p class="text-2xl font-bold text-primary">${v}</p>
+            </div>`).join('');
+        el.innerHTML = cards;
+    },
+
+    exportCSV() {
+        const token = localStorage.getItem('financeai_access_token');
+        const params = new URLSearchParams({ limit: 500, offset: 0 });
+        if (this.action) params.set('action', this.action);
+
+        window.api.getAuditLog(Object.fromEntries(params)).then(data => {
+            if (!data?.results?.length) { _showToast('No data to export.', 'warning'); return; }
+            const rows = [['ID', 'Action', 'Actor', 'Role', 'Entity', 'Timestamp', 'Details']];
+            data.results.forEach(r => rows.push([
+                r.id, r.action, r.actor, r.actor_role, r.entity_type,
+                r.timestamp, JSON.stringify(r.details || {})
+            ]));
+            const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `audit_log_${new Date().toISOString().slice(0,10)}.csv`;
+            a.click();
+            _showToast('CSV exported successfully.', 'success');
+        });
+    },
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    AUDIT.load();
+
+    document.getElementById('export-csv-btn')?.addEventListener('click', () => AUDIT.exportCSV());
+
+    document.getElementById('filter-action')?.addEventListener('change', (e) => {
+        AUDIT.action = e.target.value;
+        AUDIT.offset = 0;
+        AUDIT.load();
     });
+
+    document.getElementById('filter-search')?.addEventListener('input', (e) => {
+        AUDIT.search = e.target.value.trim();
+        AUDIT.offset = 0;
+        AUDIT.load();
+    });
+
+    document.getElementById('clear-filters-btn')?.addEventListener('click', () => {
+        document.getElementById('filter-action').value = '';
+        document.getElementById('filter-search').value = '';
+        AUDIT.action = '';
+        AUDIT.search = '';
+        AUDIT.offset = 0;
+        AUDIT.load();
+        _showToast('Filters cleared.');
+    });
+
+    document.getElementById('search-fab')?.addEventListener('click', () => {
+        document.getElementById('filter-search')?.focus();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+});
 </script>
 <script src="/frontend/shared/layout.js"></script>
 </body></html>

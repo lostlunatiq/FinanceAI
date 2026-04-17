@@ -69,7 +69,8 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # ─── Disable throttling in dev ───────────────────────────────────
 REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = []
-REST_FRAMEWORK["DEFAULT_PAGINATION_CLASS"] = None  # No pagination for simpler dev
+REST_FRAMEWORK["DEFAULT_PAGINATION_CLASS"] = None
+REST_FRAMEWORK.pop("PAGE_SIZE", None)
 
 # ─── Faster password hashing in dev ─────────────────────────────
 PASSWORD_HASHERS = [
