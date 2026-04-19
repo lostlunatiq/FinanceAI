@@ -12,20 +12,29 @@ SECURITY POLICY (non-negotiable):
 """
 from rest_framework.permissions import BasePermission
 
-FINANCE_ROLES = ("finance_admin", "finance_manager")
-APPROVER_ROLES = ("employee", "dept_head", "finance_manager", "finance_admin")
-INTERNAL_ROLES = ("employee", "dept_head", "finance_manager", "finance_admin")
+FINANCE_ROLES = ("finance_admin", "finance_manager", "cfo")
+APPROVER_ROLES = ("employee", "dept_head", "finance_manager", "finance_admin", "cfo")
+INTERNAL_ROLES = ("employee", "dept_head", "finance_manager", "finance_admin", "cfo")
 
 
 # ── Role-level checks ──────────────────────────────────────────────────────────
 
+class IsCFO(BasePermission):
+    """Only CFO role."""
+    message = "CFO access required."
+
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated
+                    and request.user.role == "cfo")
+
+
 class IsFinanceAdmin(BasePermission):
-    """Only finance_admin."""
+    """finance_admin or CFO (CFO has equivalent payment authority)."""
     message = "Finance administrator access required."
 
     def has_permission(self, request, view):
         return bool(request.user and request.user.is_authenticated
-                    and request.user.role == "finance_admin")
+                    and request.user.role in ("finance_admin", "cfo"))
 
 
 class IsFinanceOrAdmin(BasePermission):
@@ -119,22 +128,30 @@ class CanActOnExpenseStep(BasePermission):
         from apps.invoices.models import ExpenseApprovalStep
         user = request.user
 
-        # SoD: submitter cannot act as approver on their own expense
+        # SoD: submitter cannot approve their own expense.
+        # Exception: when filed_on_behalf=True, the filer (e.g. HOD) submitted it
+        # administratively on behalf of a vendor and is the appropriate operational
+        # reviewer at their level — allow them to approve their assigned step.
         if obj.submitted_by_id == user.id:
-            return False
+            is_behalf_filer = obj.filed_on_behalf and obj.filer_on_behalf_id == user.id
+            if not is_behalf_filer:
+                return False
 
-        # Check user is assigned to a PENDING step on this expense
+        # Check user is assigned to THE CURRENT PENDING step (not any future step).
+        # current_step tracks the active level; approvers for later steps must wait.
+        current_level = getattr(obj, "current_step", None)
         is_assigned = ExpenseApprovalStep.objects.filter(
             expense=obj,
             assigned_to=user,
             status="PENDING",
+            level=current_level,  # must be the active step, not a future one
         ).exists()
 
         if is_assigned:
             return True
 
-        # Finance admin override (still logged)
-        return user.role == "finance_admin"
+        # Finance admin / CFO can override any step (still audit-logged)
+        return user.role in ("finance_admin", "cfo")
 
 
 class CanRespondToQuery(BasePermission):

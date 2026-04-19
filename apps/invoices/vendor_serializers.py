@@ -144,6 +144,8 @@ class VendorBillDetailSerializer(serializers.ModelSerializer):
             "ocr_confidence",
             "approval_steps",
             "timeline",
+            "payment_initiated_at",
+            "payment_due_date",
             "d365_document_no",
             "d365_posted_at",
             "d365_paid_at",

@@ -97,8 +97,12 @@ class ApprovalActionView(APIView):
         # Map decision to FSM transition
         if decision == "APPROVED":
             current_step = expense.current_step or 1
-            next_step = current_step + 1
-            new_status = STEP_TO_STATUS.get(next_step, "APPROVED")
+            next_step_obj = (
+                ExpenseApprovalStep.objects.filter(
+                    expense=expense, level__gt=current_step, status="PENDING"
+                ).order_by("level").first()
+            )
+            new_status = STEP_TO_STATUS.get(next_step_obj.level, "APPROVED") if next_step_obj else "APPROVED"
         elif decision == "REJECTED":
             new_status = "REJECTED"
         else:  # QUERY_RAISED

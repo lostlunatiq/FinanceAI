@@ -82,6 +82,13 @@ class ExpenseDetailSerializer(serializers.ModelSerializer):
         source="submitted_by.get_full_name", read_only=True
     )
 
+    payment_initiated_by_name = serializers.SerializerMethodField()
+
+    def get_payment_initiated_by_name(self, obj):
+        if obj.payment_initiated_by:
+            return obj.payment_initiated_by.get_full_name()
+        return None
+
     class Meta:
         model = Expense
         fields = [
@@ -106,6 +113,10 @@ class ExpenseDetailSerializer(serializers.ModelSerializer):
             "current_step",
             "anomaly_severity",
             "approval_steps",
+            "payment_initiated_by",
+            "payment_initiated_by_name",
+            "payment_initiated_at",
+            "payment_due_date",
             "d365_document_no",
             "d365_posted_at",
             "d365_paid_at",

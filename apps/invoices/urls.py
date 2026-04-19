@@ -1,6 +1,6 @@
 # apps/invoices/urls.py
 from django.urls import path
-from . import views, vendor_views, employee_views, budget_views
+from . import views, vendor_views, employee_views, budget_views, policy_views
 
 urlpatterns = [
     # ─── Original expense endpoints ──────────────────────────────
@@ -30,6 +30,7 @@ urlpatterns = [
     path("finance/bills/<uuid:pk>/reject/", employee_views.RejectView.as_view(), name="finance-reject"),
     path("finance/bills/<uuid:pk>/query/", employee_views.QueryView.as_view(), name="finance-query"),
     path("finance/bills/<uuid:pk>/respond-query/", employee_views.RespondQueryView.as_view(), name="finance-respond-query"),
+    path("finance/bills/<uuid:pk>/initiate-payment/", employee_views.PaymentInitiateView.as_view(), name="finance-initiate-payment"),
     path("finance/bills/<uuid:pk>/mark-paid/", employee_views.MarkPaidView.as_view(), name="finance-mark-paid"),
 
     # ─── Dashboard & Extra Modules ───────────────────────────────
@@ -44,4 +45,8 @@ urlpatterns = [
 
     # ─── Cash Flow Forecasting ───────────────────────────────────
     path("forecasting/cashflow/", budget_views.CashFlowForecastView.as_view(), name="cashflow-forecast"),
+
+    # ─── Approval Policy Limits ──────────────────────────────────
+    path("policy-limits/", policy_views.PolicyLimitListView.as_view(), name="policy-limit-list"),
+    path("policy-limits/<str:role>/", policy_views.PolicyLimitDetailView.as_view(), name="policy-limit-detail"),
 ]

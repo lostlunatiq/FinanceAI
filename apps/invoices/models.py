@@ -13,9 +13,11 @@ EXPENSE_STATUS_CHOICES = [
     ("PENDING_FIN_L1", "Pending Finance L1"),
     ("PENDING_FIN_L2", "Pending Finance L2"),
     ("PENDING_FIN_HEAD", "Pending Finance Head"),
+    ("PENDING_CFO", "Pending CFO"),
     ("QUERY_RAISED", "Query Raised"),
     ("REJECTED", "Rejected"),
     ("APPROVED", "Approved"),
+    ("PAYMENT_INITIATED", "Payment Initiated"),
     ("PENDING_D365", "Pending D365"),
     ("BOOKED_D365", "Booked in D365"),
     ("POSTED_D365", "Posted in D365"),
@@ -27,12 +29,13 @@ EXPENSE_STATUS_CHOICES = [
 VALID_TRANSITIONS = {
     "DRAFT": {"SUBMITTED", "WITHDRAWN"},
     "SUBMITTED": {"PENDING_L1", "AUTO_REJECT"},
-    "PENDING_L1": {"PENDING_L2", "REJECTED", "QUERY_RAISED"},
-    "PENDING_L2": {"PENDING_HOD", "REJECTED", "QUERY_RAISED"},
-    "PENDING_HOD": {"PENDING_FIN_L1", "REJECTED", "QUERY_RAISED"},
-    "PENDING_FIN_L1": {"PENDING_FIN_L2", "REJECTED", "QUERY_RAISED"},
-    "PENDING_FIN_L2": {"PENDING_FIN_HEAD", "REJECTED", "QUERY_RAISED"},
-    "PENDING_FIN_HEAD": {"APPROVED", "REJECTED", "QUERY_RAISED"},
+    "PENDING_L1": {"PENDING_L2", "PENDING_HOD", "PENDING_FIN_L1", "PENDING_FIN_L2", "PENDING_FIN_HEAD", "PENDING_CFO", "APPROVED", "REJECTED", "QUERY_RAISED"},
+    "PENDING_L2": {"PENDING_HOD", "PENDING_FIN_L1", "PENDING_FIN_L2", "PENDING_FIN_HEAD", "PENDING_CFO", "APPROVED", "REJECTED", "QUERY_RAISED"},
+    "PENDING_HOD": {"PENDING_FIN_L1", "PENDING_FIN_L2", "PENDING_FIN_HEAD", "PENDING_CFO", "APPROVED", "REJECTED", "QUERY_RAISED"},
+    "PENDING_FIN_L1": {"PENDING_FIN_L2", "PENDING_FIN_HEAD", "PENDING_CFO", "APPROVED", "REJECTED", "QUERY_RAISED"},
+    "PENDING_FIN_L2": {"PENDING_FIN_HEAD", "PENDING_CFO", "APPROVED", "REJECTED", "QUERY_RAISED"},
+    "PENDING_FIN_HEAD": {"PENDING_CFO", "APPROVED", "REJECTED", "QUERY_RAISED"},
+    "PENDING_CFO": {"APPROVED", "REJECTED", "QUERY_RAISED"},
     "QUERY_RAISED": {
         "PENDING_L1",
         "PENDING_L2",
@@ -40,8 +43,10 @@ VALID_TRANSITIONS = {
         "PENDING_FIN_L1",
         "PENDING_FIN_L2",
         "PENDING_FIN_HEAD",
+        "PENDING_CFO",
     },
-    "APPROVED": {"PENDING_D365"},
+    "APPROVED": {"PAYMENT_INITIATED", "PENDING_D365"},
+    "PAYMENT_INITIATED": {"PENDING_D365"},
     "PENDING_D365": {"BOOKED_D365"},
     "BOOKED_D365": {"POSTED_D365"},
     "POSTED_D365": {"PAID"},
@@ -60,6 +65,7 @@ STEP_TO_STATUS = {
     4: "PENDING_FIN_L1",
     5: "PENDING_FIN_L2",
     6: "PENDING_FIN_HEAD",
+    7: "PENDING_CFO",
 }
 
 ROLE_FOR_STEP = {
@@ -69,6 +75,7 @@ ROLE_FOR_STEP = {
     4: "FIN_L1",
     5: "FIN_L2",
     6: "FIN_HEAD",
+    7: "CFO",
 }
 
 
@@ -188,6 +195,13 @@ class Expense(models.Model):
         max_digits=5, decimal_places=4, null=True, blank=True
     )
     ocr_task_id = models.CharField(max_length=100, blank=True)
+
+    # Payment tracking
+    payment_initiated_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="initiated_payments"
+    )
+    payment_initiated_at = models.DateTimeField(null=True, blank=True)
+    payment_due_date = models.DateField(null=True, blank=True)
 
     # D365
     d365_document_no = models.CharField(max_length=100, blank=True)
@@ -375,3 +389,48 @@ class VendorL1Mapping(models.Model):
 
     class Meta:
         unique_together = ("vendor", "l1_user")
+
+
+class ExpensePolicyLimit(models.Model):
+    """
+    Defines the maximum invoice amount that each approval role can be the FINAL approver for.
+    Finance Admin or CFO can configure these limits.
+    Algorithm: approval chain stops at the first step whose limit >= invoice amount.
+    If no limit covers the amount, all steps (up to CFO) are required.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    # Only FINANCE roles have configurable limits.
+    # L1, L2, and Dept Head always review every bill regardless of amount.
+    # Finance L1 always reviews (no limit — it is never the final payment authority alone).
+    # Finance L2, Finance Head, CFO have limits that determine who is the final payer.
+    ROLE_CHOICES = [
+        ("FIN_L2", "Finance L2 — Sr. Manager (payment authority, small amounts)"),
+        ("FIN_HEAD", "Finance Head / Admin (payment authority, medium amounts)"),
+        ("CFO", "CFO (payment authority, large amounts)"),
+    ]
+
+    ROLE_STEP_MAP = {
+        "FIN_L2": 5,
+        "FIN_HEAD": 6,
+        "CFO": 7,
+    }
+
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, unique=True)
+    max_amount = models.DecimalField(
+        max_digits=18, decimal_places=2,
+        help_text="Maximum amount (INR) this role can be the final approver for. Leave blank for unlimited."
+    )
+    currency = models.CharField(max_length=3, default="INR")
+    is_active = models.BooleanField(default=True)
+    set_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="set_policy_limits"
+    )
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["role"]
+
+    def __str__(self):
+        return f"{self.get_role_display()} — up to ₹{self.max_amount:,.0f}"

@@ -105,10 +105,28 @@ class ApproveView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-        # Determine next status in the chain
         current_step = expense.current_step or 1
-        next_step_level = current_step + 1
-        new_status = STEP_TO_STATUS.get(next_step_level, "APPROVED")
+
+        # Find the NEXT pending step actually in this expense's approval chain.
+        # CRITICAL: do NOT blindly add +1 to current_step — the chain may stop
+        # earlier (e.g. ≤₹25k bills end at FIN_L2 level 5, not FIN_HEAD level 6).
+        next_step_obj = (
+            ExpenseApprovalStep.objects.filter(
+                expense=expense,
+                level__gt=current_step,
+                status="PENDING",
+            )
+            .order_by("level")
+            .first()
+        )
+
+        if next_step_obj:
+            new_status = STEP_TO_STATUS.get(next_step_obj.level, "APPROVED")
+            next_step_level = next_step_obj.level
+        else:
+            # No further pending steps in this chain — fully approved
+            new_status = "APPROVED"
+            next_step_level = None
 
         try:
             expense = transition_expense(expense, new_status, request.user, reason)
@@ -126,29 +144,11 @@ class ApproveView(APIView):
             anomaly_override_reason=anomaly_override,
         )
 
-        # Create next approval step so the next approver sees it in their queue
-        if new_status in STEP_TO_STATUS.values():
+        # Activate the next step so the next approver sees it in their queue
+        if next_step_level and new_status in STEP_TO_STATUS.values():
             create_next_step(expense, next_step_level)
 
-        # When fully approved, auto-chain through D365 (mock or real)
-        if new_status == "APPROVED":
-            try:
-                expense = transition_expense(expense, "PENDING_D365", request.user, "Auto-transition")
-                from django.conf import settings
-                if getattr(settings, "D365_MOCK_MODE", True):
-                    for d365_status, d365_reason in [
-                        ("BOOKED_D365", "D365 mock booking"),
-                        ("POSTED_D365", "D365 mock posting"),
-                        ("PAID", "D365 mock payment"),
-                    ]:
-                        expense = transition_expense(expense, d365_status, request.user, d365_reason)
-                    expense.d365_document_no = f"D365-{expense.ref_no}"
-                    expense.d365_posted_at = timezone.now()
-                    expense.d365_paid_at = timezone.now()
-                    expense.d365_payment_utr = f"UTR-{expense.ref_no}"
-                    expense.save(update_fields=["d365_document_no", "d365_posted_at", "d365_paid_at", "d365_payment_utr"])
-            except InvalidTransition:
-                pass
+        # APPROVED: stop here — Finance Admin must explicitly initiate payment
 
         return Response(VendorBillDetailSerializer(expense).data)
 
@@ -358,51 +358,93 @@ class FinanceAllBillsView(APIView):
         })
 
 
-class MarkPaidView(APIView):
+class PaymentInitiateView(APIView):
     """
-    POST /api/v1/invoices/finance/bills/<id>/mark-paid/
-    Finance admin manually confirms payment (used when D365_MOCK_MODE=False).
-    Body: { "utr": "UTR123", "notes": "..." }
+    POST /api/v1/invoices/finance/bills/<id>/initiate-payment/
+    Finance Admin initiates payment for a fully approved bill.
+    Sets payment_due_date = today + 3 business days.
+    Body: { "notes": "..." }
     """
-    permission_classes = [IsAuthenticated, IsFinanceOrAdmin]
+    permission_classes = [IsAuthenticated, IsFinanceAdmin]
 
     def post(self, request, pk):
-        from django.conf import settings
-        if getattr(settings, "D365_MOCK_MODE", True):
+        from datetime import date, timedelta as tdelta
+        expense = get_object_or_404(Expense, pk=pk)
+
+        if expense.status != "APPROVED":
             return Response(
-                {"error": "Mock mode is active — payment auto-processes on final approval."},
+                {"error": f"Payment can only be initiated for APPROVED bills. Current status: '{expense.status}'."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        notes = request.data.get("notes", "Payment initiated").strip()
+
+        # Calculate P+3 business days
+        due = date.today()
+        business_days_added = 0
+        while business_days_added < 3:
+            due += tdelta(days=1)
+            if due.weekday() < 5:  # Mon–Fri
+                business_days_added += 1
+
+        try:
+            expense = transition_expense(expense, "PAYMENT_INITIATED", request.user, notes)
+        except (InvalidTransition, SoDViolation) as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        expense.payment_initiated_by = request.user
+        expense.payment_initiated_at = timezone.now()
+        expense.payment_due_date = due
+        expense.save(update_fields=["payment_initiated_by", "payment_initiated_at", "payment_due_date"])
+
+        return Response(VendorBillDetailSerializer(expense).data)
+
+
+class MarkPaidView(APIView):
+    """
+    POST /api/v1/invoices/finance/bills/<id>/mark-paid/
+    Finance Admin confirms actual payment and records UTR.
+    Works in both mock and real D365 mode.
+    Body: { "utr": "UTR123456789", "notes": "..." }
+    """
+    permission_classes = [IsAuthenticated, IsFinanceAdmin]
+
+    def post(self, request, pk):
         expense = get_object_or_404(Expense, pk=pk)
 
-        if expense.status not in ("APPROVED", "PENDING_D365", "BOOKED_D365", "POSTED_D365"):
+        if expense.status not in ("APPROVED", "PAYMENT_INITIATED", "PENDING_D365", "BOOKED_D365", "POSTED_D365"):
             return Response(
                 {"error": f"Cannot mark as paid from status '{expense.status}'."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         utr = request.data.get("utr", "").strip()
-        notes = request.data.get("notes", "").strip()
+        notes = request.data.get("notes", "Payment confirmed").strip()
+
+        if not utr:
+            return Response(
+                {"error": "UTR (Unique Transaction Reference) is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
-            # Drive through any intermediate D365 states
-            chain = []
-            if expense.status == "APPROVED":
-                chain = ["PENDING_D365", "BOOKED_D365", "POSTED_D365", "PAID"]
-            elif expense.status == "PENDING_D365":
-                chain = ["BOOKED_D365", "POSTED_D365", "PAID"]
-            elif expense.status == "BOOKED_D365":
-                chain = ["POSTED_D365", "PAID"]
-            elif expense.status == "POSTED_D365":
-                chain = ["PAID"]
-
+            # Drive through intermediate states to PAID
+            status_chain = {
+                "APPROVED": ["PAYMENT_INITIATED", "PENDING_D365", "BOOKED_D365", "POSTED_D365", "PAID"],
+                "PAYMENT_INITIATED": ["PENDING_D365", "BOOKED_D365", "POSTED_D365", "PAID"],
+                "PENDING_D365": ["BOOKED_D365", "POSTED_D365", "PAID"],
+                "BOOKED_D365": ["POSTED_D365", "PAID"],
+                "POSTED_D365": ["PAID"],
+            }
+            chain = status_chain.get(expense.status, ["PAID"])
             for s in chain:
-                expense = transition_expense(expense, s, request.user, notes or "Manual payment confirmation")
+                expense = transition_expense(expense, s, request.user, notes)
 
-            expense.d365_payment_utr = utr or f"MANUAL-{expense.ref_no}"
+            expense.d365_payment_utr = utr
             expense.d365_paid_at = timezone.now()
-            expense.save(update_fields=["d365_payment_utr", "d365_paid_at"])
+            expense.d365_document_no = expense.d365_document_no or f"D365-{expense.ref_no}"
+            expense.d365_posted_at = expense.d365_posted_at or timezone.now()
+            expense.save(update_fields=["d365_payment_utr", "d365_paid_at", "d365_document_no", "d365_posted_at"])
 
         except (InvalidTransition, SoDViolation) as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

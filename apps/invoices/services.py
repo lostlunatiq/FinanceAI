@@ -3,7 +3,7 @@ from datetime import timedelta
 from django.utils import timezone
 from django.db import transaction
 from apps.core.models import AuditLog
-from .models import Expense, ExpenseApprovalStep, VALID_TRANSITIONS, STEP_TO_STATUS, ROLE_FOR_STEP
+from .models import Expense, ExpenseApprovalStep, VendorL1Mapping, VALID_TRANSITIONS, STEP_TO_STATUS, ROLE_FOR_STEP
 
 
 class InvalidTransition(Exception):
@@ -27,7 +27,6 @@ def _get_approver_for_step(step: int, expense: Expense):
     Returns None if no suitable approver is found (step will be skipped).
     """
     from apps.core.models import User
-    from .models import VendorL1Mapping
 
     submitter = expense.submitted_by
 
@@ -44,14 +43,22 @@ def _get_approver_for_step(step: int, expense: Expense):
             .first()
         )
 
-    elif step == 2:  # EMP_L2 — secondary mapping or different employee
+    elif step == 2:  # EMP_L2 — secondary mapping or a different employee
         mapping = VendorL1Mapping.objects.filter(
             vendor=expense.vendor, is_primary=False
         ).select_related("l1_user").first()
         if mapping:
             return mapping.l1_user
-        # Fallback: finance_manager acts as L2
-        return User.objects.filter(role="finance_manager").first()
+        # Fallback: any employee who is not the submitter AND not the step-1 assignee
+        # (never fall back to finance_manager — that's step 4, causing SoD issues)
+        step1_assignee_id = None
+        step1 = ExpenseApprovalStep.objects.filter(expense=expense, level=1).first()
+        if step1:
+            step1_assignee_id = step1.assigned_to_id
+        qs = User.objects.filter(role="employee").exclude(pk=submitter.pk)
+        if step1_assignee_id:
+            qs = qs.exclude(pk=step1_assignee_id)
+        return qs.first()
 
     elif step == 3:  # DEPT_HEAD
         dept = submitter.department
@@ -73,7 +80,87 @@ def _get_approver_for_step(step: int, expense: Expense):
     elif step == 6:  # FIN_HEAD — finance_admin
         return User.objects.filter(role="finance_admin").first()
 
+    elif step == 7:  # CFO
+        return User.objects.filter(role="cfo").first()
+
     return None
+
+
+def _get_required_steps(expense: Expense) -> list:
+    """
+    Determine the full approval chain for an expense.
+
+    TWO DISTINCT PHASES:
+
+    Phase 1 — Operational review (ALWAYS required, every bill regardless of amount):
+        L1 (employee) → L2 (employee) → Dept Head
+
+    Phase 2 — Finance authorization (AMOUNT-BASED):
+        Finance L1 always reviews first.
+        The chain stops at the first FINANCE role whose policy limit >= invoice amount.
+        - FIN_L2 limit ₹X  → Finance L2 is final payer for bills ≤ ₹X
+        - FIN_HEAD limit ₹Y → Finance Admin is final payer for ₹X < bill ≤ ₹Y
+        - CFO limit ₹Z     → CFO is final payer for ₹Y < bill ≤ ₹Z
+        If no limit covers the amount, all finance steps are required.
+        Finance L1 has no limit (it always reviews, never the final payer alone).
+
+    Phase 3 — Filed-on-behalf override:
+        If a Dept Head or Finance user files on behalf of a vendor, the
+        operational steps below their role are skipped (they themselves act as
+        the operational reviewer at submission time).
+    """
+    from .models import ExpensePolicyLimit
+
+    amount = expense.total_amount
+
+    # ── Phase 1: Operational chain (fixed, always required) ────────────────
+    operational_steps = [
+        (1, "EMP_L1"),
+        (2, "EMP_L2"),
+        (3, "DEPT_HEAD"),
+    ]
+
+    # ── Phase 2: Finance chain (amount-based) ──────────────────────────────
+    # Finance L1 is ALWAYS the first finance step (reviewer, not final authority).
+    # Policy limits only govern FIN_L2, FIN_HEAD, and CFO.
+    finance_steps = [
+        (4, "FIN_L1"),   # always in the finance chain
+        (5, "FIN_L2"),   # can be final payer for small amounts
+        (6, "FIN_HEAD"), # can be final payer for medium amounts
+        (7, "CFO"),      # can be final payer for large amounts
+    ]
+
+    # Load only finance-level limits
+    FINANCE_ROLES = {"FIN_L2", "FIN_HEAD", "CFO"}
+    limits = {
+        lim.role: lim.max_amount
+        for lim in ExpensePolicyLimit.objects.filter(is_active=True, role__in=FINANCE_ROLES)
+    }
+
+    required_finance = []
+    for level, role in finance_steps:
+        required_finance.append((level, role))
+        limit = limits.get(role)
+        if limit is not None and amount <= limit:
+            break  # this finance role can be the final payer; stop here
+
+    required = operational_steps + required_finance
+
+    # ── Phase 3: Filed-on-behalf shortcut ─────────────────────────────────
+    # If a Dept Head or Finance user files on behalf of a vendor, skip the
+    # operational levels below their authority (they've already vetted the bill).
+    ROLE_SKIP_BELOW = {
+        "dept_head": 3,        # HOD files on behalf → start at HOD step (skip L1/L2)
+        "finance_manager": 4,  # Finance L1 files on behalf → skip L1/L2/HOD
+        "finance_admin": 6,    # Finance Admin files → skip all operational + FIN_L1/L2
+        "cfo": 7,              # CFO files → only CFO step
+    }
+    filer = expense.filer_on_behalf
+    if expense.filed_on_behalf and filer:
+        min_level = ROLE_SKIP_BELOW.get(filer.role, 1)
+        required = [(lvl, role) for lvl, role in required if lvl >= min_level]
+
+    return required
 
 
 SLA_HOURS = {1: 24, 2: 24, 3: 48, 4: 48, 5: 48, 6: 72}
@@ -81,18 +168,12 @@ SLA_HOURS = {1: 24, 2: 24, 3: 48, 4: 48, 5: 48, 6: 72}
 
 def create_approval_steps(expense: Expense) -> list:
     """
-    Create the full approval step chain for a newly submitted expense.
+    Create the approval step chain for a newly submitted expense.
+    Steps are determined by policy limits (amount-based) and filed_on_behalf role.
     Called inside transition_expense when status → SUBMITTED.
     Returns list of created steps.
     """
-    steps_config = [
-        (1, "EMP_L1"),
-        (2, "EMP_L2"),
-        (3, "DEPT_HEAD"),
-        (4, "FIN_L1"),
-        (5, "FIN_L2"),
-        (6, "FIN_HEAD"),
-    ]
+    steps_config = _get_required_steps(expense)
 
     created = []
     now = timezone.now()
@@ -113,10 +194,12 @@ def create_approval_steps(expense: Expense) -> list:
         )
         created.append(step)
 
-    # Immediately advance expense to PENDING_L1 inside the same transaction
+    # Advance expense to the first pending step immediately
     if created:
-        expense._force_status("PENDING_L1")
-        expense.current_step = 1
+        first_level = created[0].level
+        first_status = STEP_TO_STATUS.get(first_level, "PENDING_L1")
+        expense._force_status(first_status)
+        expense.current_step = first_level
         expense.save(update_fields=["_status", "current_step"])
 
     return created

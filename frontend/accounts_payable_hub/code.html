@@ -178,6 +178,44 @@
                     Invoices</button>
                 <button id="tab-pipeline" data-tab="pipeline"
                     class="tab-btn px-5 py-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container-lowest/60 transition-all">Pipeline</button>
+                <button id="tab-limits" data-tab="limits"
+                    class="tab-btn px-5 py-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container-lowest/60 transition-all hidden">Approval Limits</button>
+            </div>
+
+            <!-- Approval Limits View (Finance Admin / CFO only) -->
+            <div id="limits-view" class="hidden">
+                <div class="bg-surface-container-lowest rounded-xl p-8 border border-outline-variant/20 mb-6">
+                    <h3 class="text-base font-headline font-extrabold text-on-surface mb-1">Finance Payment Authority Limits</h3>
+                    <p class="text-sm text-on-surface-variant mb-2">Configure the maximum invoice amount each <strong>Finance role</strong> can be the final payment authority for.</p>
+                    <div class="bg-primary/5 border border-primary/20 rounded-xl p-3 mb-6 text-xs text-on-surface-variant">
+                        <strong class="text-primary">Note:</strong> L1, L2, Dept Head, and Finance L1 <em>always review every bill</em> regardless of amount — they cannot be skipped. These limits only control how far up the Finance chain the bill escalates for final payment authorization.
+                    </div>
+                    <div id="limits-table" class="space-y-3 mb-6"></div>
+                    <!-- Set / Update limit form -->
+                    <div class="border-t border-outline-variant/20 pt-6">
+                        <h4 class="text-sm font-bold text-on-surface mb-4">Set / Update a Limit</h4>
+                        <div class="flex flex-wrap gap-3 items-end">
+                            <div>
+                                <label class="text-xs font-bold text-on-surface-variant block mb-1">Role</label>
+                                <select id="limit-role" class="px-3 py-2 bg-surface-container-low rounded-xl text-sm border border-outline-variant/30 focus:ring-1 focus:ring-primary">
+                                    <option value="FIN_L2">Finance L2 — Sr. Manager</option>
+                                    <option value="FIN_HEAD">Finance Head / Admin</option>
+                                    <option value="CFO">CFO</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-xs font-bold text-on-surface-variant block mb-1">Max Amount (₹)</label>
+                                <input id="limit-amount" type="number" min="1" placeholder="e.g. 100000" class="px-3 py-2 bg-surface-container-low rounded-xl text-sm border border-outline-variant/30 focus:ring-1 focus:ring-primary w-48" />
+                            </div>
+                            <div class="flex-1">
+                                <label class="text-xs font-bold text-on-surface-variant block mb-1">Notes</label>
+                                <input id="limit-notes" type="text" placeholder="Optional note" class="w-full px-3 py-2 bg-surface-container-low rounded-xl text-sm border border-outline-variant/30 focus:ring-1 focus:ring-primary" />
+                            </div>
+                            <button id="save-limit-btn" class="px-6 py-2 primary-gradient text-white rounded-xl text-sm font-bold shadow-sm hover:opacity-90 transition-opacity">Save Limit</button>
+                        </div>
+                        <div id="limit-error" class="hidden mt-3 text-sm text-error bg-error-container px-3 py-2 rounded-lg"></div>
+                    </div>
+                </div>
             </div>
             <!-- Bento Stats Grid -->
             <div class="grid grid-cols-12 gap-6 mb-10">
@@ -269,7 +307,9 @@
                             <option value="PENDING_FIN_L1">Pending Fin L1</option>
                             <option value="PENDING_FIN_L2">Pending Fin L2</option>
                             <option value="PENDING_FIN_HEAD">Pending Fin Head</option>
+                            <option value="PENDING_CFO">Pending CFO</option>
                             <option value="APPROVED">Approved</option>
+                            <option value="PAYMENT_INITIATED">Payment Initiated</option>
                             <option value="PAID">Paid</option>
                             <option value="REJECTED">Rejected</option>
                             <option value="QUERY_RAISED">Query Raised</option>
@@ -597,12 +637,112 @@
                     <span class="material-symbols-outlined text-[18px]">fact_check</span>
                     Open 3-Way Match View
                 </a>
+                <button id="initiate-payment-btn"
+                    class="hidden flex items-center gap-2 w-full py-2.5 px-4 rounded-xl bg-primary/10 text-primary font-semibold text-sm hover:bg-primary/20 transition-colors border border-primary/20">
+                    <span class="material-symbols-outlined text-[18px]">send_money</span>
+                    Initiate Payment (P+3 Days)
+                </button>
                 <button id="mark-paid-btn"
                     class="hidden flex items-center gap-2 w-full py-2.5 px-4 rounded-xl bg-emerald-50 text-emerald-700 font-semibold text-sm hover:bg-emerald-100 transition-colors border border-emerald-200">
                     <span class="material-symbols-outlined text-[18px]">payments</span>
-                    Mark as Paid
+                    Mark as Paid (Enter UTR)
                 </button>
             </div>
+        </div>
+    </div>
+
+    <!-- Initiate Payment Modal -->
+    <div id="initiate-payment-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-manrope font-bold text-slate-900">Initiate Payment</h3>
+                <button id="close-initiate-modal" class="text-slate-400 hover:text-slate-600"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div id="initiate-bill-info" class="text-sm text-slate-500 mb-4 bg-emerald-50 p-3 rounded-lg"></div>
+            <div class="bg-blue-50 p-3 rounded-lg mb-4">
+                <p class="text-xs font-bold text-blue-700">Payment Release Schedule</p>
+                <p class="text-sm text-blue-600 mt-1">Payment will be released in <strong>P+3 business days</strong> from today. The vendor will see the expected payment date.</p>
+            </div>
+            <textarea id="initiate-notes" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-4" rows="2" placeholder="Payment notes (optional)"></textarea>
+            <div id="initiate-error" class="hidden text-sm text-red-600 bg-red-50 p-2 rounded-lg mb-4"></div>
+            <button id="initiate-submit-btn" class="w-full py-3 rounded-xl font-bold text-white bg-primary hover:bg-primary/90 transition-colors">Confirm Payment Initiation</button>
+        </div>
+    </div>
+
+    <!-- Mark Paid / UTR Modal -->
+    <div id="mark-paid-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-manrope font-bold text-slate-900">Confirm Payment</h3>
+                <button id="close-paid-modal" class="text-slate-400 hover:text-slate-600"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div id="paid-bill-info" class="text-sm text-slate-500 mb-4 bg-emerald-50 p-3 rounded-lg"></div>
+            <div class="mb-4">
+                <label class="text-xs font-bold text-slate-600 block mb-1">UTR / Transaction Reference <span class="text-red-500">*</span></label>
+                <input id="utr-input" type="text" placeholder="e.g. UTR202604180001" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono" />
+            </div>
+            <textarea id="paid-notes" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-4" rows="2" placeholder="Payment notes (optional)"></textarea>
+            <div id="paid-error" class="hidden text-sm text-red-600 bg-red-50 p-2 rounded-lg mb-4"></div>
+            <button id="paid-submit-btn" class="w-full py-3 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors">Confirm & Mark Paid</button>
+        </div>
+    </div>
+
+    <!-- Register Bill on Behalf Modal -->
+    <div id="register-behalf-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8 overflow-y-auto max-h-[90vh]">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-manrope font-bold text-slate-900">Register Bill on Behalf of Vendor</h3>
+                <button id="close-behalf-modal" class="text-slate-400 hover:text-slate-600"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <p class="text-xs text-slate-500 mb-4 bg-amber-50 p-3 rounded-lg border border-amber-200">Filing on behalf of vendor. The approval chain will start from your role level — lower steps will be skipped.</p>
+            <div class="space-y-4">
+                <div>
+                    <label class="text-xs font-bold text-slate-600 block mb-1">Vendor</label>
+                    <select id="behalf-vendor" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">
+                        <option value="">Select vendor...</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 block mb-1">Invoice Number</label>
+                        <input id="behalf-inv-no" type="text" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="e.g. INV-2026-001" />
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 block mb-1">Invoice Date</label>
+                        <input id="behalf-inv-date" type="date" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 block mb-1">Pre-GST Amount (₹)</label>
+                        <input id="behalf-pre-gst" type="number" min="0" step="0.01" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="0.00" />
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 block mb-1">Total Amount (₹)</label>
+                        <input id="behalf-total" type="number" min="0" step="0.01" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="0.00" />
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 block mb-1">CGST (₹)</label>
+                        <input id="behalf-cgst" type="number" min="0" step="0.01" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="0.00" />
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 block mb-1">SGST (₹)</label>
+                        <input id="behalf-sgst" type="number" min="0" step="0.01" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="0.00" />
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 block mb-1">IGST (₹)</label>
+                        <input id="behalf-igst" type="number" min="0" step="0.01" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="0.00" />
+                    </div>
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-600 block mb-1">Business Purpose</label>
+                    <textarea id="behalf-purpose" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" rows="2" placeholder="Describe the business purpose (min 5 chars)"></textarea>
+                </div>
+            </div>
+            <div id="behalf-error" class="hidden mt-3 text-sm text-red-600 bg-red-50 p-2 rounded-lg"></div>
+            <button id="behalf-submit-btn" class="w-full mt-6 py-3 rounded-xl font-bold text-white bg-primary hover:bg-primary/90 transition-colors">Submit Bill on Behalf</button>
         </div>
     </div>
 
@@ -635,10 +775,10 @@
                 const vendorFilter = document.getElementById('vendor-filter')?.value || '';
 
                 const statusMap = {
-                    'Pending Approval': ['PENDING_L1', 'PENDING_L2', 'PENDING_HOD', 'PENDING_FIN_L1', 'PENDING_FIN_L2', 'PENDING_FIN_HEAD'],
+                    'Pending Approval': ['PENDING_L1', 'PENDING_L2', 'PENDING_HOD', 'PENDING_FIN_L1', 'PENDING_FIN_L2', 'PENDING_FIN_HEAD', 'PENDING_CFO'],
                     'Under Review': ['SUBMITTED'],
                     'Flagged': ['QUERY_RAISED'],
-                    'Scheduled': ['APPROVED']
+                    'Scheduled': ['APPROVED', 'PAYMENT_INITIATED']
                 };
 
                 let filtered = allBills.filter(b => {
@@ -756,7 +896,7 @@
             }
 
             function renderQueue(bills) {
-                const tbody = document.querySelector('table tbody');
+                const tbody = document.querySelector('#queue-view table tbody');
                 if (!tbody) return;
 
                 if (!bills || bills.length === 0) {
@@ -776,7 +916,9 @@
                         'PENDING_FIN_L1': 'bg-primary-fixed text-on-primary-fixed-variant',
                         'PENDING_FIN_L2': 'bg-primary-fixed text-on-primary-fixed-variant',
                         'PENDING_FIN_HEAD': 'bg-primary-fixed text-on-primary-fixed-variant',
+                        'PENDING_CFO': 'bg-tertiary-container text-on-tertiary text-white',
                         'APPROVED': 'bg-primary-fixed text-on-primary-fixed-variant',
+                        'PAYMENT_INITIATED': 'bg-emerald-100 text-emerald-800',
                         'REJECTED': 'bg-error-container text-on-error-container',
                         'QUERY_RAISED': 'bg-error-container text-on-error-container',
                         'PAID': 'bg-primary-fixed text-on-primary-fixed-variant',
@@ -993,13 +1135,39 @@
                     const matchLink = document.getElementById('open-3way-match');
                     if (matchLink) matchLink.href = `/frontend/ap_match_fraud_control_1/code.html?bill_id=${billId}`;
 
-                    // Show Mark as Paid for finance roles when bill is post-approval
+                    // Show "Initiate Payment" for FinAdmin/CFO when APPROVED
+                    const isFinAdmin = ['finance_admin', 'cfo'].includes(role);
+                    const initiateBtn = document.getElementById('initiate-payment-btn');
+                    if (initiateBtn && isFinAdmin) {
+                        const canInitiate = bill.status === 'APPROVED';
+                        initiateBtn.classList.toggle('hidden', !canInitiate);
+                        initiateBtn.classList.toggle('flex', canInitiate);
+                        initiateBtn.dataset.billId = billId;
+                        initiateBtn.dataset.billRef = bill.ref_no;
+                        initiateBtn.dataset.billAmount = bill.total_amount;
+                    }
+
+                    // Show "Mark Paid" for FinAdmin/CFO when payment is initiated/in-progress
                     const markPaidBtn = document.getElementById('mark-paid-btn');
-                    if (markPaidBtn && isFinance) {
-                        const payable = ['APPROVED', 'PENDING_D365', 'BOOKED_D365', 'POSTED_D365'].includes(bill.status);
+                    if (markPaidBtn && isFinAdmin) {
+                        const payable = ['PAYMENT_INITIATED', 'PENDING_D365', 'BOOKED_D365', 'POSTED_D365'].includes(bill.status);
                         markPaidBtn.classList.toggle('hidden', !payable);
                         markPaidBtn.classList.toggle('flex', payable);
                         markPaidBtn.dataset.billId = billId;
+                        markPaidBtn.dataset.billRef = bill.ref_no;
+                        markPaidBtn.dataset.billAmount = bill.total_amount;
+                    }
+
+                    // Show payment info in detail if applicable
+                    if (bill.payment_due_date) {
+                        const paymentSection = document.createElement('div');
+                        paymentSection.className = 'bg-emerald-50 p-3 rounded-lg border border-emerald-200';
+                        paymentSection.innerHTML = `
+                            <p class="text-xs font-bold text-emerald-700">Payment Schedule</p>
+                            <p class="text-sm text-emerald-600 mt-1">Expected release: <strong>${new Date(bill.payment_due_date).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'})}</strong></p>
+                            ${bill.d365_payment_utr ? `<p class="text-xs text-emerald-600 mt-1 font-mono">UTR: ${bill.d365_payment_utr}</p>` : ''}
+                        `;
+                        content.appendChild(paymentSection);
                     }
                 } catch (err) {
                     content.innerHTML = '<div class="text-red-500 text-center">Failed to load bill details</div>';
@@ -1009,6 +1177,7 @@
             // ─── Tab System (finance roles only) ────────────────────────
             const role = (AUTH.getUser()?.role || '').toLowerCase();
             const isFinance = ['finance_manager', 'finance_admin', 'cfo', 'admin'].includes(role);
+            const isFinAdmin = ['finance_admin', 'cfo'].includes(role);
             let activeTab = 'queue';
             let allPage = 1;
             const ALL_PAGE_SIZE = 20;
@@ -1016,6 +1185,9 @@
 
             if (isFinance) {
                 document.getElementById('ap-tab-bar').classList.remove('hidden');
+            }
+            if (isFinAdmin) {
+                document.getElementById('tab-limits').classList.remove('hidden');
             }
 
             document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -1033,10 +1205,219 @@
                 document.getElementById('queue-view').classList.toggle('hidden', tab !== 'queue');
                 document.getElementById('all-invoices-view').classList.toggle('hidden', tab !== 'all');
                 document.getElementById('pipeline-view').classList.toggle('hidden', tab !== 'pipeline');
+                document.getElementById('limits-view').classList.toggle('hidden', tab !== 'limits');
 
                 if (tab === 'all') loadAllInvoices();
                 if (tab === 'pipeline') loadPipeline();
+                if (tab === 'limits') loadPolicyLimits();
             }
+
+            // ─── Policy Limits Management ─────────────────────────────
+            async function loadPolicyLimits() {
+                const container = document.getElementById('limits-table');
+                container.innerHTML = '<div class="text-center text-on-surface-variant py-4">Loading...</div>';
+                try {
+                    const limits = await window.api.getPolicyLimits();
+                    if (!limits || limits.length === 0) {
+                        container.innerHTML = '<div class="text-sm text-on-surface-variant py-4">No policy limits configured yet.</div>';
+                        return;
+                    }
+                    const roleOrder = ['EMP_L1','EMP_L2','DEPT_HEAD','FIN_L1','FIN_L2','FIN_HEAD','CFO'];
+                    const sorted = [...limits].sort((a,b) => roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role));
+                    container.innerHTML = sorted.map(lim => `
+                        <div class="flex items-center justify-between p-4 bg-surface-container-low rounded-xl">
+                            <div>
+                                <span class="text-sm font-bold text-on-surface">${lim.role_display}</span>
+                                ${lim.notes ? `<span class="ml-2 text-xs text-on-surface-variant">${lim.notes}</span>` : ''}
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <span class="text-base font-black text-primary">₹${parseFloat(lim.max_amount).toLocaleString('en-IN', {maximumFractionDigits:0})}</span>
+                                <span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${lim.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-error-container text-on-error-container'}">${lim.is_active ? 'ACTIVE' : 'INACTIVE'}</span>
+                                <span class="text-xs text-on-surface-variant">${lim.set_by ? 'by ' + lim.set_by : ''}</span>
+                            </div>
+                        </div>
+                    `).join('');
+                } catch (err) {
+                    container.innerHTML = `<div class="text-sm text-error py-4">${err.message}</div>`;
+                }
+            }
+
+            document.getElementById('save-limit-btn')?.addEventListener('click', async () => {
+                const role = document.getElementById('limit-role').value;
+                const amount = parseFloat(document.getElementById('limit-amount').value);
+                const notes = document.getElementById('limit-notes').value.trim();
+                const errEl = document.getElementById('limit-error');
+                errEl.classList.add('hidden');
+
+                if (!amount || amount <= 0) {
+                    errEl.textContent = 'Please enter a valid positive amount.';
+                    errEl.classList.remove('hidden');
+                    return;
+                }
+
+                try {
+                    await window.api.setPolicyLimit(role, amount, notes);
+                    window._showToast(`Policy limit for ${role} set to ₹${amount.toLocaleString('en-IN')}`, 'success');
+                    loadPolicyLimits();
+                    document.getElementById('limit-amount').value = '';
+                    document.getElementById('limit-notes').value = '';
+                } catch (err) {
+                    errEl.textContent = err.message || 'Failed to save policy limit';
+                    errEl.classList.remove('hidden');
+                }
+            });
+
+            // ─── Initiate Payment Modal ─────────────────────────────────
+            const initiateModal = document.getElementById('initiate-payment-modal');
+            document.getElementById('close-initiate-modal')?.addEventListener('click', () => initiateModal.classList.add('hidden'));
+            document.getElementById('initiate-payment-btn')?.addEventListener('click', () => {
+                const btn = document.getElementById('initiate-payment-btn');
+                document.getElementById('initiate-bill-info').innerHTML =
+                    `<strong>${btn.dataset.billRef}</strong> — ₹${parseFloat(btn.dataset.billAmount || 0).toLocaleString('en-IN', {maximumFractionDigits:0})}`;
+                document.getElementById('initiate-error').classList.add('hidden');
+                document.getElementById('initiate-notes').value = '';
+                initiateModal.classList.remove('hidden');
+            });
+            document.getElementById('initiate-submit-btn')?.addEventListener('click', async () => {
+                const btn = document.getElementById('initiate-payment-btn');
+                const billId = btn?.dataset.billId;
+                const submitBtn = document.getElementById('initiate-submit-btn');
+                const errEl = document.getElementById('initiate-error');
+                errEl.classList.add('hidden');
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Processing...';
+                try {
+                    const notes = document.getElementById('initiate-notes').value.trim();
+                    await window.api.initiatePayment(billId, notes);
+                    initiateModal.classList.add('hidden');
+                    window._showToast('Payment initiated! Vendor will see expected payment date (P+3 business days)', 'success');
+                    loadQueue();
+                    if (activeTab === 'all') loadAllInvoices();
+                    if (activeTab === 'pipeline') loadPipeline();
+                } catch (err) {
+                    errEl.textContent = err.message || 'Failed to initiate payment';
+                    errEl.classList.remove('hidden');
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Confirm Payment Initiation';
+                }
+            });
+
+            // ─── Mark Paid Modal (with UTR) ─────────────────────────────
+            const markPaidModal = document.getElementById('mark-paid-modal');
+            document.getElementById('close-paid-modal')?.addEventListener('click', () => markPaidModal.classList.add('hidden'));
+            document.getElementById('mark-paid-btn')?.addEventListener('click', () => {
+                const btn = document.getElementById('mark-paid-btn');
+                document.getElementById('paid-bill-info').innerHTML =
+                    `<strong>${btn.dataset.billRef}</strong> — ₹${parseFloat(btn.dataset.billAmount || 0).toLocaleString('en-IN', {maximumFractionDigits:0})}`;
+                document.getElementById('paid-error').classList.add('hidden');
+                document.getElementById('utr-input').value = '';
+                document.getElementById('paid-notes').value = '';
+                markPaidModal.classList.remove('hidden');
+            });
+            document.getElementById('paid-submit-btn')?.addEventListener('click', async () => {
+                const btn = document.getElementById('mark-paid-btn');
+                const billId = btn?.dataset.billId;
+                const utr = document.getElementById('utr-input').value.trim();
+                const notes = document.getElementById('paid-notes').value.trim();
+                const submitBtn = document.getElementById('paid-submit-btn');
+                const errEl = document.getElementById('paid-error');
+                errEl.classList.add('hidden');
+
+                if (!utr) {
+                    errEl.textContent = 'UTR / Transaction Reference is required.';
+                    errEl.classList.remove('hidden');
+                    return;
+                }
+
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Confirming...';
+                try {
+                    await window.api.markAsPaid(billId, utr, notes);
+                    markPaidModal.classList.add('hidden');
+                    window._showToast(`Payment confirmed! UTR: ${utr}`, 'success');
+                    loadQueue();
+                    if (activeTab === 'all') loadAllInvoices();
+                    if (activeTab === 'pipeline') loadPipeline();
+                } catch (err) {
+                    errEl.textContent = err.message || 'Failed to mark as paid';
+                    errEl.classList.remove('hidden');
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Confirm & Mark Paid';
+                }
+            });
+
+            // ─── Register on Behalf (L1/L2/HOD/Finance) ──────────────────
+            const behalfModal = document.getElementById('register-behalf-modal');
+            document.getElementById('close-behalf-modal')?.addEventListener('click', () => behalfModal.classList.add('hidden'));
+
+            // Load vendors into the behalf form
+            async function loadVendorsForBehalf() {
+                try {
+                    const vendors = await window.api.getVendors({ limit: 100 });
+                    const sel = document.getElementById('behalf-vendor');
+                    (vendors.results || vendors || []).filter(v => v.is_approved).forEach(v => {
+                        const opt = document.createElement('option');
+                        opt.value = v.id;
+                        opt.textContent = v.name;
+                        sel.appendChild(opt);
+                    });
+                } catch (err) { console.log('Could not load vendors for behalf form'); }
+            }
+
+            // "Create Invoice" button triggers behalf registration for non-vendor roles
+            document.querySelector('button.primary-gradient')?.addEventListener('click', () => {
+                if (!role || role === 'vendor') return;
+                loadVendorsForBehalf();
+                behalfModal.classList.remove('hidden');
+            });
+
+            document.getElementById('behalf-submit-btn')?.addEventListener('click', async () => {
+                const vendorId = document.getElementById('behalf-vendor').value;
+                const invNo = document.getElementById('behalf-inv-no').value.trim();
+                const invDate = document.getElementById('behalf-inv-date').value;
+                const preGst = parseFloat(document.getElementById('behalf-pre-gst').value) || 0;
+                const total = parseFloat(document.getElementById('behalf-total').value) || 0;
+                const cgst = parseFloat(document.getElementById('behalf-cgst').value) || 0;
+                const sgst = parseFloat(document.getElementById('behalf-sgst').value) || 0;
+                const igst = parseFloat(document.getElementById('behalf-igst').value) || 0;
+                const purpose = document.getElementById('behalf-purpose').value.trim();
+                const errEl = document.getElementById('behalf-error');
+                errEl.classList.add('hidden');
+
+                if (!vendorId || !invNo || !invDate || !preGst || !total || !purpose) {
+                    errEl.textContent = 'All fields are required.';
+                    errEl.classList.remove('hidden');
+                    return;
+                }
+                const user = AUTH.getUser();
+                const submitBtn = document.getElementById('behalf-submit-btn');
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Submitting...';
+                try {
+                    await window.api.submitBillOnBehalf({
+                        vendor: vendorId,
+                        invoice_number: invNo,
+                        invoice_date: invDate,
+                        pre_gst_amount: preGst,
+                        total_amount: total,
+                        cgst, sgst, igst,
+                        business_purpose: purpose,
+                        filed_on_behalf: true,
+                        filer_on_behalf: user?.id,
+                    });
+                    behalfModal.classList.add('hidden');
+                    window._showToast('Bill registered on behalf of vendor. Approval chain starts at your role level.', 'success');
+                    loadQueue();
+                } catch (err) {
+                    errEl.textContent = err.message || 'Failed to submit bill';
+                    errEl.classList.remove('hidden');
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Submit Bill on Behalf';
+                }
+            });
 
             // ─── All Invoices (finance+ management view) ──────────────────
             async function loadAllInvoices() {
@@ -1075,8 +1456,9 @@
                     const PIPELINE_STEP = {
                         'PENDING_L1': 'Step 1 / L1', 'PENDING_L2': 'Step 2 / L2', 'PENDING_HOD': 'Step 3 / HOD',
                         'PENDING_FIN_L1': 'Step 4 / Fin L1', 'PENDING_FIN_L2': 'Step 5 / Fin L2',
-                        'PENDING_FIN_HEAD': 'Step 6 / Fin Head', 'APPROVED': 'Approved', 'PAID': 'Paid',
-                        'REJECTED': 'Rejected', 'QUERY_RAISED': 'Query Raised',
+                        'PENDING_FIN_HEAD': 'Step 6 / Fin Head', 'PENDING_CFO': 'Step 7 / CFO',
+                        'APPROVED': 'Approved — Pending Payment', 'PAYMENT_INITIATED': 'Payment Initiated (P+3)',
+                        'PAID': 'Paid', 'REJECTED': 'Rejected', 'QUERY_RAISED': 'Query Raised',
                     };
                     tbody.innerHTML = bills.map(b => {
                         const s = b.status || '';
@@ -1139,7 +1521,9 @@
                         { key: 'PENDING_FIN_L1', label: 'Finance L1', color: 'bg-blue-400' },
                         { key: 'PENDING_FIN_L2', label: 'Finance L2', color: 'bg-blue-500' },
                         { key: 'PENDING_FIN_HEAD', label: 'Fin Head', color: 'bg-primary' },
-                        { key: 'APPROVED,PENDING_D365,BOOKED_D365,POSTED_D365', label: 'Processing', color: 'bg-emerald-500' },
+                        { key: 'PENDING_CFO', label: 'CFO Review', color: 'bg-purple-600' },
+                        { key: 'APPROVED', label: 'Approved', color: 'bg-emerald-400' },
+                        { key: 'PAYMENT_INITIATED,PENDING_D365,BOOKED_D365,POSTED_D365', label: 'Payment Processing', color: 'bg-emerald-500' },
                         { key: 'PAID', label: 'Paid', color: 'bg-emerald-700' },
                         { key: 'REJECTED', label: 'Rejected', color: 'bg-error' },
                         { key: 'QUERY_RAISED', label: 'Query', color: 'bg-amber-500' },

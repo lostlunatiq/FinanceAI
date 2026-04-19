@@ -1,6 +1,6 @@
 # apps/core/urls.py
 from django.urls import path
-from . import auth_views, file_views
+from . import auth_views, file_views, ai_views
 
 urlpatterns = [
     # Auth
@@ -17,5 +17,5 @@ urlpatterns = [
     # Audit
     path("audit/", auth_views.AuditLogListView.as_view(), name="audit-list"),
     # NL Query
-    path("nl-query/", auth_views.NLQueryView.as_view(), name="nl-query"),
+    path("nl-query/", ai_views.NLQueryView.as_view(), name="nl-query"),
 ]

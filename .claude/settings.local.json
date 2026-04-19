@@ -19,7 +19,31 @@
       "Bash(python -c ' *)",
       "Bash(python manage.py check)",
       "Bash(USE_SQLITE=true DJANGO_SETTINGS_MODULE=config.settings.dev .venv/Scripts/python manage.py check --deploy)",
-      "Bash(.venv/Scripts/python -c ' *)"
+      "Bash(.venv/Scripts/python -c ' *)",
+      "Bash(pip install *)",
+      "Bash(where python *)",
+      "Bash(py -3.11 -c \"import graphify; print\\('ok'\\)\")",
+      "Bash(python -m pip show graphifyy)",
+      "Bash(python3.11 -c ' *)",
+      "Bash(rm -f .graphify_cached.json .graphify_uncached.txt .graphify_semantic_new.json)",
+      "Bash(mkdir -p graphify-out)",
+      "Bash(PYTHONIOENCODING=utf-8 USE_SQLITE=true DJANGO_SETTINGS_MODULE=config.settings.dev .venv/Scripts/python manage.py migrate)",
+      "Bash(PYTHONIOENCODING=utf-8 USE_SQLITE=true DJANGO_SETTINGS_MODULE=config.settings.dev .venv/Scripts/python manage.py makemigrations core --name cfo_role)",
+      "Bash(PYTHONIOENCODING=utf-8 USE_SQLITE=true DJANGO_SETTINGS_MODULE=config.settings.dev .venv/Scripts/python manage.py check)",
+      "Bash(.venv/Scripts/python manage.py shell -c ' *)",
+      "Bash(PYTHONIOENCODING=utf-8 USE_SQLITE=true DJANGO_SETTINGS_MODULE=config.settings.dev .venv/Scripts/python manage.py seed_demo --fresh)",
+      "Bash(PYTHONIOENCODING=utf-8 USE_SQLITE=true DJANGO_SETTINGS_MODULE=config.settings.dev .venv/Scripts/python manage.py test apps.invoices.tests_e2e --verbosity=2)",
+      "Bash(grep -E \"^\\(test_|ok$|FAIL|ERROR|Ran|FAILED|OK\\)\")",
+      "Bash(python -c \"import graphify\")",
+      "Bash(python -c \"import graphify; import sys; open\\('C:/Users/arun.parmal/OneDrive - SS Supply Chain Solutions P Ltd/Desktop/Kube Kitchen/Hackathon/Final product/FinanceAI/.graphify_python', 'w'\\).write\\(sys.executable\\)\")",
+      "Bash(python -c \"import sys; print\\(sys.executable\\)\")",
+      "Bash(C:/Users/arun.parmal/AppData/Local/Programs/Python/Python311/python.exe *)",
+      "Bash(\"C:/Users/arun.parmal/AppData/Local/Programs/Python/Python311/python.exe\" -c \"import sys; sys.path.insert\\(0,'C:/tmp/graphify_pkg'\\); import graphify; print\\('OK'\\)\")",
+      "Bash(\"C:/Users/arun.parmal/AppData/Local/Programs/Python/Python311/python.exe\" -m pip install graphifyy -q)",
+      "Bash(\"C:/Users/arun.parmal/AppData/Local/Programs/Python/Python311/python.exe\" -c \"import graphify; import sys; open\\('.graphify_python','w'\\).write\\(sys.executable\\); print\\('OK: ' + sys.executable\\)\")",
+      "Bash(/c/Users/arun.parmal/OneDrive - SS Supply Chain Solutions P Ltd/Desktop/Kube Kitchen/Hackathon/Final product/FinanceAI/.venv/Scripts/python.exe *)",
+      "Bash(\"/c/Users/arun.parmal/OneDrive - SS Supply Chain Solutions P Ltd/Desktop/Kube Kitchen/Hackathon/Final product/FinanceAI/.venv/Scripts/python.exe\" _write_chunk01.py)",
+      "Bash('/c/Users/arun.parmal/OneDrive - SS Supply Chain Solutions P Ltd/Desktop/Kube Kitchen/Hackathon/Final product/FinanceAI/.venv/Scripts/python.exe' -c ' *)"
     ]
   }
 }

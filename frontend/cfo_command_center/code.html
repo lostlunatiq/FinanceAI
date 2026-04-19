@@ -129,6 +129,23 @@
                     Ask Your Data
                 </button>
 </header>
+<!-- CFO Approval Queue (dynamic, loaded from API) -->
+<section id="cfo-approval-section" class="hidden">
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <h2 class="text-lg font-headline font-extrabold text-primary flex items-center gap-2">
+                <span class="material-symbols-outlined text-[20px]">gavel</span>
+                Pending CFO Approvals
+            </h2>
+            <p class="text-xs text-on-surface-variant mt-0.5">High-value invoices awaiting your final authorization</p>
+        </div>
+        <a href="/frontend/accounts_payable_hub/code.html" class="text-xs font-bold text-primary hover:underline flex items-center gap-1">
+            View All <span class="material-symbols-outlined text-[14px]">open_in_new</span>
+        </a>
+    </div>
+    <div id="cfo-queue-list" class="space-y-3"></div>
+</section>
+
 <!-- Top Metric Row -->
 <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
 <!-- DSO Card -->
@@ -432,6 +449,88 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
     });
+
+    // ── CFO Approval Queue ─────────────────────────────────────────
+    try {
+        const data = await window.api.getAllExpenses({ status: 'PENDING_CFO', limit: 10 });
+        const bills = data?.results || [];
+        const section = document.getElementById('cfo-approval-section');
+        const list = document.getElementById('cfo-queue-list');
+
+        if (bills.length > 0) {
+            section.classList.remove('hidden');
+            list.innerHTML = bills.map(b => `
+                <div class="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/20 flex items-center justify-between gap-4 hover:border-primary/30 transition-colors">
+                    <div class="flex items-center gap-4 flex-1 min-w-0">
+                        <div class="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center shrink-0">
+                            <span class="material-symbols-outlined text-purple-700 text-[18px]">receipt_long</span>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="font-bold text-on-surface text-sm truncate">${b.invoice_number || b.ref_no}</p>
+                            <p class="text-xs text-on-surface-variant truncate">${b.vendor_name || '—'}</p>
+                        </div>
+                    </div>
+                    <div class="text-right shrink-0">
+                        <p class="font-black text-primary text-base">₹${(parseFloat(b.total_amount||0)/100000).toFixed(1)}L</p>
+                        <p class="text-[10px] text-on-surface-variant">${b.invoice_date || ''}</p>
+                    </div>
+                    <div class="flex gap-2 shrink-0">
+                        <button data-bill-id="${b.id}" data-action="approve-cfo"
+                            class="px-3 py-1.5 bg-primary text-white text-xs font-bold rounded-lg hover:opacity-90 transition-opacity cfo-approve-btn">
+                            Approve
+                        </button>
+                        <button data-bill-id="${b.id}" data-action="reject-cfo"
+                            class="px-3 py-1.5 bg-error-container text-error text-xs font-bold rounded-lg hover:opacity-90 transition-opacity cfo-reject-btn">
+                            Reject
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+            // Wire approve buttons
+            list.querySelectorAll('.cfo-approve-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const billId = btn.dataset.billId;
+                    const reason = prompt('Approval notes (optional):') || 'CFO Approved';
+                    if (reason === null) return; // cancelled
+                    btn.disabled = true; btn.textContent = '...';
+                    try {
+                        await window.api.approveBill(billId, reason);
+                        btn.closest('.bg-surface-container-lowest').style.opacity = '0.4';
+                        _showToast('Invoice approved by CFO. Finance Admin can now initiate payment.', 'success');
+                        setTimeout(() => btn.closest('.bg-surface-container-lowest').remove(), 500);
+                    } catch (e) {
+                        _showToast(e.message || 'Approval failed', 'error');
+                        btn.disabled = false; btn.textContent = 'Approve';
+                    }
+                });
+            });
+
+            // Wire reject buttons
+            list.querySelectorAll('.cfo-reject-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const billId = btn.dataset.billId;
+                    const reason = prompt('Rejection reason (required, min 10 chars):');
+                    if (!reason || reason.trim().length < 10) {
+                        alert('Rejection reason must be at least 10 characters.');
+                        return;
+                    }
+                    btn.disabled = true; btn.textContent = '...';
+                    try {
+                        await window.api.rejectBill(billId, reason.trim());
+                        btn.closest('.bg-surface-container-lowest').style.opacity = '0.4';
+                        _showToast('Invoice rejected.', 'warning');
+                        setTimeout(() => btn.closest('.bg-surface-container-lowest').remove(), 500);
+                    } catch (e) {
+                        _showToast(e.message || 'Rejection failed', 'error');
+                        btn.disabled = false; btn.textContent = 'Reject';
+                    }
+                });
+            });
+        }
+    } catch (e) {
+        console.log('Could not load CFO queue:', e.message);
+    }
 
     // Wire Fast Action Cards
     document.querySelectorAll('.cursor-pointer').forEach(card => {

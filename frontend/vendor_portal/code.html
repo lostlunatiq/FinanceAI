@@ -260,22 +260,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Status helpers ─────────────────────────────────────────────
   const STATUS_META = {
-    'SUBMITTED':        { label:'Submitted',        color:'bg-secondary-container text-on-secondary-container', step:0 },
-    'PENDING_L1':       { label:'L1 Review',         color:'bg-primary-fixed text-on-primary-fixed-variant', step:1 },
-    'PENDING_L2':       { label:'L2 Review',         color:'bg-primary-fixed text-on-primary-fixed-variant', step:2 },
-    'PENDING_HOD':      { label:'Dept Head',          color:'bg-primary-fixed text-on-primary-fixed-variant', step:3 },
-    'PENDING_FIN_L1':   { label:'Finance L1',         color:'bg-primary-fixed text-on-primary-fixed-variant', step:4 },
-    'PENDING_FIN_L2':   { label:'Finance L2',         color:'bg-primary-fixed text-on-primary-fixed-variant', step:5 },
-    'PENDING_FIN_HEAD': { label:'CFO Review',         color:'bg-primary-fixed text-on-primary-fixed-variant', step:6 },
-    'QUERY_RAISED':     { label:'Query Raised',       color:'bg-error-container text-on-error-container', step:-2 },
-    'APPROVED':         { label:'Approved',           color:'bg-primary/10 text-primary', step:7 },
-    'PENDING_D365':     { label:'Processing',         color:'bg-primary/10 text-primary', step:7 },
-    'BOOKED_D365':      { label:'Booked',             color:'bg-primary/10 text-primary', step:7 },
-    'POSTED_D365':      { label:'Posted',             color:'bg-primary/10 text-primary', step:7 },
-    'PAID':             { label:'Paid',               color:'bg-emerald-100 text-emerald-700', step:8 },
-    'REJECTED':         { label:'Rejected',           color:'bg-error-container text-on-error-container', step:-1 },
-    'AUTO_REJECT':      { label:'Auto Rejected',      color:'bg-error-container text-on-error-container', step:-1 },
-    'WITHDRAWN':        { label:'Withdrawn',          color:'bg-surface-container-high text-on-surface-variant', step:-1 },
+    'SUBMITTED':         { label:'Submitted',          color:'bg-secondary-container text-on-secondary-container', step:0 },
+    'PENDING_L1':        { label:'L1 Review',           color:'bg-primary-fixed text-on-primary-fixed-variant', step:1 },
+    'PENDING_L2':        { label:'L2 Review',           color:'bg-primary-fixed text-on-primary-fixed-variant', step:2 },
+    'PENDING_HOD':       { label:'Dept Head Review',    color:'bg-primary-fixed text-on-primary-fixed-variant', step:3 },
+    'PENDING_FIN_L1':    { label:'Finance L1',          color:'bg-primary-fixed text-on-primary-fixed-variant', step:4 },
+    'PENDING_FIN_L2':    { label:'Finance L2',          color:'bg-primary-fixed text-on-primary-fixed-variant', step:5 },
+    'PENDING_FIN_HEAD':  { label:'Finance Head Review', color:'bg-primary-fixed text-on-primary-fixed-variant', step:6 },
+    'PENDING_CFO':       { label:'CFO Review',          color:'bg-purple-100 text-purple-800', step:7 },
+    'QUERY_RAISED':      { label:'Query Raised',        color:'bg-error-container text-on-error-container', step:-2 },
+    'APPROVED':          { label:'Approved — Awaiting Payment', color:'bg-primary/10 text-primary', step:8 },
+    'PAYMENT_INITIATED': { label:'Payment Processing',  color:'bg-emerald-100 text-emerald-700', step:8 },
+    'PENDING_D365':      { label:'Payment Processing',  color:'bg-emerald-100 text-emerald-700', step:8 },
+    'BOOKED_D365':       { label:'Payment Booked',      color:'bg-emerald-100 text-emerald-700', step:8 },
+    'POSTED_D365':       { label:'Payment Posted',      color:'bg-emerald-100 text-emerald-700', step:8 },
+    'PAID':              { label:'Paid ✓',              color:'bg-emerald-100 text-emerald-700', step:9 },
+    'REJECTED':          { label:'Rejected',            color:'bg-error-container text-on-error-container', step:-1 },
+    'AUTO_REJECT':       { label:'Auto Rejected',       color:'bg-error-container text-on-error-container', step:-1 },
+    'WITHDRAWN':         { label:'Withdrawn',           color:'bg-surface-container-high text-on-surface-variant', step:-1 },
   };
 
   function statusBadge(status) {
@@ -283,7 +285,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return `<span class="status-badge ${m.color}">${m.label}</span>`;
   }
 
-  const IN_PROGRESS = new Set(['SUBMITTED','PENDING_L1','PENDING_L2','PENDING_HOD','PENDING_FIN_L1','PENDING_FIN_L2','PENDING_FIN_HEAD','QUERY_RAISED']);
+  const IN_PROGRESS = new Set(['SUBMITTED','PENDING_L1','PENDING_L2','PENDING_HOD','PENDING_FIN_L1','PENDING_FIN_L2','PENDING_FIN_HEAD','PENDING_CFO','QUERY_RAISED','APPROVED','PAYMENT_INITIATED']);
 
   // ── Load bills ─────────────────────────────────────────────────
   async function loadBills() {
@@ -481,10 +483,19 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="flex items-start overflow-x-auto pb-2">${timelineHTML}</div>
         </div>
 
+        ${bill.payment_due_date && bill.status !== 'PAID' ? `
+          <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <p class="text-xs font-bold text-blue-700 mb-1">💳 Payment Scheduled</p>
+            <p class="text-sm text-blue-600">Expected release: <strong>${new Date(bill.payment_due_date).toLocaleDateString('en-IN', {weekday:'short', day:'2-digit', month:'short', year:'numeric'})}</strong></p>
+            <p class="text-[11px] text-blue-500 mt-1">Payment is being processed (P+3 business days)</p>
+          </div>` : ''}
         ${bill.d365_payment_utr ? `
-          <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-            <p class="text-xs font-bold text-emerald-700">✅ Payment Confirmed</p>
-            <p class="text-xs text-emerald-600 mt-1">UTR: ${bill.d365_payment_utr}</p>
+          <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+            <p class="text-xs font-bold text-emerald-700 mb-1">✅ Payment Confirmed</p>
+            <div class="text-sm text-emerald-600 space-y-1">
+              <p>UTR: <strong class="font-mono">${bill.d365_payment_utr}</strong></p>
+              ${bill.d365_paid_at ? `<p>Date: ${new Date(bill.d365_paid_at).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'})}</p>` : ''}
+            </div>
           </div>` : ''}
 
         ${queryBtn}

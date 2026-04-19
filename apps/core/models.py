@@ -33,6 +33,7 @@ class User(AbstractUser):
     role = models.CharField(
         max_length=30,
         choices=[
+            ("cfo", "CFO"),
             ("finance_admin", "Finance Admin"),
             ("finance_manager", "Finance Manager"),
             ("dept_head", "Department Head"),

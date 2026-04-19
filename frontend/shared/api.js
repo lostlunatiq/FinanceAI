@@ -262,11 +262,40 @@ class FinanceAPI {
         return this.request(`/invoices/finance/bills/all/${q ? '?' + q : ''}`);
     }
 
-    async markAsPaid(billId, utr = '', notes = '') {
+    async initiatePayment(billId, notes = '') {
+        return this.request(`/invoices/finance/bills/${billId}/initiate-payment/`, {
+            method: 'POST',
+            body: JSON.stringify({ notes }),
+        });
+    }
+
+    async markAsPaid(billId, utr, notes = '') {
         return this.request(`/invoices/finance/bills/${billId}/mark-paid/`, {
             method: 'POST',
             body: JSON.stringify({ utr, notes }),
         });
+    }
+
+    async submitBillOnBehalf(billData) {
+        return this.request('/invoices/submit/', {
+            method: 'POST',
+            body: JSON.stringify(billData),
+        });
+    }
+
+    async getPolicyLimits() {
+        return this.request('/invoices/policy-limits/');
+    }
+
+    async setPolicyLimit(role, maxAmount, notes = '') {
+        return this.request('/invoices/policy-limits/', {
+            method: 'POST',
+            body: JSON.stringify({ role, max_amount: maxAmount, notes }),
+        });
+    }
+
+    async deletePolicyLimit(role) {
+        return this.request(`/invoices/policy-limits/${role}/`, { method: 'DELETE' });
     }
 
     async getAnomalies(params = {}) {
