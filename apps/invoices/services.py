@@ -2,7 +2,7 @@ import uuid
 from django.utils import timezone
 from django.db import transaction
 from apps.core.models import AuditLog
-from .models import Expense, ExpenseApprovalStep, VALID_TRANSITIONS, STEP_TO_STATUS
+from .models import Expense, ExpenseApprovalStep, VendorL1Mapping, VALID_TRANSITIONS, STEP_TO_STATUS
 
 
 class InvalidTransition(Exception):
@@ -17,8 +17,98 @@ class InsufficientRole(Exception):
     pass
 
 
+APPROVAL_LEVEL_TO_STATUS = {
+    1: "PENDING_L1",
+    3: "PENDING_HOD",
+    4: "PENDING_FIN_L1",
+    5: "PENDING_FIN_L2",
+    6: "PENDING_FIN_HEAD",
+}
+
+STATUS_TO_NEXT_STATUS = {
+    "SUBMITTED":       "PENDING_L1",
+    "PENDING_L1":      "PENDING_HOD",
+    "PENDING_HOD":     "PENDING_FIN_L1",
+    "PENDING_FIN_L1":  "PENDING_FIN_L2",
+    "PENDING_FIN_L2":  "PENDING_FIN_HEAD",
+    "PENDING_FIN_HEAD": "APPROVED",
+}
+
+LEVEL_AFTER = {1: 3, 3: 4, 4: 5, 5: 6}
+
+
+def _find_approver_for_level(level):
+    from apps.core.models import User
+    mapping = {
+        1: {"role": "employee",        "is_superuser": False},
+        3: {"role": "dept_head",       "is_superuser": False},
+        4: {"role": "finance_manager", "is_superuser": False},
+        5: {"role": "finance_admin",   "is_superuser": False},
+        6: {"role": "finance_admin",   "is_superuser": True},
+    }
+    cfg = mapping.get(level)
+    if not cfg:
+        return None
+    return User.objects.filter(
+        role=cfg["role"], is_active=True, is_superuser=cfg["is_superuser"]
+    ).first()
+
+
+def create_initial_approval_step(expense):
+    """Create step 1 (L1) for a newly SUBMITTED expense."""
+    from apps.core.models import User
+    # Prefer vendor-specific L1 mapping, then 'l1_approver' username, then any employee
+    mapping = VendorL1Mapping.objects.filter(vendor=expense.vendor, is_primary=True).first()
+    if mapping:
+        approver = mapping.l1_user
+    else:
+        approver = (
+            User.objects.filter(username="l1_approver", is_active=True).first()
+            or _find_approver_for_level(1)
+        )
+    if not approver:
+        return None
+    step, _ = ExpenseApprovalStep.objects.get_or_create(
+        expense=expense,
+        level=1,
+        defaults={
+            "role_required": "EMP_L1",
+            "assigned_to": approver,
+            "status": "PENDING",
+        },
+    )
+    return step
+
+
+def create_next_approval_step(expense):
+    """After an approval step completes, create the next pending step."""
+    last_done = (
+        ExpenseApprovalStep.objects.filter(expense=expense, status="APPROVED")
+        .order_by("-level")
+        .first()
+    )
+    current_level = last_done.level if last_done else 0
+    next_level = LEVEL_AFTER.get(current_level)
+    if not next_level:
+        return None
+    approver = _find_approver_for_level(next_level)
+    if not approver:
+        return None
+    role_labels = {1: "EMP_L1", 3: "DEPT_HEAD", 4: "FIN_L1", 5: "FIN_L2", 6: "FIN_HEAD"}
+    step, _ = ExpenseApprovalStep.objects.get_or_create(
+        expense=expense,
+        level=next_level,
+        defaults={
+            "role_required": role_labels.get(next_level, f"LEVEL_{next_level}"),
+            "assigned_to": approver,
+            "status": "PENDING",
+        },
+    )
+    return step
+
+
 def transition_expense(
-    expense: Expense, new_status: str, actor, reason: str = ""
+    expense: Expense, new_status: str, actor, reason: str = "", skip_sod: bool = False
 ) -> Expense:
     """
     The single gate for all Expense state changes.
@@ -38,7 +128,7 @@ def transition_expense(
         already_approved = ExpenseApprovalStep.objects.filter(
             expense=expense, actual_actor=actor, status="APPROVED"
         ).exists()
-        if already_approved and new_status not in ("QUERY_RAISED", "WITHDRAWN"):
+        if not skip_sod and already_approved and new_status not in ("QUERY_RAISED", "WITHDRAWN"):
             raise SoDViolation(
                 f"Actor {actor} already approved an earlier step on this expense."
             )

@@ -177,7 +177,26 @@ class VendorBillsView(APIView):
         from .serializers import ExpenseSubmitSerializer
         from .services import transition_expense, InvalidTransition
 
-        serializer = ExpenseSubmitSerializer(data=request.data)
+        # Resolve vendor: from logged-in user's vendor_profile, or explicit vendor field
+        data = request.data.copy()
+        if not data.get("vendor"):
+            if hasattr(request.user, "vendor_profile"):
+                data["vendor"] = str(request.user.vendor_profile.id)
+            else:
+                return Response(
+                    {"error": "No vendor profile linked. Provide vendor ID or link a vendor to your account."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        # Compute pre_gst_amount if not provided
+        if not data.get("pre_gst_amount"):
+            total = float(data.get("total_amount") or 0)
+            cgst = float(data.get("cgst") or 0)
+            sgst = float(data.get("sgst") or 0)
+            igst = float(data.get("igst") or 0)
+            data["pre_gst_amount"] = str(round(total - cgst - sgst - igst, 2))
+
+        serializer = ExpenseSubmitSerializer(data=data)
         serializer.is_valid(raise_exception=True)
         expense = serializer.save(submitted_by=request.user)
 
@@ -187,13 +206,33 @@ class VendorBillsView(APIView):
         except InvalidTransition as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Auto-advance SUBMITTED → PENDING_L1 and create first approval step
+        try:
+            from .services import STATUS_TO_NEXT_STATUS, create_initial_approval_step
+            expense = transition_expense(expense, "PENDING_L1", request.user, "Auto-started approval", skip_sod=True)
+            create_initial_approval_step(expense)
+        except Exception:
+            pass  # Non-critical
+
         # Trigger OCR if invoice file present
         if expense.invoice_file:
             from .tasks import run_ocr_pipeline
-
             task = run_ocr_pipeline.delay(str(expense.id))
             expense.ocr_task_id = task.id
             expense.save(update_fields=["ocr_task_id"])
+
+        # Run anomaly scan immediately (sync in dev, async in prod)
+        try:
+            from ai.pipelines.anomaly_pipeline import run_anomaly_checks
+            result = run_anomaly_checks(expense)
+            expense.anomaly_severity = result["severity"]
+            flags = result.get("flags", [])
+            ocr_raw = expense.ocr_raw or {}
+            ocr_raw["anomaly_flags"] = flags
+            expense.ocr_raw = ocr_raw
+            expense.save(update_fields=["anomaly_severity", "ocr_raw"])
+        except Exception:
+            pass  # Non-critical — don't block submission
 
         return Response(
             VendorBillDetailSerializer(expense).data, status=status.HTTP_201_CREATED

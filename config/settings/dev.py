@@ -83,8 +83,8 @@ CELERY_BROKER_URL = "memory://"
 CELERY_RESULT_BACKEND = "cache+memory://"
 
 # ─── OpenRouter model config ────────────────────────────────────
-OPENROUTER_MODEL_PRIMARY = "google/gemini-2.0-flash-001"
-OPENROUTER_MODEL_FALLBACK = "anthropic/claude-sonnet-4"
+OPENROUTER_MODEL_PRIMARY = "anthropic/claude-haiku-4-5"
+OPENROUTER_MODEL_FALLBACK = "anthropic/claude-sonnet-4-5"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 # ─── OCR config ──────────────────────────────────────────────────

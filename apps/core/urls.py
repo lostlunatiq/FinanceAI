@@ -10,6 +10,7 @@ urlpatterns = [
     path("auth/register/", auth_views.RegisterView.as_view(), name="auth-register"),
     path("auth/users/", auth_views.UserListView.as_view(), name="user-list"),
     path("auth/users/<uuid:pk>/", auth_views.UserDetailView.as_view(), name="user-detail"),
+    path("auth/change-password/", auth_views.ChangePasswordView.as_view(), name="change-password"),
     # Files
     path("files/upload/", file_views.FileUploadView.as_view(), name="file-upload"),
     path("files/ocr/", file_views.OCRSyncView.as_view(), name="file-ocr-sync"),

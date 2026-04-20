@@ -1,0 +1,6 @@
+TEST INVOICE
+Vendor: TestServe Pvt Ltd
+Invoice No: INV-2026-TEST-001
+Date: 2026-04-20
+Amount: Rs 11800
+GSTIN: 27AABCT1234A1Z5
