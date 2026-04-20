@@ -85,6 +85,7 @@ class VendorBillListSerializer(serializers.ModelSerializer):
 
     vendor_name = serializers.CharField(source="vendor.name", read_only=True)
     status = serializers.CharField(source="_status", read_only=True)
+    anomaly_flags = serializers.SerializerMethodField()
 
     class Meta:
         model = Expense
@@ -99,10 +100,16 @@ class VendorBillListSerializer(serializers.ModelSerializer):
             "current_step",
             "anomaly_severity",
             "ocr_confidence",
+            "anomaly_flags",
             "created_at",
             "submitted_at",
             "approved_at",
         ]
+
+    def get_anomaly_flags(self, obj):
+        if obj.ocr_raw and isinstance(obj.ocr_raw, dict):
+            return obj.ocr_raw.get("anomaly_flags", [])
+        return []
 
 
 class VendorBillDetailSerializer(serializers.ModelSerializer):

@@ -29,6 +29,8 @@ urlpatterns = [
     path("finance/bills/<uuid:pk>/reject/", employee_views.RejectView.as_view(), name="finance-reject"),
     path("finance/bills/<uuid:pk>/query/", employee_views.QueryView.as_view(), name="finance-query"),
     path("finance/bills/<uuid:pk>/respond-query/", employee_views.RespondQueryView.as_view(), name="finance-respond-query"),
+    path("finance/bills/<uuid:pk>/scan-anomaly/", employee_views.ScanAnomalyView.as_view(), name="finance-scan-anomaly"),
+    path("finance/scan-all/", employee_views.BulkScanAnomalyView.as_view(), name="finance-scan-all"),
 
     # ─── Dashboard & Extra Modules ───────────────────────────────
     path("dashboard/stats/", vendor_views.DashboardStatsView.as_view(), name="dashboard-stats"),

@@ -70,9 +70,17 @@ class Command(BaseCommand):
             )
             if created:
                 user.set_password("demo1234")
+                if username == "cfo":
+                    user.is_superuser = True
+                    user.is_staff = True
                 user.save()
                 self.stdout.write(f"  ✅ Created user: {username} ({role})")
             else:
+                # Ensure cfo always has superuser flag even if already existed
+                if username == "cfo" and not user.is_superuser:
+                    user.is_superuser = True
+                    user.is_staff = True
+                    user.save(update_fields=["is_superuser", "is_staff"])
                 self.stdout.write(f"  ⏩ User exists: {username}")
             users[username] = user
 

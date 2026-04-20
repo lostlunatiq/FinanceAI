@@ -50,13 +50,6 @@ def call_vision_model(
     """
     Send an image to a vision-capable model via OpenRouter.
 
-    Args:
-        image_base64: Base64-encoded image data
-        media_type: MIME type (image/jpeg, image/png, etc.)
-        prompt: System + user prompt text
-        model: OpenRouter model ID (defaults to settings)
-        max_tokens: Max response tokens
-
     Returns:
         dict with 'content' (raw response text) and 'model' used
     """
@@ -67,31 +60,37 @@ def call_vision_model(
 
     if model is None:
         model = getattr(
-            settings, "OPENROUTER_MODEL_PRIMARY", "google/gemini-2.0-flash-001"
+            settings, "OPENROUTER_MODEL_PRIMARY", "anthropic/claude-haiku-4-5"
         )
+
+    # Models that support response_format json_object natively
+    JSON_FORMAT_MODELS = {"gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"}
+    use_json_format = any(m in model for m in JSON_FORMAT_MODELS)
+
+    create_kwargs = dict(
+        model=model,
+        max_tokens=max_tokens,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{media_type};base64,{image_base64}"
+                        },
+                    },
+                ],
+            }
+        ],
+    )
+    if use_json_format:
+        create_kwargs["response_format"] = {"type": "json_object"}
 
     try:
-        response = client.chat.completions.create(
-            model=model,
-            max_tokens=max_tokens,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:{media_type};base64,{image_base64}"
-                            },
-                        },
-                    ],
-                }
-            ],
-            response_format={"type": "json_object"},
-        )
-
-        content = response.choices[0].message.content
+        response = client.chat.completions.create(**create_kwargs)
+        content = response.choices[0].message.content or ""
         return {
             "content": content,
             "model": response.model,
