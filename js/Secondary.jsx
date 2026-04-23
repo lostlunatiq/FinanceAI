@@ -688,7 +688,14 @@ const BudgetDetailDrawer = ({ budget, open, onClose, onUpdated }) => {
         .then(data => setUtil(data))
         .catch(() => setUtil(null))
         .finally(() => setLoading(false));
-      setEditForm({ name: budget.name, total_amount: budget.total_amount, warning_threshold: budget.warning_threshold || 70, critical_threshold: budget.critical_threshold || 90 });
+      setEditForm({ 
+        name: budget.name, 
+        total_amount: budget.total_amount, 
+        warning_threshold: budget.warning_threshold || 70, 
+        critical_threshold: budget.critical_threshold || 90,
+        start_date: budget.start_date || '',
+        end_date: budget.end_date || ''
+      });
       setEditing(false);
     }
   }, [open, budget]);
@@ -743,6 +750,10 @@ const BudgetDetailDrawer = ({ budget, open, onClose, onUpdated }) => {
           <TjInput label="Budget Name" value={editForm.name} onChange={e => setEditForm(f => ({...f, name: e.target.value}))} />
           <TjInput label="Total Amount (₹)" type="number" value={editForm.total_amount} onChange={e => setEditForm(f => ({...f, total_amount: e.target.value}))} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <TjInput label="Start Date" type="date" value={editForm.start_date} onChange={e => setEditForm(f => ({...f, start_date: e.target.value}))} />
+            <TjInput label="End Date" type="date" value={editForm.end_date} onChange={e => setEditForm(f => ({...f, end_date: e.target.value}))} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <TjInput label="Warning %" value={editForm.warning_threshold} onChange={e => setEditForm(f => ({...f, warning_threshold: e.target.value}))} />
             <TjInput label="Critical %" value={editForm.critical_threshold} onChange={e => setEditForm(f => ({...f, critical_threshold: e.target.value}))} />
           </div>
@@ -789,6 +800,30 @@ const BudgetDetailDrawer = ({ budget, open, onClose, onUpdated }) => {
             </div>
           )}
 
+          {/* Top Employees */}
+          {util.top_employees && util.top_employees.length > 0 && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 10, fontFamily: "'Plus Jakarta Sans', sans-serif", textTransform: 'uppercase', letterSpacing: '0.08em' }}>Top Spenders (Employees)</div>
+              <div style={{ background: 'white', borderRadius: 10, border: '1px solid #F1F0EE', overflow: 'hidden' }}>
+                {util.top_employees.slice(0, 5).map((e, i) => {
+                  const maxAmt = util.top_employees[0].amount;
+                  const pct = maxAmt > 0 ? (e.amount / maxAmt) * 100 : 0;
+                  return (
+                    <div key={i} style={{ padding: '10px 14px', borderBottom: i < Math.min(4, util.top_employees.length-1) ? '1px solid #F8F7F5' : 'none' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{e.name || 'Anonymous'}</span>
+                        <span style={{ fontSize: 11, color: '#94A3B8', fontFamily: "'JetBrains Mono', monospace" }}>{e.invoices} exp · {fmtAmt(e.amount)}</span>
+                      </div>
+                      <div style={{ height: 4, background: '#F1F5F9', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${pct}%`, background: '#3B82F6', borderRadius: 2 }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '12px 16px', textAlign: 'center' }}>
               <div style={{ fontSize: 20, fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, color: '#0F172A' }}>{util.total_invoices || 0}</div>
@@ -813,7 +848,7 @@ const BudgetScreen = ({ onNavigate }) => {
   const [budgets, setBudgets] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [selectedBudget, setSelectedBudget] = React.useState(null);
-  const [newBudget, setNewBudget] = React.useState({ name: '', total_amount: '', warning_threshold: '70', critical_threshold: '90', fiscal_year: 'FY2026', department_id: '' });
+  const [newBudget, setNewBudget] = React.useState({ name: '', total_amount: '', warning_threshold: '70', critical_threshold: '90', fiscal_year: 'FY2026', department_id: '', start_date: new Date().toISOString().slice(0, 10), end_date: (new Date(new Date().getTime() + 365 * 86400000)).toISOString().slice(0, 10) });
   const [departments, setDepartments] = React.useState([]);
   const [saving, setSaving] = React.useState(false);
   const [createError, setCreateError] = React.useState('');
@@ -850,13 +885,13 @@ const BudgetScreen = ({ onNavigate }) => {
         warning_threshold: parseFloat(newBudget.warning_threshold) || 70,
         critical_threshold: parseFloat(newBudget.critical_threshold) || 90,
         fiscal_year: newBudget.fiscal_year || 'FY2026',
-        start_date: new Date().toISOString().slice(0, 10),
-        end_date: (new Date(new Date().getTime() + 365 * 86400000)).toISOString().slice(0, 10),
+        start_date: newBudget.start_date,
+        end_date: newBudget.end_date,
       };
       if (newBudget.department_id) payload.department = newBudget.department_id;
       await window.TijoriAPI.BudgetAPI.create(payload);
       setCreateOpen(false);
-      setNewBudget({ name: '', total_amount: '', warning_threshold: '70', critical_threshold: '90', fiscal_year: 'FY2026', department_id: '' });
+      setNewBudget({ name: '', total_amount: '', warning_threshold: '70', critical_threshold: '90', fiscal_year: 'FY2026', department_id: '', start_date: new Date().toISOString().slice(0, 10), end_date: (new Date(new Date().getTime() + 365 * 86400000)).toISOString().slice(0, 10) });
       load();
     } catch (e) {
       setCreateError(e.message || 'Creation failed.');
@@ -955,6 +990,10 @@ const BudgetScreen = ({ onNavigate }) => {
         <TjInput label="Total Amount (₹) *" placeholder="5000000" type="number" value={newBudget.total_amount} onChange={e => setNewBudget(p => ({...p, total_amount: e.target.value}))} />
         <TjInput label="Fiscal Year" placeholder="FY2026" value={newBudget.fiscal_year} onChange={e => setNewBudget(p => ({...p, fiscal_year: e.target.value}))} />
         <div style={{ display: 'flex', gap: 12 }}>
+          <div style={{ flex: 1 }}><TjInput label="Start Date" type="date" value={newBudget.start_date} onChange={e => setNewBudget(p => ({...p, start_date: e.target.value}))} /></div>
+          <div style={{ flex: 1 }}><TjInput label="End Date" type="date" value={newBudget.end_date} onChange={e => setNewBudget(p => ({...p, end_date: e.target.value}))} /></div>
+        </div>
+        <div style={{ display: 'flex', gap: 12 }}>
           <div style={{ flex: 1 }}><TjInput label="Warning Threshold (%)" placeholder="70" value={newBudget.warning_threshold} onChange={e => setNewBudget(p => ({...p, warning_threshold: e.target.value}))} /></div>
           <div style={{ flex: 1 }}><TjInput label="Critical Threshold (%)" placeholder="90" value={newBudget.critical_threshold} onChange={e => setNewBudget(p => ({...p, critical_threshold: e.target.value}))} /></div>
         </div>
@@ -964,9 +1003,12 @@ const BudgetScreen = ({ onNavigate }) => {
           <Btn variant="primary" onClick={handleCreate} disabled={saving}>{saving ? 'Creating…' : 'Create Budget'}</Btn>
         </div>
       </TjModal>
+
+      <FloatingCopilot role={role} />
     </div>
   );
 };
+
 
 // ─── BUDGETARY GUARDRAILS ─────────────────────────────────────────────────────
 
@@ -1398,7 +1440,7 @@ const SettingsScreen = ({ role: propRole, onNavigate }) => {
 
 // ─── VENDOR PORTAL ────────────────────────────────────────────────────────────
 
-const VendorPortalScreen = ({ onNavigate }) => {
+const VendorPortalScreen = ({ role, onNavigate }) => {
   const [activeFilter, setActiveFilter] = React.useState('All');
   const [submitOpen, setSubmitOpen] = React.useState(false);
   const [selectedInv, setSelectedInv] = React.useState(null);
@@ -2000,10 +2042,13 @@ const VendorPortalScreen = ({ onNavigate }) => {
             {submitting ? 'Submitting…' : 'Submit for Approval'}
           </Btn>
         </div>
-        </>}
+        </>)}
       </TjModal>
+
+      <FloatingCopilot role={role} />
     </div>
   );
 };
+
 
 Object.assign(window, { VendorsScreen, ExpensesScreen, BudgetScreen, GuardrailsScreen, AuditScreen, SettingsScreen, VendorPortalScreen });

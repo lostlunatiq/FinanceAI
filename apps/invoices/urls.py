@@ -119,4 +119,7 @@ urlpatterns = [
     path("analytics/supplier-scorecard/", analytics_views.SupplierScorecardView.as_view(), name="supplier-scorecard"),
     path("analytics/dept-variance/",      analytics_views.DepartmentVarianceView.as_view(),name="dept-variance"),
     path("analytics/po-match/",           analytics_views.POMatchStatusView.as_view(),     name="po-match"),
+    path("analytics/command-center/",     analytics_views.CommandCenterIntelligenceView.as_view(), name="command-center"),
+    path("analytics/audit-sweep/",        analytics_views.AuditSweepView.as_view(),        name="audit-sweep"),
+    path("analytics/generate-10q/",       analytics_views.Generate10QView.as_view(),       name="generate-10q"),
 ]

@@ -1,0 +1,11 @@
+// ... rest of the file ...
+        </div>
+        </>)}
+      </TjModal>
+
+      <FloatingCopilot role={role} />
+    </div>
+  );
+};
+
+Object.assign(window, { VendorsScreen, ExpensesScreen, BudgetScreen, GuardrailsScreen, AuditScreen, SettingsScreen, VendorPortalScreen });

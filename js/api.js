@@ -177,6 +177,14 @@ const AuthAPI = {
   async listDepartments() {
     return apiFetch('/auth/departments/');
   },
+
+  async listGroups() {
+    return apiFetch('/auth/groups/');
+  },
+
+  async createGroup(name) {
+    return apiFetch('/auth/groups/', { method: 'POST', body: JSON.stringify({ name }) });
+  },
 };
 
 // ── Dashboard API ─────────────────────────────────────────────────────────────
@@ -469,6 +477,15 @@ const AnalyticsAPI = {
   async poMatch() {
     return apiFetch('/invoices/analytics/po-match/');
   },
+  async commandCenter() {
+    return apiFetch('/invoices/analytics/command-center/');
+  },
+  async auditSweep() {
+    return apiFetch('/invoices/analytics/audit-sweep/', { method: 'POST' });
+  },
+  async generate10Q() {
+    return apiFetch('/invoices/analytics/generate-10q/', { method: 'POST' });
+  },
 };
 
 // ── Anomaly severity helpers ──────────────────────────────────────────────────
@@ -511,6 +528,7 @@ function expenseToAnomaly(exp, index) {
     logic: flags.slice(1).map(f => f.message).join(' | ') || `Severity: ${exp.anomaly_severity}. Score: ${exp.total_score || 0}.`,
     status: 'OPEN',
     date: exp.created_at ? new Date(exp.created_at).toLocaleString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '',
+    rawId: exp.id,
     _raw: exp,
   };
 }

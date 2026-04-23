@@ -1,12 +1,45 @@
 // Tijori AI — Reports & Analytics (Screen 17)
 
-const ReportsScreen = ({ onNavigate }) => {
-  const [tab, setTab] = React.useState('P&L Summary');
+const ReportsScreen = ({ role, onNavigate }) => {
+  const [tab, setTab] = React.useState('');
   const [dateRange, setDateRange] = React.useState('Last 3M');
   const [exportOpen, setExportOpen] = React.useState(false);
-  const [activeFilters, setActiveFilters] = React.useState([]);
 
-  const tabs = ['P&L Summary', 'Revenue Dashboard', 'Expense Breakdown', 'Vendor Analysis', 'Month-over-Month'];
+  // ── Role-based config ─────────────────────────────────────────────────────
+  const roleConfigs = {
+    'CFO': {
+      tabs: ['Dashboard', 'P&L Summary', 'Revenue Dashboard', 'Expense Breakdown', 'Vendor Analysis', 'Month-over-Month'],
+      defaultTab: 'Dashboard'
+    },
+    'Finance Admin': {
+      tabs: ['Dashboard', 'P&L Summary', 'Revenue Dashboard', 'Expense Breakdown', 'Vendor Analysis', 'Month-over-Month'],
+      defaultTab: 'Dashboard'
+    },
+    'Finance Manager': {
+      tabs: ['Dashboard', 'Dept Variance', 'Expense Breakdown', 'Vendor Analysis', 'Month-over-Month'],
+      defaultTab: 'Dashboard'
+    },
+    'AP Clerk': {
+      tabs: ['Dashboard', 'Vendor Analysis', 'Expense Breakdown', 'Queue Analytics'],
+      defaultTab: 'Dashboard'
+    },
+    'Employee': {
+      tabs: ['Dashboard', 'My Expenses', 'Reimbursement Status'],
+      defaultTab: 'Dashboard'
+    },
+    'Vendor': {
+      tabs: ['Dashboard', 'My Invoices', 'Payment Status', 'Performance'],
+      defaultTab: 'Dashboard'
+    }
+  };
+
+  const config = roleConfigs[role] || roleConfigs['Employee'];
+  const tabs = config.tabs;
+
+  React.useEffect(() => {
+    if (!tab && tabs.length > 0) setTab(config.defaultTab);
+  }, [role, tabs]);
+
   const dateRanges = ['This Month', 'Last 3M', 'Last 6M', 'YTD', 'Custom'];
 
   // ── Shared SVG helpers ────────────────────────────────────────────────────
@@ -339,7 +372,213 @@ const ReportsScreen = ({ onNavigate }) => {
     );
   };
 
-  const tabContent = { 'P&L Summary': renderPL, 'Revenue Dashboard': renderRevenue, 'Expense Breakdown': renderExpense, 'Vendor Analysis': renderVendor, 'Month-over-Month': renderMoM };
+  const renderDashboard = () => (
+    <div style={{ animation: 'fadeUp 250ms ease both' }}>
+      <KPIStrip cards={[
+        { label: 'Total Revenue', value: '₹5.82Cr', delta: '+12.4%', deltaType: 'positive' },
+        { label: 'OpEx', value: '₹2.40Cr', delta: '+8.1%', deltaType: 'negative' },
+        { label: 'Net Profit', value: '₹1.62Cr', delta: '+15.7%', deltaType: 'positive', color: '#10B981' },
+        { label: 'System Health', value: '98.2%', delta: 'Optimal', deltaType: 'positive' },
+      ]} />
+      
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+        <Card style={{ padding: '22px' }}>
+          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '16px', color: '#0F172A', marginBottom: '16px' }}>Monthly Performance</div>
+          <svg width="100%" height={160} viewBox="0 0 520 160">
+            {linePoints(rev, 520, 160).map((p, i) => (
+              <circle key={i} cx={p.x} cy={p.y} r="4" fill="#E8783B" />
+            ))}
+            <path d={linePath(linePoints(rev, 520, 160))} fill="none" stroke="#E8783B" strokeWidth="2" />
+          </svg>
+        </Card>
+        <Card style={{ padding: '22px' }}>
+          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '16px', color: '#0F172A', marginBottom: '16px' }}>Expense Distribution</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+             {deptData.map(d => (
+               <div key={d.name}>
+                 <div style={{ display: 'flex', -webkitBoxPack: 'justify', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
+                   <span>{d.name}</span>
+                   <span style={{ fontWeight: 700 }}>₹{d.spent}L</span>
+                 </div>
+                 <div style={{ height: '6px', background: '#F1F0EE', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${d.pct}%`, background: '#E8783B' }} />
+                 </div>
+               </div>
+             ))}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+
+  const renderMyExpenses = () => (
+    <>
+      <KPIStrip cards={[
+        { label: 'Total Submitted', value: '₹42,000', delta: 'Last 30 days', deltaType: 'neutral' },
+        { label: 'Approved', value: '₹38,000', delta: 'Ready for payout', deltaType: 'positive', color: '#10B981' },
+        { label: 'Pending', value: '₹4,000', delta: 'With HOD', deltaType: 'neutral', color: '#F59E0B' },
+        { label: 'Avg Approval', value: '2.4 days', delta: '↓ 0.5d', deltaType: 'positive' },
+      ]} />
+      <Card style={{ padding: '22px' }}>
+        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '16px', color: '#0F172A', marginBottom: '16px' }}>My Recent Expenses</div>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead><tr style={{ background: '#F8F7F5' }}>
+            {['Date', 'Ref #', 'Category', 'Amount', 'Status'].map(h => <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {[
+              { date: 'Apr 16', ref: 'EXP-2024-441', cat: 'Travel', amt: '₹4,200', status: 'PENDING_L1' },
+              { date: 'Apr 02', ref: 'EXP-2024-398', cat: 'Meals', amt: '₹1,250', status: 'APPROVED' },
+              { date: 'Mar 28', ref: 'EXP-2024-382', cat: 'Office', amt: '₹12,400', status: 'PAID' },
+            ].map((r, i) => (
+              <tr key={i} style={{ borderTop: '1px solid #F1F0EE', height: 48 }}>
+                <td style={{ padding: '0 12px', fontSize: '12px', color: '#94A3B8' }}>{r.date}</td>
+                <td style={{ padding: '0 12px', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#E8783B' }}>{r.ref}</td>
+                <td style={{ padding: '0 12px' }}><span style={{ background: '#F1F5F9', color: '#475569', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600 }}>{r.cat}</span></td>
+                <td style={{ padding: '0 12px', fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '13px' }}>{r.amt}</td>
+                <td style={{ padding: '0 12px' }}><StatusBadge status={r.status} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+    </>
+  );
+
+  const renderMyInvoices = () => (
+    <>
+      <KPIStrip cards={[
+        { label: 'Total Billed', value: '₹8.42L', delta: 'Total lifecycle', deltaType: 'neutral' },
+        { label: 'Paid', value: '₹6.20L', delta: 'Last payment: Apr 12', deltaType: 'positive', color: '#10B981' },
+        { label: 'Outstanding', value: '₹2.22L', delta: '1 overdue', deltaType: 'negative', color: '#EF4444' },
+        { label: 'Avg Pay Cycle', value: '28 days', delta: '↓ 2d', deltaType: 'positive' },
+      ]} />
+      <Card style={{ padding: '22px' }}>
+        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '16px', color: '#0F172A', marginBottom: '16px' }}>Invoice History</div>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead><tr style={{ background: '#F8F7F5' }}>
+            {['Date', 'Invoice #', 'Amount', 'Status', 'Due Date'].map(h => <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {[
+              { date: 'Apr 18', ref: 'INV-2024-091', amt: '₹8,40,000', status: 'PENDING_CFO', due: 'May 18' },
+              { date: 'Mar 15', ref: 'INV-2024-065', amt: '₹6,80,000', status: 'PAID', due: 'Apr 15' },
+              { date: 'Feb 10', ref: 'INV-2024-032', amt: '₹2,15,500', status: 'PAID', due: 'Mar 10' },
+            ].map((r, i) => (
+              <tr key={i} style={{ borderTop: '1px solid #F1F0EE', height: 48 }}>
+                <td style={{ padding: '0 12px', fontSize: '12px', color: '#94A3B8' }}>{r.date}</td>
+                <td style={{ padding: '0 12px', fontWeight: 600 }}>{r.ref}</td>
+                <td style={{ padding: '0 12px', fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700 }}>{r.amt}</td>
+                <td style={{ padding: '0 12px' }}><StatusBadge status={r.status} /></td>
+                <td style={{ padding: '0 12px', fontSize: '12px', color: '#64748B' }}>{r.due}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+    </>
+  );
+
+  const renderDeptVariance = () => (
+    <>
+      <KPIStrip cards={[
+        { label: 'Dept Budget', value: '₹2.4M', delta: 'Engineering', deltaType: 'neutral' },
+        { label: 'Total Spent', value: '₹2.4M', delta: '100% utilized', deltaType: 'negative', color: '#EF4444' },
+        { label: 'Forecast Variance', value: '+₹0.2M', delta: 'Over budget', deltaType: 'negative', color: '#EF4444' },
+        { label: 'Pending Approval', value: '₹0.15M', delta: '3 invoices', deltaType: 'neutral' },
+      ]} />
+      <Card style={{ padding: '22px' }}>
+        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '16px', color: '#0F172A', marginBottom: '16px' }}>Variance Analysis by Category</div>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead><tr style={{ background: '#F8F7F5' }}>
+            {['Category', 'Budget', 'Actual', 'Variance', 'Status'].map(h => <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {[
+              { cat: 'Cloud Infra', budget: '₹10.0L', actual: '₹12.0L', var: '+20%', ok: false },
+              { cat: 'Software Licenses', budget: '₹5.0L', actual: '₹4.8L', var: '-4%', ok: true },
+              { cat: 'Hardware', budget: '₹8.0L', actual: '₹7.2L', var: '-10%', ok: true },
+              { cat: 'Training', budget: '₹1.0L', actual: '₹0.0L', var: '-100%', ok: true },
+            ].map((r, i) => (
+              <tr key={i} style={{ borderTop: '1px solid #F1F0EE', height: 44 }}>
+                <td style={{ padding: '0 12px', fontWeight: 600 }}>{r.cat}</td>
+                <td style={{ padding: '0 12px' }}>{r.budget}</td>
+                <td style={{ padding: '0 12px', fontWeight: 700 }}>{r.actual}</td>
+                <td style={{ padding: '0 12px', color: r.ok ? '#059669' : '#DC2626', fontWeight: 700 }}>{r.var}</td>
+                <td style={{ padding: '0 12px' }}>
+                  <span style={{ background: r.ok ? '#D1FAE5' : '#FEE2E2', color: r.ok ? '#065F46' : '#991B1B', padding: '2px 8px', borderRadius: '999px', fontSize: '10px', fontWeight: 700 }}>
+                    {r.ok ? 'ON TRACK' : 'OVER BUDGET'}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+    </>
+  );
+
+  const handleExport = (format) => {
+    if (format === 'PDF') {
+      window.print();
+      setExportOpen(false);
+      return;
+    }
+    
+    // Simple CSV export for the current tab's data
+    let csvContent = "data:text/csv;charset=utf-8,";
+    let rows = [];
+    
+    if (tab === 'P&L Summary') {
+      rows = [
+        ["Category", "Budget", "Actual", "Variance"],
+        ["Revenue", "₹52L", "₹58.2L", "+11.9%"],
+        ["Cost of Revenue", "₹16L", "₹18.0L", "+12.5%"],
+        ["Operating Expenses", "₹22L", "₹24.0L", "+9.1%"],
+        ["Net Profit", "₹14L", "₹16.2L", "+15.7%"]
+      ];
+    } else if (tab === 'Vendor Analysis' || tab === 'My Invoices') {
+      rows = [
+        ["Date", "Reference", "Vendor", "Category", "Amount", "Status"],
+        ["Apr 18", "INV-2024-091", "NovaBridge Infra", "Infrastructure", "₹8,40,000", "PENDING_CFO"],
+        ["Mar 15", "INV-2024-065", "CloudInfra", "Software", "₹6,80,000", "PAID"],
+        ["Feb 10", "INV-2024-032", "Sigma Electrical", "Electrical", "₹2,15,500", "PAID"]
+      ];
+    } else {
+      rows = [
+        ["Report", tab],
+        ["Generated", new Date().toLocaleString()],
+        ["Role", role],
+        ["Status", "Confidential"]
+      ];
+    }
+    
+    csvContent += rows.map(e => e.join(",")).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `FinanceAI_${tab.replace(/\s/g, '_')}_${dateRange}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setExportOpen(false);
+  };
+
+  const tabContent = {
+    'Dashboard': renderDashboard,
+    'P&L Summary': renderPL,
+    'Revenue Dashboard': renderRevenue,
+    'Expense Breakdown': renderExpense,
+    'Vendor Analysis': renderVendor,
+    'Month-over-Month': renderMoM,
+    'My Expenses': renderMyExpenses,
+    'My Invoices': renderMyInvoices,
+    'Dept Variance': renderDeptVariance,
+    'Reimbursement Status': renderMyExpenses, // Reuse for demo
+    'Payment Status': renderMyInvoices, // Reuse for demo
+    'Performance': renderVendor, // Reuse for demo
+    'Queue Analytics': renderExpense, // Reuse for demo
+  };
 
   return (
     <div style={{ padding: '32px' }}>
@@ -390,12 +629,20 @@ const ReportsScreen = ({ onNavigate }) => {
         </div>
         <div style={{ marginBottom: '16px' }}>
           <div style={{ fontSize: '11px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '10px' }}>Format</div>
-          {['PDF', 'Excel', 'CSV'].map(f => (
-            <div key={f} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', border: '1.5px solid #E2E8F0', borderRadius: '10px', marginBottom: '8px', cursor: 'pointer', transition: 'border-color 150ms' }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = '#E8783B'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = '#E2E8F0'}>
-              <span style={{ fontSize: '18px' }}>{f === 'PDF' ? '📄' : f === 'Excel' ? '📊' : '📋'}</span>
-              <span style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{f}</span>
+          {[
+            { id: 'PDF', label: 'PDF (Full Report with Graphs)', icon: '📄' },
+            { id: 'Excel', label: 'Excel (Data Only)', icon: '📊' },
+            { id: 'CSV', label: 'CSV (Data Only)', icon: '📋' }
+          ].map(f => (
+            <div key={f.id} onClick={() => handleExport(f.id)}
+              style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', border: '1.5px solid #E2E8F0', borderRadius: '10px', marginBottom: '8px', cursor: 'pointer', transition: 'all 150ms' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#E8783B'; e.currentTarget.style.background = '#FFF8F5'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#E2E8F0'; e.currentTarget.style.background = 'white'; }}>
+              <span style={{ fontSize: '18px' }}>{f.icon}</span>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{f.id}</div>
+                <div style={{ fontSize: '10px', color: '#94A3B8' }}>{f.label}</div>
+              </div>
             </div>
           ))}
         </div>

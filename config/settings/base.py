@@ -167,9 +167,9 @@ OPENROUTER_API_KEY = env("OPENROUTER_API_KEY")
 OPENROUTER_SITE_URL = env("OPENROUTER_SITE_URL", default="https://3sc.financeai")
 OPENROUTER_APP_NAME = env("OPENROUTER_APP_NAME", default="FinanceAI")
 OPENROUTER_BASE_URL = env("OPENROUTER_BASE_URL", default="https://openrouter.ai/api/v1")
-OPENROUTER_MODEL_OCR      = env("OPENROUTER_MODEL_OCR", default="anthropic/claude-haiku-4-5")
-OPENROUTER_MODEL_TEXT     = env("OPENROUTER_MODEL_TEXT", default="anthropic/claude-haiku-4-5")
-OPENROUTER_MODEL_FALLBACK = env("OPENROUTER_MODEL_FALLBACK", default="anthropic/claude-haiku-4-5")
+OPENROUTER_MODEL_OCR      = env("OPENROUTER_MODEL_OCR", default="anthropic/claude-3-haiku")
+OPENROUTER_MODEL_TEXT     = env("OPENROUTER_MODEL_TEXT", default="anthropic/claude-3-haiku")
+OPENROUTER_MODEL_FALLBACK = env("OPENROUTER_MODEL_FALLBACK", default="anthropic/claude-3-haiku")
 
 # --- Azure AD / MSAL ---
 AZURE_CLIENT_ID = env("AZURE_CLIENT_ID", default="")

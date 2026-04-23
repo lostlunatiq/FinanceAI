@@ -17,10 +17,19 @@ class LoginSerializer(serializers.Serializer):
         return data
 
 
+from django.contrib.auth.models import Group
+
+class GroupSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Group
+        fields = ["id", "name"]
+
+
 class UserProfileSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source="department.name", read_only=True, default="")
     full_name = serializers.SerializerMethodField()
     is_vendor = serializers.SerializerMethodField()
+    group_names = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -38,6 +47,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "department_name",
             "employee_grade",
             "is_vendor",
+            "group_names",
+            "groups",
         ]
         read_only_fields = ["id", "username", "last_login"]
 
@@ -49,6 +60,9 @@ class UserProfileSerializer(serializers.ModelSerializer):
             return obj.vendor_profile is not None
         except Exception:
             return False
+
+    def get_group_names(self, obj):
+        return list(obj.groups.values_list("name", flat=True))
 
 
 class RegisterUserSerializer(serializers.ModelSerializer):

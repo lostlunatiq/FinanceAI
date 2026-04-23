@@ -130,6 +130,7 @@ class UserDetailView(APIView):
             "employee_grade",
             "department",
             "is_superuser",
+            "groups",
         }
         data = {k: v for k, v in request.data.items() if k in allowed_fields}
 
@@ -231,32 +232,36 @@ class NLQueryView(APIView):
 
 
 def _run_nl_query(question: str, user) -> dict:
-    """Run NL query using OpenRouter and real DB data."""
+    """Run NL query using OpenRouter and real DB data, scoped by user role."""
     from ai.tools.openrouter_client import call_text_model
-    from apps.invoices.models import Expense, Vendor
+    from apps.invoices.models import Expense, Vendor, ExpenseApprovalStep
     from django.db.models import Sum, Count, Avg, Q
 
-    # Gather context data from DB
-    ctx = {}
+    # ─── 1. Determine Role ───
+    is_vendor = hasattr(user, "vendor_profile") and user.vendor_profile is not None
+    is_cfo = user.is_superuser
+    grade = getattr(user, "employee_grade", 1)
 
-    # Top vendors by spend
-    top_vendors = (
-        Expense.objects.filter(_status__in=["PAID", "APPROVED", "BOOKED_D365", "POSTED_D365"])
-        .values("vendor__name")
-        .annotate(total=Sum("total_amount"), count=Count("id"))
-        .order_by("-total")[:10]
+    # ─── 2. Gather Scoped Context ───
+    ctx = {"user_role": user.grade_label if not is_vendor else "Vendor"}
+
+    # Base querysets
+    expense_qs = Expense.objects.all()
+    if is_vendor:
+        expense_qs = expense_qs.filter(vendor=user.vendor_profile)
+        ctx["vendor_name"] = user.vendor_profile.name
+    elif grade < 3 and not is_cfo: # Employee or Dept Head (G1, G2)
+        expense_qs = expense_qs.filter(submitted_by=user)
+
+    # Total Outstanding
+    ctx["total_outstanding"] = float(
+        expense_qs.exclude(
+            _status__in=["PAID", "REJECTED", "WITHDRAWN", "AUTO_REJECT"]
+        ).aggregate(total=Sum("total_amount"))["total"] or 0
     )
-    ctx["top_vendors"] = [
-        {
-            "vendor": v["vendor__name"],
-            "total_spend": float(v["total"] or 0),
-            "invoice_count": v["count"],
-        }
-        for v in top_vendors
-    ]
 
-    # Status distribution
-    status_dist = Expense.objects.values("_status").annotate(
+    # Status Distribution
+    status_dist = expense_qs.values("_status").annotate(
         count=Count("id"), amount=Sum("total_amount")
     )
     ctx["expense_status"] = [
@@ -264,26 +269,64 @@ def _run_nl_query(question: str, user) -> dict:
         for s in status_dist
     ]
 
-    # Anomaly stats
-    ctx["anomaly_count"] = Expense.objects.filter(anomaly_severity__in=["HIGH", "CRITICAL"]).count()
-    ctx["total_outstanding"] = float(
-        Expense.objects.exclude(
-            _status__in=["PAID", "REJECTED", "WITHDRAWN", "AUTO_REJECT"]
-        ).aggregate(total=Sum("total_amount"))["total"]
-        or 0
-    )
+    # Role-specific extras
+    if is_cfo or grade >= 4:
+        # Top vendors by spend
+        top_vendors = (
+            Expense.objects.filter(_status__in=["PAID", "APPROVED", "BOOKED_D365", "POSTED_D365"])
+            .values("vendor__name")
+            .annotate(total=Sum("total_amount"), count=Count("id"))
+            .order_by("-total")[:5]
+        )
+        ctx["top_vendors"] = [
+            {"vendor": v["vendor__name"], "total_spend": float(v["total"] or 0), "invoice_count": v["count"]}
+            for v in top_vendors
+        ]
+        ctx["anomaly_count"] = Expense.objects.filter(anomaly_severity__in=["HIGH", "CRITICAL"]).count()
+        
+        # ─── Deep Budget Intelligence ───
+        from apps.invoices.models import Budget
+        budgets = Budget.objects.filter(status="active").select_related("department")
+        ctx["budget_health"] = []
+        for b in budgets:
+            spent = float(b.spent_amount or 0)
+            total = float(b.total_amount or 1)
+            util = round((spent / total) * 100, 1)
+            variance = total - spent
+            status = "HEALTHY"
+            if util >= 100: status = "OVER_BUDGET (CRITICAL)"
+            elif util >= 90: status = "NEAR_LIMIT (WARNING)"
+            
+            ctx["budget_health"].append({
+                "dept": b.department.name if b.department else b.name,
+                "spent": spent,
+                "total": total,
+                "util_pct": util,
+                "variance": variance,
+                "status": status
+            })
+        
+        # Treasury health
+        ctx["treasury_index"] = 85 
 
-    # Pending approvals
-    from apps.invoices.models import ExpenseApprovalStep
-
+    # Pending Queue (For everyone)
     ctx["pending_my_queue"] = ExpenseApprovalStep.objects.filter(
         assigned_to=user, status="PENDING"
     ).count()
 
-    system_prompt = """You are FinanceAI's CFO Copilot — an expert financial assistant.
-You have access to real-time financial data. Answer questions concisely and accurately.
+    # ─── 3. Construct Prompts ───
+    role_title = "CFO Copilot"
+    if is_vendor: role_title = "Vendor Assistant"
+    elif grade < 3 and not is_cfo: role_title = "Personal Expense Assistant"
+    else: role_title = "Finance Intelligence Copilot"
+
+    system_prompt = f"""You are FinanceAI's {role_title} — a strict financial intelligence engine.
+You MUST provide answers based ONLY on the database context provided below.
+DO NOT guess or use outside information. If the data is not in the context, say "I don't have that specific data in my records."
 Always format currency as ₹ with Indian numbering (e.g., ₹1,42,500).
-Be direct and actionable. If data is insufficient, say so clearly."""
+Your tone should be professional, data-driven, and highly detailed.
+Explain the numbers you are providing.
+IMPORTANT: You are restricted to the context of the current user: {ctx['user_role']}."""
 
     user_prompt = f"""Financial Data Context:
 {_format_context(ctx)}
@@ -291,14 +334,13 @@ Be direct and actionable. If data is insufficient, say so clearly."""
 User Question: {question}
 
 Provide a clear, direct answer. Include specific numbers from the data above.
-Also provide a brief "insight" (one actionable observation).
+Also provide a brief "insight" (one actionable observation based on the user's role).
 Format your response as JSON:
 {{"answer": "...", "insight": "...", "data_used": ["list of data points used"]}}"""
 
     try:
         response = call_text_model(prompt=user_prompt, system_prompt=system_prompt)
         import json
-
         content = response.get("content", "{}")
         # Clean JSON
         content = content.strip()
@@ -315,22 +357,40 @@ Format your response as JSON:
         parsed["model"] = response.get("model", "")
         return parsed
     except Exception:
-        # Fallback: rule-based answer
         return _rule_based_answer(question, ctx)
 
 
 def _format_context(ctx: dict) -> str:
     lines = []
+    lines.append(f"User Role: {ctx.get('user_role')}")
+    if "vendor_name" in ctx:
+        lines.append(f"Vendor Name: {ctx['vendor_name']}")
+
     lines.append(f"Total Outstanding: ₹{ctx['total_outstanding']:,.0f}")
-    lines.append(f"Anomalies (HIGH/CRITICAL): {ctx['anomaly_count']}")
-    lines.append(f"Your Pending Queue: {ctx['pending_my_queue']} items")
-    lines.append("Top Vendors by Spend:")
-    for v in ctx["top_vendors"][:5]:
-        lines.append(f"  - {v['vendor']}: ₹{v['total_spend']:,.0f} ({v['invoice_count']} invoices)")
-    lines.append("Expense Status Distribution:")
+    if "anomaly_count" in ctx:
+        lines.append(f"System Anomalies (HIGH/CRITICAL): {ctx['anomaly_count']}")
+
+    lines.append(f"Pending Items in Your Queue: {ctx['pending_my_queue']}")
+
+    if "top_vendors" in ctx:
+        lines.append("Top Vendors by Spend:")
+        for v in ctx["top_vendors"]:
+            lines.append(f"  - {v['vendor']}: ₹{v['total_spend']:,.0f} ({v['invoice_count']} inv)")
+            
+    if "budget_health" in ctx:
+        lines.append("Budget Health (Active):")
+        for b in ctx["budget_health"]:
+            lines.append(f"  - {b['name']}: {b['util_pct']}% used (₹{b['spent']:,.0f} of ₹{b['total']:,.0f})")
+            
+    if "treasury_index" in ctx:
+        lines.append(f"Treasury Health Index: {ctx['treasury_index']}%")
+
+    lines.append("Status Distribution:")
     for s in ctx["expense_status"]:
         lines.append(f"  - {s['status']}: {s['count']} items, ₹{s['amount']:,.0f}")
+
     return "\n".join(lines)
+
 
 
 def _rule_based_answer(question: str, ctx: dict) -> dict:
@@ -355,3 +415,20 @@ def _rule_based_answer(question: str, ctx: dict) -> dict:
         answer = f"Outstanding: ₹{ctx['total_outstanding']:,.0f} | Anomalies: {ctx['anomaly_count']} | Your queue: {ctx['pending_my_queue']}"
         insight = "Review the dashboard for full financial overview."
     return {"answer": answer, "insight": insight, "context": ctx}
+
+from django.contrib.auth.models import Group
+from .auth_serializers import GroupSerializer
+
+class GroupListView(APIView):
+    permission_classes = [IsAuthenticated, HasMinimumGrade.make(4)]
+
+    def get(self, request):
+        groups = Group.objects.all().order_by("name")
+        return Response(GroupSerializer(groups, many=True).data)
+
+    def post(self, request):
+        name = request.data.get("name")
+        if not name:
+            return Response({"error": "Group name required."}, status=400)
+        group, created = Group.objects.get_or_create(name=name)
+        return Response(GroupSerializer(group).data, status=201 if created else 200)

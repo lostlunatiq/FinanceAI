@@ -84,7 +84,7 @@ class Vendor(models.Model):
     status = models.CharField(max_length=20, choices=VENDOR_STATUS_CHOICES, default="PENDING")
 
     # Analytics — updated by signals or periodic tasks
-    avg_invoice_amount = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    avg_invoice_amount = models.DecimalField(max_digits=18, decimal_places=2, default=0, null=True, blank=True)
     invoice_count = models.IntegerField(default=0)
 
     # Optional portal user link

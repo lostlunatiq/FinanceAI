@@ -202,4 +202,93 @@ const StatsRow = ({ cards }) => (
   </div>
 );
 
-Object.assign(window, { DS_COLORS, Btn, StatusBadge, KPICard, TjModal, SidePanel, AIBadge, LiveDot, TjInput, TjTextarea, SectionHeader, Card, StatsRow });
+const FloatingCopilot = ({ role }) => {
+  const [open, setOpen] = React.useState(false);
+  const [msg, setMsg] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
+  const roleKey = role || 'CFO';
+  
+  const SUGGESTIONS = {
+    'CFO': ['Cash flow this month', 'Anomaly summary', 'Top vendors by spend', 'Which department is over budget?'],
+    'Finance Admin': ['Pending vendor approvals', 'Anomaly summary', 'Audit log today', 'System status'],
+    'Finance Manager': ['Team budget status', 'My pending approvals', 'Top spenders', 'Variance summary'],
+    'AP Clerk': ['My queue summary', 'High risk invoices', 'Average processing time', 'Near SLA limit'],
+    'Employee': ['Last reimbursement status', 'Travel budget left', 'Help me file expense', 'Expense summary'],
+    'Vendor': ['When is my payment?', 'Outstanding amount', 'Status of last invoice', 'How to submit bill?'],
+  };
+  const queries = SUGGESTIONS[roleKey] || SUGGESTIONS['Employee'];
+
+  const getTitle = () => {
+    if (roleKey === 'Vendor') return 'Vendor Assistant';
+    if (roleKey === 'Employee') return 'Expense Assistant';
+    return `${roleKey} Copilot`;
+  };
+
+  const [chat, setChat] = React.useState([
+    { role: 'ai', text: `Hello! I'm your ${getTitle()}. How can I help you today?` }
+  ]);
+
+  const send = async (text) => {
+    const q = text || msg.trim();
+    if (!q || loading) return;
+    setMsg('');
+    setChat(prev => [...prev, { role: 'user', text: q }]);
+    setLoading(true);
+    try {
+      const res = await window.TijoriAPI.NLQueryAPI.ask(q);
+      setChat(prev => [...prev, { role: 'ai', text: res.answer || res.error || 'No response.', insight: res.insight }]);
+    } catch (e) {
+      setChat(prev => [...prev, { role: 'ai', text: 'Error connecting to AI service.' }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <button onClick={() => setOpen(true)}
+        style={{ position: 'fixed', bottom: 28, right: 28, width: 52, height: 52, borderRadius: '50%', background: 'linear-gradient(135deg, #E8783B, #FF6B35)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', color: 'white', zIndex: 100, boxShadow: '0 4px 20px rgba(232,120,59,0.5)', transition: 'all 200ms' }}>
+        ✦
+      </button>
+
+      <SidePanel open={open} onClose={() => setOpen(false)} title={getTitle()} width={400}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+          <AIBadge /><LiveDot color="#E8783B" /><span style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Powered by Tijori Intelligence</span>
+        </div>
+        <div style={{ height: 'calc(100vh - 280px)', minHeight: 300, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px', paddingRight: 4 }}>
+          {chat.map((m, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+              <div style={{ maxWidth: '85%' }}>
+                <div style={{ padding: '10px 14px', borderRadius: m.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', background: m.role === 'user' ? 'linear-gradient(135deg, #E8783B, #FF6B35)' : '#F8F7F5', color: m.role === 'user' ? 'white' : '#0F172A', fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.55 }}>
+                  {m.text}
+                </div>
+                {m.insight && (
+                  <div style={{ background: '#F5F3FF', border: '1px solid #EDE9FE', borderRadius: '8px', padding: '8px 12px', marginTop: '6px', fontSize: '12px', color: '#5B21B6', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    <span style={{ fontWeight: 700 }}>Insight: </span>{m.insight}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+          {loading && (
+            <div style={{ display: 'flex', gap: '4px', padding: '10px 14px', background: '#F8F7F5', borderRadius: '14px 14px 14px 4px', width: 'fit-content' }}>
+              {[0,1,2].map(n => <div key={n} style={{ width: 6, height: 6, borderRadius: '50%', background: '#E8783B', animation: 'dotPulse 1.2s ease infinite', animationDelay: `${n*0.2}s` }} />)}
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: '8px', position: 'sticky', bottom: 0, background: 'white', paddingTop: 10 }}>
+          <input value={msg} onChange={e => setMsg(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} placeholder="Ask about finances…"
+            style={{ flex: 1, padding: '10px 14px', border: '1.5px solid #E2E8F0', borderRadius: '10px', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '13px', outline: 'none', background: '#FAFAF8' }} />
+          <Btn variant="primary" onClick={() => send()} small disabled={loading}>Send</Btn>
+        </div>
+        <div style={{ marginTop: '12px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+          {queries.map(s => (
+            <button key={s} onClick={() => send(s)} disabled={loading} style={{ padding: '5px 10px', background: '#F8F7F5', border: '1px solid #E2E8F0', borderRadius: '999px', fontSize: '11px', color: '#475569', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 500 }}>{s}</button>
+          ))}
+        </div>
+      </SidePanel>
+    </>
+  );
+};
+
+Object.assign(window, { DS_COLORS, Btn, StatusBadge, KPICard, TjModal, SidePanel, AIBadge, LiveDot, TjInput, TjTextarea, SectionHeader, Card, StatsRow, FloatingCopilot });

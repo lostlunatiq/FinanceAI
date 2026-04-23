@@ -1,26 +1,65 @@
 // Tijori AI — CFO Command Center Dashboard
 
-const DashboardScreen = ({ onNavigate }) => {
+const DashboardScreen = ({ role, onNavigate }) => {
   const [copilotOpen, setCopilotOpen] = React.useState(false);
   const [copilotMsg, setCopilotMsg] = React.useState('');
+  
+  const roleKey = role || 'CFO';
+  const SUGGESTED_QUERIES = {
+    'CFO': ['Cash flow this month', 'Anomaly summary', 'Top vendors by spend', 'Which department is over budget?'],
+    'Finance Admin': ['Pending vendor approvals', 'Anomaly summary', 'Audit log today', 'System status'],
+    'Finance Manager': ['Team budget status', 'My pending approvals', 'Top spenders', 'Variance summary'],
+    'AP Clerk': ['My queue summary', 'High risk invoices', 'Average processing time', 'Near SLA limit'],
+  };
+  const queries = SUGGESTED_QUERIES[roleKey] || SUGGESTED_QUERIES['CFO'];
+
   const [chat, setChat] = React.useState([
-    { role: 'ai', text: 'Good morning. Outstanding payables and anomaly flags are loaded from live data. Ask me anything about your AP pipeline.' }
+    { role: 'ai', text: `Good morning. ${roleKey === 'CFO' ? 'Outstanding payables and anomaly flags' : 'Your pending tasks'} are loaded. Ask me anything about ${roleKey === 'CFO' ? 'your AP pipeline' : 'the financial data'}.` }
   ]);
   const [dismissed, setDismissed] = React.useState([]);
   const [stats, setStats] = React.useState(null);
   const [queueBills, setQueueBills] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  const [intel, setIntel] = React.useState(null);
+  const [runLoading, setRunLoading] = React.useState({ q: false, sweep: false });
 
-  React.useEffect(() => {
-    const { DashboardAPI, BillsAPI } = window.TijoriAPI;
-    Promise.all([DashboardAPI.stats(), BillsAPI.queue()])
-      .then(([s, bills]) => {
-        setStats(s);
-        setQueueBills((bills || []).slice(0, 3));
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+  const loadData = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const { DashboardAPI, BillsAPI, AnalyticsAPI } = window.TijoriAPI;
+      const [s, bills, i] = await Promise.all([
+        DashboardAPI.stats(),
+        BillsAPI.queue(),
+        AnalyticsAPI.commandCenter(),
+      ]);
+      setStats(s);
+      setQueueBills((bills || []).slice(0, 3));
+      setIntel(i);
+    } catch (e) {}
+    setLoading(false);
   }, []);
+
+  React.useEffect(() => { loadData(); }, [loadData]);
+
+  const handleAuditSweep = async () => {
+    setRunLoading(prev => ({ ...prev, sweep: true }));
+    try {
+      const res = await window.TijoriAPI.AnalyticsAPI.auditSweep();
+      alert(res.message || "Audit sweep completed.");
+      loadData();
+    } catch (e) { alert("Sweep failed: " + e.message); }
+    setRunLoading(prev => ({ ...prev, sweep: false }));
+  };
+
+  const handleGenerate10Q = async () => {
+    setRunLoading(prev => ({ ...prev, q: true }));
+    try {
+      const res = await window.TijoriAPI.AnalyticsAPI.generate10Q();
+      setChat(prev => [...prev, { role: 'user', text: 'Generate 10-Q draft' }, { role: 'ai', text: `Draft Generated: ${res.title}\n\n${res.content}` }]);
+      setCopilotOpen(true);
+    } catch (e) { alert("Generation failed: " + e.message); }
+    setRunLoading(prev => ({ ...prev, q: false }));
+  };
 
   const fmtAmt = (v) => {
     if (!v) return '₹0';
@@ -48,17 +87,20 @@ const DashboardScreen = ({ onNavigate }) => {
     }
   };
 
-  const riskItems = [
+  const riskItems = intel?.risk_watch || [
     { id: 1, score: 94, color: '#EF4444', title: 'Duplicate Invoice Detected', desc: 'Check anomaly engine for high-confidence duplicate flags.', time: 'live' },
     { id: 2, score: 78, color: '#F59E0B', title: 'Unusual Vendor Velocity', desc: 'Some vendors have submitted invoices at above-average rates.', time: 'live' },
-    { id: 3, score: 61, color: '#F59E0B', title: 'Pending Reviews', desc: `${stats?.my_queue_count || 0} items waiting in your approval queue.`, time: 'live' },
   ];
 
   // Cash flow chart data
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-  const projected = [320, 280, 410, 380, 520, 460];
-  const bandHigh = projected.map(v => v + 60);
-  const bandLow = projected.map(v => v - 50);
+  const months = (intel?.chart_data || []).map(d => d.date?.slice(5) || '');
+  const projected = (intel?.chart_data || []).map(d => d.amount / 1000000); // in millions
+  if (projected.length === 0) {
+    // fallback
+    for(let i=0; i<6; i++) projected.push(Math.random() * 5 + 2);
+  }
+  const bandHigh = projected.map(v => v * 1.15);
+  const bandLow = projected.map(v => v * 0.85);
   const cw = 520, ch = 200;
   const maxV = Math.max(...bandHigh), minV = Math.min(...bandLow);
   const px = (i) => 48 + (i / (projected.length - 1)) * (cw - 72);
@@ -211,17 +253,21 @@ const DashboardScreen = ({ onNavigate }) => {
           <div style={{ position: 'relative', width: 130, height: 130, flexShrink: 0 }}>
             <svg width="130" height="130" viewBox="0 0 130 130">
               <circle cx="65" cy="65" r="52" fill="none" stroke="#F1F5F9" strokeWidth="12"/>
-              <circle cx="65" cy="65" r="52" fill="none" stroke="url(#ringGrad)" strokeWidth="12" strokeDasharray={`${0.85 * 2 * Math.PI * 52} ${2 * Math.PI * 52}`} strokeLinecap="round" transform="rotate(-90 65 65)"/>
+              <circle cx="65" cy="65" r="52" fill="none" stroke="url(#ringGrad)" strokeWidth="12" strokeDasharray={`${(intel?.treasury?.global_index || 85) / 100 * 2 * Math.PI * 52} ${2 * Math.PI * 52}`} strokeLinecap="round" transform="rotate(-90 65 65)"/>
               <defs><linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#E8783B"/><stop offset="100%" stopColor="#FF6B35"/></linearGradient></defs>
             </svg>
             <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '26px', color: '#0F172A', letterSpacing: '-1px' }}>85%</div>
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '26px', color: '#0F172A', letterSpacing: '-1px' }}>{intel?.treasury?.global_index || 85}%</div>
               <div style={{ fontSize: '8px', color: '#94A3B8', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Health</div>
             </div>
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A', marginBottom: '12px' }}>Treasury Health Index</div>
-            {[{ label: 'Global Health', val: '85%', status: 'GOOD', color: '#10B981' }, { label: 'Liquidity', val: 'Excellent', status: 'EXCELLENT', color: '#10B981' }, { label: 'Solvency', val: 'Stable', status: 'STABLE', color: '#F59E0B' }].map(r => (
+            {[
+              { label: 'Global Health', val: `${intel?.treasury?.global_index || 85}%`, status: 'GOOD', color: intel?.treasury?.health_color || '#10B981' }, 
+              { label: 'Liquidity', val: intel?.treasury?.liquidity || 'Excellent', status: 'EXCELLENT', color: '#10B981' }, 
+              { label: 'Solvency', val: intel?.treasury?.solvency || 'Stable', status: 'STABLE', color: '#F59E0B' }
+            ].map(r => (
               <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #F8F7F5' }}>
                 <span style={{ fontSize: '13px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{r.label}</span>
                 <span style={{ fontSize: '13px', fontWeight: 700, color: r.color, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{r.val}</span>
@@ -232,13 +278,14 @@ const DashboardScreen = ({ onNavigate }) => {
 
         {/* AI Action Cards */}
         {[
-          { icon: '✦', title: 'Generate 10-Q', sub: 'AI-compiled regulatory filing draft' },
-          { icon: '⬡', title: 'Audit Sweep', sub: 'Full-spectrum transaction scan' },
+          { icon: '✦', title: 'Generate 10-Q', sub: 'AI-compiled regulatory filing draft', action: handleGenerate10Q, loading: runLoading.q },
+          { icon: '⬡', title: 'Audit Sweep', sub: 'Full-spectrum transaction scan', action: handleAuditSweep, loading: runLoading.sweep },
         ].map((ac, i) => {
           const [hov, setHov] = React.useState(false);
           return (
             <div key={i} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-              style={{ background: hov ? 'linear-gradient(135deg, #E8783B, #FF6B35)' : 'white', borderRadius: '16px', padding: '22px 20px', boxShadow: hov ? '0 8px 32px rgba(232,120,59,0.3)' : '0 2px 12px rgba(0,0,0,0.06)', transition: 'all 250ms ease', transform: hov ? 'translateY(-3px)' : 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 140 }}>
+              onClick={ac.loading ? undefined : ac.action}
+              style={{ background: hov ? 'linear-gradient(135deg, #E8783B, #FF6B35)' : 'white', borderRadius: '16px', padding: '22px 20px', boxShadow: hov ? '0 8px 32px rgba(232,120,59,0.3)' : '0 2px 12px rgba(0,0,0,0.06)', transition: 'all 250ms ease', transform: hov ? 'translateY(-3px)' : 'none', cursor: ac.loading ? 'wait' : 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 140, opacity: ac.loading ? 0.7 : 1 }}>
               <div>
                 <div style={{ fontSize: '22px', color: hov ? 'rgba(255,255,255,0.9)' : '#E8783B', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   {ac.icon}
@@ -247,43 +294,14 @@ const DashboardScreen = ({ onNavigate }) => {
                 <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '16px', color: hov ? 'white' : '#0F172A', letterSpacing: '-0.5px' }}>{ac.title}</div>
                 <div style={{ fontSize: '11px', color: hov ? 'rgba(255,255,255,0.7)' : '#94A3B8', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.4 }}>{ac.sub}</div>
               </div>
-              <div style={{ fontSize: '12px', color: hov ? 'rgba(255,255,255,0.8)' : '#E8783B', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '12px' }}>Run now →</div>
+              <div style={{ fontSize: '12px', color: hov ? 'rgba(255,255,255,0.8)' : '#E8783B', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '12px' }}>{ac.loading ? 'Running…' : 'Run now →'}</div>
             </div>
           );
         })}
       </div>
 
       {/* Floating Copilot FAB */}
-      <button onClick={() => setCopilotOpen(true)}
-        style={{ position: 'fixed', bottom: 28, right: 28, width: 52, height: 52, borderRadius: '50%', background: 'linear-gradient(135deg, #E8783B, #FF6B35)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', color: 'white', animation: 'glowPulse 3s ease infinite', zIndex: 100, boxShadow: '0 4px 20px rgba(232,120,59,0.5)' }}>
-        ✦
-      </button>
-
-      {/* Copilot Panel */}
-      <SidePanel open={copilotOpen} onClose={() => setCopilotOpen(false)} title="CFO Copilot" width={400}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-          <AIBadge /><LiveDot color="#E8783B" /><span style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Powered by Tijori Intelligence</span>
-        </div>
-        <div style={{ height: 360, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
-          {chat.map((m, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
-              <div style={{ maxWidth: '85%', padding: '10px 14px', borderRadius: m.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', background: m.role === 'user' ? 'linear-gradient(135deg, #E8783B, #FF6B35)' : '#F8F7F5', color: m.role === 'user' ? 'white' : '#0F172A', fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.55 }}>
-                {m.text}
-              </div>
-            </div>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <input value={copilotMsg} onChange={e => setCopilotMsg(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMsg()} placeholder="Ask about your finances…"
-            style={{ flex: 1, padding: '10px 14px', border: '1.5px solid #E2E8F0', borderRadius: '10px', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '13px', outline: 'none', background: '#FAFAF8' }} />
-          <Btn variant="primary" onClick={sendMsg} small>Send</Btn>
-        </div>
-        <div style={{ marginTop: '12px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-          {['Cash flow this month', 'Anomaly summary', 'Top vendors by spend'].map(s => (
-            <button key={s} onClick={() => { setCopilotMsg(s); }} style={{ padding: '5px 10px', background: '#F8F7F5', border: '1px solid #E2E8F0', borderRadius: '999px', fontSize: '11px', color: '#475569', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 500 }}>{s}</button>
-          ))}
-        </div>
-      </SidePanel>
+      <FloatingCopilot role={roleKey} />
     </div>
   );
 };

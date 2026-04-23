@@ -2,7 +2,7 @@
 
 // ─── AP CLERK DASHBOARD ───────────────────────────────────────────────────────
 
-const APClerkDashboard = ({ onNavigate }) => {
+const APClerkDashboard = ({ role, onNavigate }) => {
   const [modal, setModal] = React.useState(null);
   const [notes, setNotes] = React.useState('');
   const [items, setItems] = React.useState([]);
@@ -150,13 +150,15 @@ const APClerkDashboard = ({ onNavigate }) => {
           </div>
         </TjModal>
       )}
+
+      <FloatingCopilot role={role} />
     </div>
   );
 };
 
 // ─── FINANCE MANAGER DASHBOARD ────────────────────────────────────────────────
 
-const FinanceManagerDashboard = ({ onNavigate }) => {
+const FinanceManagerDashboard = ({ role, onNavigate }) => {
   const [expandedTeam, setExpandedTeam] = React.useState(null);
   const approvalChain = [
     { stage: 'Pending L1', count: 4, amount: '₹4.75L', color: '#F59E0B', items: ['INV-2024-090 · GlobalSync · ₹1,22,500'] },
@@ -366,13 +368,15 @@ const FinanceAdminDashboard = ({ onNavigate }) => {
           </div>
         </TjModal>
       )}
+
+      <FloatingCopilot role={role} />
     </div>
   );
 };
 
 // ─── EMPLOYEE DASHBOARD ───────────────────────────────────────────────────────
 
-const EmployeeDashboard = ({ onNavigate }) => {
+const EmployeeDashboard = ({ role, onNavigate }) => {
   const [fileOpen, setFileOpen] = React.useState(false);
   const [expCategory, setExpCategory] = React.useState('Travel');
   const [expAmount, setExpAmount] = React.useState('');
@@ -535,6 +539,8 @@ const EmployeeDashboard = ({ onNavigate }) => {
         <TjTextarea label="Description" placeholder="What was this expense for?" rows={3} />
         <Btn variant="primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setFileOpen(false)}>Submit for Approval</Btn>
       </SidePanel>
+
+      <FloatingCopilot role={role} />
     </div>
   );
 };
