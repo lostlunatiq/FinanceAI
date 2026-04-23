@@ -1,105 +1,83 @@
 /**
  * FinanceAI — Auth Utilities
- * JWT token management, role-based routing, and session guard.
+ * JWT token management, grade-based routing, and session guard.
  */
 
 const AUTH = {
-    /**
-     * Check if user is authenticated. Redirect to login if not.
-     */
+
     requireAuth() {
         const token = localStorage.getItem('financeai_access_token');
         if (!token) {
             window.location.href = '/frontend/financeai_login/code.html';
             return false;
         }
-
-        // Check token expiry (JWT payload is base64)
         try {
             const payload = JSON.parse(atob(token.split('.')[1]));
             if (payload.exp * 1000 < Date.now()) {
-                console.warn('Token expired, redirecting to login');
                 AUTH.clearSession();
                 window.location.href = '/frontend/financeai_login/code.html';
                 return false;
             }
-        } catch (e) {
-            // If we can't parse, assume valid
-        }
-
+        } catch (e) {}
         return true;
     },
 
-    /**
-     * Get the current user's role
-     */
-    getRole() {
+    // ✅ grade is now the source of truth — not role string
+    getGrade() {
         const user = AUTH.getUser();
-        return user?.role || '';
+        return user?.employee_grade || 1;
     },
 
-    /**
-     * Get the current user object
-     */
+    // ✅ kept for vendor detection only (vendor is still a special case)
+    isVendor() {
+        const user = AUTH.getUser();
+        return !!user?.vendor_profile || user?.is_vendor === true;
+    },
+
     getUser() {
         const data = localStorage.getItem('financeai_user');
         return data ? JSON.parse(data) : null;
     },
 
-    /**
-     * Check if user has a specific role
-     */
-    hasRole(role) {
-        return AUTH.getRole() === role;
+    // ✅ grade-based checks replace hasRole / hasAnyRole
+    hasMinGrade(minGrade) {
+        return AUTH.getGrade() >= minGrade;
     },
 
-    /**
-     * Check if user has any of the given roles
-     */
-    hasAnyRole(...roles) {
-        return roles.includes(AUTH.getRole());
+    isSuperuser() {
+        return AUTH.getUser()?.is_superuser === true;
     },
 
-    /**
-     * Clear the session
-     */
     clearSession() {
         localStorage.removeItem('financeai_access_token');
         localStorage.removeItem('financeai_refresh_token');
         localStorage.removeItem('financeai_user');
     },
 
-    /**
-     * Route user to appropriate dashboard based on their role
-     */
+    // ✅ routing by grade, not role string
     routeToDashboard() {
-        const role = AUTH.getRole();
-        const routes = {
-            'vendor': '/frontend/vendor_portal/code.html',
-            'employee': '/frontend/accounts_payable_hub/code.html',
-            'dept_head': '/frontend/accounts_payable_hub/code.html',
-            'finance_manager': '/frontend/accounts_payable_hub/code.html',
-            'finance_admin': '/frontend/cfo_command_center/code.html',
-        };
-        window.location.href = routes[role] || '/frontend/accounts_payable_hub/code.html';
+        if (AUTH.isVendor()) {
+            window.location.href = '/frontend/vendor_portal/code.html';
+            return;
+        }
+        const grade = AUTH.getGrade();
+        if (grade >= 4 || AUTH.isSuperuser()) {
+            window.location.href = '/frontend/cfo_command_center/code.html';
+        } else {
+            window.location.href = '/frontend/accounts_payable_hub/code.html';
+        }
     },
 
-    /**
-     * Setup user display in header (name + role badge + logout)
-     */
     setupHeader() {
         const user = AUTH.getUser();
         if (!user) return;
 
-        // Try to find and populate header elements
-        const nameEl = document.querySelector('[data-user-name]');
-        const roleEl = document.querySelector('[data-user-role]');
+        const nameEl    = document.querySelector('[data-user-name]');
+        const gradeEl   = document.querySelector('[data-user-role]');   // same slot, shows grade label
         const logoutBtn = document.querySelector('[data-logout]');
 
-        if (nameEl) nameEl.textContent = user.full_name || user.username;
-        if (roleEl) {
-            roleEl.textContent = user.role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-        }
+        if (nameEl)  nameEl.textContent  = user.full_name || user.username;
+        if (gradeEl) gradeEl.textContent = AUTH._gradeLabel(AUTH.getGrade());
         if (logoutBtn) {
             logoutBtn.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -108,9 +86,19 @@ const AUTH = {
             });
         }
     },
+
+    // ── internal helpers ──────────────────────────────────────────
+
+    _gradeLabel(grade) {
+        return {
+            1: 'Employee',
+            2: 'Department Head',
+            3: 'Finance Manager',
+            4: 'Finance Admin',
+        }[grade] || `Grade ${grade}`;
+    },
 };
 
-// Auto-check auth on page load (except login page)
 if (!window.location.pathname.includes('financeai_login')) {
     document.addEventListener('DOMContentLoaded', () => {
         AUTH.requireAuth();

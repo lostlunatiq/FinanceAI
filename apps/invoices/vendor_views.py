@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
-from apps.core.permissions import IsFinanceAdmin, IsFinanceManager
+from apps.core.permissions import HasMinimumGrade
 from .models import Vendor, Expense, ExpenseApprovalStep, STEP_TO_STATUS
 from .vendor_serializers import (
     VendorOnboardSerializer,
@@ -39,9 +39,7 @@ class VendorListView(APIView):
         search = request.query_params.get("search")
         if search:
             vendors = vendors.filter(
-                Q(name__icontains=search)
-                | Q(gstin__icontains=search)
-                | Q(email__icontains=search)
+                Q(name__icontains=search) | Q(gstin__icontains=search) | Q(email__icontains=search)
             )
 
         return Response(VendorDetailSerializer(vendors, many=True).data)
@@ -65,12 +63,15 @@ class VendorCreateView(APIView):
         user_created = None
         if create_user and portal_username and portal_password:
             from apps.core.models import User as UserModel
+
             if not UserModel.objects.filter(username=portal_username).exists():
                 portal_user = UserModel.objects.create(
                     username=portal_username,
                     email=vendor.email or f"{portal_username}@vendor.portal",
                     first_name=vendor.name.split()[0] if vendor.name else portal_username,
-                    last_name=" ".join(vendor.name.split()[1:]) if len(vendor.name.split()) > 1 else "",
+                    last_name=" ".join(vendor.name.split()[1:])
+                    if len(vendor.name.split()) > 1
+                    else "",
                     role="vendor",
                     is_active=True,
                 )
@@ -106,7 +107,7 @@ class VendorDetailView(APIView):
 class VendorActivateView(APIView):
     """POST /api/v1/vendors/<id>/activate/ — Activate vendor."""
 
-    permission_classes = [IsAuthenticated, IsFinanceAdmin]
+    permission_classes = [IsAuthenticated, HasMinimumGrade.make(4)]
 
     def post(self, request, pk):
         vendor = get_object_or_404(Vendor, pk=pk)
@@ -161,9 +162,7 @@ class VendorBillsView(APIView):
             expenses = Expense.objects.filter(vendor=vendor).order_by("-created_at")
         else:
             # Employee view — show bills they submitted
-            expenses = Expense.objects.filter(submitted_by=request.user).order_by(
-                "-created_at"
-            )
+            expenses = Expense.objects.filter(submitted_by=request.user).order_by("-created_at")
 
         # Optional status filter
         status_filter = request.query_params.get("status")
@@ -184,7 +183,9 @@ class VendorBillsView(APIView):
                 data["vendor"] = str(request.user.vendor_profile.id)
             else:
                 return Response(
-                    {"error": "No vendor profile linked. Provide vendor ID or link a vendor to your account."},
+                    {
+                        "error": "No vendor profile linked. Provide vendor ID or link a vendor to your account."
+                    },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -209,7 +210,10 @@ class VendorBillsView(APIView):
         # Auto-advance SUBMITTED → PENDING_L1 and create first approval step
         try:
             from .services import STATUS_TO_NEXT_STATUS, create_initial_approval_step
-            expense = transition_expense(expense, "PENDING_L1", request.user, "Auto-started approval", skip_sod=True)
+
+            expense = transition_expense(
+                expense, "PENDING_L1", request.user, "Auto-started approval", skip_sod=True
+            )
             create_initial_approval_step(expense)
         except Exception:
             pass  # Non-critical
@@ -217,6 +221,7 @@ class VendorBillsView(APIView):
         # Trigger OCR if invoice file present
         if expense.invoice_file:
             from .tasks import run_ocr_pipeline
+
             task = run_ocr_pipeline.delay(str(expense.id))
             expense.ocr_task_id = task.id
             expense.save(update_fields=["ocr_task_id"])
@@ -224,6 +229,7 @@ class VendorBillsView(APIView):
         # Run anomaly scan immediately (sync in dev, async in prod)
         try:
             from ai.pipelines.anomaly_pipeline import run_anomaly_checks
+
             result = run_anomaly_checks(expense)
             expense.anomaly_severity = result["severity"]
             flags = result.get("flags", [])
@@ -234,9 +240,7 @@ class VendorBillsView(APIView):
         except Exception:
             pass  # Non-critical — don't block submission
 
-        return Response(
-            VendorBillDetailSerializer(expense).data, status=status.HTTP_201_CREATED
-        )
+        return Response(VendorBillDetailSerializer(expense).data, status=status.HTTP_201_CREATED)
 
 
 class VendorBillDetailView(APIView):
@@ -263,16 +267,12 @@ class OCRExtractView(APIView):
 
         file_id = request.data.get("file_id")
         if not file_id:
-            return Response(
-                {"error": "file_id is required."}, status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "file_id is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             file_ref = FileRef.objects.get(pk=file_id)
         except FileRef.DoesNotExist:
-            return Response(
-                {"error": "File not found."}, status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({"error": "File not found."}, status=status.HTTP_404_NOT_FOUND)
 
         task = run_ocr_standalone.delay(str(file_ref.id))
         return Response(
@@ -348,9 +348,7 @@ class DashboardStatsView(APIView):
             "total_approved": base_qs.filter(
                 _status__in=["APPROVED", "PENDING_D365", "BOOKED_D365", "POSTED_D365"]
             ).count(),
-            "total_rejected": base_qs.filter(
-                _status__in=["REJECTED", "AUTO_REJECT"]
-            ).count(),
+            "total_rejected": base_qs.filter(_status__in=["REJECTED", "AUTO_REJECT"]).count(),
             "total_paid": base_qs.filter(_status="PAID").count(),
             "total_outstanding_amount": float(
                 base_qs.exclude(
@@ -361,9 +359,7 @@ class DashboardStatsView(APIView):
             "my_queue_count": ExpenseApprovalStep.objects.filter(
                 assigned_to=request.user, status="PENDING"
             ).count(),
-            "anomaly_count": base_qs.filter(
-                anomaly_severity__in=["HIGH", "CRITICAL"]
-            ).count(),
+            "anomaly_count": base_qs.filter(anomaly_severity__in=["HIGH", "CRITICAL"]).count(),
         }
 
         return Response(stats)

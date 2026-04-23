@@ -32,9 +32,7 @@ class ExpenseSubmitSerializer(serializers.ModelSerializer):
 
     def validate_business_purpose(self, value):
         if value and len(value.strip()) < 5:
-            raise serializers.ValidationError(
-                "Business purpose must be at least 5 characters."
-            )
+            raise serializers.ValidationError("Business purpose must be at least 5 characters.")
         return value
 
     def validate(self, data):
@@ -51,19 +49,15 @@ class ExpenseSubmitSerializer(serializers.ModelSerializer):
 
 
 class ExpenseApprovalStepSerializer(serializers.ModelSerializer):
-    assigned_to_name = serializers.CharField(
-        source="assigned_to.get_full_name", read_only=True
-    )
-    actual_actor_name = serializers.CharField(
-        source="actual_actor.get_full_name", read_only=True
-    )
+    assigned_to_name = serializers.CharField(source="assigned_to.get_full_name", read_only=True)
+    actual_actor_name = serializers.CharField(source="actual_actor.get_full_name", read_only=True)
 
     class Meta:
         model = ExpenseApprovalStep
         fields = [
             "id",
             "level",
-            "role_required",
+            "grade_required",
             "assigned_to",
             "assigned_to_name",
             "actual_actor",
@@ -78,9 +72,7 @@ class ExpenseApprovalStepSerializer(serializers.ModelSerializer):
 class ExpenseDetailSerializer(serializers.ModelSerializer):
     vendor = VendorSerializer(read_only=True)
     approval_steps = ExpenseApprovalStepSerializer(many=True, read_only=True)
-    submitted_by_name = serializers.CharField(
-        source="submitted_by.get_full_name", read_only=True
-    )
+    submitted_by_name = serializers.CharField(source="submitted_by.get_full_name", read_only=True)
 
     class Meta:
         model = Expense

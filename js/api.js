@@ -115,12 +115,6 @@ const ROLE_MAP = {
   'cfo':             'CFO',
 };
 
-function mapRole(backendRole, isSuperuser) {
-  if (isSuperuser) return 'CFO';
-  return ROLE_MAP[backendRole] || 'AP Clerk';
-}
-
-// ── Auth API ──────────────────────────────────────────────────────────────────
 
 const AuthAPI = {
   async login(username, password) {
@@ -135,8 +129,7 @@ const AuthAPI = {
     }
     const data = await res.json();
     Auth.setTokens(data.access, data.refresh);
-    const uiRole = mapRole(data.user?.role, data.user?.is_superuser);
-    return { ...data.user, uiRole };
+    return data.user;
   },
 
   async me() {
@@ -391,5 +384,5 @@ function expenseToAnomaly(exp, index) {
 // ── Export to window ──────────────────────────────────────────────────────────
 window.TijoriAPI = {
   Auth, AuthAPI, DashboardAPI, BillsAPI, VendorAPI, FilesAPI, AnomalyAPI,
-  AuditAPI, BudgetAPI, NLQueryAPI, APIError, mapRole, expenseToAnomaly, anomalyFlagToType,
+  AuditAPI, BudgetAPI, NLQueryAPI, APIError, expenseToAnomaly, anomalyFlagToType,
 };
