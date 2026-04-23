@@ -654,116 +654,314 @@ const BUDGETS = [
   { dept: 'Finance', spent: 0.22, total: 0.5, currency: '$', util: 44 },
 ];
 
-const BudgetScreen = ({ onNavigate }) => {
-  const [createOpen, setCreateOpen] = React.useState(false);
-  const [budgets, setBudgets] = React.useState([]);
-  const [loadingBudgets, setLoadingBudgets] = React.useState(true);
-  const [newBudget, setNewBudget] = React.useState({ name: '', total_amount: '', warning_threshold: '70', critical_threshold: '90', period: '' });
-  const barColor = (u) => u >= 90 ? '#EF4444' : u >= 70 ? '#F59E0B' : '#10B981';
+// ─── SVG BAR CHART ────────────────────────────────────────────────────────────
+const MiniBarChart = ({ data, color = '#E8783B', height = 100 }) => {
+  if (!data || data.length === 0) return <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#CBD5E1', fontSize: 12 }}>No data</div>;
+  const max = Math.max(...data.map(d => d.value), 1);
+  const W = 100, barW = Math.floor((W - (data.length - 1) * 2) / data.length);
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height, width: '100%', padding: '0 4px' }}>
+      {data.map((d, i) => {
+        const h = Math.max(4, Math.round((d.value / max) * (height - 28)));
+        return (
+          <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }} title={`${d.label}: ₹${d.value.toLocaleString('en-IN')}`}>
+            <div style={{ width: '100%', height: h, background: color, borderRadius: '3px 3px 0 0', opacity: 0.85, transition: 'height 600ms ease' }} />
+            <div style={{ fontSize: 9, color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 40 }}>{d.label}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// ─── BUDGET DETAIL DRAWER ────────────────────────────────────────────────────
+const BudgetDetailDrawer = ({ budget, open, onClose, onUpdated }) => {
+  const [util, setUtil] = React.useState(null);
+  const [loading, setLoading] = React.useState(false);
+  const [editing, setEditing] = React.useState(false);
+  const [editForm, setEditForm] = React.useState({});
 
   React.useEffect(() => {
-    const { BudgetAPI } = window.TijoriAPI;
-    BudgetAPI.list()
-      .then(data => setBudgets(data || []))
-      .catch(() => {})
-      .finally(() => setLoadingBudgets(false));
-  }, []);
+    if (open && budget) {
+      setLoading(true);
+      window.TijoriAPI.BudgetAPI.utilization(budget.id)
+        .then(data => setUtil(data))
+        .catch(() => setUtil(null))
+        .finally(() => setLoading(false));
+      setEditForm({ name: budget.name, total_amount: budget.total_amount, warning_threshold: budget.warning_threshold || 70, critical_threshold: budget.critical_threshold || 90 });
+      setEditing(false);
+    }
+  }, [open, budget]);
 
-  const displayBudgets = budgets.length > 0 ? budgets.map(b => ({
-    dept: b.department || b.name || '—',
-    spent: b.spent_amount != null ? (b.spent_amount / 1000000).toFixed(2) : '0',
-    total: b.total_amount != null ? (b.total_amount / 1000000).toFixed(2) : '0',
-    currency: '₹',
-    util: b.utilization_pct != null ? Math.round(b.utilization_pct) : (b.total_amount > 0 ? Math.round((b.spent_amount / b.total_amount) * 100) : 0),
-    id: b.id,
-  })) : [];
-
-  const totalBudget = budgets.reduce((s, b) => s + (b.total_amount || 0), 0);
-  const totalSpent = budgets.reduce((s, b) => s + (b.spent_amount || 0), 0);
-  const overBudget = displayBudgets.filter(b => b.util >= 100);
-
-  const fmtCr = (n) => n >= 10000000 ? `₹${(n/10000000).toFixed(1)}Cr` : n >= 100000 ? `₹${(n/100000).toFixed(1)}L` : `₹${(n/1000).toFixed(0)}K`;
-
-  const handleCreateBudget = () => {
-    const { BudgetAPI } = window.TijoriAPI;
-    const payload = {
-      name: newBudget.name,
-      department: newBudget.name,
-      total_amount: parseFloat(newBudget.total_amount) || 0,
-      warning_threshold: parseFloat(newBudget.warning_threshold) || 70,
-      critical_threshold: parseFloat(newBudget.critical_threshold) || 90,
-      period: newBudget.period,
-    };
-    (async () => {
-      try { await BudgetAPI.create(payload); } catch (e) {}
-      const data = await BudgetAPI.list().catch(() => []);
-      setBudgets(data || []);
-    })();
-    setCreateOpen(false);
-    setNewBudget({ name: '', total_amount: '', warning_threshold: '70', critical_threshold: '90', period: '' });
+  const handleSave = async () => {
+    try {
+      await window.TijoriAPI.BudgetAPI.update(budget.id, { ...editForm, total_amount: parseFloat(editForm.total_amount) });
+      onUpdated();
+      setEditing(false);
+    } catch (e) { alert(e.message || 'Update failed'); }
   };
 
+  const fmtAmt = (n) => n >= 10000000 ? `₹${(n/10000000).toFixed(2)}Cr` : n >= 100000 ? `₹${(n/100000).toFixed(2)}L` : `₹${Number(n).toLocaleString('en-IN')}`;
+  const barColor = (u) => u >= 90 ? '#EF4444' : u >= 70 ? '#F59E0B' : '#10B981';
+
+  if (!budget) return null;
+  const util_pct = budget.utilization_pct || 0;
+
   return (
-    <div style={{ padding: '32px' }}>
-      <SectionHeader title="Budget Management" subtitle="Monitor departmental budgets, utilisation, and threshold controls."
-        right={<Btn variant="primary" icon={<span>+</span>} onClick={() => setCreateOpen(true)}>Create Budget</Btn>} />
-
-      <StatsRow cards={[
-        { label: 'Total Budget', value: loadingBudgets ? '…' : fmtCr(totalBudget), delta: 'All departments', deltaType: 'positive' },
-        { label: 'Total Spent', value: loadingBudgets ? '…' : fmtCr(totalSpent), delta: totalBudget > 0 ? `${Math.round((totalSpent/totalBudget)*100)}% utilized` : '—', deltaType: 'neutral', color: '#E8783B' },
-        { label: 'Remaining', value: loadingBudgets ? '…' : fmtCr(totalBudget - totalSpent), delta: '↓ vs plan', deltaType: 'positive', color: '#10B981' },
-        { label: 'Active Budgets', value: loadingBudgets ? '…' : String(budgets.length), delta: 'Departments', deltaType: 'positive' },
-      ]} />
-
-      {overBudget.length > 0 && (
-        <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '14px', padding: '14px 20px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <span style={{ fontSize: '16px' }}>⚠</span>
-          <div style={{ flex: 1 }}>
-            <span style={{ fontWeight: 700, fontSize: '13px', color: '#991B1B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Budget Alert — </span>
-            <span style={{ fontSize: '13px', color: '#B91C1C', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{overBudget.map(b => b.dept).join(', ')} {overBudget.length === 1 ? 'has' : 'have'} reached 100% utilisation.</span>
+    <SidePanel open={open} onClose={onClose} title={budget.name} width={520}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{budget.department || 'All Departments'} · {budget.fiscal_year}</div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+            <span style={{ background: barColor(util_pct) + '22', color: barColor(util_pct), padding: '2px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{util_pct}% Used</span>
+            <span style={{ background: '#F1F5F9', color: '#475569', padding: '2px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{budget.status}</span>
           </div>
-          <Btn variant="destructive" small>View Details</Btn>
+        </div>
+        <Btn variant="secondary" small onClick={() => setEditing(e => !e)}>{editing ? 'Cancel' : '✏ Edit'}</Btn>
+      </div>
+
+      {/* Progress bar */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+          <span style={{ fontSize: 12, color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Spent: {fmtAmt(budget.spent_amount || 0)}</span>
+          <span style={{ fontSize: 12, color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Budget: {fmtAmt(budget.total_amount || 0)}</span>
+        </div>
+        <div style={{ height: 12, background: '#F1F5F9', borderRadius: 6, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${Math.min(util_pct, 100)}%`, background: `linear-gradient(90deg, ${barColor(util_pct)}, ${barColor(util_pct)}cc)`, borderRadius: 6, transition: 'width 800ms ease' }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10, color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          <span>Warning: {budget.warning_threshold || 70}%</span>
+          <span>Critical: {budget.critical_threshold || 90}%</span>
+        </div>
+      </div>
+
+      {/* Edit Form */}
+      {editing && (
+        <div style={{ background: '#FAFAF8', border: '1px solid #E2E8F0', borderRadius: 12, padding: 16, marginBottom: 20 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 12, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Edit Budget</div>
+          <TjInput label="Budget Name" value={editForm.name} onChange={e => setEditForm(f => ({...f, name: e.target.value}))} />
+          <TjInput label="Total Amount (₹)" type="number" value={editForm.total_amount} onChange={e => setEditForm(f => ({...f, total_amount: e.target.value}))} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <TjInput label="Warning %" value={editForm.warning_threshold} onChange={e => setEditForm(f => ({...f, warning_threshold: e.target.value}))} />
+            <TjInput label="Critical %" value={editForm.critical_threshold} onChange={e => setEditForm(f => ({...f, critical_threshold: e.target.value}))} />
+          </div>
+          <Btn variant="primary" onClick={handleSave} style={{ width: '100%', justifyContent: 'center', marginTop: 4 }}>Save Changes</Btn>
         </div>
       )}
 
-      {loadingBudgets && <div style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '13px' }}>Loading budgets…</div>}
-      {!loadingBudgets && displayBudgets.length === 0 && <div style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '13px' }}>No budgets configured yet.</div>}
+      {/* Utilization Detail */}
+      {loading ? (
+        <div style={{ padding: 32, textAlign: 'center' }}>
+          <div style={{ width: 20, height: 20, border: '2px solid rgba(15,23,42,0.1)', borderTopColor: '#E8783B', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto' }} />
+        </div>
+      ) : util ? (
+        <>
+          {/* Monthly Spend Chart */}
+          {util.monthly_spend && util.monthly_spend.length > 0 && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 10, fontFamily: "'Plus Jakarta Sans', sans-serif", textTransform: 'uppercase', letterSpacing: '0.08em' }}>Monthly Spend</div>
+              <MiniBarChart height={100} color="#E8783B" data={util.monthly_spend.map(m => ({ label: m.month?.slice(5), value: m.amount }))} />
+            </div>
+          )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-        {displayBudgets.map(b => (
-          <Card key={b.dept} style={{ padding: '22px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
-              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '18px', color: '#0F172A', letterSpacing: '-0.5px' }}>{b.dept}</div>
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <button style={{ background: '#F8F7F5', border: 'none', borderRadius: '6px', width: 28, height: 28, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>✏</button>
-                <button style={{ background: '#FEE2E2', border: 'none', borderRadius: '6px', width: 28, height: 28, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>✕</button>
+          {/* Top Vendors */}
+          {util.top_vendors && util.top_vendors.length > 0 && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 10, fontFamily: "'Plus Jakarta Sans', sans-serif", textTransform: 'uppercase', letterSpacing: '0.08em' }}>Top Vendors by Spend</div>
+              <div style={{ background: 'white', borderRadius: 10, border: '1px solid #F1F0EE', overflow: 'hidden' }}>
+                {util.top_vendors.slice(0, 5).map((v, i) => {
+                  const maxAmt = util.top_vendors[0].amount;
+                  const pct = maxAmt > 0 ? (v.amount / maxAmt) * 100 : 0;
+                  return (
+                    <div key={i} style={{ padding: '10px 14px', borderBottom: i < Math.min(4, util.top_vendors.length-1) ? '1px solid #F8F7F5' : 'none' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{v.vendor || 'Unknown'}</span>
+                        <span style={{ fontSize: 11, color: '#94A3B8', fontFamily: "'JetBrains Mono', monospace" }}>{v.invoices} inv · {fmtAmt(v.amount)}</span>
+                      </div>
+                      <div style={{ height: 4, background: '#F1F5F9', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${pct}%`, background: '#E8783B', borderRadius: 2 }} />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-            <div style={{ height: 10, background: '#F1F5F9', borderRadius: 5, overflow: 'hidden', marginBottom: '10px' }}>
-              <div style={{ height: '100%', width: `${Math.min(b.util, 100)}%`, background: `linear-gradient(90deg, ${barColor(b.util)}, ${barColor(b.util)}cc)`, borderRadius: 5, transition: 'width 800ms ease' }} />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{b.currency}{b.spent}M / {b.currency}{b.total}M</span>
-              <span style={{ background: barColor(b.util) + '22', color: barColor(b.util), padding: '3px 10px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{b.util}%</span>
-            </div>
-            {b.util >= 70 && <div style={{ marginTop: '10px', fontSize: '11px', color: b.util >= 90 ? '#EF4444' : '#F59E0B', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>
-              {b.util >= 100 ? '🔴 Booking suspended' : b.util >= 90 ? '⚠ Critical threshold reached' : '⚡ Approaching warning threshold'}
-            </div>}
-          </Card>
-        ))}
-      </div>
+          )}
 
-      <TjModal open={createOpen} onClose={() => setCreateOpen(false)} title="Create Budget">
-        <TjInput label="Department" placeholder="e.g. Engineering" value={newBudget.name} onChange={e => setNewBudget(p => ({ ...p, name: e.target.value }))} />
-        <TjInput label="Total Amount (₹)" placeholder="0.00" type="number" value={newBudget.total_amount} onChange={e => setNewBudget(p => ({ ...p, total_amount: e.target.value }))} />
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <div style={{ flex: 1 }}><TjInput label="Warning Threshold (%)" placeholder="70" value={newBudget.warning_threshold} onChange={e => setNewBudget(p => ({ ...p, warning_threshold: e.target.value }))} /></div>
-          <div style={{ flex: 1 }}><TjInput label="Critical Threshold (%)" placeholder="90" value={newBudget.critical_threshold} onChange={e => setNewBudget(p => ({ ...p, critical_threshold: e.target.value }))} /></div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '12px 16px', textAlign: 'center' }}>
+              <div style={{ fontSize: 20, fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, color: '#0F172A' }}>{util.total_invoices || 0}</div>
+              <div style={{ fontSize: 11, color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Total Invoices</div>
+            </div>
+            <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '12px 16px', textAlign: 'center' }}>
+              <div style={{ fontSize: 20, fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, color: '#0F172A' }}>{fmtAmt((budget.total_amount || 0) - (budget.spent_amount || 0))}</div>
+              <div style={{ fontSize: 11, color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Remaining</div>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div style={{ color: '#94A3B8', textAlign: 'center', padding: 24, fontSize: 13, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>No utilization data yet.</div>
+      )}
+    </SidePanel>
+  );
+};
+
+// ─── BUDGET SCREEN ────────────────────────────────────────────────────────────
+const BudgetScreen = ({ onNavigate }) => {
+  const [createOpen, setCreateOpen] = React.useState(false);
+  const [budgets, setBudgets] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [selectedBudget, setSelectedBudget] = React.useState(null);
+  const [newBudget, setNewBudget] = React.useState({ name: '', total_amount: '', warning_threshold: '70', critical_threshold: '90', fiscal_year: 'FY2026', department_id: '' });
+  const [departments, setDepartments] = React.useState([]);
+  const [saving, setSaving] = React.useState(false);
+  const [createError, setCreateError] = React.useState('');
+
+  const barColor = (u) => u >= 90 ? '#EF4444' : u >= 70 ? '#F59E0B' : '#10B981';
+  const fmtAmt = (n) => n >= 10000000 ? `₹${(n/10000000).toFixed(1)}Cr` : n >= 100000 ? `₹${(n/100000).toFixed(1)}L` : `₹${Number(n||0).toLocaleString('en-IN')}`;
+
+  const load = React.useCallback(() => {
+    setLoading(true);
+    Promise.allSettled([
+      window.TijoriAPI.BudgetAPI.list(),
+      window.TijoriAPI.AuthAPI.listDepartments(),
+    ]).then(([budRes, deptRes]) => {
+      if (budRes.status === 'fulfilled') setBudgets(budRes.value || []);
+      if (deptRes.status === 'fulfilled') setDepartments(deptRes.value || []);
+      setLoading(false);
+    });
+  }, []);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  const totalBudget = budgets.reduce((s, b) => s + parseFloat(b.total_amount || 0), 0);
+  const totalSpent = budgets.reduce((s, b) => s + parseFloat(b.spent_amount || 0), 0);
+  const atRisk = budgets.filter(b => (b.utilization_pct || 0) >= 70).length;
+  const overBudget = budgets.filter(b => (b.utilization_pct || 0) >= 100);
+
+  const handleCreate = async () => {
+    if (!newBudget.name || !newBudget.total_amount) { setCreateError('Name and amount required.'); return; }
+    setSaving(true); setCreateError('');
+    try {
+      const payload = {
+        name: newBudget.name,
+        total_amount: parseFloat(newBudget.total_amount),
+        warning_threshold: parseFloat(newBudget.warning_threshold) || 70,
+        critical_threshold: parseFloat(newBudget.critical_threshold) || 90,
+        fiscal_year: newBudget.fiscal_year || 'FY2026',
+        start_date: new Date().toISOString().slice(0, 10),
+        end_date: (new Date(new Date().getTime() + 365 * 86400000)).toISOString().slice(0, 10),
+      };
+      if (newBudget.department_id) payload.department = newBudget.department_id;
+      await window.TijoriAPI.BudgetAPI.create(payload);
+      setCreateOpen(false);
+      setNewBudget({ name: '', total_amount: '', warning_threshold: '70', critical_threshold: '90', fiscal_year: 'FY2026', department_id: '' });
+      load();
+    } catch (e) {
+      setCreateError(e.message || 'Creation failed.');
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div style={{ padding: 32, height: '100%', overflowY: 'auto' }}>
+      <SectionHeader title="Budget Management" subtitle="Departmental budgets with real-time utilization, vendor breakdown, and monthly spend trends."
+        right={
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Btn variant="secondary" onClick={load}>↻ Refresh</Btn>
+            <Btn variant="primary" icon={<span>+</span>} onClick={() => setCreateOpen(true)}>New Budget</Btn>
+          </div>
+        } />
+
+      <StatsRow cards={[
+        { label: 'Total Allocated', value: loading ? '…' : fmtAmt(totalBudget), delta: `${budgets.length} budgets`, deltaType: 'positive' },
+        { label: 'Total Spent', value: loading ? '…' : fmtAmt(totalSpent), delta: totalBudget > 0 ? `${Math.round((totalSpent/totalBudget)*100)}% utilized` : '—', deltaType: 'neutral', color: '#E8783B' },
+        { label: 'Remaining', value: loading ? '…' : fmtAmt(totalBudget - totalSpent), delta: 'Available', deltaType: 'positive', color: '#10B981' },
+        { label: 'At Risk', value: loading ? '…' : String(atRisk), delta: '≥70% utilized', deltaType: atRisk > 0 ? 'negative' : 'positive', color: atRisk > 0 ? '#F59E0B' : '#10B981' },
+      ]} />
+
+      {overBudget.length > 0 && (
+        <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 14, padding: '14px 20px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 14 }}>
+          <span style={{ fontSize: 18 }}>🔴</span>
+          <div style={{ flex: 1 }}>
+            <span style={{ fontWeight: 700, fontSize: 13, color: '#991B1B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Budget Alert — </span>
+            <span style={{ fontSize: 13, color: '#B91C1C', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{overBudget.map(b => b.name).join(', ')} {overBudget.length === 1 ? 'has' : 'have'} reached 100% utilisation. New invoices may be blocked.</span>
+          </div>
         </div>
-        <TjInput label="Period" placeholder="Q3 FY 2026" value={newBudget.period} onChange={e => setNewBudget(p => ({ ...p, period: e.target.value }))} />
-        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '8px' }}>
+      )}
+
+      {loading ? (
+        <div style={{ padding: 60, textAlign: 'center' }}>
+          <div style={{ width: 24, height: 24, border: '2.5px solid rgba(15,23,42,0.1)', borderTopColor: '#E8783B', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
+          <div style={{ fontSize: 13, color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Loading budgets…</div>
+        </div>
+      ) : budgets.length === 0 ? (
+        <div style={{ padding: 60, textAlign: 'center', color: '#94A3B8', fontSize: 13, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>No budgets configured. Create your first budget to start tracking spend.</div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+          {budgets.map(b => {
+            const util = b.utilization_pct || (b.total_amount > 0 ? Math.round((b.spent_amount / b.total_amount) * 100) : 0);
+            return (
+              <div key={b.id} onClick={() => setSelectedBudget(b)}
+                style={{ background: 'white', borderRadius: 16, border: `1px solid ${util >= 90 ? '#FECACA' : '#F1F0EE'}`, padding: 22, cursor: 'pointer', transition: 'all 150ms', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}
+                onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 6px 24px rgba(0,0,0,0.10)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.05)'; e.currentTarget.style.transform = 'none'; }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+                  <div>
+                    <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: 17, color: '#0F172A', letterSpacing: '-0.5px' }}>{b.name}</div>
+                    <div style={{ fontSize: 11, color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: 2 }}>{b.department || 'All Depts'} · {b.fiscal_year}</div>
+                  </div>
+                  <span style={{ background: barColor(util) + '22', color: barColor(util), padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif", flexShrink: 0 }}>{util}%</span>
+                </div>
+                <div style={{ height: 10, background: '#F1F5F9', borderRadius: 5, overflow: 'hidden', marginBottom: 10 }}>
+                  <div style={{ height: '100%', width: `${Math.min(util, 100)}%`, background: `linear-gradient(90deg, ${barColor(util)}, ${barColor(util)}cc)`, borderRadius: 5, transition: 'width 800ms ease' }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <span style={{ fontSize: 12, color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Spent: <strong>{fmtAmt(b.spent_amount || 0)}</strong></span>
+                  <span style={{ fontSize: 12, color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>of {fmtAmt(b.total_amount || 0)}</span>
+                </div>
+                {util >= 70 && (
+                  <div style={{ fontSize: 11, color: util >= 100 ? '#DC2626' : util >= 90 ? '#EF4444' : '#F59E0B', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>
+                    {util >= 100 ? '🔴 Booking suspended' : util >= 90 ? '⚠ Critical threshold reached' : '⚡ Approaching warning threshold'}
+                  </div>
+                )}
+                <div style={{ marginTop: 12, fontSize: 11, color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span>Click to view breakdown</span>
+                  <span>→</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <BudgetDetailDrawer
+        budget={selectedBudget}
+        open={!!selectedBudget}
+        onClose={() => setSelectedBudget(null)}
+        onUpdated={() => { load(); setSelectedBudget(null); }}
+      />
+
+      <TjModal open={createOpen} onClose={() => setCreateOpen(false)} title="Create New Budget" width={500}>
+        <TjInput label="Budget Name *" placeholder="Engineering Q3 2026" value={newBudget.name} onChange={e => setNewBudget(p => ({...p, name: e.target.value}))} />
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Department</div>
+          <select value={newBudget.department_id} onChange={e => setNewBudget(p => ({...p, department_id: e.target.value}))}
+            style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #E2E8F0', borderRadius: 10, fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 13, color: '#0F172A', background: '#FAFAF8', outline: 'none' }}>
+            <option value="">— All Departments —</option>
+            {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+        </div>
+        <TjInput label="Total Amount (₹) *" placeholder="5000000" type="number" value={newBudget.total_amount} onChange={e => setNewBudget(p => ({...p, total_amount: e.target.value}))} />
+        <TjInput label="Fiscal Year" placeholder="FY2026" value={newBudget.fiscal_year} onChange={e => setNewBudget(p => ({...p, fiscal_year: e.target.value}))} />
+        <div style={{ display: 'flex', gap: 12 }}>
+          <div style={{ flex: 1 }}><TjInput label="Warning Threshold (%)" placeholder="70" value={newBudget.warning_threshold} onChange={e => setNewBudget(p => ({...p, warning_threshold: e.target.value}))} /></div>
+          <div style={{ flex: 1 }}><TjInput label="Critical Threshold (%)" placeholder="90" value={newBudget.critical_threshold} onChange={e => setNewBudget(p => ({...p, critical_threshold: e.target.value}))} /></div>
+        </div>
+        {createError && <div style={{ background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 12, color: '#991B1B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{createError}</div>}
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
           <Btn variant="secondary" onClick={() => setCreateOpen(false)}>Cancel</Btn>
-          <Btn variant="primary" onClick={handleCreateBudget}>Save Budget</Btn>
+          <Btn variant="primary" onClick={handleCreate} disabled={saving}>{saving ? 'Creating…' : 'Create Budget'}</Btn>
         </div>
       </TjModal>
     </div>

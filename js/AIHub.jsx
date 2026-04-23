@@ -133,6 +133,13 @@ const AIHubScreen = ({ onNavigate }) => {
   const [summaryOpen, setSummaryOpen] = React.useState(false);
   const [selectedMonth, setSelectedMonth] = React.useState(null);
   const [runningAll, setRunningAll] = React.useState(false);
+  const [cfData, setCfData] = React.useState(null);
+
+  React.useEffect(() => {
+    window.TijoriAPI.BudgetAPI.cashflow()
+      .then(d => setCfData(d))
+      .catch(() => {});
+  }, []);
 
   const runAll = () => {
     setRunningAll(true);
@@ -313,6 +320,31 @@ const AIHubScreen = ({ onNavigate }) => {
           ))}
         </div>
       </Card>
+
+      {/* ── Live Forecast Narrative from API ── */}
+      {cfData && cfData.narrative && (
+        <div style={{ background: 'linear-gradient(135deg, #FFF8F5, #FFF3E6)', border: '1px solid #FED7AA', borderRadius: '14px', padding: '18px 22px', marginBottom: '24px', display: 'flex', gap: '14px' }}>
+          <div style={{ width: 36, height: 36, borderRadius: '10px', background: 'linear-gradient(135deg, #E8783B, #FF6B35)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <span style={{ color: 'white', fontSize: '16px', fontWeight: 700 }}>✦</span>
+          </div>
+          <div>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: '#E8783B', fontFamily: "'Plus Jakarta Sans', sans-serif", textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>AI Forecast Narrative — Live Data</div>
+            <div style={{ fontSize: '13px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.7 }}>{cfData.narrative}</div>
+            <div style={{ marginTop: '10px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+              {[
+                { label: 'Opening Balance', val: '₹' + Number(cfData.opening_balance || 0).toLocaleString('en-IN') },
+                { label: 'Projected Closing', val: '₹' + Number(cfData.projected_closing_balance || 0).toLocaleString('en-IN') },
+                { label: 'Known Payments', val: cfData.known_upcoming_payments || 0 },
+              ].map((item, i) => (
+                <div key={i} style={{ fontSize: '12px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  <span style={{ color: '#94A3B8', marginRight: '4px' }}>{item.label}:</span>
+                  <span style={{ fontWeight: 700, color: '#0F172A' }}>{item.val}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Panel 2 — Monthly Summaries ── */}
       <Card style={{ padding: '28px', marginBottom: '24px' }}>

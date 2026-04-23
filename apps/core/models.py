@@ -65,6 +65,7 @@ VENDOR_STATUS_CHOICES = [
 class Vendor(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
+    name_normalized = models.CharField(max_length=255, blank=True, default="")
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=20, blank=True)
     gstin = models.CharField(max_length=15, blank=True, unique=True, null=True)
@@ -93,6 +94,10 @@ class Vendor(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        self.name_normalized = self.name.strip().lower()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.name} [{self.status}]"

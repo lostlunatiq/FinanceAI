@@ -116,9 +116,12 @@ class UserListView(APIView):
 class UserDetailView(APIView):
     permission_classes = [IsAuthenticated, HasMinimumGrade.make(4)]
 
+    def get(self, request, pk):
+        user = get_object_or_404(User, pk=pk)
+        return Response(UserProfileSerializer(user).data)
+
     def patch(self, request, pk):
         user = get_object_or_404(User, pk=pk)
-        # Fix 5 — remove "role" from allowed_fields, it no longer exists
         allowed_fields = {
             "is_active",
             "first_name",
@@ -126,18 +129,37 @@ class UserDetailView(APIView):
             "email",
             "employee_grade",
             "department",
+            "is_superuser",
         }
         data = {k: v for k, v in request.data.items() if k in allowed_fields}
 
         if "password" in request.data:
             new_pass = request.data["password"]
             if len(new_pass) >= 6:
-                user.set_password(new_pass)  # set before serializer.save()
+                user.set_password(new_pass)
 
         serializer = UserProfileSerializer(user, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
-        serializer.save()  # Fix 6 — removed the second user.save() (double save bug)
+        serializer.save()
         return Response(serializer.data)
+
+    def delete(self, request, pk):
+        user = get_object_or_404(User, pk=pk)
+        if user == request.user:
+            return Response({"detail": "Cannot delete your own account."}, status=400)
+        if user.is_superuser and not request.user.is_superuser:
+            return Response({"detail": "Only superusers can delete superuser accounts."}, status=403)
+        user.delete()
+        return Response({"detail": "User deleted."}, status=204)
+
+
+class DepartmentListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from .models import Department
+        depts = Department.objects.all().values("id", "name").order_by("name")
+        return Response(list(depts))
 
 
 class AuditLogListView(APIView):

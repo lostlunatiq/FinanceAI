@@ -11,6 +11,7 @@ urlpatterns = [
     path("auth/users/", auth_views.UserListView.as_view(), name="user-list"),
     path("auth/users/<uuid:pk>/", auth_views.UserDetailView.as_view(), name="user-detail"),
     path("auth/change-password/", auth_views.ChangePasswordView.as_view(), name="change-password"),
+    path("auth/departments/", auth_views.DepartmentListView.as_view(), name="department-list"),
     # Files
     path("files/upload/", file_views.FileUploadView.as_view(), name="file-upload"),
     path("files/ocr/", file_views.OCRSyncView.as_view(), name="file-ocr-sync"),

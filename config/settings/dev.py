@@ -84,9 +84,9 @@ CELERY_RESULT_BACKEND = "cache+memory://"
 
 # ─── OpenRouter model config ────────────────────────────────────
 # Change these to switch models across the whole app
-OPENROUTER_MODEL_OCR      = "google/gemini-2.5-flash-preview"  # vision: PDF/image OCR
-OPENROUTER_MODEL_FALLBACK = "anthropic/claude-haiku-4-5"       # fallback if primary OCR fails
-OPENROUTER_MODEL_TEXT     = "google/gemini-2.5-flash-preview"  # text: anomaly, NL query, etc.
+OPENROUTER_MODEL_OCR      = "anthropic/claude-haiku-4-5"         # vision: PDF/image OCR (reliable)
+OPENROUTER_MODEL_FALLBACK = "google/gemini-2.5-flash-preview"   # fallback if primary OCR fails
+OPENROUTER_MODEL_TEXT     = "anthropic/claude-haiku-4-5"         # text: anomaly, NL query, chatbot
 OPENROUTER_BASE_URL       = "https://openrouter.ai/api/v1"
 
 # ─── OCR config ──────────────────────────────────────────────────

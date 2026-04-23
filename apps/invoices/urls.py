@@ -1,6 +1,6 @@
 # apps/invoices/urls.py
 from django.urls import path
-from . import views, vendor_views, employee_views, budget_views
+from . import views, vendor_views, employee_views, budget_views, analytics_views
 
 urlpatterns = [
     # ─── Original expense endpoints ──────────────────────────────
@@ -106,4 +106,17 @@ urlpatterns = [
         employee_views.EscalateAnomalyView.as_view(),
         name="finance-escalate",
     ),
+    # ─── New Finance Automation Analytics ────────────────────────
+    path("analytics/spend-intelligence/", analytics_views.SpendIntelligenceView.as_view(), name="spend-intelligence"),
+    path("analytics/vendor-risk/",        analytics_views.VendorRiskScoreView.as_view(),   name="vendor-risk"),
+    path("analytics/payment-prediction/", analytics_views.PaymentPredictionView.as_view(), name="payment-prediction"),
+    path("analytics/budget-health/",      analytics_views.BudgetHealthView.as_view(),      name="budget-health"),
+    path("analytics/gst-recon/",          analytics_views.GSTReconciliationView.as_view(), name="gst-recon"),
+    path("analytics/tds-compliance/",     analytics_views.TDSComplianceView.as_view(),     name="tds-compliance"),
+    path("analytics/working-capital/",    analytics_views.WorkingCapitalView.as_view(),    name="working-capital"),
+    path("analytics/spend-velocity/",     analytics_views.SpendVelocityView.as_view(),     name="spend-velocity"),
+    path("analytics/policy-compliance/",  analytics_views.PolicyComplianceView.as_view(),  name="policy-compliance"),
+    path("analytics/supplier-scorecard/", analytics_views.SupplierScorecardView.as_view(), name="supplier-scorecard"),
+    path("analytics/dept-variance/",      analytics_views.DepartmentVarianceView.as_view(),name="dept-variance"),
+    path("analytics/po-match/",           analytics_views.POMatchStatusView.as_view(),     name="po-match"),
 ]

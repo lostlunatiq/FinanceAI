@@ -270,7 +270,7 @@ class Command(BaseCommand):
                     ExpenseApprovalStep.objects.create(
                         expense=expense,
                         level=level,
-                        grade_required=grade_req,  # ✅ integer, was role_required=string
+                        grade_required=grade_req,
                         assigned_to=assigned,
                         status=step_status,
                         decided_at=timezone.now() if step_status != "PENDING" else None,
@@ -394,14 +394,88 @@ class Command(BaseCommand):
                 )
             self.stdout.write("  ✅ Created audit log entries")
 
+        # ─── Approval Authorities ────────────────────────────────────────────
+        from apps.invoices.models import ApprovalAuthority
+        import random
+        auth_specs = [
+            {"grade": 1, "label": "L1 Approver",     "approval_limit": Decimal("50000"),   "settlement_limit": Decimal("0")},
+            {"grade": 2, "label": "HOD",              "approval_limit": Decimal("500000"),  "settlement_limit": Decimal("100000")},
+            {"grade": 3, "label": "Finance Manager",  "approval_limit": Decimal("2000000"), "settlement_limit": Decimal("500000")},
+            {"grade": 4, "label": "Finance Admin",    "approval_limit": None,               "settlement_limit": None},
+        ]
+        for spec in auth_specs:
+            ApprovalAuthority.objects.get_or_create(grade=spec["grade"], defaults={**spec, "updated_by": users["fin_admin"]})
+        self.stdout.write("  ✅ Approval authorities seeded")
+
+        # ─── More diverse Expenses for Analytics ────────────────────────────
+        random.seed(42)
+        today = date.today()
+
+        extra_vendor_data = [
+            {"name": "Sigma Electrical Works", "gstin": "09AACGS5678M1ZB", "pan": "AACGS5678M", "vendor_type": "electrical", "status": "ACTIVE", "is_approved": True, "msme_registered": True},
+            {"name": "GlobalSync Technologies", "gstin": "06AACGG1234K1ZA", "pan": "AACGG1234K", "vendor_type": "IT Services", "status": "ACTIVE", "is_approved": True, "msme_registered": False},
+            {"name": "NovaBridge Infra Ltd",   "gstin": "29AACCN2609R1ZP", "pan": "AACCN2609R", "vendor_type": "Infrastructure", "status": "ACTIVE", "is_approved": True, "msme_registered": False},
+            {"name": "Acme Office Supplies",    "gstin": "24AACGA9012N1ZC", "pan": "AACGA9012N", "vendor_type": "supplies", "status": "ACTIVE", "is_approved": True, "msme_registered": True},
+        ]
+        for spec in extra_vendor_data:
+            v, _ = Vendor.objects.get_or_create(name=spec["name"], defaults={
+                **spec, "email": f"billing@{spec['name'].lower().replace(' ', '')}.in",
+                "bank_account_name": spec["name"], "bank_account_number": "XXXX1234", "bank_ifsc": "HDFC0001234",
+            })
+            if spec["name"] not in vendors:
+                vendors[spec["name"]] = v
+
+        # Bulk expenses for analytics (paid, anomaly, TDS scenarios)
+        bulk_specs = []
+        vendor_list = list(vendors.values())
+        statuses = ["PAID", "PAID", "PAID", "APPROVED", "PENDING_L1", "PENDING_HOD", "REJECTED"]
+        for i in range(30):
+            v = vendor_list[i % len(vendor_list)]
+            amt_base = random.choice([45000, 120000, 280000, 75000, 190000, 540000, 95000])
+            cgst = round(amt_base * 0.09, 2)
+            ref = f"BILL-2026-{str(i + 20).zfill(5)}"
+            if Expense.objects.filter(ref_no=ref).exists():
+                continue
+            invoice_date = today - timedelta(days=random.randint(1, 120))
+            target_st = statuses[i % len(statuses)]
+            tds_section = random.choice(["194C", "194J", "194I", ""])
+            tds_amount = Decimal(str(round(amt_base * 0.02, 2))) if tds_section else Decimal("0")
+            anomaly_sev = None
+            if i % 7 == 0:
+                anomaly_sev = "HIGH"
+            elif i % 11 == 0:
+                anomaly_sev = "CRITICAL"
+
+            expense = Expense(
+                ref_no=ref,
+                vendor=v,
+                submitted_by=users["employee1"],
+                invoice_number=f"INV-{ref}",
+                invoice_date=invoice_date,
+                pre_gst_amount=Decimal(str(amt_base)),
+                cgst=Decimal(str(cgst)),
+                sgst=Decimal(str(cgst)),
+                igst=Decimal("0"),
+                total_amount=Decimal(str(round(amt_base + 2 * cgst, 2))),
+                tds_section=tds_section,
+                tds_amount=tds_amount,
+                business_purpose="Operational expense for Q1/Q2 2026" if i % 3 == 0 else "",
+                _status=target_st,
+                anomaly_severity=anomaly_sev,
+                submitted_at=timezone.now() - timedelta(days=random.randint(1, 90)),
+                d365_paid_at=timezone.now() - timedelta(days=random.randint(0, 30)) if target_st == "PAID" else None,
+            )
+            expense.save()
+        self.stdout.write("  ✅ Bulk analytics expenses created")
+
         # ─── Summary ─────────────────────────────────────────────────────────
         self.stdout.write(self.style.SUCCESS("\n🎉 Demo data seeded successfully!"))
         self.stdout.write("\n📋 Login Credentials (password: demo1234):")
         self.stdout.write("  vendor1      — Rajesh Kumar     (G1 · Employee)")
         self.stdout.write("  vendor2      — Priya Sharma     (G1 · Employee)")
         self.stdout.write("  employee1    — Amit Patel       (G1 · Employee)")
-        self.stdout.write("  l1_approver  — Neha Gupta       (G1 · Employee)")
+        self.stdout.write("  l1_approver  — Neha Gupta       (G1 · Finance Dept · AP Clerk view)")
         self.stdout.write("  hod          — Suresh Reddy     (G2 · Dept Head)")
         self.stdout.write("  fin_manager  — Anita Desai      (G3 · Finance Manager)")
         self.stdout.write("  fin_admin    — Vikram Singh     (G4 · Finance Admin)")
-        self.stdout.write("  cfo          — Kavita Menon     (G4 · Finance Admin + Superuser)")
+        self.stdout.write("  cfo          — Kavita Menon     (G4 + Superuser = CFO view)")

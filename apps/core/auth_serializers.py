@@ -31,13 +31,15 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
             "full_name",
+            "is_active",
             "is_superuser",
+            "last_login",
             "department",
             "department_name",
             "employee_grade",
             "is_vendor",
         ]
-        read_only_fields = ["id", "username", "is_superuser"]
+        read_only_fields = ["id", "username", "last_login"]
 
     def get_full_name(self, obj):
         return obj.get_full_name() or obj.username
