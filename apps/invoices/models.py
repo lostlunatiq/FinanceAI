@@ -173,7 +173,7 @@ class ExpenseApprovalStep(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     expense = models.ForeignKey(Expense, on_delete=models.CASCADE, related_name="approval_steps")
     level = models.IntegerField()  # 1..6
-    grade_required = models.PositiveIntegerField(default=1)  # ✅ minimum grade to act
+    grade_required = models.PositiveIntegerField(default=1)
     assigned_to = models.ForeignKey(User, on_delete=models.PROTECT, related_name="assigned_steps")
     actual_actor = models.ForeignKey(
         User,

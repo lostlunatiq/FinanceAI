@@ -89,10 +89,15 @@ def call_vision_model(
 
     try:
         response = client.chat.completions.create(**create_kwargs)
-        content = response.choices[0].message.content or ""
+        choices = response.choices if response and response.choices else []
+        if not choices:
+            logger.error("OpenRouter vision call returned no choices")
+            raise ValueError("No choices in OpenRouter response")
+        msg = choices[0].message
+        content = (msg.content or "") if msg else ""
         return {
             "content": content,
-            "model": response.model,
+            "model": getattr(response, "model", model),
             "usage": {
                 "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
                 "completion_tokens": response.usage.completion_tokens if response.usage else 0,
@@ -131,9 +136,13 @@ def call_text_model(
             max_tokens=max_tokens,
             messages=messages,
         )
+        choices = response.choices if response and response.choices else []
+        if not choices:
+            raise ValueError("No choices in OpenRouter text response")
+        content = (choices[0].message.content or "") if choices[0].message else ""
         return {
-            "content": response.choices[0].message.content,
-            "model": response.model,
+            "content": content,
+            "model": getattr(response, "model", model),
         }
     except Exception as e:
         logger.error(f"OpenRouter text call failed: {e}")

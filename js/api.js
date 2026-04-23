@@ -156,6 +156,27 @@ const AuthAPI = {
   async changePassword(data) {
     return apiFetch('/auth/change-password/', { method: 'POST', body: JSON.stringify(data) });
   },
+
+  async getUser(id) {
+    return apiFetch(`/auth/users/${id}/`);
+  },
+
+  async deleteUser(id) {
+    return apiFetch(`/auth/users/${id}/`, { method: 'DELETE' });
+  },
+
+  async resetPassword(id, password) {
+    return apiFetch(`/auth/users/${id}/`, { method: 'PATCH', body: JSON.stringify({ password }) });
+  },
+
+  async getAuditLog(params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return apiFetch(`/audit/${qs ? '?' + qs : ''}`);
+  },
+
+  async listDepartments() {
+    return apiFetch('/auth/departments/');
+  },
 };
 
 // ── Dashboard API ─────────────────────────────────────────────────────────────
@@ -392,8 +413,61 @@ const BudgetAPI = {
     return apiFetch(`/invoices/budgets/${id}/`);
   },
 
+  async update(id, data) {
+    return apiFetch(`/invoices/budgets/${id}/`, { method: 'PATCH', body: JSON.stringify(data) });
+  },
+
+  async deleteBudget(id) {
+    return apiFetch(`/invoices/budgets/${id}/`, { method: 'DELETE' });
+  },
+
+  async utilization(id) {
+    return apiFetch(`/invoices/budgets/${id}/utilization/`);
+  },
+
   async cashflow() {
     return apiFetch('/invoices/forecasting/cashflow/');
+  },
+};
+
+// ── Analytics API (new finance automation features) ───────────────────────────
+
+const AnalyticsAPI = {
+  async spendIntelligence() {
+    return apiFetch('/invoices/analytics/spend-intelligence/');
+  },
+  async vendorRisk() {
+    return apiFetch('/invoices/analytics/vendor-risk/');
+  },
+  async paymentPrediction() {
+    return apiFetch('/invoices/analytics/payment-prediction/');
+  },
+  async budgetHealth() {
+    return apiFetch('/invoices/analytics/budget-health/');
+  },
+  async gstRecon(month) {
+    return apiFetch(`/invoices/analytics/gst-recon/${month ? '?month=' + month : ''}`);
+  },
+  async tdsCompliance() {
+    return apiFetch('/invoices/analytics/tds-compliance/');
+  },
+  async workingCapital() {
+    return apiFetch('/invoices/analytics/working-capital/');
+  },
+  async spendVelocity() {
+    return apiFetch('/invoices/analytics/spend-velocity/');
+  },
+  async policyCompliance() {
+    return apiFetch('/invoices/analytics/policy-compliance/');
+  },
+  async supplierScorecard() {
+    return apiFetch('/invoices/analytics/supplier-scorecard/');
+  },
+  async deptVariance() {
+    return apiFetch('/invoices/analytics/dept-variance/');
+  },
+  async poMatch() {
+    return apiFetch('/invoices/analytics/po-match/');
   },
 };
 
@@ -444,5 +518,5 @@ function expenseToAnomaly(exp, index) {
 // ── Export to window ──────────────────────────────────────────────────────────
 window.TijoriAPI = {
   Auth, AuthAPI, DashboardAPI, BillsAPI, VendorAPI, FilesAPI, AnomalyAPI,
-  AuditAPI, BudgetAPI, NLQueryAPI, APIError, expenseToAnomaly, anomalyFlagToType,
+  AuditAPI, BudgetAPI, NLQueryAPI, AnalyticsAPI, APIError, expenseToAnomaly, anomalyFlagToType,
 };

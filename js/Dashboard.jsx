@@ -31,14 +31,21 @@ const DashboardScreen = ({ onNavigate }) => {
     return `₹${n.toFixed(0)}`;
   };
 
-  const sendMsg = () => {
+  const sendMsg = async () => {
     if (!copilotMsg.trim()) return;
     const q = copilotMsg;
     setChat(c => [...c, { role: 'user', text: q }]);
     setCopilotMsg('');
-    setTimeout(() => {
-      setChat(c => [...c, { role: 'ai', text: 'Based on current AP data, your cash position looks stable. Check the anomaly engine for any high-risk flags that require immediate action.' }]);
-    }, 900);
+    setChat(c => [...c, { role: 'ai', text: '…', loading: true }]);
+    try {
+      const { NLQueryAPI } = window.TijoriAPI;
+      const res = await NLQueryAPI.ask(q);
+      const answer = res.answer || 'Here is what I found in the financial data.';
+      const insight = res.insight ? `\n\n💡 Insight: ${res.insight}` : '';
+      setChat(c => c.map((m, i) => i === c.length - 1 ? { role: 'ai', text: answer + insight } : m));
+    } catch {
+      setChat(c => c.map((m, i) => i === c.length - 1 ? { role: 'ai', text: 'Unable to fetch live data. Please check API connectivity.' } : m));
+    }
   };
 
   const riskItems = [
@@ -77,7 +84,7 @@ const DashboardScreen = ({ onNavigate }) => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px', animation: 'fadeUp 300ms ease both' }}>
         <div>
           <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '32px', color: '#0F172A', letterSpacing: '-1.5px', marginBottom: '4px' }}>Intelligence Command</h1>
-          <div style={{ fontSize: '13px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>April 19, 2026 — Operational Overview</div>
+          <div style={{ fontSize: '13px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{new Date().toLocaleDateString('en-IN', { month: 'long', day: 'numeric', year: 'numeric' })} — Operational Overview</div>
         </div>
         <Btn variant="primary" pill icon={<span>✦</span>}>Ask Your Data</Btn>
       </div>
