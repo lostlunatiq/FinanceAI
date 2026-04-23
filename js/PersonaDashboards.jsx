@@ -2,7 +2,7 @@
 
 // ─── AP CLERK DASHBOARD ───────────────────────────────────────────────────────
 
-const APClerkDashboard = () => {
+const APClerkDashboard = ({ onNavigate }) => {
   const [modal, setModal] = React.useState(null);
   const [notes, setNotes] = React.useState('');
   const [items, setItems] = React.useState([]);
@@ -13,7 +13,8 @@ const APClerkDashboard = () => {
     BillsAPI.queue()
       .then(bills => {
         setItems((bills || []).map(b => ({
-          id: b.ref_no || b.id,
+          id: b.invoice_number || b.ref_no || b.id,
+          refNo: b.ref_no,
           rawId: b.id,
           vendor: b.vendor_name || '—',
           amount: (() => { const n = parseFloat(b.total_amount || 0); return n >= 100000 ? '\u20b9' + (n / 100000).toFixed(2) + 'L' : '\u20b9' + n.toLocaleString('en-IN'); })(),
@@ -27,11 +28,13 @@ const APClerkDashboard = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  const confirmAction = async (type, inv) => {
+  const confirmAction = async () => {
+    const { type, inv } = modal;
     const { BillsAPI } = window.TijoriAPI;
     try {
-      if (type === 'approve') await BillsAPI.approve(inv.rawId, 'Approved by AP Clerk', '');
-      else if (type === 'reject') await BillsAPI.reject(inv.rawId, notes && notes.length >= 10 ? notes : 'Rejected by AP Clerk - please resubmit');
+      const comment = notes || (type === 'approve' ? 'Approved by AP Clerk' : 'Rejected by AP Clerk');
+      if (type === 'approve') await BillsAPI.approve(inv.rawId, comment, '');
+      else if (type === 'reject') await BillsAPI.reject(inv.rawId, comment);
       setItems(prev => prev.map(i => i.id === inv.id ? { ...i, status: type === 'approve' ? 'APPROVED' : 'REJECTED' } : i));
     } catch(err) { alert(err.message || 'Action failed'); }
     setModal(null); setNotes('');
@@ -66,7 +69,11 @@ const APClerkDashboard = () => {
           {items.map((inv) => {
             const done = ['APPROVED', 'REJECTED'].includes(inv.status);
             return (
-              <div key={inv.id} style={{ padding: '16px 22px', borderBottom: '1px solid #F8F7F5', display: 'flex', alignItems: 'center', gap: '16px', opacity: done ? 0.5 : 1, background: done ? '#F8F7F5' : 'white' }}>
+              <div key={inv.id} 
+                   onClick={() => onNavigate && onNavigate('ap-match', { invoice: inv })}
+                   style={{ padding: '16px 22px', borderBottom: '1px solid #F8F7F5', display: 'flex', alignItems: 'center', gap: '16px', opacity: done ? 0.5 : 1, background: done ? '#F8F7F5' : 'white', cursor: 'pointer', transition: 'background 150ms' }}
+                   onMouseEnter={e => !done && (e.currentTarget.style.background = '#FFF8F5')}
+                   onMouseLeave={e => !done && (e.currentTarget.style.background = 'white')}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: priorityColor[inv.priority], flexShrink: 0, boxShadow: inv.priority === 'high' ? `0 0 0 3px ${priorityColor[inv.priority]}33` : 'none' }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '3px' }}>
@@ -80,8 +87,8 @@ const APClerkDashboard = () => {
                 <div style={{ flexShrink: 0 }}>
                   {done ? <StatusBadge status={inv.status} /> : (
                     <div style={{ display: 'flex', gap: '6px' }}>
-                      <Btn variant="green" small onClick={() => setModal({ type: 'approve', inv })}>Approve</Btn>
-                      <Btn variant="destructive" small onClick={() => setModal({ type: 'reject', inv })}>Reject</Btn>
+                      <Btn variant="green" small onClick={(e) => { e.stopPropagation(); setModal({ type: 'approve', inv }); }}>Approve</Btn>
+                      <Btn variant="destructive" small onClick={(e) => { e.stopPropagation(); setModal({ type: 'reject', inv }); }}>Reject</Btn>
                     </div>
                   )}
                 </div>
@@ -91,22 +98,14 @@ const APClerkDashboard = () => {
         </Card>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <Card style={{ padding: '20px' }}>
-            <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '16px', color: '#0F172A', marginBottom: '14px' }}>Today's Checklist</div>
-            {[
-              { task: 'Review high-priority queue', done: false, count: 2 },
-              { task: 'Respond to vendor queries', done: true, count: null },
-              { task: 'Verify GRN for INV-090', done: false, count: null },
-              { task: 'Submit daily reconciliation', done: false, count: null },
-            ].map((t, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: i < 3 ? '1px solid #F8F7F5' : 'none' }}>
-                <div style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${t.done ? '#10B981' : '#E2E8F0'}`, background: t.done ? '#10B981' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {t.done && <span style={{ color: 'white', fontSize: '10px' }}>✓</span>}
-                </div>
-                <span style={{ fontSize: '12px', color: t.done ? '#94A3B8' : '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", textDecoration: t.done ? 'line-through' : 'none', flex: 1 }}>{t.task}</span>
-                {t.count && <span style={{ background: '#FEF3C7', color: '#92400E', padding: '1px 7px', borderRadius: '999px', fontSize: '10px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{t.count}</span>}
-              </div>
-            ))}
+          <Card style={{ padding: '20px', background: 'linear-gradient(135deg, #0F172A, #1E293B)', color: 'white' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+              <div style={{ width: 24, height: 24, borderRadius: '6px', background: 'rgba(232,120,59,0.2)', color: '#E8783B', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>✦</div>
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '15px' }}>AI Copilot Insights</div>
+            </div>
+            <div style={{ fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.5 }}>
+              I've analyzed the current queue. <span style={{ color: '#E8783B', fontWeight: 600 }}>2 invoices</span> show high variance from historical patterns. I recommend reviewing <span style={{ color: 'white' }}>TS-INV-056</span> first as it's nearing MSME SLA limit.
+            </div>
           </Card>
           <Card style={{ padding: '20px' }}>
             <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '16px', color: '#0F172A', marginBottom: '4px' }}>SLA Performance</div>
@@ -129,8 +128,21 @@ const APClerkDashboard = () => {
             <div style={{ fontWeight: 600, fontSize: '14px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>{modal.inv.vendor}</div>
             <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '22px', color: '#0F172A', letterSpacing: '-1px', marginTop: '4px' }}>{modal.inv.amount}</div>
           </div>
+
+          <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: '10px', padding: '12px', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+              <span style={{ fontSize: '14px' }}>✦</span>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#065F46', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>AI Verification Result</span>
+            </div>
+            <div style={{ fontSize: '11px', color: '#064E3B', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.4 }}>
+              {modal.inv.priority === 'high' ? 
+                '⚠️ Anomaly Alert: Variance detected in line-item amounts vs previous months. Manual review recommended.' : 
+                '✅ No anomalies detected. GST math matches perfectly. Duplicate check passed (0 found). Safe to process.'}
+            </div>
+          </div>
+
           <TjTextarea label={modal.type === 'reject' ? 'Reason for Rejection *' : 'Notes (optional)'} placeholder={modal.type === 'reject' ? 'Minimum 10 characters required…' : 'Add approval notes…'} value={notes} onChange={e => setNotes(e.target.value)} required={modal.type === 'reject'} />
-          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '16px' }}>
             <Btn variant="secondary" onClick={() => setModal(null)}>Cancel</Btn>
             <Btn variant={modal.type === 'approve' ? 'green' : 'destructive'} onClick={() => confirmAction(modal.type, modal.inv)} disabled={modal.type === 'reject' && notes.length < 10}>
               {modal.type === 'approve' ? 'Confirm Approval' : 'Confirm Rejection'}
@@ -144,7 +156,7 @@ const APClerkDashboard = () => {
 
 // ─── FINANCE MANAGER DASHBOARD ────────────────────────────────────────────────
 
-const FinanceManagerDashboard = () => {
+const FinanceManagerDashboard = ({ onNavigate }) => {
   const [expandedTeam, setExpandedTeam] = React.useState(null);
   const approvalChain = [
     { stage: 'Pending L1', count: 4, amount: '₹4.75L', color: '#F59E0B', items: ['INV-2024-090 · GlobalSync · ₹1,22,500'] },
@@ -196,7 +208,7 @@ const FinanceManagerDashboard = () => {
           <div style={{ marginTop: '16px', padding: '14px', background: '#FEF3C7', borderRadius: '12px', border: '1px solid #FDE68A' }}>
             <div style={{ fontSize: '12px', fontWeight: 700, color: '#92400E', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '4px' }}>⚡ Action Required</div>
             <div style={{ fontSize: '12px', color: '#78350F', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>INV-2024-091 (NovaBridge · ₹8,40,000) is pending your Finance Manager approval.</div>
-            <div style={{ marginTop: '10px' }}><Btn variant="primary" small>Review Now →</Btn></div>
+            <div style={{ marginTop: '10px' }}><Btn variant="primary" small onClick={() => onNavigate && onNavigate('ap-match', { invoice: { id: 'INV-2024-091' } })}>Review Now →</Btn></div>
           </div>
         </Card>
 
@@ -261,7 +273,7 @@ const FinanceManagerDashboard = () => {
 
 // ─── FINANCE ADMIN DASHBOARD ──────────────────────────────────────────────────
 
-const FinanceAdminDashboard = () => {
+const FinanceAdminDashboard = ({ onNavigate }) => {
   const [initiating, setInitiating] = React.useState(null);
   const paymentQueue = [
     { id: 'PAY-2024-041', vendor: 'CloudInfra Services', amount: '₹6,80,000', bank: 'HDFC •• 4521', approved: 'CFO', due: 'Today', urgent: true },
@@ -362,20 +374,20 @@ const FinanceAdminDashboard = () => {
 
 const EmployeeDashboard = ({ onNavigate }) => {
   const [fileOpen, setFileOpen] = React.useState(false);
-  const [expCategory, setExpCategory] = React.useState('Travel & Accommodation');
+  const [expCategory, setExpCategory] = React.useState('Travel');
   const [expAmount, setExpAmount] = React.useState('');
   const [uploadDone, setUploadDone] = React.useState(false);
   const [aiAccepted, setAiAccepted] = React.useState(false);
 
   const myExpenses = [
-    { id: 'EXP-2024-441', amount: '₹4,200', date: 'Apr 19', category: 'Travel & Accommodation', status: 'PENDING_L1', aiCat: true, conf: 91 },
+    { id: 'EXP-2024-441', amount: '₹4,200', date: 'Apr 19', category: 'Travel', status: 'PENDING_L1', aiCat: true, conf: 91 },
     { id: 'EXP-2024-428', amount: '₹2,800', date: 'Apr 12', category: 'Office Supplies', status: 'APPROVED', aiCat: false, conf: null },
-    { id: 'EXP-2024-415', amount: '₹6,500', date: 'Apr 5', category: 'Travel & Accommodation', status: 'PAID', aiCat: false, conf: null },
+    { id: 'EXP-2024-415', amount: '₹6,500', date: 'Apr 5', category: 'Travel', status: 'PAID', aiCat: false, conf: null },
     { id: 'EXP-2024-402', amount: '₹1,200', date: 'Mar 28', category: 'Meals', status: 'PAID', aiCat: false, conf: null },
   ];
 
-  const EXP_CATS = ['Travel & Accommodation', 'Software & Licences', 'Office Supplies', 'Marketing & Events', 'Professional Services', 'Meals', 'Other'];
-  const budgetMap = { 'Travel & Accommodation': { rem: 180000, total: 300000 }, 'Software & Licences': { rem: 420000, total: 600000 }, 'Office Supplies': { rem: 85000, total: 100000 } };
+  const EXP_CATS = ['Travel', 'Software & Licences', 'Office Supplies', 'Marketing & Events', 'Professional Services', 'Meals', 'Other'];
+  const budgetMap = { 'Travel': { rem: 180000, total: 300000 }, 'Software & Licences': { rem: 420000, total: 600000 }, 'Office Supplies': { rem: 85000, total: 100000 } };
   const budgetInfo = budgetMap[expCategory];
   const budgetPct = budgetInfo ? Math.round((budgetInfo.rem / budgetInfo.total) * 100) : null;
   const budgetColor = budgetPct === null ? '#94A3B8' : budgetPct > 50 ? '#10B981' : budgetPct > 20 ? '#F59E0B' : '#EF4444';
@@ -495,8 +507,8 @@ const EmployeeDashboard = ({ onNavigate }) => {
           {uploadDone && !aiAccepted && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', padding: '9px 12px', background: '#F5F3FF', borderRadius: '8px', border: '1px solid #EDE9FE' }}>
               <AIBadge small />
-              <span style={{ fontSize: '12px', color: '#5B21B6', fontFamily: "'Plus Jakarta Sans', sans-serif", flex: 1 }}>AI suggests: <strong>Travel & Accommodation</strong> — 91% confidence</span>
-              <Btn variant="purple" small onClick={() => { setExpCategory('Travel & Accommodation'); setAiAccepted(true); }}>Accept</Btn>
+              <span style={{ fontSize: '12px', color: '#5B21B6', fontFamily: "'Plus Jakarta Sans', sans-serif", flex: 1 }}>AI suggests: <strong>{expCategory}</strong> — 75% confidence</span>
+              <Btn variant="purple" small onClick={() => { setAiAccepted(true); }}>Accept</Btn>
             </div>
           )}
           <select value={expCategory} onChange={e => setExpCategory(e.target.value)}

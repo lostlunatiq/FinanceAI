@@ -90,7 +90,7 @@ const useIAMData = () => {
 
 // ─── MAIN SCREEN ─────────────────────────────────────────────────────────────
 
-const IAMScreen = () => {
+const IAMScreen = ({ onNavigate }) => {
   const [tab, setTab] = React.useState('Users');
   const [userDetail, setUserDetail] = React.useState(null);
   const [userDetailTab, setUserDetailTab] = React.useState('Profile');

@@ -1,6 +1,6 @@
 // Tijori AI — Anomaly Detection (AI Fraud Engine)
 
-const AnomalyScreen = () => {
+const AnomalyScreen = ({ onNavigate }) => {
   const [activePanel, setActivePanel] = React.useState(null);
   const [scanLoading, setScanLoading] = React.useState(false);
   const [scanned, setScanned] = React.useState(false);
@@ -29,6 +29,26 @@ const AnomalyScreen = () => {
     } catch (e) {}
     loadAnomalies();
     setTimeout(() => { setScanLoading(false); setScanned(true); }, 800);
+  };
+
+  const handleMarkSafe = async (id) => {
+    try {
+      await window.TijoriAPI.BillsAPI.markSafe(id);
+      loadAnomalies();
+      if (activePanel && activePanel.rawId === id) setActivePanel(null);
+    } catch (e) {
+      alert("Failed to mark safe: " + e.message);
+    }
+  };
+
+  const handleEscalate = async (id) => {
+    try {
+      await window.TijoriAPI.BillsAPI.escalate(id);
+      loadAnomalies();
+      if (activePanel && activePanel.rawId === id) setActivePanel(null);
+    } catch (e) {
+      alert("Failed to escalate: " + e.message);
+    }
   };
 
   const scoreColor = (s) => s > 80 ? '#EF4444' : s > 50 ? '#F59E0B' : '#94A3B8';
@@ -123,8 +143,8 @@ const AnomalyScreen = () => {
                   <td style={{ padding: '0 16px' }}>
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <Btn variant="primary" small onClick={() => setActivePanel(a)}>Investigate</Btn>
-                      {a.status !== 'RESOLVED' && <Btn variant="green" small>Mark Safe</Btn>}
-                      {a.score > 80 && <Btn variant="destructive" small>Escalate</Btn>}
+                      {a.status !== 'RESOLVED' && <Btn variant="green" small onClick={() => handleMarkSafe(a.rawId)}>Mark Safe</Btn>}
+                      {a.score > 80 && <Btn variant="destructive" small onClick={() => handleEscalate(a.rawId)}>Escalate</Btn>}
                     </div>
                   </td>
                 </tr>
@@ -183,8 +203,8 @@ const AnomalyScreen = () => {
             </div>
 
             <div style={{ display: 'flex', gap: '8px' }}>
-              <Btn variant="primary" style={{ flex: 1 }} onClick={() => setActivePanel(null)}>Escalate to CFO</Btn>
-              <Btn variant="green" style={{ flex: 1 }} onClick={() => setActivePanel(null)}>Mark as Safe</Btn>
+              <Btn variant="primary" style={{ flex: 1 }} onClick={() => handleEscalate(activePanel.rawId)}>Escalate to CFO</Btn>
+              <Btn variant="green" style={{ flex: 1 }} onClick={() => handleMarkSafe(activePanel.rawId)}>Mark as Safe</Btn>
             </div>
             <button style={{ width: '100%', marginTop: '10px', padding: '10px', background: '#F5F3FF', border: '1px solid #EDE9FE', borderRadius: '10px', cursor: 'pointer', fontSize: '13px', color: '#5B21B6', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               ✦ Explain this anomaly in Copilot

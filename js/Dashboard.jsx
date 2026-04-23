@@ -1,6 +1,6 @@
 // Tijori AI — CFO Command Center Dashboard
 
-const DashboardScreen = () => {
+const DashboardScreen = ({ onNavigate }) => {
   const [copilotOpen, setCopilotOpen] = React.useState(false);
   const [copilotMsg, setCopilotMsg] = React.useState('');
   const [chat, setChat] = React.useState([
@@ -91,7 +91,11 @@ const DashboardScreen = () => {
         </div>
         <div style={{ display: 'flex', gap: '14px' }}>
           {approvalQueue.map(inv => (
-            <div key={inv.id} style={{ background: 'white', borderRadius: '14px', padding: '18px 20px', border: '1px solid #F1F0EE', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', flex: 1, display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div key={inv.id} 
+                 onClick={() => onNavigate && onNavigate('ap-match', { invoice: inv })}
+                 style={{ background: 'white', borderRadius: '14px', padding: '18px 20px', border: '1px solid #F1F0EE', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', flex: 1, display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer', transition: 'box-shadow 150ms' }}
+                 onMouseEnter={e => e.currentTarget.style.boxShadow = '0 6px 12px rgba(0,0,0,0.08)'}
+                 onMouseLeave={e => e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.05)'}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#E8783B', fontWeight: 500, marginBottom: '4px' }}>{inv.id}</div>
                 <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '16px', color: '#0F172A' }}>{inv.vendor}</div>

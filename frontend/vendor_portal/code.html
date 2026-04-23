@@ -335,7 +335,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return `
         <tr class="cursor-pointer transition-colors ${isSelected ? 'bg-primary/5 border-l-2 border-primary' : 'hover:bg-surface-container-low'}" data-bill-id="${b.id}">
           <td class="px-5 py-4">
-            <p class="text-sm font-bold text-on-surface">${b.invoice_number || b.ref_no || '—'}</p>
+            <p class="text-sm font-bold text-on-surface">${b.invoice_number || '—'}</p>
             <p class="text-xs text-on-surface-variant">${b.ref_no || ''}</p>
           </td>
           <td class="px-5 py-4 text-sm text-on-surface-variant whitespace-nowrap">${dateStr}</td>

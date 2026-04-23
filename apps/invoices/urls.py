@@ -57,6 +57,11 @@ urlpatterns = [
         name="finance-respond-query",
     ),
     path(
+        "finance/bills/<uuid:pk>/settle/",
+        employee_views.SettlePaymentView.as_view(),
+        name="finance-settle-payment",
+    ),
+    path(
         "finance/bills/<uuid:pk>/scan-anomaly/",
         employee_views.ScanAnomalyView.as_view(),
         name="finance-scan-anomaly",
@@ -72,6 +77,11 @@ urlpatterns = [
         name="finance-expenses",
     ),
     path("finance/anomalies/", employee_views.AnomalyListView.as_view(), name="finance-anomalies"),
+    path(
+        "finance/approval-authority/",
+        employee_views.ApprovalAuthorityView.as_view(),
+        name="finance-approval-authority",
+    ),
     # ─── Budget Management ────────────────────────────────────────
     path("budgets/", budget_views.BudgetListView.as_view(), name="budget-list"),
     path("budgets/<uuid:pk>/", budget_views.BudgetDetailView.as_view(), name="budget-detail"),

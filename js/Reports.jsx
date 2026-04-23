@@ -1,6 +1,6 @@
 // Tijori AI — Reports & Analytics (Screen 17)
 
-const ReportsScreen = () => {
+const ReportsScreen = ({ onNavigate }) => {
   const [tab, setTab] = React.useState('P&L Summary');
   const [dateRange, setDateRange] = React.useState('Last 3M');
   const [exportOpen, setExportOpen] = React.useState(false);

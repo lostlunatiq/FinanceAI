@@ -42,7 +42,7 @@ class VendorListView(APIView):
                 Q(name__icontains=search) | Q(gstin__icontains=search) | Q(email__icontains=search)
             )
 
-        return Response(VendorDetailSerializer(vendors, many=True).data)
+        return Response(VendorDetailSerializer(vendors, many=True, context={"request": request}).data)
 
 
 class VendorCreateView(APIView):
@@ -94,14 +94,14 @@ class VendorDetailView(APIView):
 
     def get(self, request, pk):
         vendor = get_object_or_404(Vendor, pk=pk)
-        return Response(VendorDetailSerializer(vendor).data)
+        return Response(VendorDetailSerializer(vendor, context={"request": request}).data)
 
     def patch(self, request, pk):
         vendor = get_object_or_404(Vendor, pk=pk)
         serializer = VendorOnboardSerializer(vendor, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response(VendorDetailSerializer(vendor).data)
+        return Response(VendorDetailSerializer(vendor, context={"request": request}).data)
 
 
 class VendorActivateView(APIView):
@@ -127,7 +127,7 @@ class VendorActivateView(APIView):
             )
 
         vendor.save()
-        return Response(VendorDetailSerializer(vendor).data)
+        return Response(VendorDetailSerializer(vendor, context={"request": request}).data)
 
 
 # ─── Vendor Self-Service Portal ──────────────────────────────────────────────
@@ -145,7 +145,7 @@ class VendorProfileView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
         vendor = request.user.vendor_profile
-        return Response(VendorDetailSerializer(vendor).data)
+        return Response(VendorDetailSerializer(vendor, context={"request": request}).data)
 
 
 class VendorBillsView(APIView):
@@ -170,7 +170,7 @@ class VendorBillsView(APIView):
             statuses = [s.strip() for s in status_filter.split(",")]
             expenses = expenses.filter(_status__in=statuses)
 
-        return Response(VendorBillListSerializer(expenses, many=True).data)
+        return Response(VendorBillListSerializer(expenses, many=True, context={"request": request}).data)
 
     def post(self, request):
         from .serializers import ExpenseSubmitSerializer
@@ -218,7 +218,7 @@ class VendorBillsView(APIView):
         except Exception:
             pass  # Non-critical
 
-        # Trigger OCR if invoice file present
+        # Trigger OCR if invoice file present. The OCR task automatically queues the anomaly pipeline afterward.
         if expense.invoice_file:
             from .tasks import run_ocr_pipeline
 
@@ -226,21 +226,10 @@ class VendorBillsView(APIView):
             expense.ocr_task_id = task.id
             expense.save(update_fields=["ocr_task_id"])
 
-        # Run anomaly scan immediately (sync in dev, async in prod)
-        try:
-            from ai.pipelines.anomaly_pipeline import run_anomaly_checks
-
-            result = run_anomaly_checks(expense)
-            expense.anomaly_severity = result["severity"]
-            flags = result.get("flags", [])
-            ocr_raw = expense.ocr_raw or {}
-            ocr_raw["anomaly_flags"] = flags
-            expense.ocr_raw = ocr_raw
-            expense.save(update_fields=["anomaly_severity", "ocr_raw"])
-        except Exception:
-            pass  # Non-critical — don't block submission
-
-        return Response(VendorBillDetailSerializer(expense).data, status=status.HTTP_201_CREATED)
+        return Response(
+            VendorBillDetailSerializer(expense, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class VendorBillDetailView(APIView):
@@ -250,7 +239,7 @@ class VendorBillDetailView(APIView):
 
     def get(self, request, pk):
         expense = get_object_or_404(Expense, pk=pk)
-        return Response(VendorBillDetailSerializer(expense).data)
+        return Response(VendorBillDetailSerializer(expense, context={"request": request}).data)
 
     def patch(self, request, pk):
         expense = get_object_or_404(Expense, pk=pk)
@@ -272,7 +261,7 @@ class VendorBillDetailView(APIView):
                 setattr(expense, field, request.data[field])
 
         expense.save(update_fields=list(allowed_fields & set(request.data.keys())))
-        return Response(VendorBillDetailSerializer(expense).data)
+        return Response(VendorBillDetailSerializer(expense, context={"request": request}).data)
 
 
 class OCRExtractView(APIView):
