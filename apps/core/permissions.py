@@ -1,24 +1,18 @@
-# apps/core/permissions.py
 from rest_framework.permissions import BasePermission
 
-ROLE_HIERARCHY = ["employee", "dept_head", "finance_manager", "finance_admin"]
 
+class HasMinimumGrade(BasePermission):
+    min_grade = 1
 
-class IsFinanceAdmin(BasePermission):
     def has_permission(self, request, view):
-        return request.user.role == "finance_admin"
+        return (
+            request.user.is_authenticated and (request.user.employee_grade or 0) >= self.min_grade
+        )
 
-
-class IsFinanceManager(BasePermission):
-    def has_permission(self, request, view):
-        return request.user.role in ["finance_admin", "finance_manager"]
-
-
-class IsDeptHeadOrAbove(BasePermission):
-    def has_permission(self, request, view):
-        return request.user.role in ["finance_admin", "finance_manager", "dept_head"]
-
-
-class IsEmployee(BasePermission):
-    def has_permission(self, request, view):
-        return request.user.is_authenticated
+    @classmethod
+    def make(cls, min_grade: int):
+        return type(
+            f"HasMinimumGrade_{min_grade}",
+            (cls,),
+            {"min_grade": min_grade},
+        )

@@ -18,9 +18,7 @@ class LoginSerializer(serializers.Serializer):
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
-    department_name = serializers.CharField(
-        source="department.name", read_only=True, default=""
-    )
+    department_name = serializers.CharField(source="department.name", read_only=True, default="")
     full_name = serializers.SerializerMethodField()
 
     class Meta:
@@ -32,13 +30,13 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
             "full_name",
-            "role",
             "is_superuser",
             "department",
             "department_name",
             "employee_grade",
         ]
-        read_only_fields = ["id", "username", "role", "is_superuser"]
+        # Fix 2 — remove "role" from read_only_fields
+        read_only_fields = ["id", "username", "is_superuser"]
 
     def get_full_name(self, obj):
         return obj.get_full_name() or obj.username
@@ -55,7 +53,6 @@ class RegisterUserSerializer(serializers.ModelSerializer):
             "password",
             "first_name",
             "last_name",
-            "role",
             "department",
             "employee_grade",
         ]

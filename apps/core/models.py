@@ -1,116 +1,160 @@
 import uuid
-import hashlib
-import json
-from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.contrib.auth.models import AbstractUser
 
 
 class Department(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=100)
-    cost_centre_code = models.CharField(max_length=20, blank=True)
-    head = models.ForeignKey(
-        "User",
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name="headed_dept",
-    )
-    budget_annual = models.DecimalField(max_digits=14, decimal_places=2, default=0)
-    budget_q1 = models.DecimalField(max_digits=14, decimal_places=2, default=0)
-    budget_q2 = models.DecimalField(max_digits=14, decimal_places=2, default=0)
-    budget_q3 = models.DecimalField(max_digits=14, decimal_places=2, default=0)
-    budget_q4 = models.DecimalField(max_digits=14, decimal_places=2, default=0)
-    created_at = models.DateTimeField(auto_now_add=True)
+    name = models.CharField(max_length=255, unique=True)
 
-    def __str__(self) -> str:
-        return str(self.name)
+    def __str__(self):
+        return self.name
 
 
 class User(AbstractUser):
+    """
+    Replaces Django's default User.
+    Auth is driven purely by employee_grade (integer) — no role strings.
+    Grade map (convention, not enforced here):
+        1 = employee
+        2 = dept head
+        3 = finance manager
+        4 = finance admin
+    """
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    azure_oid = models.CharField(max_length=100, unique=True, null=True, blank=True)
-    role = models.CharField(
-        max_length=30,
-        choices=[
-            ("finance_admin", "Finance Admin"),
-            ("finance_manager", "Finance Manager"),
-            ("dept_head", "Department Head"),
-            ("employee", "Employee"),
-            ("vendor", "Vendor"),
-        ],
-        default="employee",
-    )
-
-    @property
-    def is_vendor(self):
-        return self.role == "vendor"
-
-    @property
-    def is_finance(self):
-        return self.role in ("finance_admin", "finance_manager")
     department = models.ForeignKey(
-        Department, null=True, blank=True, on_delete=models.SET_NULL
+        Department, null=True, blank=True, on_delete=models.SET_NULL, related_name="users"
     )
-    manager = models.ForeignKey(
-        "self", null=True, blank=True, on_delete=models.SET_NULL
-    )
-    employee_grade = models.CharField(max_length=10, default="L1")
+    employee_grade = models.PositiveIntegerField(default=1)
+
+    # AbstractUser already provides:
+    # username, email, first_name, last_name, password
+    # is_active, is_staff, is_superuser
+    # check_password(), set_password(), get_full_name()
 
     class Meta:
+        ordering = ["first_name", "last_name"]
         db_table = "core_user"
 
+    def __str__(self):
+        return f"{self.get_full_name() or self.username} (G{self.employee_grade})"
 
-class AuditLogManager(models.Manager):
-    def get_queryset(self):
-        return super().get_queryset()
+    @property
+    def grade_label(self) -> str:
+        return {
+            1: "Employee",
+            2: "Department Head",
+            3: "Finance Manager",
+            4: "Finance Admin",
+        }.get(self.employee_grade, f"Grade {self.employee_grade}")
 
-    def create(self, **kwargs):
-        # Compute hash chain: SHA256(prev_hash + this entry's content)
-        last = self.order_by("-created_at").first()
-        prev_hash = last.entry_hash if last else "0" * 64
 
-        # Build deterministic content string before saving
-        content = json.dumps(
-            {
-                "action": kwargs.get("action"),
-                "entity_type": kwargs.get("entity_type"),
-                "entity_id": str(kwargs.get("entity_id", "")),
-                "masked_after": kwargs.get("masked_after"),
-            },
-            sort_keys=True,
-        )
+# ─────────────────────────────────────────────
+# Vendor
+# ─────────────────────────────────────────────
 
-        entry_hash = hashlib.sha256(f"{prev_hash}{content}".encode()).hexdigest()
+VENDOR_STATUS_CHOICES = [
+    ("PENDING", "Pending Approval"),
+    ("ACTIVE", "Active"),
+    ("SUSPENDED", "Suspended"),
+    ("BLACKLISTED", "Blacklisted"),
+]
 
-        kwargs["prev_hash"] = prev_hash
-        kwargs["entry_hash"] = entry_hash
-        return super().create(**kwargs)
+
+class Vendor(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255)
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=20, blank=True)
+    gstin = models.CharField(max_length=15, blank=True, unique=True, null=True)
+    pan = models.CharField(max_length=10, blank=True)
+    vendor_type = models.CharField(max_length=50, blank=True)  # e.g. MSME, Large, Foreign
+    msme_registered = models.BooleanField(default=False)
+    tds_section = models.CharField(max_length=10, blank=True)
+
+    # Bank details
+    bank_account_name = models.CharField(max_length=255, blank=True)
+    bank_account_number = models.CharField(max_length=30, blank=True)
+    bank_ifsc = models.CharField(max_length=15, blank=True)
+
+    # Status
+    is_approved = models.BooleanField(default=False)
+    status = models.CharField(max_length=20, choices=VENDOR_STATUS_CHOICES, default="PENDING")
+
+    # Analytics — updated by signals or periodic tasks
+    avg_invoice_amount = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    invoice_count = models.IntegerField(default=0)
+
+    # Optional portal user link
+    user = models.OneToOneField(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="vendor_profile"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} [{self.status}]"
+
+
+# ─────────────────────────────────────────────
+# FileRef
+# ─────────────────────────────────────────────
+
+
+class FileRef(models.Model):
+    """
+    Single table for all uploaded files.
+    Linked from Expense.invoice_file, Expense.evidence_files, ExpenseQuery.attachments.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    path = models.CharField(max_length=500)  # relative to MEDIA_ROOT
+    original_filename = models.CharField(max_length=255)
+    uploaded_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="uploaded_files"
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.original_filename
+
+
+# ─────────────────────────────────────────────
+# AuditLog
+# ─────────────────────────────────────────────
 
 
 class AuditLog(models.Model):
+    """
+    Immutable audit trail for all state changes across the system.
+    Written by services.py transition_expense() and auth views.
+    Never deleted — append only.
+    """
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
-    action = models.CharField(max_length=80)  # e.g. 'expense.submitted'
-    entity_type = models.CharField(max_length=60)
-    entity_id = models.UUIDField(null=True)
-    masked_before = models.JSONField(null=True)  # NEVER plaintext financial data
-    masked_after = models.JSONField(null=True)
-    ip_address = models.GenericIPAddressField(null=True)
-    prev_hash = models.CharField(max_length=64, default="0" * 64)
-    entry_hash = models.CharField(max_length=64, blank=True)
+    user = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="audit_logs"
+    )
+    action = models.CharField(max_length=100)  # e.g. "expense.approved"
+    entity_type = models.CharField(max_length=50)  # e.g. "Expense", "Vendor", "User"
+    entity_id = models.UUIDField(null=True, blank=True)
+
+    # Snapshot of before/after state — masked of sensitive fields
+    masked_before = models.JSONField(null=True, blank=True)
+    masked_after = models.JSONField(null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
-    objects = AuditLogManager()
-
-    def save(self, *args, **kwargs):
-        if self.pk and AuditLog.objects.filter(pk=self.pk).exists():
-            raise PermissionError("AuditLog entries are immutable.")
-        super().save(*args, **kwargs)
-
-    def delete(self, *args, **kwargs):
-        raise PermissionError("AuditLog entries cannot be deleted.")
-
     class Meta:
-        db_table = "core_auditlog"
-        ordering = ["created_at"]
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["entity_type", "entity_id"]),
+            models.Index(fields=["user", "created_at"]),
+            models.Index(fields=["action"]),
+        ]
+
+    def __str__(self):
+        actor = self.user.get_full_name() if self.user else "System"
+        return f"{actor} — {self.action} on {self.entity_type} [{self.created_at:%Y-%m-%d %H:%M}]"

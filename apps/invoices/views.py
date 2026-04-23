@@ -5,7 +5,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
-from apps.core.permissions import IsFinanceAdmin, IsDeptHeadOrAbove
+from apps.core.permissions import HasMinimumGrade
+
 from .models import Expense, ExpenseApprovalStep, STEP_TO_STATUS, VALID_TRANSITIONS
 from .serializers import (
     ExpenseSubmitSerializer,
@@ -41,9 +42,7 @@ class ExpenseSubmitView(APIView):
         # from .tasks import run_ocr_and_anomaly
         # run_ocr_and_anomaly.delay(str(expense.id))
 
-        return Response(
-            ExpenseDetailSerializer(expense).data, status=status.HTTP_201_CREATED
-        )
+        return Response(ExpenseDetailSerializer(expense).data, status=status.HTTP_201_CREATED)
 
 
 class ExpenseDetailView(APIView):
@@ -85,9 +84,7 @@ class ApprovalActionView(APIView):
 
     def post(self, request, pk):
         expense = get_object_or_404(Expense, pk=pk)
-        serializer = ApprovalActionSerializer(
-            data=request.data, context={"expense": expense}
-        )
+        serializer = ApprovalActionSerializer(data=request.data, context={"expense": expense})
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -117,9 +114,7 @@ class ApprovalActionView(APIView):
             actual_actor=request.user,
             decided_at=timezone.now(),
             decision_reason=reason,
-            anomaly_override_reason=serializer.validated_data.get(
-                "anomaly_override_reason", ""
-            ),
+            anomaly_override_reason=serializer.validated_data.get("anomaly_override_reason", ""),
         )
 
         return Response(ExpenseDetailSerializer(expense).data)

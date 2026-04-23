@@ -18,15 +18,16 @@ const LoginScreen = ({ onLogin }) => {
       const { AuthAPI } = window.TijoriAPI;
       const user = await AuthAPI.login(username.trim(), password);
       localStorage.setItem('tj_authed', '1');
-      localStorage.setItem('tj_role', user.uiRole);
+      localStorage.setItem('tj_role',String(user.employee_grade || 1) );
       localStorage.setItem('tj_user', JSON.stringify({
         name: `${user.first_name} ${user.last_name}`.trim() || user.username,
         initials: ((user.first_name?.[0] || '') + (user.last_name?.[0] || '')).toUpperCase() || user.username.slice(0, 2).toUpperCase(),
-        role: user.uiRole,
-        backendRole: user.role,
-        id: user.id,
+        id:             user.id,
+        employee_grade: user.employee_grade,
+        is_superuser:   user.is_superuser,      // ✅ for CFO/superuser detection
+        department:     user.department_name || '',
       }));
-      onLogin(user.uiRole);
+      onLogin(user);
     } catch (err) {
       setError(err.message || 'Login failed. Check credentials.');
     } finally {

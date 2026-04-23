@@ -99,7 +99,7 @@ DATABASES = {
     },
 }
 
-DATABASE_ROUTERS = ["config.routers.ClickHouseRouter"]
+# DATABASE_ROUTERS = ["config.routers.ClickHouseRouter"]
 
 
 # Password validation

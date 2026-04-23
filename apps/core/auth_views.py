@@ -6,7 +6,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.shortcuts import get_object_or_404
 
 from .auth_serializers import LoginSerializer, UserProfileSerializer, RegisterUserSerializer
-from .permissions import IsFinanceAdmin
+from .permissions import HasMinimumGrade
 from .models import User, AuditLog
 
 
@@ -18,13 +18,16 @@ class LoginView(APIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data["user"]
         refresh = RefreshToken.for_user(user)
-        refresh["role"] = user.role
         refresh["username"] = user.username
-        return Response({
-            "access": str(refresh.access_token),
-            "refresh": str(refresh),
-            "user": UserProfileSerializer(user).data,
-        }, status=status.HTTP_200_OK)
+        refresh["employee_grade"] = user.employee_grade  # ← grade in token, not role
+        return Response(
+            {
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+                "user": UserProfileSerializer(user).data,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class RefreshTokenView(APIView):
@@ -33,12 +36,16 @@ class RefreshTokenView(APIView):
     def post(self, request):
         refresh_token = request.data.get("refresh")
         if not refresh_token:
-            return Response({"error": "Refresh token required."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Refresh token required."}, status=status.HTTP_400_BAD_REQUEST
+            )
         try:
             refresh = RefreshToken(refresh_token)
             return Response({"access": str(refresh.access_token)})
         except Exception:
-            return Response({"error": "Invalid or expired refresh token."}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response(
+                {"error": "Invalid or expired refresh token."}, status=status.HTTP_401_UNAUTHORIZED
+            )
 
 
 class MeView(APIView):
@@ -58,19 +65,24 @@ class ChangePasswordView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        old_password = request.data.get('old_password')
-        new_password = request.data.get('new_password')
+        old_password = request.data.get("old_password")
+        new_password = request.data.get("new_password")
         if not old_password or not new_password:
-            return Response({'detail': 'old_password and new_password required.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "old_password and new_password required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         if not request.user.check_password(old_password):
-            return Response({'detail': 'Current password is incorrect.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "Current password is incorrect."}, status=status.HTTP_400_BAD_REQUEST
+            )
         request.user.set_password(new_password)
-        request.user.save(update_fields=['password'])
-        return Response({'detail': 'Password updated.'})
+        request.user.save(update_fields=["password"])
+        return Response({"detail": "Password updated."})
 
 
 class RegisterView(APIView):
-    permission_classes = [IsAuthenticated, IsFinanceAdmin]
+    permission_classes = [IsAuthenticated, HasMinimumGrade.make(4)]
 
     def post(self, request):
         serializer = RegisterUserSerializer(data=request.data)
@@ -80,69 +92,59 @@ class RegisterView(APIView):
 
 
 class UserListView(APIView):
-    """
-    GET  /api/v1/auth/users/ — List all users (admin only)
-    """
-    permission_classes = [IsAuthenticated, IsFinanceAdmin]
+    permission_classes = [IsAuthenticated, HasMinimumGrade.make(4)]
 
     def get(self, request):
-        users = User.objects.all().order_by("role", "first_name")
-        role_filter = request.query_params.get("role")
-        if role_filter:
-            users = users.filter(role=role_filter)
+        users = User.objects.all().order_by("employee_grade", "first_name")
+        # Fix 4 — remove role_filter, filter by grade instead
+        grade_filter = request.query_params.get("grade")
+        if grade_filter:
+            users = users.filter(employee_grade=grade_filter)
         search = request.query_params.get("search")
         if search:
             from django.db.models import Q
+
             users = users.filter(
-                Q(username__icontains=search) |
-                Q(first_name__icontains=search) |
-                Q(last_name__icontains=search) |
-                Q(email__icontains=search)
+                Q(username__icontains=search)
+                | Q(first_name__icontains=search)
+                | Q(last_name__icontains=search)
+                | Q(email__icontains=search)
             )
         return Response(UserProfileSerializer(users, many=True).data)
 
 
 class UserDetailView(APIView):
-    """
-    GET   /api/v1/auth/users/<id>/ — User detail
-    PATCH /api/v1/auth/users/<id>/ — Update user (role, active, etc.)
-    DELETE /api/v1/auth/users/<id>/ — Deactivate user
-    """
-    permission_classes = [IsAuthenticated, IsFinanceAdmin]
-
-    def get(self, request, pk):
-        user = get_object_or_404(User, pk=pk)
-        return Response(UserProfileSerializer(user).data)
+    permission_classes = [IsAuthenticated, HasMinimumGrade.make(4)]
 
     def patch(self, request, pk):
         user = get_object_or_404(User, pk=pk)
-        allowed_fields = {"role", "is_active", "first_name", "last_name", "email", "employee_grade", "department"}
+        # Fix 5 — remove "role" from allowed_fields, it no longer exists
+        allowed_fields = {
+            "is_active",
+            "first_name",
+            "last_name",
+            "email",
+            "employee_grade",
+            "department",
+        }
         data = {k: v for k, v in request.data.items() if k in allowed_fields}
 
-        # Handle password change
         if "password" in request.data:
             new_pass = request.data["password"]
             if len(new_pass) >= 6:
-                user.set_password(new_pass)
+                user.set_password(new_pass)  # set before serializer.save()
 
         serializer = UserProfileSerializer(user, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
-        if "password" in request.data:
-            user.save()
+        serializer.save()  # Fix 6 — removed the second user.save() (double save bug)
         return Response(serializer.data)
-
-    def delete(self, request, pk):
-        user = get_object_or_404(User, pk=pk)
-        user.is_active = False
-        user.save()
-        return Response({"message": f"User {user.username} deactivated."})
 
 
 class AuditLogListView(APIView):
     """
     GET /api/v1/audit/ — Paginated audit log
     """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -162,20 +164,22 @@ class AuditLogListView(APIView):
             qs = qs.filter(user_id=user_id)
 
         total = qs.count()
-        entries = qs[offset: offset + limit]
+        entries = qs[offset : offset + limit]
 
         results = []
         for entry in entries:
-            results.append({
-                "id": str(entry.id),
-                "action": entry.action,
-                "entity_type": entry.entity_type,
-                "entity_id": str(entry.entity_id) if entry.entity_id else None,
-                "actor": entry.user.get_full_name() if entry.user else "System",
-                "actor_role": entry.user.role if entry.user else "system",
-                "timestamp": entry.created_at.isoformat(),
-                "details": entry.masked_after or {},
-            })
+            results.append(
+                {
+                    "id": str(entry.id),
+                    "action": entry.action,
+                    "entity_type": entry.entity_type,
+                    "entity_id": str(entry.entity_id) if entry.entity_id else None,
+                    "actor": entry.user.get_full_name() if entry.user else "System",
+                    "actor_role": entry.user.employee_grade if entry.user else None,
+                    "timestamp": entry.created_at.isoformat(),
+                    "details": entry.masked_after or {},
+                }
+            )
 
         return Response({"total": total, "results": results, "limit": limit, "offset": offset})
 
@@ -186,6 +190,7 @@ class NLQueryView(APIView):
     Natural language query against financial data.
     Body: {"question": "What are my top 5 vendors by spend?"}
     """
+
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -197,7 +202,10 @@ class NLQueryView(APIView):
             answer = _run_nl_query(question, request.user)
             return Response(answer)
         except Exception as e:
-            return Response({"error": str(e), "answer": "Unable to process query at this time."}, status=status.HTTP_200_OK)
+            return Response(
+                {"error": str(e), "answer": "Unable to process query at this time."},
+                status=status.HTTP_200_OK,
+            )
 
 
 def _run_nl_query(question: str, user) -> dict:
@@ -210,25 +218,42 @@ def _run_nl_query(question: str, user) -> dict:
     ctx = {}
 
     # Top vendors by spend
-    top_vendors = Expense.objects.filter(
-        _status__in=["PAID", "APPROVED", "BOOKED_D365", "POSTED_D365"]
-    ).values("vendor__name").annotate(
-        total=Sum("total_amount"), count=Count("id")
-    ).order_by("-total")[:10]
-    ctx["top_vendors"] = [{"vendor": v["vendor__name"], "total_spend": float(v["total"] or 0), "invoice_count": v["count"]} for v in top_vendors]
+    top_vendors = (
+        Expense.objects.filter(_status__in=["PAID", "APPROVED", "BOOKED_D365", "POSTED_D365"])
+        .values("vendor__name")
+        .annotate(total=Sum("total_amount"), count=Count("id"))
+        .order_by("-total")[:10]
+    )
+    ctx["top_vendors"] = [
+        {
+            "vendor": v["vendor__name"],
+            "total_spend": float(v["total"] or 0),
+            "invoice_count": v["count"],
+        }
+        for v in top_vendors
+    ]
 
     # Status distribution
-    status_dist = Expense.objects.values("_status").annotate(count=Count("id"), amount=Sum("total_amount"))
-    ctx["expense_status"] = [{"status": s["_status"], "count": s["count"], "amount": float(s["amount"] or 0)} for s in status_dist]
+    status_dist = Expense.objects.values("_status").annotate(
+        count=Count("id"), amount=Sum("total_amount")
+    )
+    ctx["expense_status"] = [
+        {"status": s["_status"], "count": s["count"], "amount": float(s["amount"] or 0)}
+        for s in status_dist
+    ]
 
     # Anomaly stats
     ctx["anomaly_count"] = Expense.objects.filter(anomaly_severity__in=["HIGH", "CRITICAL"]).count()
-    ctx["total_outstanding"] = float(Expense.objects.exclude(
-        _status__in=["PAID", "REJECTED", "WITHDRAWN", "AUTO_REJECT"]
-    ).aggregate(total=Sum("total_amount"))["total"] or 0)
+    ctx["total_outstanding"] = float(
+        Expense.objects.exclude(
+            _status__in=["PAID", "REJECTED", "WITHDRAWN", "AUTO_REJECT"]
+        ).aggregate(total=Sum("total_amount"))["total"]
+        or 0
+    )
 
     # Pending approvals
     from apps.invoices.models import ExpenseApprovalStep
+
     ctx["pending_my_queue"] = ExpenseApprovalStep.objects.filter(
         assigned_to=user, status="PENDING"
     ).count()
@@ -251,6 +276,7 @@ Format your response as JSON:
     try:
         response = call_text_model(prompt=user_prompt, system_prompt=system_prompt)
         import json
+
         content = response.get("content", "{}")
         # Clean JSON
         content = content.strip()
@@ -290,9 +316,13 @@ def _rule_based_answer(question: str, ctx: dict) -> dict:
     if any(w in q for w in ["vendor", "supplier", "spend", "top"]):
         vendors = ctx["top_vendors"][:5]
         answer = "Top vendors by total spend:\n" + "\n".join(
-            f"{i+1}. {v['vendor']}: ₹{v['total_spend']:,.0f}" for i, v in enumerate(vendors)
+            f"{i + 1}. {v['vendor']}: ₹{v['total_spend']:,.0f}" for i, v in enumerate(vendors)
         )
-        insight = f"Your top vendor accounts for ₹{vendors[0]['total_spend']:,.0f} in spend." if vendors else "No vendor data available."
+        insight = (
+            f"Your top vendor accounts for ₹{vendors[0]['total_spend']:,.0f} in spend."
+            if vendors
+            else "No vendor data available."
+        )
     elif any(w in q for w in ["outstanding", "pending", "due"]):
         answer = f"Total outstanding amount: ₹{ctx['total_outstanding']:,.0f}"
         insight = "Prioritize clearing the oldest pending invoices first."

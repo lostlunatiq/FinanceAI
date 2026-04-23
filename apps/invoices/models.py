@@ -1,6 +1,6 @@
 import uuid
 from django.db import models
-from apps.core.models import User, Department, AuditLog
+from apps.core.models import User, Department, AuditLog, Vendor, FileRef, VENDOR_STATUS_CHOICES
 
 
 EXPENSE_STATUS_CHOICES = [
@@ -62,71 +62,14 @@ STEP_TO_STATUS = {
     6: "PENDING_FIN_HEAD",
 }
 
-ROLE_FOR_STEP = {
-    1: "EMP_L1",
-    2: "EMP_L2",
-    3: "DEPT_HEAD",
-    4: "FIN_L1",
-    5: "FIN_L2",
-    6: "FIN_HEAD",
+GRADE_FOR_STEP = {
+    1: 1,  # any employee
+    2: 1,  # any employee
+    3: 2,  # dept head equivalent
+    4: 3,  # finance manager equivalent
+    5: 3,  # finance manager equivalent
+    6: 4,  # finance admin equivalent
 }
-
-
-VENDOR_STATUS_CHOICES = [
-    ("PENDING_APPROVAL", "Pending Approval"),
-    ("ACTIVE", "Active"),
-    ("SUSPENDED", "Suspended"),
-    ("BLACKLISTED", "Blacklisted"),
-    ("INACTIVE", "Inactive"),
-]
-
-
-class Vendor(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.OneToOneField(
-        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="vendor_profile"
-    )
-    name = models.CharField(max_length=200)
-    name_normalized = models.CharField(
-        max_length=200
-    )  # lowercased+stripped, for fuzzy match
-    email = models.EmailField(blank=True)
-    phone = models.CharField(max_length=20, blank=True)
-    gstin = models.CharField(max_length=15, blank=True)
-    pan = models.CharField(max_length=10, blank=True)
-    is_approved = models.BooleanField(default=False)
-    status = models.CharField(
-        max_length=20, choices=VENDOR_STATUS_CHOICES, default="PENDING_APPROVAL"
-    )
-    vendor_type = models.CharField(max_length=30, default="general")  # saas, cloud_infra, logistics, etc.
-    avg_invoice_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True)
-    invoice_count = models.IntegerField(default=0)
-    last_renewal_date = models.DateField(null=True)
-    last_seat_count = models.IntegerField(null=True)
-    tds_section = models.CharField(max_length=10, blank=True)
-    msme_registered = models.BooleanField(default=False)
-    bank_account_name = models.CharField(max_length=200, blank=True)
-    bank_account_number = models.CharField(max_length=30, blank=True)
-    bank_ifsc = models.CharField(max_length=11, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def save(self, *args, **kwargs):
-        self.name_normalized = self.name.lower().strip()
-        if self.is_approved and self.status == "PENDING_APPROVAL":
-            self.status = "ACTIVE"
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return self.name
-
-
-class FileRef(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    path = models.CharField(max_length=500)
-    original_filename = models.CharField(max_length=255)
-    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
-    uploaded_at = models.DateTimeField(auto_now_add=True)
 
 
 class Expense(models.Model):
@@ -178,15 +121,11 @@ class Expense(models.Model):
         on_delete=models.SET_NULL,
         related_name="invoice_for",
     )
-    evidence_files = models.ManyToManyField(
-        FileRef, related_name="evidence_for", blank=True
-    )
+    evidence_files = models.ManyToManyField(FileRef, related_name="evidence_for", blank=True)
 
     # OCR data
     ocr_raw = models.JSONField(null=True, blank=True)
-    ocr_confidence = models.DecimalField(
-        max_digits=5, decimal_places=4, null=True, blank=True
-    )
+    ocr_confidence = models.DecimalField(max_digits=5, decimal_places=4, null=True, blank=True)
     ocr_task_id = models.CharField(max_length=100, blank=True)
 
     # D365
@@ -195,9 +134,7 @@ class Expense(models.Model):
     d365_paid_at = models.DateTimeField(null=True)
     d365_payment_utr = models.CharField(max_length=100, blank=True)
 
-    replaces_bill = models.ForeignKey(
-        "self", null=True, blank=True, on_delete=models.SET_NULL
-    )
+    replaces_bill = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -210,9 +147,7 @@ class Expense(models.Model):
 
     @status.setter
     def status(self, value):
-        raise AttributeError(
-            "Do not set status directly. Use transition_to() in services.py."
-        )
+        raise AttributeError("Do not set status directly. Use transition_to() in services.py.")
 
     def _force_status(self, value):
         """Internal only — called by transition_to() service."""
@@ -231,14 +166,10 @@ class Expense(models.Model):
 
 class ExpenseApprovalStep(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    expense = models.ForeignKey(
-        Expense, on_delete=models.CASCADE, related_name="approval_steps"
-    )
+    expense = models.ForeignKey(Expense, on_delete=models.CASCADE, related_name="approval_steps")
     level = models.IntegerField()  # 1..6
-    role_required = models.CharField(max_length=20)  # EMP_L1, EMP_L2, etc.
-    assigned_to = models.ForeignKey(
-        User, on_delete=models.PROTECT, related_name="assigned_steps"
-    )
+    grade_required = models.PositiveIntegerField(default=1)  # ✅ minimum grade to act
+    assigned_to = models.ForeignKey(User, on_delete=models.PROTECT, related_name="assigned_steps")
     actual_actor = models.ForeignKey(
         User,
         null=True,
@@ -271,12 +202,8 @@ class ExpenseApprovalStep(models.Model):
 
 class ExpenseQuery(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    expense = models.ForeignKey(
-        Expense, on_delete=models.CASCADE, related_name="queries"
-    )
-    raised_by = models.ForeignKey(
-        User, on_delete=models.PROTECT, related_name="raised_queries"
-    )
+    expense = models.ForeignKey(Expense, on_delete=models.CASCADE, related_name="queries")
+    raised_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="raised_queries")
     raised_at_step = models.IntegerField()
     question = models.TextField()
     response = models.TextField(blank=True)
@@ -294,13 +221,18 @@ class ExpenseQuery(models.Model):
 
 class Budget(models.Model):
     """Department / project budget with threshold alerts."""
+
     PERIOD_CHOICES = [
-        ("monthly", "Monthly"), ("quarterly", "Quarterly"),
-        ("semi_annual", "Semi-Annual"), ("annual", "Annual"),
+        ("monthly", "Monthly"),
+        ("quarterly", "Quarterly"),
+        ("semi_annual", "Semi-Annual"),
+        ("annual", "Annual"),
     ]
     STATUS_CHOICES = [
-        ("draft", "Draft"), ("active", "Active"),
-        ("locked", "Locked"), ("closed", "Closed"),
+        ("draft", "Draft"),
+        ("active", "Active"),
+        ("locked", "Locked"),
+        ("closed", "Closed"),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -315,7 +247,7 @@ class Budget(models.Model):
     total_amount = models.DecimalField(max_digits=18, decimal_places=2)
     currency = models.CharField(max_length=3, default="INR")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="active")
-    warning_threshold = models.IntegerField(default=80)   # % at which amber alert fires
+    warning_threshold = models.IntegerField(default=80)  # % at which amber alert fires
     critical_threshold = models.IntegerField(default=95)  # % at which red alert fires
     created_by = models.ForeignKey(
         "core.User", null=True, on_delete=models.SET_NULL, related_name="created_budgets"
@@ -334,6 +266,7 @@ class Budget(models.Model):
     def spent_amount(self):
         """Calculate actual spend from approved/paid expenses for this dept+period."""
         from django.db.models import Sum
+
         qs = Expense.objects.filter(
             _status__in=["APPROVED", "PENDING_D365", "BOOKED_D365", "POSTED_D365", "PAID"],
             invoice_date__gte=self.start_date,
@@ -361,12 +294,8 @@ class Budget(models.Model):
 
 
 class VendorL1Mapping(models.Model):
-    vendor = models.ForeignKey(
-        Vendor, on_delete=models.CASCADE, related_name="l1_mappings"
-    )
-    l1_user = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="vendor_mappings"
-    )
+    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="l1_mappings")
+    l1_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="vendor_mappings")
     is_primary = models.BooleanField(default=True)
     assigned_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, related_name="created_mappings"
