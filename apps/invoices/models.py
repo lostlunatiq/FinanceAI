@@ -222,6 +222,39 @@ class ExpenseQuery(models.Model):
     raised_at = models.DateTimeField(auto_now_add=True)
     responded_at = models.DateTimeField(null=True)
     attachments = models.ManyToManyField(FileRef, blank=True)
+    ai_suggestion = models.TextField(blank=True)
+
+
+class ApprovalAuthority(models.Model):
+    """
+    Per-grade approval and settlement controls.
+    Finance Admin (grade 4) and CFO manage these values.
+    """
+
+    grade = models.PositiveIntegerField(unique=True)
+    label = models.CharField(max_length=100)
+    approval_limit = models.DecimalField(max_digits=18, decimal_places=2, null=True, blank=True)
+    settlement_limit = models.DecimalField(max_digits=18, decimal_places=2, null=True, blank=True)
+    monthly_approval_budget = models.DecimalField(
+        max_digits=18, decimal_places=2, null=True, blank=True
+    )
+    monthly_settlement_budget = models.DecimalField(
+        max_digits=18, decimal_places=2, null=True, blank=True
+    )
+    updated_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="updated_approval_authorities",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["grade"]
+
+    def __str__(self):
+        return f"{self.label} (G{self.grade})"
 
 
 class Budget(models.Model):

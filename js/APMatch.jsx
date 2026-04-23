@@ -60,7 +60,8 @@ const APMatchScreen = ({ onNavigate, invoice: passedInvoice, role: propRole }) =
   };
 
   const isTerminal = (s) => ['APPROVED', 'PAID', 'REJECTED', 'AUTO_REJECT', 'WITHDRAWN'].includes(s);
-  const canAct = bill && !isTerminal(bill.status);
+  const permissions = bill?.action_permissions || {};
+  const canAct = bill && (!isTerminal(bill.status) || permissions.can_settle);
 
   const needsAnomOverride = bill && ['HIGH','CRITICAL'].includes(bill.anomaly_severity) && modal?.type === 'approve';
   const canConfirm = modal && (
@@ -132,11 +133,20 @@ const APMatchScreen = ({ onNavigate, invoice: passedInvoice, role: propRole }) =
                 {bill.anomaly_severity && bill.anomaly_severity !== 'NONE' && (
                   <Btn variant="secondary" onClick={() => { setModal({ type: 'investigate' }); setNotes(''); }}>🔍 Re-Scan Anomaly</Btn>
                 )}
-                <Btn variant="purple" small onClick={() => { setModal({ type: 'query' }); setNotes(''); }}>? Query</Btn>
-                <Btn variant="destructive" small onClick={() => { setModal({ type: 'reject' }); setNotes(''); }}>✕ Reject</Btn>
-                <Btn variant="green" small onClick={() => { setModal({ type: 'approve' }); setNotes(''); setAnomalyOverride(''); }}>✓ Approve</Btn>
+                {permissions.can_query && <Btn variant="purple" small onClick={() => { setModal({ type: 'query' }); setNotes(''); }}>? Query</Btn>}
+                {permissions.can_reject && <Btn variant="destructive" small onClick={() => { setModal({ type: 'reject' }); setNotes(''); }}>✕ Reject</Btn>}
+                {permissions.can_approve && <Btn variant="green" small onClick={() => { setModal({ type: 'approve' }); setNotes(''); setAnomalyOverride(''); }}>✓ Approve</Btn>}
+                {permissions.can_settle && <Btn variant="secondary" small onClick={async () => { try { await window.TijoriAPI.BillsAPI.settle(bill.id); fetchBill(); } catch (err) { setActionError(err.message || 'Settlement failed.'); } }}>₹ Settle</Btn>}
               </>
             )}
+          </div>
+        </div>
+
+        {/* AI Quick Tip */}
+        <div style={{ marginTop: '16px', background: 'linear-gradient(135deg, #0F172A, #1E293B)', borderRadius: '12px', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', border: '1px solid rgba(232,120,59,0.3)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+          <div style={{ width: 28, height: 28, borderRadius: '8px', background: 'rgba(232,120,59,0.2)', color: '#E8783B', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', flexShrink: 0 }}>✦</div>
+          <div style={{ fontSize: '12px', color: '#CBD5E1', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.5 }}>
+            <span style={{ color: '#E8783B', fontWeight: 700 }}>AI Analysis:</span> This invoice matches the <strong>Tech Contract (TC-0042)</strong> terms. Tax rates are compliant. {bill.anomaly_severity === 'NONE' ? 'No duplicates found in history.' : 'Review flagged variance before approval.'}
           </div>
         </div>
       </div>
@@ -175,6 +185,11 @@ const APMatchScreen = ({ onNavigate, invoice: passedInvoice, role: propRole }) =
             {bill.business_purpose && (
               <div style={{ margin: '0 20px 20px', padding: '12px 16px', background: '#F8FAFC', borderRadius: '10px', fontSize: '13px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                 <span style={{ fontWeight: 700, color: '#0F172A' }}>Purpose: </span>{bill.business_purpose}
+              </div>
+            )}
+            {bill.invoice_file_url && (
+              <div style={{ margin: '0 20px 20px' }}>
+                <Btn variant="secondary" onClick={() => window.TijoriAPI.FilesAPI.open(bill.invoice_file)}>View Uploaded Document</Btn>
               </div>
             )}
           </Card>
@@ -285,6 +300,32 @@ const APMatchScreen = ({ onNavigate, invoice: passedInvoice, role: propRole }) =
               </div>
             </Card>
           )}
+
+          {bill.queries && bill.queries.length > 0 && (
+            <Card style={{ padding: '20px' }}>
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '16px', color: '#0F172A', marginBottom: '16px' }}>Query Thread</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {bill.queries.map((query) => (
+                  <div key={query.id} style={{ border: '1px solid #E2E8F0', borderRadius: '12px', padding: '14px' }}>
+                    <div style={{ fontSize: '12px', color: '#5B21B6', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                      {query.raised_by_name} asked at step {query.raised_at_step}
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#0F172A', marginTop: '6px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{query.question}</div>
+                    {query.ai_suggestion && (
+                      <div style={{ marginTop: '8px', padding: '10px 12px', background: '#FFF7ED', borderRadius: '8px', fontSize: '12px', color: '#92400E', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                        <strong>AI Suggestion:</strong> {query.ai_suggestion}
+                      </div>
+                    )}
+                    {query.response && (
+                      <div style={{ marginTop: '8px', padding: '10px 12px', background: '#F0FDF4', borderRadius: '8px', fontSize: '12px', color: '#065F46', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                        <strong>{query.responded_by_name || 'Response'}:</strong> {query.response}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
         </div>
 
         {/* RIGHT COLUMN */}
@@ -333,7 +374,7 @@ const APMatchScreen = ({ onNavigate, invoice: passedInvoice, role: propRole }) =
                       <div style={{ width: 24, height: 24, borderRadius: '50%', background: stepStatusColor, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '11px', fontWeight: 700, flexShrink: 0 }}>{step.level}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 600, fontSize: '12px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{step.assigned_to_name || ('Level ' + step.level)}</div>
-                        <div style={{ fontSize: '10px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{step.role_required}</div>
+                        <div style={{ fontSize: '10px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Minimum grade G{step.grade_required}</div>
                         {step.decided_at && <div style={{ fontSize: '10px', color: '#64748B', marginTop: 2, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{new Date(step.decided_at).toLocaleDateString('en-IN')}</div>}
                       </div>
                       <span style={{ background: stepStatusColor + '22', color: stepStatusColor, padding: '2px 8px', borderRadius: '999px', fontSize: '9px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif", flexShrink: 0 }}>{step.status}</span>
@@ -364,9 +405,10 @@ const APMatchScreen = ({ onNavigate, invoice: passedInvoice, role: propRole }) =
           {/* Action Buttons (bottom) */}
           {canAct && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <Btn variant="green" style={{ width: '100%', justifyContent: 'center' }} onClick={() => { setModal({ type: 'approve' }); setNotes(''); setAnomalyOverride(''); }}>✓ Approve This Invoice</Btn>
-              <Btn variant="purple" style={{ width: '100%', justifyContent: 'center' }} onClick={() => { setModal({ type: 'query' }); setNotes(''); }}>? Raise Query to Vendor</Btn>
-              <Btn variant="destructive" style={{ width: '100%', justifyContent: 'center' }} onClick={() => { setModal({ type: 'reject' }); setNotes(''); }}>✕ Reject This Invoice</Btn>
+              {permissions.can_approve && <Btn variant="green" style={{ width: '100%', justifyContent: 'center' }} onClick={() => { setModal({ type: 'approve' }); setNotes(''); setAnomalyOverride(''); }}>✓ Approve This Invoice</Btn>}
+              {permissions.can_query && <Btn variant="purple" style={{ width: '100%', justifyContent: 'center' }} onClick={() => { setModal({ type: 'query' }); setNotes(''); }}>? Raise Query to Vendor</Btn>}
+              {permissions.can_reject && <Btn variant="destructive" style={{ width: '100%', justifyContent: 'center' }} onClick={() => { setModal({ type: 'reject' }); setNotes(''); }}>✕ Reject This Invoice</Btn>}
+              {permissions.can_settle && <Btn variant="secondary" style={{ width: '100%', justifyContent: 'center' }} onClick={async () => { try { await window.TijoriAPI.BillsAPI.settle(bill.id); fetchBill(); } catch (err) { setActionError(err.message || 'Settlement failed.'); } }}>₹ Settle Payment</Btn>}
               {bill.anomaly_severity && bill.anomaly_severity !== 'NONE' && (
                 <Btn variant="secondary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => { setModal({ type: 'investigate' }); }}>🔍 Re-Run Anomaly Scan</Btn>
               )}

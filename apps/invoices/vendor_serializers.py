@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Vendor, Expense, ExpenseApprovalStep
+from .models import Vendor, Expense, ExpenseApprovalStep, ExpenseQuery
 
 
 class VendorOnboardSerializer(serializers.ModelSerializer):
@@ -92,6 +92,7 @@ class VendorBillListSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source="vendor.name", read_only=True)
     status = serializers.CharField(source="_status", read_only=True)
     anomaly_flags = serializers.SerializerMethodField()
+    action_permissions = serializers.SerializerMethodField()
 
     class Meta:
         model = Expense
@@ -112,6 +113,7 @@ class VendorBillListSerializer(serializers.ModelSerializer):
             "anomaly_severity",
             "ocr_confidence",
             "anomaly_flags",
+            "action_permissions",
             "created_at",
             "submitted_at",
             "approved_at",
@@ -121,6 +123,32 @@ class VendorBillListSerializer(serializers.ModelSerializer):
         if obj.ocr_raw and isinstance(obj.ocr_raw, dict):
             return obj.ocr_raw.get("anomaly_flags", [])
         return []
+
+    def get_action_permissions(self, obj):
+        request = self.context.get("request")
+        if not request or not getattr(request, "user", None):
+            return {}
+        from .services import build_action_permissions
+
+        return build_action_permissions(request.user, obj)
+
+
+class ExpenseQuerySerializer(serializers.ModelSerializer):
+    raised_by_name = serializers.SerializerMethodField()
+    responded_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ExpenseQuery
+        fields = [
+            "id", "raised_at_step", "question", "response",
+            "ai_suggestion", "raised_by_name", "responded_by_name", "raised_at", "responded_at",
+        ]
+
+    def get_raised_by_name(self, obj):
+        return obj.raised_by.get_full_name() if obj.raised_by else "System"
+
+    def get_responded_by_name(self, obj):
+        return obj.responded_by.get_full_name() if obj.responded_by else None
 
 
 class VendorBillDetailSerializer(serializers.ModelSerializer):
@@ -134,6 +162,9 @@ class VendorBillDetailSerializer(serializers.ModelSerializer):
     status = serializers.CharField(source="_status", read_only=True)
     approval_steps = serializers.SerializerMethodField()
     timeline = serializers.SerializerMethodField()
+    queries = serializers.SerializerMethodField()
+    invoice_file_url = serializers.SerializerMethodField()
+    action_permissions = serializers.SerializerMethodField()
 
     class Meta:
         model = Expense
@@ -166,14 +197,75 @@ class VendorBillDetailSerializer(serializers.ModelSerializer):
             "d365_posted_at",
             "d365_paid_at",
             "d365_payment_utr",
+            "invoice_file",
+            "invoice_file_url",
+            "action_permissions",
             "created_at",
             "submitted_at",
             "approved_at",
+            "queries",
         ]
+
+    def get_invoice_file_url(self, obj):
+        if obj.invoice_file_id:
+            return f"/api/v1/files/{obj.invoice_file_id}/"
+        return None
+
+    def get_queries(self, obj):
+        rows = (
+            obj.queries.select_related("raised_by", "responded_by")
+            .order_by("raised_at")
+            .values(
+                "id",
+                "raised_at_step",
+                "question",
+                "response",
+                "raised_at",
+                "responded_at",
+                "raised_by__first_name",
+                "raised_by__last_name",
+                "raised_by__username",
+                "responded_by__first_name",
+                "responded_by__last_name",
+                "responded_by__username",
+            )
+        )
+        data = []
+        for row in rows:
+            raised_name = " ".join(
+                part for part in [row.get("raised_by__first_name"), row.get("raised_by__last_name")] if part
+            ).strip() or row.get("raised_by__username") or "System"
+            responded_name = " ".join(
+                part for part in [row.get("responded_by__first_name"), row.get("responded_by__last_name")] if part
+            ).strip() or row.get("responded_by__username") or None
+            data.append(
+                {
+                    "id": row["id"],
+                    "raised_at_step": row["raised_at_step"],
+                    "question": row["question"],
+                    "response": row["response"],
+                    "ai_suggestion": "",
+                    "raised_by_name": raised_name,
+                    "responded_by_name": responded_name,
+                    "raised_at": row["raised_at"],
+                    "responded_at": row["responded_at"],
+                }
+            )
+        return data
+
+    def get_action_permissions(self, obj):
+        request = self.context.get("request")
+        if not request or not getattr(request, "user", None):
+            return {}
+        from .services import build_action_permissions
+
+        return build_action_permissions(request.user, obj)
 
     def get_approval_steps(self, obj):
         from .serializers import ExpenseApprovalStepSerializer
+        from .services import normalize_approval_chain
 
+        obj = normalize_approval_chain(obj)
         steps = obj.approval_steps.all().order_by("level")
         return ExpenseApprovalStepSerializer(steps, many=True).data
 

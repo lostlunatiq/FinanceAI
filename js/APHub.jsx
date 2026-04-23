@@ -11,7 +11,8 @@ function expenseToRow(exp) {
     return `₹${n.toFixed(0)}`;
   };
   return {
-    id: exp.ref_no || exp.invoice_number || exp.id.slice(0, 8),
+    id: exp.invoice_number || exp.ref_no || exp.id.slice(0, 8),
+    refNo: exp.ref_no,
     rawId: exp.id,
     vendor: exp.vendor_name || 'Unknown Vendor',
     amount: fmtAmt(exp.total_amount),
@@ -38,6 +39,8 @@ const APHubScreen = ({ role: propRole, onNavigate }) => {
   const [actionLoading, setActionLoading] = React.useState(false);
   const [actionError, setActionError] = React.useState('');
   const [authorityOpen, setAuthorityOpen] = React.useState(false);
+  const [authorityLimits, setAuthorityLimits] = React.useState([]);
+  const [authoritySaving, setAuthoritySaving] = React.useState(false);
   const [dept, setDept] = React.useState('');
   const [category, setCategory] = React.useState('Infrastructure');
   const [aiAccepted, setAiAccepted] = React.useState(false);
@@ -55,15 +58,22 @@ const APHubScreen = ({ role: propRole, onNavigate }) => {
       .finally(() => setLoadingBills(false));
   };
 
-  React.useEffect(() => { loadBills(); }, []);
+  const loadAuthority = () => {
+    const { BillsAPI } = window.TijoriAPI;
+    BillsAPI.approvalAuthority().then(data => setAuthorityLimits(data || [])).catch(() => {});
+  };
+
+  React.useEffect(() => { loadBills(); loadAuthority(); }, []);
 
   // Dynamic role — use prop (from AppShell) or fall back to localStorage
   const currentRole = propRole || localStorage.getItem('tj_role') || 'CFO';
   const isL1 = currentRole === 'AP Clerk';
+  const canManageAuthority = currentRole === 'Finance Admin' || currentRole === 'CFO';
 
   const filters = ['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'QUERY_RAISED', 'ANOMALY'];
   const filtered = invoices.filter(inv => {
-    const matchF = filter === 'ALL' || inv.status.startsWith(filter) || inv.status === filter;
+    const matchF = filter === 'ALL'
+      || (filter === 'ANOMALY' ? inv.anomaly : (inv.status.startsWith(filter) || inv.status === filter));
     const matchS = !search || inv.id.toLowerCase().includes(search.toLowerCase()) || inv.vendor.toLowerCase().includes(search.toLowerCase());
     return matchF && matchS;
   });
@@ -110,12 +120,18 @@ const APHubScreen = ({ role: propRole, onNavigate }) => {
     query: { title: '? Raise Query to Vendor', color: '#5B21B6', btn: 'Send Query to Vendor', btnV: 'purple' },
   };
 
-  const authorityLimits = [
-    { role: 'L1 Approver', max: '₹50,000', util: '68%' },
-    { role: 'HOD', max: '₹2,00,000', util: '45%' },
-    { role: 'Finance Manager', max: '₹5,00,000', util: '82%' },
-    { role: 'CFO', max: 'Unlimited', util: '34%' },
-  ];
+  const updateAuthority = async (grade, field, value) => {
+    const { BillsAPI } = window.TijoriAPI;
+    setAuthoritySaving(true);
+    try {
+      await BillsAPI.updateApprovalAuthority({ grade, [field]: value });
+      loadAuthority();
+    } catch (err) {
+      setActionError(err.message || 'Authority update failed.');
+    } finally {
+      setAuthoritySaving(false);
+    }
+  };
 
   return (
     <div style={{ padding: '32px', position: 'relative' }}>
@@ -127,7 +143,14 @@ const APHubScreen = ({ role: propRole, onNavigate }) => {
               style={{ padding: '8px 12px 8px 34px', border: '1.5px solid #E2E8F0', borderRadius: '10px', fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', width: 220, background: '#FAFAF8' }} />
             <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: '14px', color: '#94A3B8' }}>🔍</span>
           </div>
-          <Btn variant="secondary" small>Export ↓</Btn>
+          <Btn variant="secondary" small onClick={() => {
+            const rows = [['Invoice #', 'Ref No', 'Vendor', 'Amount', 'Date', 'Status', 'Anomaly']];
+            invoices.forEach(inv => rows.push([inv.id, inv.refNo || '', inv.vendor, inv.amount, inv.date, inv.status, inv.anomaly ? inv.anomalySeverity || 'YES' : 'NO']));
+            const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = `ap_hub_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(url);
+          }}>Export ↓</Btn>
         </>}
       />
 
@@ -152,28 +175,40 @@ const APHubScreen = ({ role: propRole, onNavigate }) => {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: '#F8F7F5' }}>
-                  {['Role', 'Max Amount', 'Current Utilisation'].map(h => (
+                  {['Role', 'Approval Limit', 'Settlement Limit', 'Monthly Approval Budget'].map(h => (
                     <th key={h} style={{ padding: '10px 20px', textAlign: 'left', fontSize: '10px', fontWeight: 700, color: '#94A3B8', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {authorityLimits.map(r => (
-                  <tr key={r.role} style={{ borderTop: '1px solid #F1F0EE' }}>
-                    <td style={{ padding: '12px 20px', fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{r.role}</td>
-                    <td style={{ padding: '12px 20px', fontSize: '13px', fontFamily: "'JetBrains Mono', monospace", color: '#E8783B', fontWeight: 500 }}>{r.max}</td>
-                    <td style={{ padding: '12px 20px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ flex: 1, height: 6, background: '#F1F5F9', borderRadius: 3, overflow: 'hidden', maxWidth: 120 }}>
-                          <div style={{ height: '100%', width: r.util, background: parseFloat(r.util) > 80 ? '#EF4444' : parseFloat(r.util) > 60 ? '#F59E0B' : '#10B981', borderRadius: 3, transition: 'width 600ms ease' }} />
-                        </div>
-                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{r.util}</span>
-                      </div>
-                    </td>
+                  <tr key={r.grade} style={{ borderTop: '1px solid #F1F0EE' }}>
+                    <td style={{ padding: '12px 20px', fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{r.label}</td>
+                    {['approval_limit', 'settlement_limit', 'monthly_approval_budget'].map(field => (
+                      <td key={field} style={{ padding: '12px 20px', fontSize: '13px', fontFamily: "'JetBrains Mono', monospace", color: '#E8783B', fontWeight: 500 }}>
+                        {canManageAuthority && r.grade < 5 ? (
+                          <input
+                            type="number"
+                            defaultValue={r[field] == null || !isFinite(r[field]) ? '' : r[field]}
+                            placeholder={r[field] == null || !isFinite(r[field]) ? 'Unlimited' : ''}
+                            onBlur={e => updateAuthority(r.grade, field, e.target.value)}
+                            disabled={authoritySaving}
+                            style={{ width: 140, padding: '6px 8px', border: '1px solid #E2E8F0', borderRadius: '8px', fontSize: '12px' }}
+                          />
+                        ) : (
+                          <span>{r[field] == null || !isFinite(r[field]) ? 'Unlimited' : `₹${Number(r[field]).toLocaleString('en-IN')}`}</span>
+                        )}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
             </table>
+            {canManageAuthority && (
+              <div style={{ padding: '10px 20px', borderTop: '1px solid #F1F0EE', fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                Only Finance Admin and CFO can edit approval and settlement limits.
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -226,7 +261,8 @@ const APHubScreen = ({ role: propRole, onNavigate }) => {
                     <input type="checkbox" checked={sel} onChange={() => toggleSelect(inv.id)} style={{ accentColor: '#E8783B', cursor: 'pointer' }} />
                   </td>
                   <td style={{ padding: '0 16px' }}>
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#E8783B', fontWeight: 500 }}>{inv.id}</span>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#0F172A', fontWeight: 600 }}>{inv.id}</div>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px', color: '#E8783B', marginTop: '1px' }}>{inv.refNo}</div>
                   </td>
                   <td style={{ padding: '0 16px', fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{inv.vendor}</td>
                   <td style={{ padding: '0 16px', fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '14px', color: '#E8783B', letterSpacing: '-0.5px' }}>{inv.amount}</td>
@@ -240,12 +276,10 @@ const APHubScreen = ({ role: propRole, onNavigate }) => {
                   <td style={{ padding: '0 16px', fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{inv.assigned}</td>
                   <td style={{ padding: '0 16px' }} onClick={e => e.stopPropagation()}>
                     <div style={{ display: 'flex', gap: '6px' }}>
-                      {!['APPROVED','PAID','REJECTED'].includes(inv.status) && <>
-                        <Btn variant="green" small onClick={() => handleAction('approve', inv)}>Approve</Btn>
-                        <Btn variant="destructive" small onClick={() => handleAction('reject', inv)}>Reject</Btn>
-                        <Btn variant="purple" small onClick={() => handleAction('query', inv)}>Query</Btn>
-                      </>}
-                      {['APPROVED','PAID','REJECTED'].includes(inv.status) && <span style={{ fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>—</span>}
+                      {inv._raw?.action_permissions?.can_approve && <Btn variant="green" small onClick={() => handleAction('approve', inv)}>Approve</Btn>}
+                      {inv._raw?.action_permissions?.can_reject && <Btn variant="destructive" small onClick={() => handleAction('reject', inv)}>Reject</Btn>}
+                      {inv._raw?.action_permissions?.can_query && <Btn variant="purple" small onClick={() => handleAction('query', inv)}>Query</Btn>}
+                      {(!inv._raw?.action_permissions?.can_approve && !inv._raw?.action_permissions?.can_reject && !inv._raw?.action_permissions?.can_query) && <span style={{ fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>—</span>}
                     </div>
                   </td>
                 </tr>

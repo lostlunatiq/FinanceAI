@@ -37,7 +37,7 @@ class ExpenseSubmitSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         vendor = data.get("vendor")
-        if not vendor.is_approved:
+        if vendor and not vendor.is_approved:
             raise serializers.ValidationError(
                 f"Vendor '{vendor.name}' is not approved. Contact admin."
             )

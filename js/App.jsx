@@ -5,13 +5,16 @@
 // Maps employee_grade integer + flags → ROLE_CONFIG key
 // Single source of truth — used in both token verify and login flows
 
-const gradeToRoleKey = (grade, isSuperuser, isVendor) => {
+const gradeToRoleKey = (grade, isSuperuser, isVendor, username, dept) => {
   if (isVendor)      return 'Vendor';
   if (isSuperuser)   return 'CFO';
   if (grade >= 4)    return 'Finance Admin';
   if (grade >= 3)    return 'Finance Manager';
-  if (grade >= 2)    return 'Finance Manager';  // dept head gets FM view
-  return 'AP Clerk';
+  if (grade >= 2)    return 'Finance Manager';
+  
+  // Grade 1 logic: Finance dept or specific l1_approver get Clerk view, others get Employee view
+  if (dept === 'Finance' || username === 'l1_approver') return 'AP Clerk';
+  return 'Employee';
 };
 
 // ─── NAV CONFIG ──────────────────────────────────────────────────────────────
@@ -296,23 +299,24 @@ const AppShell = ({ roleKey, screen, onNavigate, onLogout, user, children }) => 
 const SCREEN_MAP = {
   'dashboard':     (nav, roleKey, ctx) => React.createElement(DashboardScreen,         { role: roleKey, onNavigate: nav }),
   'ap-hub':        (nav, roleKey, ctx) => React.createElement(APHubScreen,             { role: roleKey, onNavigate: nav }),
-  'ap-match':      (nav, roleKey, ctx) => React.createElement(APMatchScreen,           { role: roleKey, onNavigate: nav, invoice: ctx }),
-  'expenses':      (nav, roleKey, ctx) => React.createElement(ExpensesScreen,          { role: roleKey }),
-  'budget':        (nav, roleKey, ctx) => React.createElement(BudgetScreen,            {}),
-  'guardrails':    (nav, roleKey, ctx) => React.createElement(GuardrailsScreen,        {}),
-  'anomaly':       (nav, roleKey, ctx) => React.createElement(AnomalyScreen,           {}),
-  'ai-hub':        (nav, roleKey, ctx) => React.createElement(AIHubScreen,             {}),
-  'vendors':       (nav, roleKey, ctx) => React.createElement(VendorsScreen,           {}),
-  'audit':         (nav, roleKey, ctx) => React.createElement(AuditScreen,             {}),
-  'settings':      (nav, roleKey, ctx) => React.createElement(SettingsScreen,          { role: roleKey }),
-  'vendor-portal': (nav, roleKey, ctx) => React.createElement(VendorPortalScreen,      {}),
-  'fm-home':       (nav, roleKey, ctx) => React.createElement(FinanceManagerDashboard, {}),
-  'clerk-home':    (nav, roleKey, ctx) => React.createElement(APClerkDashboard,        {}),
+  'ap-match':      (nav, roleKey, ctx) => React.createElement(APMatchScreen,           { role: roleKey, onNavigate: nav, invoice: ctx?.invoice || ctx }),
+  'expenses':      (nav, roleKey, ctx) => React.createElement(ExpensesScreen,          { role: roleKey, onNavigate: nav }),
+  'budget':        (nav, roleKey, ctx) => React.createElement(BudgetScreen,            { onNavigate: nav }),
+  'guardrails':    (nav, roleKey, ctx) => React.createElement(GuardrailsScreen,        { onNavigate: nav }),
+  'anomaly':       (nav, roleKey, ctx) => React.createElement(AnomalyScreen,           { onNavigate: nav }),
+  'ai-hub':        (nav, roleKey, ctx) => React.createElement(AIHubScreen,             { onNavigate: nav }),
+  'vendors':       (nav, roleKey, ctx) => React.createElement(VendorsScreen,           { onNavigate: nav }),
+  'audit':         (nav, roleKey, ctx) => React.createElement(AuditScreen,             { onNavigate: nav }),
+  'settings':      (nav, roleKey, ctx) => React.createElement(SettingsScreen,          { role: roleKey, onNavigate: nav }),
+  'vendor-portal': (nav, roleKey, ctx) => React.createElement(VendorPortalScreen,      { onNavigate: nav }),
+  'fm-home':       (nav, roleKey, ctx) => React.createElement(FinanceManagerDashboard, { onNavigate: nav }),
+  'clerk-home':    (nav, roleKey, ctx) => React.createElement(APClerkDashboard,        { onNavigate: nav }),
   'emp-home':      (nav, roleKey, ctx) => React.createElement(EmployeeDashboard,       { onNavigate: nav }),
-  'iam':           (nav, roleKey, ctx) => React.createElement(IAMScreen,               {}),
+  'iam':           (nav, roleKey, ctx) => React.createElement(IAMScreen,               { onNavigate: nav }),
   'ar':            (nav, roleKey, ctx) => React.createElement(ARScreen,                { onNavigate: nav }),
   'ar-raise':      (nav, roleKey, ctx) => React.createElement(ARRaiseScreen,           { onNavigate: nav }),
   'ar-customer':   (nav, roleKey, ctx) => React.createElement(ARCustomerScreen,        { onNavigate: nav }),
+  'reports':       (nav, roleKey, ctx) => React.createElement(ReportsScreen,         { onNavigate: nav }),
 };
 
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
@@ -338,7 +342,7 @@ const App = () => {
 
   const applySession = (userData) => {
     const isVendor = !!userData.is_vendor;
-    const key      = gradeToRoleKey(userData.employee_grade, userData.is_superuser, isVendor);
+    const key      = gradeToRoleKey(userData.employee_grade, userData.is_superuser, isVendor, userData.username, userData.department_name);
     const built    = buildUser(userData);
 
     setRoleKey(key);

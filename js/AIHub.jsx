@@ -128,7 +128,7 @@ const CopilotWidget = () => {
   );
 };
 
-const AIHubScreen = () => {
+const AIHubScreen = ({ onNavigate }) => {
   const [scenario, setScenario] = React.useState('Base');
   const [summaryOpen, setSummaryOpen] = React.useState(false);
   const [selectedMonth, setSelectedMonth] = React.useState(null);

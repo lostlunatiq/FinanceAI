@@ -209,9 +209,39 @@ const BillsAPI = {
     return apiFetch(`/invoices/finance/bills/${id}/scan-anomaly/`, { method: 'POST' });
   },
 
+  async settle(id, paymentUtr) {
+    return apiFetch(`/invoices/finance/bills/${id}/settle/`, {
+      method: 'POST',
+      body: JSON.stringify({ payment_utr: paymentUtr || '' }),
+    });
+  },
+
+  async approvalAuthority() {
+    return apiFetch('/invoices/finance/approval-authority/');
+  },
+
+  async updateApprovalAuthority(data) {
+    return apiFetch('/invoices/finance/approval-authority/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async markSafe(id) {
+    return apiFetch(`/invoices/finance/bills/${id}/mark-safe/`, { method: 'POST' });
+  },
+
+  async escalate(id) {
+    return apiFetch(`/invoices/finance/bills/${id}/escalate/`, { method: 'POST' });
+  },
+
   async listExpenses(params = {}) {
     const qs = new URLSearchParams(params).toString();
     return apiFetch(`/invoices/finance/expenses/${qs ? '?' + qs : ''}`);
+  },
+
+  async submitExpense(data) {
+    return apiFetch('/invoices/submit/', { method: 'POST', body: JSON.stringify(data) });
   },
 };
 
@@ -268,6 +298,13 @@ const VendorAPI = {
       body: JSON.stringify({ action }),
     });
   },
+
+  async respondQuery(billId, queryId, response) {
+    return apiFetch(`/invoices/finance/bills/${billId}/respond-query/`, {
+      method: 'POST',
+      body: JSON.stringify({ query_id: queryId, response }),
+    });
+  },
 };
 
 // ── Files / OCR API ───────────────────────────────────────────────────────────
@@ -284,6 +321,22 @@ const FilesAPI = {
       method: 'POST',
       body: JSON.stringify({ file_id: fileId }),
     });
+  },
+
+  async open(fileId) {
+    const res = await fetch(`${API_BASE}/files/${fileId}/`, {
+      headers: {
+        ...(Auth.getAccess() ? { 'Authorization': `Bearer ${Auth.getAccess()}` } : {}),
+      },
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new APIError(res.status, body);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
   },
 
   downloadUrl(fileId) {

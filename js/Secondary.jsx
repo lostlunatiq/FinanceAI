@@ -11,7 +11,7 @@ const VENDORS = [
   { id: 'VND-006', name: 'ShellBridge Exports', gst: '33AACGS3456P1ZD', category: 'Exports', status: 'SUSPENDED', outstanding: '₹0' },
 ];
 
-const VendorsScreen = () => {
+const VendorsScreen = ({ onNavigate }) => {
   const [addOpen, setAddOpen] = React.useState(false);
   const [step, setStep] = React.useState(0);
   const [detail, setDetail] = React.useState(null);
@@ -274,33 +274,70 @@ const VendorsScreen = () => {
 const EXP_CATEGORIES_LIST = ['Travel', 'Software & Licences', 'Infrastructure', 'Marketing & Events', 'HR & Recruitment', 'Legal & Compliance', 'Office Supplies', 'Professional Services', 'Utilities', 'Other'];
 
 const EXPENSES_DATA = [
-  { id: 'EXP-2024-441', employee: 'Aisha Nair', amount: '₹4,200', amtNum: 4200, date: 'Apr 19', status: 'PENDING_L1', category: 'Travel & Accommodation', aiCat: true, catConf: 91, dept: null },
+  { id: 'EXP-2024-441', employee: 'Aisha Nair', amount: '₹4,200', amtNum: 4200, date: 'Apr 19', status: 'PENDING_L1', category: 'Travel', aiCat: true, catConf: 91, dept: null },
   { id: 'EXP-2024-440', employee: 'Rahul Desai', amount: '₹12,500', amtNum: 12500, date: 'Apr 18', status: 'APPROVED', category: 'Software & Licences', aiCat: false, catConf: null, dept: 'Engineering' },
   { id: 'EXP-2024-439', employee: 'Priya Mehta', amount: '₹890', amtNum: 890, date: 'Apr 18', status: 'PAID', category: 'Office Supplies', aiCat: false, catConf: null, dept: 'Finance' },
   { id: 'EXP-2024-438', employee: 'Dev Kapoor', amount: '₹6,400', amtNum: 6400, date: 'Apr 17', status: 'REJECTED', category: 'Infrastructure', aiCat: true, catConf: 78, dept: null },
-  { id: 'EXP-2024-437', employee: 'Sunita Rao', amount: '₹2,100', amtNum: 2100, date: 'Apr 16', status: 'PENDING_L1', category: 'Travel & Accommodation', aiCat: true, catConf: 94, dept: null },
+  { id: 'EXP-2024-437', employee: 'Sunita Rao', amount: '₹2,100', amtNum: 2100, date: 'Apr 16', status: 'PENDING_L1', category: 'Travel', aiCat: true, catConf: 94, dept: null },
 ];
 
 const EXP_BUDGET_MAP = {
-  'Travel & Accommodation': { rem: 180000, total: 300000 },
+  'Travel': { rem: 180000, total: 300000 },
   'Software & Licences': { rem: 420000, total: 600000 },
   'Infrastructure': { rem: 0, total: 240000 },
   'Office Supplies': { rem: 85000, total: 100000 },
   'Marketing & Events': { rem: 195000, total: 1300000 },
 };
 
-const ExpensesScreen = ({ role: propRole }) => {
+const ExpensesScreen = ({ role: propRole, onNavigate }) => {
   const [panelOpen, setPanelOpen] = React.useState(false);
   const [uploadDone, setUploadDone] = React.useState(false);
-  const [expCategory, setExpCategory] = React.useState('Travel & Accommodation');
+  const [expCategory, setExpCategory] = React.useState('Travel');
   const [aiCatAccepted, setAiCatAccepted] = React.useState(false);
   const [expAmount, setExpAmount] = React.useState('');
+  const [expDate, setExpDate] = React.useState('');
+  const [expDesc, setExpDesc] = React.useState('');
   const [expandedRow, setExpandedRow] = React.useState(null);
   const [expenses, setExpenses] = React.useState([]);
   const [loadingExp, setLoadingExp] = React.useState(true);
+  const [selectedInv, setSelectedInv] = React.useState(null);
+  const [reviewNotes, setReviewNotes] = React.useState('');
+  const [reviewLoading, setReviewLoading] = React.useState(false);
+  const [reviewMsg, setReviewMsg] = React.useState('');
+  const [uploadedFileRef, setUploadedFileRef] = React.useState(null);
+  const [ocrLoading, setOcrLoading] = React.useState(false);
+  const [ocrResult, setOcrResult] = React.useState(null);
+  const [submitLoading, setSubmitLoading] = React.useState(false);
+  const [submitError, setSubmitError] = React.useState('');
+  const [expVendorName, setExpVendorName] = React.useState('');
 
   const currentRole = propRole || localStorage.getItem('tj_role') || 'CFO';
   const isVendor = currentRole === 'Vendor';
+
+  const inferredCategory = React.useMemo(() => {
+    const text = [
+      ocrResult?.extracted_fields?.vendor_name,
+      ocrResult?.raw_text,
+      expDesc,
+    ].filter(Boolean).join(' ').toLowerCase();
+    if (!text) return { name: expCategory, confidence: null };
+    if (/(flight|hotel|travel|cab|uber|ola|trip)/.test(text)) return { name: 'Travel', confidence: 88 };
+    if (/(software|license|subscription|saas|google|microsoft|openai|cloud)/.test(text)) return { name: 'Software & Licences', confidence: 84 };
+    if (/(server|hosting|aws|azure|gcp|internet|network|infrastructure)/.test(text)) return { name: 'Infrastructure', confidence: 82 };
+    if (/(recruit|staff|hr|manpower|payroll)/.test(text)) return { name: 'HR & Recruitment', confidence: 78 };
+    if (/(legal|compliance|registration|filing|gst|tax)/.test(text)) return { name: 'Legal & Compliance', confidence: 76 };
+    if (/(office|stationery|printer|supplies)/.test(text)) return { name: 'Office Supplies', confidence: 74 };
+    if (/(marketing|event|campaign|advertising|promotion)/.test(text)) return { name: 'Marketing & Events', confidence: 80 };
+    if (/(consult|service|professional|vendor|solution)/.test(text)) return { name: 'Professional Services', confidence: 72 };
+    return { name: 'Other', confidence: 55 };
+  }, [ocrResult, expDesc, expCategory]);
+  const ocrSucceeded = !!(
+    ocrResult &&
+    (ocrResult.status === 'COMPLETE' || (ocrResult.confidence || 0) > 0) &&
+    ocrResult.extracted_fields &&
+    Object.keys(ocrResult.extracted_fields).length > 0
+  );
+  const ocrFailed = !!(uploadDone && ocrResult && !ocrSucceeded);
 
   React.useEffect(() => {
     const { BillsAPI } = window.TijoriAPI;
@@ -310,6 +347,75 @@ const ExpensesScreen = ({ role: propRole }) => {
       .catch(() => {})
       .finally(() => setLoadingExp(false));
   }, []);
+
+  const handleExpFileSelect = async (file) => {
+    if (!file) return;
+    setOcrLoading(true); setOcrResult(null); setSubmitError(''); setUploadedFileRef(null);
+    try {
+      const { FilesAPI } = window.TijoriAPI;
+      const uploaded = await FilesAPI.upload(file);
+      setUploadedFileRef(uploaded.id);
+      setUploadDone(true);
+      const ocr = await FilesAPI.ocr(uploaded.id);
+      setOcrResult(ocr);
+      if (ocr.extracted_fields && Object.keys(ocr.extracted_fields).length > 0) {
+        const f = ocr.extracted_fields;
+        if (f.total_amount) setExpAmount(String(f.total_amount));
+        if (f.invoice_date) setExpDate(f.invoice_date);
+        if (f.vendor_name) {
+          setExpVendorName(f.vendor_name);
+          setExpDesc(`Services from ${f.vendor_name}`);
+        }
+      }
+      if (ocr.status === 'FAILED' || !(ocr.confidence > 0)) {
+        setSubmitError(ocr.error || 'OCR could not extract fields. You can still fill the bill manually.');
+      }
+    } catch (err) {
+      setSubmitError('Upload failed: ' + (err.message || 'Unknown'));
+    } finally {
+      setOcrLoading(false);
+    }
+  };
+
+  const handleExpSubmit = async () => {
+    if (!expAmount) { setSubmitError('Amount is required.'); return; }
+    setSubmitLoading(true); setSubmitError('');
+    try {
+      const { BillsAPI } = window.TijoriAPI;
+      const payload = {
+        business_purpose: expDesc || expCategory,
+        total_amount: parseFloat(expAmount) || 0,
+        invoice_date: expDate || null,
+        pre_gst_amount: parseFloat(expAmount) || 0,
+        vendor_name: expVendorName || 'Internal Expense',
+        ...(uploadedFileRef ? { invoice_file: uploadedFileRef } : {}),
+      };
+      await BillsAPI.submitExpense(payload);
+      setPanelOpen(false);
+      setExpAmount(''); setExpDate(''); setExpDesc(''); setExpVendorName(''); setUploadDone(false); setUploadedFileRef(null); setOcrResult(null); setAiCatAccepted(false);
+      BillsAPI.listExpenses().then(data => setExpenses(data || [])).catch(() => {});
+    } catch (err) {
+      setSubmitError(err.message || 'Submit failed.');
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
+  const handleReviewApprove = async () => {
+    if (!selectedInv) return;
+    setReviewLoading(true); setReviewMsg('');
+    try {
+      const { BillsAPI } = window.TijoriAPI;
+      await BillsAPI.approve(selectedInv.id, reviewNotes || 'Approved');
+      setReviewMsg('Approved successfully.');
+      setExpenses(prev => prev.map(e => e.id === selectedInv.id ? { ...e, status: 'APPROVED' } : e));
+      setTimeout(() => { setSelectedInv(null); setReviewMsg(''); }, 1000);
+    } catch (err) {
+      setReviewMsg('Failed: ' + (err.message || 'Error'));
+    } finally {
+      setReviewLoading(false);
+    }
+  };
 
   const budgetInfo = EXP_BUDGET_MAP[expCategory];
   const budgetPct = budgetInfo ? Math.round((budgetInfo.rem / budgetInfo.total) * 100) : null;
@@ -342,7 +448,8 @@ const ExpensesScreen = ({ role: propRole }) => {
               <tr><td colSpan={!isVendor ? 8 : 7} style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '13px' }}>No expenses found.</td></tr>
             ) : null}
             {expenses.map(e => {
-              const rowId = e.ref_no || (e.id ? String(e.id).slice(0, 8).toUpperCase() : '—');
+              const rowId = e.invoice_number || e.ref_no || (e.id ? String(e.id).slice(0, 8).toUpperCase() : '—');
+              const refNo = e.ref_no;
               const employee = e.vendor_name || e.submitted_by_name || '—';
               const category = e.business_purpose || e.category || '—';
               const dept = e.department || null;
@@ -355,8 +462,11 @@ const ExpensesScreen = ({ role: propRole }) => {
                 <tr style={{ borderTop: '1px solid #F1F0EE', height: 52, transition: 'background 150ms', cursor: 'pointer' }}
                   onMouseEnter={ev => ev.currentTarget.style.background = '#FFF8F5'}
                   onMouseLeave={ev => ev.currentTarget.style.background = 'white'}
-                  onClick={() => setExpandedRow(expandedRow === (e.id || rowId) ? null : (e.id || rowId))}>
-                  <td style={{ padding: '0 16px', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#E8783B' }}>{rowId}</td>
+                  onClick={() => onNavigate && onNavigate('ap-match', { invoice: e })}>
+                  <td style={{ padding: '0 16px' }}>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#0F172A', fontWeight: 600 }}>{rowId}</div>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px', color: '#E8783B', marginTop: '1px' }}>{refNo}</div>
+                  </td>
                   <td style={{ padding: '0 16px', fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{employee}</td>
                   <td style={{ padding: '0 16px' }}>
                     {aiCat ? (
@@ -383,7 +493,7 @@ const ExpensesScreen = ({ role: propRole }) => {
                   <td style={{ padding: '0 16px' }}><StatusBadge status={e.status} /></td>
                   <td style={{ padding: '0 16px' }} onClick={ev => ev.stopPropagation()}>
                     <div style={{ display: 'flex', gap: '6px' }}>
-                      {e.status && e.status.startsWith('PENDING') && <><Btn variant="green" small>Approve</Btn><Btn variant="destructive" small>Reject</Btn></>}
+                      {e.status && e.status.startsWith('PENDING') && <><Btn variant="green" small onClick={() => { setSelectedInv(e); setReviewNotes(''); setReviewMsg(''); }}>Review</Btn></>}
                       {(!e.status || !e.status.startsWith('PENDING')) && <span style={{ fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>—</span>}
                     </div>
                   </td>
@@ -391,55 +501,87 @@ const ExpensesScreen = ({ role: propRole }) => {
                 {expandedRow === (e.id || rowId) && (
                   <tr style={{ background: '#FAFAF8', borderTop: '1px solid #F1F0EE', animation: 'fadeUp 200ms ease' }}>
                     <td colSpan={!isVendor ? 8 : 7} style={{ padding: '16px 20px' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', fontSize: '12px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1.5fr', gap: '20px' }}>
                         <div>
-                          <div style={{ fontSize: '10px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>Invoice No.</div>
-                          <div style={{ border: '1.5px dashed #E2E8F0', borderRadius: '8px', padding: '10px 14px', color: '#475569', fontSize: '12px', fontFamily: "'JetBrains Mono', monospace" }}>{e.invoice_number || '—'}</div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '10px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>Category</div>
-                          {aiCat ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <AIBadge small /><span style={{ color: '#5B21B6', fontWeight: 600 }}>{category} ({catConf}% OCR conf.)</span>
+                          <div style={{ fontSize: '10px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Spend Analysis & Evidence</div>
+                          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                            <div style={{ width: 60, height: 80, background: '#F1F5F9', border: '1px solid #E2E8F0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', color: '#CBD5E1' }}>📄</div>
+                            <div>
+                              <div style={{ fontSize: '12px', fontWeight: 600, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{e.invoice_number || 'No file reference'}</div>
+                              <div style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>{e.ocr_confidence ? `OCR Confidence: ${Math.round(e.ocr_confidence*100)}%` : 'Manual submission'}</div>
+                              <button style={{ marginTop: '6px', fontSize: '11px', color: '#E8783B', fontWeight: 700, border: 'none', background: 'none', padding: 0, cursor: 'pointer' }} onClick={() => { if (e.invoice_file) { window.TijoriAPI.FilesAPI.open(e.invoice_file); } else { alert('No file attached to this expense.'); } }}>View Full Receipt ↗</button>
                             </div>
-                          ) : <span style={{ fontWeight: 600, color: '#0F172A' }}>{category}</span>}
-                        </div>
-                        {!isVendor && (
-                          <div>
-                            <div style={{ fontSize: '10px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>Budget Impact</div>
-                            {dept ? (
-                              <span style={{ color: '#065F46', fontWeight: 600 }}>{dept} · Charged ✓</span>
-                            ) : (
-                              <span style={{ color: '#F59E0B', fontWeight: 600 }}>Pending department assignment</span>
-                            )}
                           </div>
-                        )}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '10px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Category & Policy</div>
+                          <div style={{ background: '#F8F7F5', border: '1.5px dashed #E2E8F0', borderRadius: '8px', padding: '10px 14px' }}>
+                            <div style={{ fontSize: '12px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>{category}</div>
+                            <div style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>Policy: Global Travel & Expense v2.4</div>
+                          </div>
+                        </div>
+                        <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: '12px', padding: '14px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                            <span style={{ fontSize: '14px' }}>✦</span>
+                            <span style={{ fontSize: '12px', fontWeight: 700, color: '#065F46', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>AI Policy Compliance Check</span>
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#064E3B', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.4 }}>
+                            I've cross-referenced this spend with the {category} policy. {e.total_amount > 100000 ? '🔴 Warning: This exceeds the manager approval limit of ₹1L.' : '🟢 Spend is within limits for this department. Verified merchant category matches claim category.'}
+                          </div>
+                        </div>
                       </div>
                     </td>
                   </tr>
                 )}
               </React.Fragment>
-              );
-            })}
+            );
+          })}
           </tbody>
         </table>
       </div>
 
+      {/* Review Modal */}
+      {selectedInv && (
+        <TjModal open={!!selectedInv} onClose={() => { setSelectedInv(null); setReviewNotes(''); setReviewMsg(''); }} title="Review Expense" accentColor="#065F46" width={480}>
+          <div style={{ padding: '12px 14px', background: '#F8F7F5', borderRadius: '10px', marginBottom: '16px' }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#E8783B' }}>{selectedInv.ref_no || String(selectedInv.id).slice(0,8).toUpperCase()}</div>
+            <div style={{ fontWeight: 600, fontSize: '14px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '4px' }}>{selectedInv.vendor_name || selectedInv.submitted_by_name || '—'}</div>
+            <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '22px', color: '#E8783B', letterSpacing: '-0.5px', marginTop: '4px' }}>
+              ₹{selectedInv.total_amount ? Number(selectedInv.total_amount).toLocaleString('en-IN') : '—'}
+            </div>
+            <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Purpose: {selectedInv.business_purpose || '—'}</div>
+          </div>
+          <TjTextarea label="Approval Notes (optional)" placeholder="Add any notes for this approval…" value={reviewNotes} onChange={e => setReviewNotes(e.target.value)} rows={3} />
+          {reviewMsg && <div style={{ fontSize: '12px', color: reviewMsg.includes('Failed') ? '#EF4444' : '#10B981', marginBottom: '8px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{reviewMsg}</div>}
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <Btn variant="secondary" onClick={() => { setSelectedInv(null); setReviewNotes(''); setReviewMsg(''); }}>Cancel</Btn>
+            <Btn variant="green" onClick={handleReviewApprove} disabled={reviewLoading}>{reviewLoading ? 'Processing…' : '✓ Approve'}</Btn>
+          </div>
+        </TjModal>
+      )}
+
       {/* File Expense Side Panel */}
       <SidePanel open={panelOpen} onClose={() => setPanelOpen(false)} title="File Expense / Bill">
         {/* Upload zone */}
-        <div style={{ border: `1.5px dashed ${uploadDone ? '#10B981' : '#E2E8F0'}`, borderRadius: '12px', padding: '24px', textAlign: 'center', marginBottom: '20px', background: uploadDone ? '#F0FDF4' : '#FAFAF8', cursor: 'pointer', transition: 'all 200ms' }}
+        <div style={{ border: `1.5px dashed ${ocrFailed ? '#F59E0B' : uploadDone ? '#10B981' : '#E2E8F0'}`, borderRadius: '12px', padding: '24px', textAlign: 'center', marginBottom: '20px', background: ocrFailed ? '#FFFBEB' : uploadDone ? '#F0FDF4' : '#FAFAF8', cursor: 'pointer', transition: 'all 200ms', position: 'relative' }}
           onMouseEnter={e => { if (!uploadDone) e.currentTarget.style.borderColor = '#E8783B'; }}
           onMouseLeave={e => { if (!uploadDone) e.currentTarget.style.borderColor = '#E2E8F0'; }}
-          onClick={() => setUploadDone(true)}>
-          <div style={{ fontSize: '28px', marginBottom: '8px' }}>{uploadDone ? '✅' : '📄'}</div>
-          <div style={{ fontWeight: 700, fontSize: '13px', color: uploadDone ? '#065F46' : '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            {uploadDone ? 'Invoice uploaded — AI extracting line items…' : 'Upload invoice for AI extraction'}
+          onClick={() => { if (!uploadDone) document.getElementById('exp-file-input').click(); }}>
+          <input id="exp-file-input" type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
+            onChange={e => { const f = e.target.files[0]; if (f) handleExpFileSelect(f); e.target.value = ''; }} />
+          <div style={{ fontSize: '28px', marginBottom: '8px' }}>{ocrLoading ? '⏳' : ocrFailed ? '⚠️' : uploadDone ? '✅' : '📄'}</div>
+          <div style={{ fontWeight: 700, fontSize: '13px', color: ocrLoading ? '#5B21B6' : ocrFailed ? '#92400E' : uploadDone ? '#065F46' : '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            {ocrLoading ? 'AI extracting data from invoice…' : ocrFailed ? 'Invoice uploaded — OCR unavailable, fill manually below' : uploadDone ? 'Invoice uploaded — fields pre-filled below' : 'Upload invoice for AI extraction'}
           </div>
           <div style={{ fontSize: '12px', color: '#94A3B8', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            {uploadDone ? 'Category suggestion ready below' : 'Drag & drop or click to browse · PDF, JPG, PNG'}
+            {uploadDone ? (ocrResult ? (ocrSucceeded ? `OCR confidence: ${Math.round((ocrResult.confidence || 0) * 100)}%` : 'OCR unavailable — manual entry mode') : 'Category suggestion ready below') : 'Drag & drop or click to browse · PDF, JPG, PNG'}
           </div>
-          {!uploadDone && (
+          {uploadedFileRef && (
+            <div style={{ marginTop: '10px' }}>
+              <Btn variant="secondary" small onClick={(e) => { e.stopPropagation(); window.TijoriAPI.FilesAPI.open(uploadedFileRef); }}>View Uploaded Document</Btn>
+            </div>
+          )}
+          {!uploadDone && !ocrLoading && (
             <div style={{ marginTop: '10px', display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, rgba(232,120,59,0.1), rgba(139,92,246,0.1))', border: '1px solid #EDE9FE', borderRadius: '999px', padding: '4px 12px' }}>
               <AIBadge small /><span style={{ fontSize: '11px', color: '#5B21B6', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>AI Powered — auto-extracts line items</span>
             </div>
@@ -450,13 +592,13 @@ const ExpensesScreen = ({ role: propRole }) => {
         <div style={{ border: '2px solid #E8783B', borderRadius: '12px', padding: '14px 16px', marginBottom: '16px', background: '#FFF7ED' }}>
           <div style={{ fontSize: '10px', fontWeight: 700, color: '#E8783B', letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '10px' }}>Expense Category</div>
 
-          {uploadDone && !aiCatAccepted && (
+          {uploadDone && !aiCatAccepted && inferredCategory?.confidence && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', padding: '9px 12px', background: '#F5F3FF', borderRadius: '8px', border: '1px solid #EDE9FE' }}>
               <AIBadge small />
               <span style={{ fontSize: '12px', color: '#5B21B6', fontFamily: "'Plus Jakarta Sans', sans-serif", flex: 1 }}>
-                AI suggests: <strong>Travel & Accommodation</strong> — 91% confidence
+                AI suggests: <strong>{inferredCategory.name}</strong> — {inferredCategory.confidence}% confidence
               </span>
-              <Btn variant="purple" small onClick={() => { setExpCategory('Travel & Accommodation'); setAiCatAccepted(true); }}>Accept</Btn>
+              <Btn variant="purple" small onClick={() => { setExpCategory(inferredCategory.name); setAiCatAccepted(true); }}>Accept</Btn>
             </div>
           )}
 
@@ -491,13 +633,12 @@ const ExpensesScreen = ({ role: propRole }) => {
         )}
 
         <TjInput label="Amount (₹)" placeholder="0.00" type="number" value={expAmount} onChange={e => setExpAmount(e.target.value)} />
-        <TjInput label="Date" type="date" />
-        <TjTextarea label="Description" placeholder="Brief description of the expense…" rows={3} />
-        <div style={{ border: '1.5px dashed #E2E8F0', borderRadius: '10px', padding: '14px', textAlign: 'center', marginBottom: '16px', cursor: 'pointer', background: '#FAFAF8', transition: 'border-color 150ms' }}
-          onMouseEnter={e => e.currentTarget.style.borderColor = '#E8783B'} onMouseLeave={e => e.currentTarget.style.borderColor = '#E2E8F0'}>
-          <div style={{ fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>📎 Attach Receipt</div>
-        </div>
-        <Btn variant="primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setPanelOpen(false)}>Submit for Approval</Btn>
+        <TjInput label="Date" type="date" value={expDate} onChange={e => setExpDate(e.target.value)} />
+        <TjTextarea label="Description / Purpose" placeholder="Brief description of the expense…" rows={3} value={expDesc} onChange={e => setExpDesc(e.target.value)} />
+        {submitError && <div style={{ fontSize: '12px', color: '#EF4444', marginBottom: '8px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{submitError}</div>}
+        <Btn variant="primary" style={{ width: '100%', justifyContent: 'center' }} onClick={handleExpSubmit} disabled={submitLoading || ocrLoading}>
+          {submitLoading ? 'Submitting…' : 'Submit for Approval'}
+        </Btn>
       </SidePanel>
     </div>
   );
@@ -513,7 +654,7 @@ const BUDGETS = [
   { dept: 'Finance', spent: 0.22, total: 0.5, currency: '$', util: 44 },
 ];
 
-const BudgetScreen = () => {
+const BudgetScreen = ({ onNavigate }) => {
   const [createOpen, setCreateOpen] = React.useState(false);
   const [budgets, setBudgets] = React.useState([]);
   const [loadingBudgets, setLoadingBudgets] = React.useState(true);
@@ -631,7 +772,7 @@ const BudgetScreen = () => {
 
 // ─── BUDGETARY GUARDRAILS ─────────────────────────────────────────────────────
 
-const GuardrailsScreen = () => {
+const GuardrailsScreen = ({ onNavigate }) => {
   const depts = [
     { name: 'Engineering', spent: 2.4, total: 2.4, color: '#EF4444' },
     { name: 'Marketing', spent: 1.1, total: 1.3, color: '#F59E0B' },
@@ -711,7 +852,7 @@ const AUDIT_ENTRIES = [
   { id: 5, user: 'Aisha Nair', action: 'submitted expense', entity: 'EXP-2024-441', type: 'INVOICE', time: 'Apr 18, 23:43', detail: '{ "expense_id": "EXP-2024-441", "amount": 4200, "category": "Travel" }' },
 ];
 
-const AuditScreen = () => {
+const AuditScreen = ({ onNavigate }) => {
   const [view, setView] = React.useState('timeline');
   const [expanded, setExpanded] = React.useState(null);
   const [filterChip, setFilterChip] = React.useState('All');
@@ -731,14 +872,28 @@ const AuditScreen = () => {
           const typeKey = parts[0] ? parts[0].toUpperCase() : 'SYSTEM';
           const actionVerb = parts[1] ? parts[1].replace(/_/g, ' ') : actionStr;
           const typeMap = { USER: 'USER', EXPENSE: 'INVOICE', VENDOR: 'VENDOR', SYSTEM: 'SYSTEM', INVOICE: 'INVOICE' };
+          
+          // Intelligent entity naming
+          let entityName = entry.entity_type || '—';
+          if (entry.entity_id) {
+            const shortId = String(entry.entity_id).slice(0, 8).toUpperCase();
+            // If it was an expense, use ref_no if available in after state
+            const after = entry.masked_after || {};
+            entityName = after.ref_no || after.invoice_number || `${entityName}:${shortId}`;
+          }
+
           return {
             id: entry.id || i,
-            user: entry.actor || 'System',
+            user: entry.actor_name || entry.actor || 'System',
             action: actionVerb,
-            entity: entry.entity_type ? `${entry.entity_type}${entry.entity_id ? ':' + String(entry.entity_id).slice(0,8) : ''}` : '—',
+            entity: entityName,
             type: typeMap[typeKey] || 'SYSTEM',
             time: entry.timestamp ? new Date(entry.timestamp).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—',
-            detail: JSON.stringify(entry.details || {}, null, 2),
+            detail: entry.masked_after || entry.masked_before ? JSON.stringify({ 
+              before: entry.masked_before, 
+              after: entry.masked_after 
+            }, null, 2) : JSON.stringify(entry.details || {}, null, 2),
+            raw: entry
           };
         });
         setAuditEntries(rows);
@@ -835,7 +990,7 @@ const AuditScreen = () => {
 
 // ─── SETTINGS ────────────────────────────────────────────────────────────────
 
-const SettingsScreen = ({ role: propRole }) => {
+const SettingsScreen = ({ role: propRole, onNavigate }) => {
   const currentRole = propRole || localStorage.getItem('tj_role') || 'CFO';
   const [tab, setTab] = React.useState('Security');
   const [toggles, setToggles] = React.useState({ email: true, alerts: true, push: false, twofa: true });
@@ -843,12 +998,34 @@ const SettingsScreen = ({ role: propRole }) => {
   const [profile, setProfile] = React.useState(null);
   const [pwForm, setPwForm] = React.useState({ current: '', new_password: '' });
   const [pwMsg, setPwMsg] = React.useState('');
+  const [editProfileOpen, setEditProfileOpen] = React.useState(false);
+  const [profileForm, setProfileForm] = React.useState({ first_name: '', last_name: '', email: '' });
+  const [profileSaving, setProfileSaving] = React.useState(false);
+  const [profileMsg, setProfileMsg] = React.useState('');
   const toggleFn = (k) => setToggles(t => ({ ...t, [k]: !t[k] }));
 
   React.useEffect(() => {
     const { AuthAPI } = window.TijoriAPI;
-    AuthAPI.me().then(u => setProfile(u)).catch(() => {});
+    AuthAPI.me().then(u => {
+      setProfile(u);
+      setProfileForm({ first_name: u.first_name || '', last_name: u.last_name || '', email: u.email || '' });
+    }).catch(() => {});
   }, []);
+
+  const handleSaveProfile = async () => {
+    setProfileSaving(true); setProfileMsg('');
+    try {
+      const { AuthAPI } = window.TijoriAPI;
+      const updated = await AuthAPI.updateProfile(profileForm);
+      setProfile(p => ({ ...p, ...updated }));
+      setProfileMsg('Profile updated successfully.');
+      setTimeout(() => { setEditProfileOpen(false); setProfileMsg(''); }, 1200);
+    } catch (err) {
+      setProfileMsg('Failed to update: ' + (err.message || 'Error'));
+    } finally {
+      setProfileSaving(false);
+    }
+  };
 
   const handleChangePassword = () => {
     const { AuthAPI } = window.TijoriAPI;
@@ -883,7 +1060,7 @@ const SettingsScreen = ({ role: propRole }) => {
             <div style={{ width: 80, height: 80, borderRadius: '20px', background: 'linear-gradient(135deg, #E8783B, #FF6B35)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '28px', color: 'white', margin: '0 auto 14px' }}>{displayInitials}</div>
             <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '20px', color: '#0F172A', letterSpacing: '-0.5px', marginBottom: '6px' }}>{displayName}</div>
             <span style={{ background: 'linear-gradient(135deg, #E8783B22, #FF6B3522)', color: '#E8783B', padding: '4px 14px', borderRadius: '999px', fontSize: '12px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif", border: '1px solid #E8783B44' }}>{currentRole}</span>
-            <div style={{ marginTop: '16px' }}><Btn variant="secondary" style={{ width: '100%', justifyContent: 'center' }}>Edit Profile</Btn></div>
+            <div style={{ marginTop: '16px' }}><Btn variant="secondary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setEditProfileOpen(true)}>Edit Profile</Btn></div>
           </Card>
 
           <Card style={{ padding: '20px' }}>
@@ -1003,16 +1180,33 @@ const SettingsScreen = ({ role: propRole }) => {
           </div>
         </Card>
       </div>
+
+      {/* Edit Profile Modal */}
+      {editProfileOpen && (
+        <TjModal open={editProfileOpen} onClose={() => { setEditProfileOpen(false); setProfileMsg(''); }} title="Edit Profile" width={460}>
+          <TjInput label="First Name" placeholder="First name" value={profileForm.first_name} onChange={e => setProfileForm(p => ({ ...p, first_name: e.target.value }))} />
+          <TjInput label="Last Name" placeholder="Last name" value={profileForm.last_name} onChange={e => setProfileForm(p => ({ ...p, last_name: e.target.value }))} />
+          <TjInput label="Email" placeholder="you@company.com" type="email" value={profileForm.email} onChange={e => setProfileForm(p => ({ ...p, email: e.target.value }))} />
+          {profileMsg && <div style={{ fontSize: '12px', color: profileMsg.includes('Failed') ? '#EF4444' : '#10B981', marginBottom: '8px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{profileMsg}</div>}
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '8px' }}>
+            <Btn variant="secondary" onClick={() => { setEditProfileOpen(false); setProfileMsg(''); }}>Cancel</Btn>
+            <Btn variant="primary" onClick={handleSaveProfile} disabled={profileSaving}>{profileSaving ? 'Saving…' : 'Save Changes'}</Btn>
+          </div>
+        </TjModal>
+      )}
     </div>
   );
 };
 
 // ─── VENDOR PORTAL ────────────────────────────────────────────────────────────
 
-const VendorPortalScreen = () => {
+const VendorPortalScreen = ({ onNavigate }) => {
   const [activeFilter, setActiveFilter] = React.useState('All');
   const [submitOpen, setSubmitOpen] = React.useState(false);
   const [selectedInv, setSelectedInv] = React.useState(null);
+  const [selectedInvLoading, setSelectedInvLoading] = React.useState(false);
+  const [queryReply, setQueryReply] = React.useState('');
+  const [queryReplyLoading, setQueryReplyLoading] = React.useState(false);
 
   // Real bills from API
   const [myInvoices, setMyInvoices] = React.useState([]);
@@ -1057,6 +1251,19 @@ const VendorPortalScreen = () => {
 
   React.useEffect(() => { loadBills(); }, []);
 
+  const openInvoice = async (inv) => {
+    setSelectedInvLoading(true);
+    setQueryReply('');
+    try {
+      const detail = await VendorAPI.billDetail(inv.id);
+      setSelectedInv(detail);
+    } catch (e) {
+      setSelectedInv(inv);
+    } finally {
+      setSelectedInvLoading(false);
+    }
+  };
+
   const handleFileSelect = async (file) => {
     if (!file) return;
     setOcrLoading(true);
@@ -1098,9 +1305,9 @@ const VendorPortalScreen = () => {
           vendor_name_ocr:  f.vendor_name     || prev.vendor_name_ocr,
           bank_account:     f.bank_details?.account_no || prev.bank_account,
           bank_ifsc:        f.bank_details?.ifsc       || prev.bank_ifsc,
-          business_purpose: f.vendor_name
+          business_purpose: prev.business_purpose || (f.vendor_name
             ? `Services from ${f.vendor_name}`
-            : prev.business_purpose,
+            : prev.business_purpose),
         }));
       } else if (ocr.error) {
         setSubmitError(`OCR Error: ${ocr.error}`);
@@ -1189,7 +1396,7 @@ const VendorPortalScreen = () => {
                 <tr key={inv.id} style={{ borderTop: '1px solid #F1F0EE', height: 52, cursor: 'pointer', transition: 'background 150ms' }}
                   onMouseEnter={e => e.currentTarget.style.background = '#FFF8F5'}
                   onMouseLeave={e => e.currentTarget.style.background = 'white'}
-                  onClick={() => { setSelectedInv(inv); setEditPurpose(''); }}>
+                  onClick={() => { openInvoice(inv); setEditPurpose(''); }}>
                   <td style={{ padding: '0 16px' }}>
                     <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#0F172A', fontWeight: 600 }}>{inv.invoice_number || '—'}</div>
                     <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px', color: '#E8783B', marginTop: '1px' }}>{inv.ref_no}</div>
@@ -1198,7 +1405,7 @@ const VendorPortalScreen = () => {
                   <td style={{ padding: '0 16px', fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{inv.invoice_date || inv.created_at?.slice(0,10)}</td>
                   <td style={{ padding: '0 16px' }}><StatusBadge status={inv.status} /></td>
                   <td style={{ padding: '0 16px' }}>
-                    <Btn variant="secondary" small onClick={() => setSelectedInv(inv)}>View</Btn>
+                    <Btn variant="secondary" small onClick={() => openInvoice(inv)}>View</Btn>
                   </td>
                 </tr>
               ))}
@@ -1215,7 +1422,9 @@ const VendorPortalScreen = () => {
 
         {/* Invoice Detail / Tracker */}
         <Card style={{ padding: '22px', overflowY: 'auto', maxHeight: '80vh' }}>
-          {selectedInv ? (() => {
+          {selectedInvLoading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 260, color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Loading invoice…</div>
+          ) : selectedInv ? (() => {
             const fmtDate = (d) => d ? new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
             const fmtDateOnly = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
             const STATUS_STAGE = {
@@ -1304,6 +1513,11 @@ const VendorPortalScreen = () => {
                 <div style={{ marginBottom: '16px' }}>
                   <Row label="Submitted" value={fmtDate(selectedInv.submitted_at || selectedInv.created_at)} />
                   {selectedInv.approved_at && <Row label="Approved" value={fmtDate(selectedInv.approved_at)} />}
+                  {selectedInv.invoice_file_url && (
+                    <div style={{ paddingTop: '10px' }}>
+                      <Btn variant="secondary" small onClick={() => window.TijoriAPI.FilesAPI.open(selectedInv.invoice_file)}>View Full Receipt</Btn>
+                    </div>
+                  )}
                 </div>
 
                 {/* Approval Progress */}
@@ -1335,7 +1549,45 @@ const VendorPortalScreen = () => {
                   </div>
                 )}
 
-                {selectedInv.status === 'QUERY_RAISED' && (
+                {selectedInv.queries?.length > 0 && (
+                  <div style={{ marginBottom: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {selectedInv.queries.map((q) => (
+                      <div key={q.id} style={{ background: '#F5F3FF', border: '1px solid #EDE9FE', borderRadius: '10px', padding: '12px 14px' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: '#5B21B6', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '4px' }}>Query from {q.raised_by_name}</div>
+                        <div style={{ fontSize: '12px', color: '#4C1D95', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{q.question}</div>
+                        {q.ai_suggestion && (
+                          <div style={{ marginTop: '8px', fontSize: '12px', color: '#92400E', background: '#FFF7ED', borderRadius: '8px', padding: '8px 10px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                            <strong>AI Suggestion:</strong> {q.ai_suggestion}
+                          </div>
+                        )}
+                        {q.response ? (
+                          <div style={{ marginTop: '8px', fontSize: '12px', color: '#065F46', background: '#F0FDF4', borderRadius: '8px', padding: '8px 10px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                            <strong>{q.responded_by_name || 'Response'}:</strong> {q.response}
+                          </div>
+                        ) : selectedInv.action_permissions?.can_respond_query ? (
+                          <>
+                            <TjTextarea label="" placeholder="Your response…" rows={2} value={queryReply} onChange={e => setQueryReply(e.target.value)} />
+                            <Btn variant="purple" small disabled={queryReplyLoading || queryReply.trim().length < 3} onClick={async () => {
+                              setQueryReplyLoading(true);
+                              try {
+                                const updated = await window.TijoriAPI.VendorAPI.respondQuery(selectedInv.id, q.id, queryReply.trim());
+                                setSelectedInv(updated);
+                                setMyInvoices(list => list.map(i => i.id === updated.id ? { ...i, ...updated } : i));
+                                setQueryReply('');
+                              } catch (e) {
+                                alert(e.message || 'Reply failed');
+                              } finally {
+                                setQueryReplyLoading(false);
+                              }
+                            }}>{queryReplyLoading ? 'Sending…' : 'Send Reply'}</Btn>
+                          </>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {selectedInv.status === 'QUERY_RAISED' && !selectedInv.queries?.length && (
                   <div style={{ background: '#F5F3FF', border: '1px solid #EDE9FE', borderRadius: '10px', padding: '12px 14px', marginBottom: '14px' }}>
                     <div style={{ fontSize: '11px', fontWeight: 700, color: '#5B21B6', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '4px' }}>Query from Finance Team</div>
                     <div style={{ fontSize: '12px', color: '#4C1D95', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Please provide original PO reference number for this invoice.</div>
@@ -1436,7 +1688,7 @@ const VendorPortalScreen = () => {
                   const payload = {
                     invoice_number:  inv.invoice_number || '',
                     invoice_date:    inv.invoice_date || null,
-                    business_purpose: inv.vendor_name ? `Services from ${inv.vendor_name}` : 'Invoice submission',
+                    business_purpose: inv.business_purpose || (inv.vendor_name ? `Services from ${inv.vendor_name}` : 'Invoice submission'),
                     total_amount:    parseFloat(inv.total_amount) || 0,
                     pre_gst_amount:  parseFloat(inv.pre_gst_amount) || 0,
                     cgst:            parseFloat(inv.cgst) || 0,

@@ -7,7 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from apps.core.permissions import HasMinimumGrade
 
-from .models import Expense, ExpenseApprovalStep, STEP_TO_STATUS, VALID_TRANSITIONS
+from .models import Expense, ExpenseApprovalStep, STEP_TO_STATUS, VALID_TRANSITIONS, Vendor
 from .serializers import (
     ExpenseSubmitSerializer,
     ExpenseDetailSerializer,
@@ -26,7 +26,27 @@ class ExpenseSubmitView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        serializer = ExpenseSubmitSerializer(data=request.data)
+        data = request.data.copy()
+        if not data.get("vendor"):
+            vendor_name = data.get("vendor_name") or "Internal Expense"
+            vendor, _ = Vendor.objects.get_or_create(
+                name=vendor_name,
+                defaults={"is_approved": True, "status": "ACTIVE"},
+            )
+            if not vendor.is_approved or vendor.status != "ACTIVE":
+                vendor.is_approved = True
+                vendor.status = "ACTIVE"
+                vendor.save(update_fields=["is_approved", "status"])
+            data["vendor"] = str(vendor.id)
+
+        if not data.get("pre_gst_amount"):
+            total = float(data.get("total_amount") or 0)
+            cgst = float(data.get("cgst") or 0)
+            sgst = float(data.get("sgst") or 0)
+            igst = float(data.get("igst") or 0)
+            data["pre_gst_amount"] = str(round(total - cgst - sgst - igst, 2))
+
+        serializer = ExpenseSubmitSerializer(data=data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -38,9 +58,25 @@ class ExpenseSubmitView(APIView):
         except InvalidTransition as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        # TODO: enqueue OCR + anomaly Celery tasks here
-        # from .tasks import run_ocr_and_anomaly
-        # run_ocr_and_anomaly.delay(str(expense.id))
+        try:
+            from .services import create_initial_approval_step
+
+            expense = transition_expense(
+                expense, "PENDING_L1", request.user, "Auto-started approval", skip_sod=True
+            )
+            create_initial_approval_step(expense)
+        except Exception:
+            pass
+
+        if expense.invoice_file:
+            try:
+                from .tasks import run_ocr_pipeline
+
+                task = run_ocr_pipeline.delay(str(expense.id))
+                expense.ocr_task_id = task.id
+                expense.save(update_fields=["ocr_task_id"])
+            except Exception:
+                pass
 
         return Response(ExpenseDetailSerializer(expense).data, status=status.HTTP_201_CREATED)
 

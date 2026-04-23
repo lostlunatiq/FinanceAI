@@ -43,7 +43,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
         return obj.get_full_name() or obj.username
 
     def get_is_vendor(self, obj):
-        return hasattr(obj, "vendor_profile") and obj.vendor_profile is not None
+        try:
+            return obj.vendor_profile is not None
+        except Exception:
+            return False
 
 
 class RegisterUserSerializer(serializers.ModelSerializer):
