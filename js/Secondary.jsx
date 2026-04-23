@@ -88,7 +88,7 @@ const VendorsScreen = () => {
       <StatsRow cards={[
         { label: 'Total Vendors', value: loadingVendors ? '…' : String(vendors.length), delta: 'registered', deltaType: 'positive' },
         { label: 'Active', value: loadingVendors ? '…' : String(vendors.filter(v => v.status === 'ACTIVE').length), delta: 'Verified', deltaType: 'positive', color: '#10B981' },
-        { label: 'Pending Approval', value: loadingVendors ? '…' : String(vendors.filter(v => v.status === 'PENDING_APPROVAL').length), delta: 'Awaiting review', deltaType: 'neutral', color: '#F59E0B' },
+        { label: 'Pending Approval', value: loadingVendors ? '…' : String(vendors.filter(v => v.status === 'PENDING').length), delta: 'Awaiting review', deltaType: 'neutral', color: '#F59E0B' },
         { label: 'Suspended', value: loadingVendors ? '…' : String(vendors.filter(v => v.status === 'SUSPENDED').length), delta: 'Blocked', deltaType: 'negative', color: '#EF4444' },
       ]} />
 
@@ -134,7 +134,7 @@ const VendorsScreen = () => {
                     <Btn variant="secondary" small onClick={() => setDetail(v)}>View</Btn>
                     {v.status === 'SUSPENDED' && <Btn variant="green" small onClick={async () => { await window.TijoriAPI.VendorAPI.activate(v.id, 'activate'); setVendors(vs => vs.map(x => x.id === v.id ? {...x, status: 'ACTIVE'} : x)); }}>Activate</Btn>}
                     {v.status === 'ACTIVE' && <Btn variant="destructive" small onClick={async () => { await window.TijoriAPI.VendorAPI.activate(v.id, 'suspend'); setVendors(vs => vs.map(x => x.id === v.id ? {...x, status: 'SUSPENDED'} : x)); }}>Suspend</Btn>}
-                    {v.status === 'PENDING_APPROVAL' && <Btn variant="primary" small onClick={async () => { await window.TijoriAPI.VendorAPI.activate(v.id, 'activate'); setVendors(vs => vs.map(x => x.id === v.id ? {...x, status: 'ACTIVE', is_approved: true} : x)); }}>Approve</Btn>}
+                    {v.status === 'PENDING' && <Btn variant="primary" small onClick={async () => { await window.TijoriAPI.VendorAPI.activate(v.id, 'activate'); setVendors(vs => vs.map(x => x.id === v.id ? {...x, status: 'ACTIVE', is_approved: true} : x)); }}>Approve</Btn>}
                   </div>
                 </td>
               </tr>
@@ -241,7 +241,7 @@ const VendorsScreen = () => {
             </div>
           ))}
           <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-            {detail.status === 'PENDING_APPROVAL' && (
+            {detail.status === 'PENDING' && (
               <Btn variant="primary" style={{ flex: 1, justifyContent: 'center' }} onClick={async () => {
                 await VendorAPI.activate(detail.id, 'activate');
                 setDetail(d => ({ ...d, status: 'ACTIVE', is_approved: true }));
@@ -1020,11 +1020,21 @@ const VendorPortalScreen = () => {
 
   // Submit form state
   const [fileRef, setFileRef] = React.useState(null);
+  const [editPurpose, setEditPurpose] = React.useState('');
+  const [savingPurpose, setSavingPurpose] = React.useState(false);
   const [ocrLoading, setOcrLoading] = React.useState(false);
   const [ocrResult, setOcrResult] = React.useState(null);
-  const [formData, setFormData] = React.useState({ invoice_number: '', total_amount: '', invoice_date: '', business_purpose: '' });
+  const [formData, setFormData] = React.useState({
+    invoice_number: '', invoice_date: '', business_purpose: '',
+    pre_gst_amount: '', cgst: '', sgst: '', igst: '', total_amount: '',
+    gstin: '', pan: '', tds_section: '',
+    vendor_name_ocr: '', bank_account: '', bank_ifsc: '',
+  });
   const [submitting, setSubmitting] = React.useState(false);
   const [submitError, setSubmitError] = React.useState('');
+  const [multiInvoices, setMultiInvoices] = React.useState(null);
+  const [multiSubmitted, setMultiSubmitted] = React.useState({});
+  const [multiSubmitting, setMultiSubmitting] = React.useState({});
 
   const { VendorAPI, FilesAPI } = window.TijoriAPI;
 
@@ -1051,22 +1061,52 @@ const VendorPortalScreen = () => {
     if (!file) return;
     setOcrLoading(true);
     setOcrResult(null);
+    setSubmitError('');
+    setMultiInvoices(null);
+    setMultiSubmitted({});
+    setMultiSubmitting({});
     try {
       const uploaded = await FilesAPI.upload(file);
       setFileRef(uploaded.id);
       const ocr = await FilesAPI.ocr(uploaded.id);
       setOcrResult(ocr);
-      if (ocr.extracted_fields) {
+
+      const hasData = ocr.extracted_fields && Object.keys(ocr.extracted_fields).length > 0;
+      const succeeded = ocr.status === 'COMPLETE' || (ocr.confidence && ocr.confidence > 0);
+
+      if (hasData && succeeded) {
         const f = ocr.extracted_fields;
+
+        // Multi-invoice PDF detected
+        if (f.multi_invoice && Array.isArray(f.invoices) && f.invoices.length > 1) {
+          setMultiInvoices(f.invoices);
+          return;
+        }
+
+        // Single invoice — pre-fill form
         setFormData(prev => ({
           ...prev,
-          invoice_number: f.invoice_number || prev.invoice_number,
-          total_amount: f.total_amount ? String(f.total_amount) : prev.total_amount,
-          invoice_date: f.invoice_date || prev.invoice_date,
+          invoice_number:   f.invoice_number  || prev.invoice_number,
+          invoice_date:     f.invoice_date    || prev.invoice_date,
+          pre_gst_amount:   f.pre_gst_amount  ? String(f.pre_gst_amount)  : prev.pre_gst_amount,
+          cgst:             f.cgst            ? String(f.cgst)            : prev.cgst,
+          sgst:             f.sgst            ? String(f.sgst)            : prev.sgst,
+          igst:             f.igst            ? String(f.igst)            : prev.igst,
+          total_amount:     f.total_amount    ? String(f.total_amount)    : prev.total_amount,
+          gstin:            f.gstin           || prev.gstin,
+          pan:              f.pan             || prev.pan,
+          vendor_name_ocr:  f.vendor_name     || prev.vendor_name_ocr,
+          bank_account:     f.bank_details?.account_no || prev.bank_account,
+          bank_ifsc:        f.bank_details?.ifsc       || prev.bank_ifsc,
+          business_purpose: f.vendor_name
+            ? `Services from ${f.vendor_name}`
+            : prev.business_purpose,
         }));
+      } else if (ocr.error) {
+        setSubmitError(`OCR Error: ${ocr.error}`);
       }
     } catch (err) {
-      setSubmitError('OCR failed: ' + err.message);
+      setSubmitError('OCR failed: ' + (err.message || 'Unknown error'));
     } finally {
       setOcrLoading(false);
     }
@@ -1078,15 +1118,20 @@ const VendorPortalScreen = () => {
     setSubmitError('');
     try {
       const payload = {
-        invoice_number: formData.invoice_number,
-        total_amount: parseFloat(formData.total_amount),
-        invoice_date: formData.invoice_date || null,
+        invoice_number:  formData.invoice_number,
+        invoice_date:    formData.invoice_date || null,
         business_purpose: formData.business_purpose || 'Invoice submission',
+        total_amount:    parseFloat(formData.total_amount) || 0,
+        pre_gst_amount:  parseFloat(formData.pre_gst_amount) || 0,
+        cgst:            parseFloat(formData.cgst) || 0,
+        sgst:            parseFloat(formData.sgst) || 0,
+        igst:            parseFloat(formData.igst) || 0,
+        ...(formData.tds_section ? { tds_section: formData.tds_section } : {}),
         ...(fileRef ? { invoice_file: fileRef } : {}),
       };
       await VendorAPI.submitBill(payload);
       setSubmitOpen(false);
-      setFormData({ invoice_number: '', total_amount: '', invoice_date: '', business_purpose: '' });
+      setFormData({ invoice_number: '', invoice_date: '', business_purpose: '', pre_gst_amount: '', cgst: '', sgst: '', igst: '', total_amount: '', gstin: '', pan: '', tds_section: '', vendor_name_ocr: '', bank_account: '', bank_ifsc: '' });
       setFileRef(null);
       setOcrResult(null);
       loadBills();
@@ -1105,7 +1150,7 @@ const VendorPortalScreen = () => {
   return (
     <div style={{ padding: '32px' }}>
       <SectionHeader title="Vendor Portal" subtitle="Your submitted invoices and payment status"
-        right={<Btn variant="primary" icon={<span>↑</span>} onClick={() => { setSubmitOpen(true); setSubmitError(''); setOcrResult(null); setFileRef(null); }}>Submit Invoice</Btn>} />
+        right={<Btn variant="primary" icon={<span>↑</span>} onClick={() => { setSubmitOpen(true); setSubmitError(''); setOcrResult(null); setFileRef(null); setMultiInvoices(null); setMultiSubmitted({}); }}>Submit Invoice</Btn>} />
 
       <StatsRow cards={[
         { label: 'Total Submitted', value: loadingBills ? '…' : String(myInvoices.length), delta: 'All time', deltaType: 'positive' },
@@ -1144,8 +1189,11 @@ const VendorPortalScreen = () => {
                 <tr key={inv.id} style={{ borderTop: '1px solid #F1F0EE', height: 52, cursor: 'pointer', transition: 'background 150ms' }}
                   onMouseEnter={e => e.currentTarget.style.background = '#FFF8F5'}
                   onMouseLeave={e => e.currentTarget.style.background = 'white'}
-                  onClick={() => setSelectedInv(inv)}>
-                  <td style={{ padding: '0 16px', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#E8783B', fontWeight: 500 }}>{inv.ref_no || inv.invoice_number || inv.id?.slice(0,8)}</td>
+                  onClick={() => { setSelectedInv(inv); setEditPurpose(''); }}>
+                  <td style={{ padding: '0 16px' }}>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#0F172A', fontWeight: 600 }}>{inv.invoice_number || '—'}</div>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px', color: '#E8783B', marginTop: '1px' }}>{inv.ref_no}</div>
+                  </td>
                   <td style={{ padding: '0 16px', fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '14px', color: '#0F172A', letterSpacing: '-0.5px' }}>{fmtAmt(inv.total_amount)}</td>
                   <td style={{ padding: '0 16px', fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{inv.invoice_date || inv.created_at?.slice(0,10)}</td>
                   <td style={{ padding: '0 16px' }}><StatusBadge status={inv.status} /></td>
@@ -1166,98 +1214,326 @@ const VendorPortalScreen = () => {
         </Card>
 
         {/* Invoice Detail / Tracker */}
-        <Card style={{ padding: '22px' }}>
-          {selectedInv ? (
-            <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
-                <div>
-                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A' }}>{selectedInv.id}</div>
-                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '22px', color: '#E8783B', letterSpacing: '-1px', marginTop: '4px' }}>{selectedInv.amount}</div>
-                </div>
-                <StatusBadge status={selectedInv.status} />
-              </div>
+        <Card style={{ padding: '22px', overflowY: 'auto', maxHeight: '80vh' }}>
+          {selectedInv ? (() => {
+            const fmtDate = (d) => d ? new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+            const fmtDateOnly = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+            const STATUS_STAGE = {
+              'SUBMITTED': 0, 'PENDING_L1': 1, 'PENDING_L2': 1, 'PENDING_HOD': 2,
+              'PENDING_FIN_L1': 3, 'PENDING_FIN_L2': 3, 'PENDING_FIN_HEAD': 4,
+              'APPROVED': 5, 'PENDING_D365': 5, 'BOOKED_D365': 5, 'POSTED_D365': 5,
+              'PAID': 6, 'REJECTED': -1, 'AUTO_REJECT': -1, 'QUERY_RAISED': 1,
+            };
+            const stageIdx = STATUS_STAGE[selectedInv.status] ?? 0;
+            const isRejected = ['REJECTED','AUTO_REJECT'].includes(selectedInv.status);
+            const isPaid = selectedInv.status === 'PAID';
 
-              {/* Approval stages stepper */}
-              <div style={{ marginBottom: '20px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '14px' }}>Approval Progress</div>
-                {stages.map((s, i) => {
-                  const done = i < selectedInv.stage;
-                  const current = i === selectedInv.stage;
-                  return (
-                    <div key={s} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: i < stages.length - 1 ? '0' : '0' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: done ? '#10B981' : current ? '#E8783B' : '#F1F5F9', border: `2px solid ${done ? '#10B981' : current ? '#E8783B' : '#E2E8F0'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: done || current ? 'white' : '#94A3B8', flexShrink: 0, animation: current ? 'dotPulse 2s ease infinite' : 'none', transition: 'all 200ms' }}>
-                          {done ? '✓' : i + 1}
-                        </div>
-                        {i < stages.length - 1 && <div style={{ width: 2, height: 18, background: done ? '#10B981' : '#F1F5F9', margin: '2px 0' }} />}
-                      </div>
-                      <div style={{ paddingBottom: i < stages.length - 1 ? '18px' : '0' }}>
-                        <div style={{ fontSize: '13px', fontWeight: current ? 700 : 500, color: done ? '#10B981' : current ? '#0F172A' : '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{s}</div>
-                        {current && <div style={{ fontSize: '11px', color: '#E8783B', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>In progress</div>}
-                      </div>
+            const Row = ({ label, value }) => (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '7px 0', borderBottom: '1px solid #F8F7F5' }}>
+                <span style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0, marginRight: 12 }}>{label}</span>
+                <span style={{ fontSize: '12px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 500, textAlign: 'right' }}>{value || '—'}</span>
+              </div>
+            );
+
+            return (
+              <>
+                {/* Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                  <div>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', color: '#E8783B', fontWeight: 600 }}>{selectedInv.ref_no || selectedInv.id?.slice(0,8)}</div>
+                    <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '24px', color: '#0F172A', letterSpacing: '-1px', marginTop: '2px' }}>
+                      ₹{parseFloat(selectedInv.total_amount || 0).toLocaleString('en-IN')}
                     </div>
-                  );
-                })}
-              </div>
-
-              {selectedInv.status === 'QUERY_RAISED' && (
-                <div style={{ background: '#F5F3FF', border: '1px solid #EDE9FE', borderRadius: '10px', padding: '12px 14px', marginBottom: '14px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#5B21B6', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '4px' }}>Query from Finance Team</div>
-                  <div style={{ fontSize: '12px', color: '#4C1D95', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Please provide original PO reference number for this invoice.</div>
-                  <TjTextarea label="" placeholder="Your response…" rows={2} />
-                  <Btn variant="purple" small>Send Reply</Btn>
+                    <div style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>
+                      Uploaded {fmtDate(selectedInv.created_at)}
+                    </div>
+                  </div>
+                  <StatusBadge status={selectedInv.status} />
                 </div>
-              )}
 
-              <button onClick={() => setSelectedInv(null)} style={{ fontSize: '12px', color: '#94A3B8', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '8px' }}>← Back to list</button>
-            </>
-          ) : (
+                {/* Invoice Details */}
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '8px' }}>Invoice Details</div>
+                <div style={{ marginBottom: '16px' }}>
+                  <Row label="Invoice #" value={selectedInv.invoice_number || '—'} />
+                  <Row label="Invoice Date" value={fmtDateOnly(selectedInv.invoice_date)} />
+                  {/* Editable Purpose */}
+                  <div style={{ padding: '8px 0', borderBottom: '1px solid #F8F7F5' }}>
+                    <div style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px' }}>Purpose</div>
+                    {['DRAFT','SUBMITTED','QUERY_RAISED'].includes(selectedInv.status) ? (
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                        <textarea
+                          value={editPurpose !== '' ? editPurpose : (selectedInv.business_purpose || '')}
+                          onChange={e => setEditPurpose(e.target.value)}
+                          rows={2}
+                          style={{ flex: 1, fontSize: '12px', fontFamily: "'Plus Jakarta Sans', sans-serif", border: '1px solid #E2E8F0', borderRadius: '8px', padding: '6px 8px', resize: 'vertical', color: '#0F172A', outline: 'none' }}
+                          placeholder="Describe the business purpose…"
+                        />
+                        <button
+                          disabled={savingPurpose || editPurpose === ''}
+                          onClick={async () => {
+                            if (!editPurpose.trim()) return;
+                            setSavingPurpose(true);
+                            try {
+                              const updated = await VendorAPI.updateBill(selectedInv.id, { business_purpose: editPurpose.trim() });
+                              setSelectedInv(prev => ({ ...prev, business_purpose: editPurpose.trim() }));
+                              setMyInvoices(list => list.map(i => i.id === selectedInv.id ? { ...i, business_purpose: editPurpose.trim() } : i));
+                              setEditPurpose('');
+                            } catch (e) {
+                              alert(e.message || 'Save failed');
+                            } finally {
+                              setSavingPurpose(false);
+                            }
+                          }}
+                          style={{ padding: '6px 12px', borderRadius: '8px', background: editPurpose && !savingPurpose ? '#E8783B' : '#F1F5F9', color: editPurpose && !savingPurpose ? 'white' : '#94A3B8', border: 'none', cursor: editPurpose && !savingPurpose ? 'pointer' : 'not-allowed', fontSize: '11px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                          {savingPurpose ? '…' : 'Save'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '12px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{selectedInv.business_purpose || '—'}</div>
+                    )}
+                  </div>
+                  <Row label="Pre-GST" value={selectedInv.pre_gst_amount ? `₹${parseFloat(selectedInv.pre_gst_amount).toLocaleString('en-IN')}` : null} />
+                  {parseFloat(selectedInv.cgst) > 0 && <Row label="CGST" value={`₹${parseFloat(selectedInv.cgst).toLocaleString('en-IN')}`} />}
+                  {parseFloat(selectedInv.sgst) > 0 && <Row label="SGST" value={`₹${parseFloat(selectedInv.sgst).toLocaleString('en-IN')}`} />}
+                  {parseFloat(selectedInv.igst) > 0 && <Row label="IGST" value={`₹${parseFloat(selectedInv.igst).toLocaleString('en-IN')}`} />}
+                  <Row label="Total" value={`₹${parseFloat(selectedInv.total_amount || 0).toLocaleString('en-IN')}`} />
+                </div>
+
+                {/* Timeline */}
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '8px' }}>Timeline</div>
+                <div style={{ marginBottom: '16px' }}>
+                  <Row label="Submitted" value={fmtDate(selectedInv.submitted_at || selectedInv.created_at)} />
+                  {selectedInv.approved_at && <Row label="Approved" value={fmtDate(selectedInv.approved_at)} />}
+                </div>
+
+                {/* Approval Progress */}
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '12px' }}>Approval Progress</div>
+                {isRejected ? (
+                  <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '10px', padding: '12px 14px', marginBottom: '14px', fontSize: '13px', color: '#991B1B', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>
+                    ❌ Invoice Rejected
+                  </div>
+                ) : (
+                  <div style={{ marginBottom: '16px' }}>
+                    {stages.map((s, i) => {
+                      const done = isPaid ? true : i < stageIdx;
+                      const current = !isPaid && i === stageIdx;
+                      return (
+                        <div key={s} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                            <div style={{ width: 26, height: 26, borderRadius: '50%', background: done ? '#10B981' : current ? '#E8783B' : '#F1F5F9', border: `2px solid ${done ? '#10B981' : current ? '#E8783B' : '#E2E8F0'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: done || current ? 'white' : '#94A3B8', flexShrink: 0, animation: current ? 'dotPulse 2s ease infinite' : 'none' }}>
+                              {done ? '✓' : i + 1}
+                            </div>
+                            {i < stages.length - 1 && <div style={{ width: 2, height: 16, background: done ? '#10B981' : '#F1F5F9', margin: '2px 0' }} />}
+                          </div>
+                          <div style={{ paddingBottom: i < stages.length - 1 ? '16px' : '0' }}>
+                            <div style={{ fontSize: '12px', fontWeight: current ? 700 : 500, color: done ? '#10B981' : current ? '#0F172A' : '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{s}</div>
+                            {current && <div style={{ fontSize: '10px', color: '#E8783B', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '1px' }}>In progress</div>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {selectedInv.status === 'QUERY_RAISED' && (
+                  <div style={{ background: '#F5F3FF', border: '1px solid #EDE9FE', borderRadius: '10px', padding: '12px 14px', marginBottom: '14px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#5B21B6', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '4px' }}>Query from Finance Team</div>
+                    <div style={{ fontSize: '12px', color: '#4C1D95', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Please provide original PO reference number for this invoice.</div>
+                    <TjTextarea label="" placeholder="Your response…" rows={2} />
+                    <Btn variant="purple" small>Send Reply</Btn>
+                  </div>
+                )}
+
+                <button onClick={() => setSelectedInv(null)} style={{ fontSize: '12px', color: '#94A3B8', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '4px' }}>← Back to list</button>
+              </>
+            );
+          })() : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 300, color: '#94A3B8', textAlign: 'center' }}>
               <div style={{ fontSize: '40px', marginBottom: '12px' }}>📄</div>
               <div style={{ fontSize: '14px', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif", color: '#475569' }}>Select an invoice</div>
-              <div style={{ fontSize: '12px', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '4px' }}>Click any row to view approval status and details</div>
+              <div style={{ fontSize: '12px', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '4px' }}>Click any row to view details and approval status</div>
             </div>
           )}
         </Card>
       </div>
 
       {/* Submit Invoice Modal */}
-      <TjModal open={submitOpen} onClose={() => setSubmitOpen(false)} title="Submit Invoice" width={520}>
+      <TjModal open={submitOpen} onClose={() => { setSubmitOpen(false); setMultiInvoices(null); setMultiSubmitted({}); }} title="Submit Invoice" width={520}>
         {/* File Upload + OCR Zone */}
-        <div style={{ border: `1.5px dashed ${ocrResult ? '#10B981' : ocrLoading ? '#E8783B' : '#E2E8F0'}`, borderRadius: '12px', padding: '20px', textAlign: 'center', marginBottom: '16px', background: ocrResult ? '#F0FDF4' : '#FAFAF8', position: 'relative', overflow: 'hidden' }}>
-          <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%' }}
-            onChange={e => { if (e.target.files[0]) handleFileSelect(e.target.files[0]); }} />
-          <div style={{ fontSize: '28px', marginBottom: '8px' }}>{ocrResult ? '✅' : ocrLoading ? '⏳' : '📎'}</div>
-          <div style={{ fontWeight: 700, fontSize: '13px', color: ocrResult ? '#065F46' : ocrLoading ? '#92400E' : '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            {ocrResult ? `Invoice processed — ${Math.round((ocrResult.confidence || 0) * 100)}% confidence` : ocrLoading ? 'AI extracting invoice data…' : 'Upload Invoice PDF / Image'}
-          </div>
-          <div style={{ fontSize: '12px', color: '#94A3B8', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            {ocrResult ? `${ocrResult.pages_processed || 1} page(s) processed` : 'Click to browse · PDF, JPG, PNG (max 10MB)'}
-          </div>
-          {!ocrResult && !ocrLoading && (
-            <div style={{ marginTop: '10px', display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, rgba(232,120,59,0.08), rgba(139,92,246,0.08))', border: '1px solid #EDE9FE', borderRadius: '999px', padding: '4px 12px' }}>
-              <AIBadge small />
-              <span style={{ fontSize: '11px', color: '#5B21B6', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Gemini Flash auto-extracts all fields</span>
+        {(() => {
+          const ocrOk = ocrResult && ocrResult.confidence > 0 && ocrResult.status === 'COMPLETE';
+          const ocrFail = ocrResult && !ocrOk;
+          const borderColor = ocrOk ? '#10B981' : ocrFail ? '#EF4444' : ocrLoading ? '#E8783B' : '#E2E8F0';
+          const bg = ocrOk ? '#F0FDF4' : ocrFail ? '#FEF2F2' : '#FAFAF8';
+          return (
+            <div style={{ border: `1.5px dashed ${borderColor}`, borderRadius: '12px', padding: '20px', textAlign: 'center', marginBottom: '16px', background: bg, position: 'relative', overflow: 'hidden' }}>
+              <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%' }}
+                onChange={e => { if (e.target.files[0]) handleFileSelect(e.target.files[0]); }} />
+              <div style={{ fontSize: '28px', marginBottom: '8px' }}>
+                {ocrOk ? '✅' : ocrFail ? '❌' : ocrLoading ? '⏳' : '📎'}
+              </div>
+              <div style={{ fontWeight: 700, fontSize: '13px', color: ocrOk ? '#065F46' : ocrFail ? '#991B1B' : ocrLoading ? '#92400E' : '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                {ocrOk
+                  ? `OCR Complete — ${Math.round(ocrResult.confidence * 100)}% confidence`
+                  : ocrFail
+                    ? `OCR Failed — ${ocrResult.error || 'Could not extract data'}`
+                    : ocrLoading
+                      ? 'AI reading invoice… this may take 10–20 seconds'
+                      : 'Upload Invoice PDF / Image'}
+              </div>
+              <div style={{ fontSize: '12px', color: '#94A3B8', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                {ocrOk
+                  ? `${ocrResult.pages_processed} page(s) · Model: ${ocrResult.model_used || '—'}`
+                  : ocrFail
+                    ? 'Click to try another file'
+                    : ocrLoading
+                      ? 'Do not close this window'
+                      : 'Click to browse · PDF, JPG, PNG (max 10MB)'}
+              </div>
+              {!ocrResult && !ocrLoading && (
+                <div style={{ marginTop: '10px', display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, rgba(232,120,59,0.08), rgba(139,92,246,0.08))', border: '1px solid #EDE9FE', borderRadius: '999px', padding: '4px 12px' }}>
+                  <AIBadge small />
+                  <span style={{ fontSize: '11px', color: '#5B21B6', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>AI auto-extracts all invoice fields</span>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          );
+        })()}
 
-        {/* OCR Confidence */}
-        {ocrResult && (
+        {/* OCR Success — field breakdown */}
+        {ocrResult && ocrResult.confidence > 0 && ocrResult.status === 'COMPLETE' && !multiInvoices && (
           <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '10px', padding: '10px 14px', marginBottom: '14px' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, color: '#065F46', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <AIBadge small /> OCR Complete — Fields pre-filled
+              <AIBadge small /> Fields pre-filled from invoice
             </div>
             <div style={{ fontSize: '12px', color: '#047857', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-              Confidence: {Math.round((ocrResult.confidence || 0) * 100)}% · Model: {ocrResult.model_used || 'Gemini Flash'}
+              Confidence: {Math.round(ocrResult.confidence * 100)}% · {ocrResult.pages_processed} page(s) · {ocrResult.model_used}
               {ocrResult.validation_errors?.length > 0 && <span style={{ color: '#92400E', marginLeft: 8 }}>⚠ {ocrResult.validation_errors[0]}</span>}
             </div>
           </div>
         )}
 
-        <TjInput label="Invoice #" placeholder="INV-2026-001" value={formData.invoice_number} onChange={e => setFormData(f => ({...f, invoice_number: e.target.value}))} />
-        <TjInput label="Amount (₹)" placeholder="0.00" type="number" value={formData.total_amount} onChange={e => setFormData(f => ({...f, total_amount: e.target.value}))} />
-        <TjInput label="Invoice Date" type="date" value={formData.invoice_date} onChange={e => setFormData(f => ({...f, invoice_date: e.target.value}))} />
+        {/* ── Multi-Invoice PDF Detected ── */}
+        {multiInvoices && (
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: '10px', padding: '10px 14px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <AIBadge small />
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#92400E', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  {multiInvoices.length} separate invoices detected in this PDF
+                </div>
+                <div style={{ fontSize: '11px', color: '#78350F', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>
+                  Each invoice has been extracted separately. Submit them individually below.
+                </div>
+              </div>
+            </div>
+            {multiInvoices.map((inv, idx) => {
+              const isSubmitted = multiSubmitted[idx];
+              const isSubmitting = multiSubmitting[idx];
+              const handleSubmitOne = async () => {
+                setMultiSubmitting(s => ({ ...s, [idx]: true }));
+                try {
+                  const payload = {
+                    invoice_number:  inv.invoice_number || '',
+                    invoice_date:    inv.invoice_date || null,
+                    business_purpose: inv.vendor_name ? `Services from ${inv.vendor_name}` : 'Invoice submission',
+                    total_amount:    parseFloat(inv.total_amount) || 0,
+                    pre_gst_amount:  parseFloat(inv.pre_gst_amount) || 0,
+                    cgst:            parseFloat(inv.cgst) || 0,
+                    sgst:            parseFloat(inv.sgst) || 0,
+                    igst:            parseFloat(inv.igst) || 0,
+                    ...(fileRef ? { invoice_file: fileRef } : {}),
+                  };
+                  await VendorAPI.submitBill(payload);
+                  setMultiSubmitted(s => ({ ...s, [idx]: true }));
+                  loadBills();
+                } catch (e) {
+                  alert(`Invoice ${idx + 1} submit failed: ${e.message || 'Unknown error'}`);
+                } finally {
+                  setMultiSubmitting(s => ({ ...s, [idx]: false }));
+                }
+              };
+              return (
+                <div key={idx} style={{ border: `1.5px solid ${isSubmitted ? '#BBF7D0' : '#E2E8F0'}`, borderRadius: '12px', padding: '14px 16px', marginBottom: '10px', background: isSubmitted ? '#F0FDF4' : 'white' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '15px', color: '#0F172A' }}>
+                      Invoice {idx + 1} {isSubmitted && <span style={{ color: '#10B981', fontSize: '12px' }}>✓ Submitted</span>}
+                    </div>
+                    {!isSubmitted && (
+                      <button onClick={handleSubmitOne} disabled={isSubmitting}
+                        style={{ padding: '6px 14px', borderRadius: '8px', background: isSubmitting ? '#E2E8F0' : '#E8783B', color: isSubmitting ? '#94A3B8' : 'white', border: 'none', cursor: isSubmitting ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                        {isSubmitting ? 'Submitting…' : 'Submit'}
+                      </button>
+                    )}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '12px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    <div><span style={{ color: '#94A3B8', fontSize: '10px', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.06em' }}>Vendor</span><br />{inv.vendor_name || '—'}</div>
+                    <div><span style={{ color: '#94A3B8', fontSize: '10px', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.06em' }}>Invoice #</span><br />{inv.invoice_number || '—'}</div>
+                    <div><span style={{ color: '#94A3B8', fontSize: '10px', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.06em' }}>Date</span><br />{inv.invoice_date || '—'}</div>
+                    <div><span style={{ color: '#94A3B8', fontSize: '10px', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.06em' }}>Total</span><br />
+                      <span style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '15px', color: '#0F172A', letterSpacing: '-0.5px' }}>
+                        ₹{parseFloat(inv.total_amount || 0).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                    {parseFloat(inv.cgst) > 0 && <div><span style={{ color: '#94A3B8', fontSize: '10px', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.06em' }}>CGST</span><br />₹{parseFloat(inv.cgst).toLocaleString('en-IN')}</div>}
+                    {parseFloat(inv.sgst) > 0 && <div><span style={{ color: '#94A3B8', fontSize: '10px', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.06em' }}>SGST</span><br />₹{parseFloat(inv.sgst).toLocaleString('en-IN')}</div>}
+                    {parseFloat(inv.igst) > 0 && <div><span style={{ color: '#94A3B8', fontSize: '10px', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.06em' }}>IGST</span><br />₹{parseFloat(inv.igst).toLocaleString('en-IN')}</div>}
+                  </div>
+                </div>
+              );
+            })}
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '8px' }}>
+              <Btn variant="secondary" onClick={() => { setSubmitOpen(false); setMultiInvoices(null); }}>Close</Btn>
+            </div>
+          </div>
+        )}
+
+        {/* ── Vendor & Invoice Header ── */}
+        {!multiInvoices && <>
+
+        {formData.vendor_name_ocr && (
+          <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px', fontSize: '12px', color: '#0369A1', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            <strong>Vendor (OCR):</strong> {formData.vendor_name_ocr}
+          </div>
+        )}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          <TjInput label="Invoice #" placeholder="INV-2026-001" value={formData.invoice_number} onChange={e => setFormData(f => ({...f, invoice_number: e.target.value}))} />
+          <TjInput label="Invoice Date" type="date" value={formData.invoice_date} onChange={e => setFormData(f => ({...f, invoice_date: e.target.value}))} />
+        </div>
+
+        {/* ── Amount Breakdown ── */}
+        <div style={{ fontSize: '11px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif", margin: '10px 0 6px' }}>Amount Breakdown</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          <TjInput label="Pre-GST Amount (₹)" placeholder="0.00" type="number" value={formData.pre_gst_amount} onChange={e => setFormData(f => ({...f, pre_gst_amount: e.target.value}))} />
+          <TjInput label="Total Amount (₹)" placeholder="0.00" type="number" value={formData.total_amount} onChange={e => setFormData(f => ({...f, total_amount: e.target.value}))} />
+          <TjInput label="CGST (₹)" placeholder="0.00" type="number" value={formData.cgst} onChange={e => setFormData(f => ({...f, cgst: e.target.value}))} />
+          <TjInput label="SGST (₹)" placeholder="0.00" type="number" value={formData.sgst} onChange={e => setFormData(f => ({...f, sgst: e.target.value}))} />
+          <TjInput label="IGST (₹)" placeholder="0.00" type="number" value={formData.igst} onChange={e => setFormData(f => ({...f, igst: e.target.value}))} />
+          <TjInput label="TDS Section" placeholder="194C / 194J" value={formData.tds_section} onChange={e => setFormData(f => ({...f, tds_section: e.target.value}))} />
+        </div>
+
+        {/* ── Tax IDs ── */}
+        {(formData.gstin || formData.pan) && (
+          <>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif", margin: '10px 0 6px' }}>Tax Identifiers (OCR extracted)</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <TjInput label="GSTIN" placeholder="27AABCU9603R1ZM" value={formData.gstin} onChange={e => setFormData(f => ({...f, gstin: e.target.value}))} />
+              <TjInput label="PAN" placeholder="AABCU9603R" value={formData.pan} onChange={e => setFormData(f => ({...f, pan: e.target.value}))} />
+            </div>
+          </>
+        )}
+
+        {/* ── Bank Details ── */}
+        {(formData.bank_account || formData.bank_ifsc) && (
+          <>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif", margin: '10px 0 6px' }}>Bank Details (OCR extracted)</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <TjInput label="Account No" value={formData.bank_account} onChange={e => setFormData(f => ({...f, bank_account: e.target.value}))} />
+              <TjInput label="IFSC" value={formData.bank_ifsc} onChange={e => setFormData(f => ({...f, bank_ifsc: e.target.value}))} />
+            </div>
+          </>
+        )}
+
         <TjInput label="Business Purpose" placeholder="Service description" value={formData.business_purpose} onChange={e => setFormData(f => ({...f, business_purpose: e.target.value}))} />
 
         {submitError && (
@@ -1274,6 +1550,7 @@ const VendorPortalScreen = () => {
             {submitting ? 'Submitting…' : 'Submit for Approval'}
           </Btn>
         </div>
+        </>}
       </TjModal>
     </div>
   );

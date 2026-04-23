@@ -245,7 +245,7 @@ class RespondQueryView(APIView):
         return_status = STEP_TO_STATUS.get(query.raised_at_step, "PENDING_L1")
         try:
             expense = transition_expense(expense, return_status, request.user, "Query responded")
-        except InvalidTransition, SoDViolation:
+        except (InvalidTransition, SoDViolation):
             pass  # Non-critical
 
         return Response(VendorBillDetailSerializer(expense).data)

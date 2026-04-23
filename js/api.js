@@ -230,6 +230,13 @@ const VendorAPI = {
     });
   },
 
+  async updateBill(id, data) {
+    return apiFetch(`/invoices/vendor/bills/${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
   async billDetail(id) {
     return apiFetch(`/invoices/vendor/bills/${id}/`);
   },

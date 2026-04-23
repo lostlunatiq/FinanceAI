@@ -337,7 +337,7 @@ const App = () => {
   });
 
   const applySession = (userData) => {
-    const isVendor = !!userData.vendor_profile;
+    const isVendor = !!userData.is_vendor;
     const key      = gradeToRoleKey(userData.employee_grade, userData.is_superuser, isVendor);
     const built    = buildUser(userData);
 

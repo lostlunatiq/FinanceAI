@@ -24,7 +24,13 @@ class VendorOnboardSerializer(serializers.ModelSerializer):
     def validate_gstin(self, value):
         if value and len(value) != 15:
             raise serializers.ValidationError("GSTIN must be exactly 15 characters.")
-        return value.upper() if value else value
+        value = value.upper() if value else value
+        qs = Vendor.objects.filter(gstin=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("A vendor with this GSTIN already exists.")
+        return value
 
     def validate_pan(self, value):
         if value and len(value) != 10:
@@ -96,6 +102,11 @@ class VendorBillListSerializer(serializers.ModelSerializer):
             "invoice_number",
             "invoice_date",
             "total_amount",
+            "pre_gst_amount",
+            "cgst",
+            "sgst",
+            "igst",
+            "business_purpose",
             "status",
             "current_step",
             "anomaly_severity",

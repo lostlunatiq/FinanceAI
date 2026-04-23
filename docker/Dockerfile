@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   libgdk-pixbuf-2.0-0 \
   libffi-dev \
   shared-mime-info \
+  poppler-utils \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -33,4 +34,4 @@ RUN chmod +x /entrypoint.sh
 EXPOSE 8000
 
 # ENTRYPOINT ["/entrypoint.sh"]
-CMD ["uv", "run", "uvicorn", "config.asgi:application", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "uvicorn", "config.asgi:application", "--host", "0.0.0.0", "--port", "8000", "--reload"]

@@ -78,33 +78,48 @@ class OCRResult:
 
 def pdf_to_images(file_path: str) -> list[tuple[bytes, str]]:
     """
-    Convert PDF pages to PNG images using PyMuPDF.
+    Convert PDF pages to PNG images.
+    Tries PyMuPDF first, falls back to pdf2image (poppler).
     Returns list of (image_bytes, media_type) tuples.
     """
+    # ── Try PyMuPDF ──────────────────────────────────────────────────
     try:
         import fitz  # PyMuPDF
         doc = fitz.open(file_path)
         images = []
         for page_num in range(len(doc)):
             page = doc[page_num]
-            # Render at 200 DPI (scale factor ~2.78 from 72 DPI base)
-            mat = fitz.Matrix(2.78, 2.78)
+            mat = fitz.Matrix(2.78, 2.78)  # ~200 DPI
             pix = page.get_pixmap(matrix=mat, colorspace=fitz.csRGB)
             img_bytes = pix.tobytes("png")
             images.append((img_bytes, "image/png"))
         doc.close()
+        logger.info(f"PyMuPDF: converted {len(images)} PDF page(s)")
         return images
     except ImportError:
-        logger.warning("PyMuPDF not installed, falling back to raw PDF")
-        with open(file_path, "rb") as f:
-            return [(f.read(), "application/pdf")]
+        logger.info("PyMuPDF not available, trying pdf2image (poppler)")
     except Exception as e:
-        logger.error(f"PDF to image conversion failed: {e}")
-        with open(file_path, "rb") as f:
-            return [(f.read(), "application/pdf")]
+        logger.warning(f"PyMuPDF failed: {e}, trying pdf2image")
+
+    # ── Fallback: pdf2image (uses system poppler/pdftoppm) ────────────
+    try:
+        from pdf2image import convert_from_path
+        from io import BytesIO
+
+        pages = convert_from_path(file_path, dpi=200, fmt="png")
+        images = []
+        for page in pages:
+            buf = BytesIO()
+            page.save(buf, format="PNG")
+            images.append((buf.getvalue(), "image/png"))
+        logger.info(f"pdf2image: converted {len(images)} PDF page(s)")
+        return images
+    except Exception as e:
+        logger.error(f"pdf2image also failed: {e}")
+        return []
 
 
-def run(file_path: str, media_type: str = "image/jpeg", process_all_pages: bool = False) -> OCRResult:
+def run(file_path: str, media_type: str = "image/jpeg", process_all_pages: bool = True) -> OCRResult:
     """
     Main OCR pipeline entry point.
 
@@ -133,7 +148,7 @@ def run(file_path: str, media_type: str = "image/jpeg", process_all_pages: bool 
         if ext == ".pdf":
             images = pdf_to_images(full_path)
             if not process_all_pages:
-                images = images[:1]
+                images = images[:1]  # single-page mode if explicitly requested
         else:
             media_type_map = {
                 ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -182,25 +197,48 @@ def run(file_path: str, media_type: str = "image/jpeg", process_all_pages: bool 
                 logger.warning(f"Page {page_num + 1} OCR error: {e}")
 
         if best_result is None:
-            # All API calls failed — return a usable mock so UI doesn't break
-            logger.warning("All OCR pages failed, returning mock OCR data for demo")
-            from ai.tools.openrouter_client import _mock_vision_response
-            mock = _mock_vision_response()
-            mock_extracted = json.loads(mock["content"])
-            result.extracted_fields = mock_extracted
-            result.raw_text = "OCR unavailable — demo data used"
-            result.c1 = 0.75
-            result.c2 = 0.85
-            result.c3 = 0.85
-            result.confidence = 0.80
-            result.validation_errors = []
-            result.flagged_manual = False
-            result.success = True
-            result.model_used = "mock-fallback"
+            if not images:
+                result.error = "PDF could not be converted to images. Ensure poppler-utils is installed."
+            else:
+                result.error = "OCR API calls failed for all pages."
+            logger.error(result.error)
+            result.success = False
+            result.flagged_manual = True
             return result
 
         extracted, c1, c2 = best_result
-        result.extracted_fields = _merge_multipage(all_extracted) if len(all_extracted) > 1 else extracted
+
+        # Detect multiple invoices in one PDF
+        if len(all_extracted) > 1:
+            groups = _detect_multi_invoice(all_extracted)
+            if len(groups) > 1:
+                logger.info(f"Multi-invoice PDF detected: {len(groups)} invoices across {len(all_extracted)} pages")
+                invoice_list = []
+                for group in groups:
+                    group_pages = [all_extracted[i] for i in group]
+                    merged_inv = _merge_multipage(group_pages) if len(group_pages) > 1 else group_pages[0]
+                    invoice_list.append(merged_inv)
+
+                result.extracted_fields = {
+                    "multi_invoice": True,
+                    "invoice_count": len(invoice_list),
+                    "invoices": invoice_list,
+                }
+                result.raw_text = " | ".join(e.get("raw_text", "") for e in all_extracted if e.get("raw_text"))
+                result.c1 = c1
+                result.c2 = c2
+                result.c3 = 0.85
+                result.confidence = round(0.4 * c1 + 0.4 * c2 + 0.2 * result.c3, 4)
+                result.flagged_manual = False
+                result.success = True
+                result.validation_errors = []
+                logger.info(f"OCR complete (multi-invoice): {len(invoice_list)} invoices, confidence={result.confidence:.2f}")
+                return result
+
+            result.extracted_fields = _merge_multipage(all_extracted)
+        else:
+            result.extracted_fields = extracted
+
         result.raw_text = " | ".join(e.get("raw_text", "") for e in all_extracted if e.get("raw_text"))
         result.c1 = c1
         result.c2 = c2
@@ -211,7 +249,7 @@ def run(file_path: str, media_type: str = "image/jpeg", process_all_pages: bool 
         # Try fallback model if confidence low
         ocr_review_threshold = getattr(settings, "OCR_CONFIDENCE_REVIEW", 0.50)
         if result.confidence < ocr_review_threshold and len(images) > 0:
-            fallback_model = getattr(settings, "OPENROUTER_MODEL_FALLBACK", "anthropic/claude-sonnet-4")
+            fallback_model = getattr(settings, "OPENROUTER_MODEL_FALLBACK", "anthropic/claude-haiku-4-5")
             try:
                 img_bytes, img_media_type = images[0]
                 image_b64 = base64.b64encode(img_bytes).decode("utf-8")
@@ -247,7 +285,33 @@ def run(file_path: str, media_type: str = "image/jpeg", process_all_pages: bool 
             f"OCR complete: pages={result.pages_processed}, confidence={result.confidence:.2f}, "
             f"errors={len(result.validation_errors)}, manual={result.flagged_manual}"
         )
+        logger.info(
 
+            json.dumps(
+
+                {
+
+                    "model": result.model_used,
+
+                    "pages": result.pages_processed,
+
+                    "confidence": result.confidence,
+
+                    "c1": result.c1,
+
+                    "c2": result.c2,
+
+                    "flagged": result.flagged_manual,
+
+                    "errors": result.validation_errors,
+
+                }
+
+            )
+
+        )
+
+ 
     except Exception as e:
         result.error = f"OCR pipeline error: {e}"
         logger.error(result.error, exc_info=True)
@@ -308,21 +372,89 @@ def _clean_json(content: str) -> str:
     return partial.strip()
 
 
+def _detect_multi_invoice(all_extracted: list[dict]) -> list[list[int]]:
+    """
+    Detect if multiple separate invoices exist in a multi-page PDF.
+    Returns list of page-index groups. E.g. [[0,1], [2]] = invoice1 on pages 0-1, invoice2 on page 2.
+    Returns single group [[0,...,n-1]] if only one invoice detected.
+    """
+    if len(all_extracted) <= 1:
+        return [list(range(len(all_extracted)))]
+
+    invoice_numbers = [ext.get("invoice_number") for ext in all_extracted]
+    non_null = [n for n in invoice_numbers if n]
+    unique_numbers = set(non_null)
+
+    # Single or no invoice number across all pages → one invoice
+    if len(unique_numbers) <= 1:
+        return [list(range(len(all_extracted)))]
+
+    # Multiple distinct invoice numbers → split into groups
+    groups = []
+    current_group = [0]
+    current_inv = invoice_numbers[0]
+
+    for i in range(1, len(invoice_numbers)):
+        inv = invoice_numbers[i]
+        if inv and inv != current_inv:
+            groups.append(current_group)
+            current_group = [i]
+            current_inv = inv
+        else:
+            current_group.append(i)
+            if inv:
+                current_inv = inv
+
+    groups.append(current_group)
+    return groups
+
+
 def _merge_multipage(pages: list[dict]) -> dict:
-    """Merge OCR results from multiple pages, prioritizing non-null values."""
+    """
+    Merge OCR results from multiple PDF pages.
+    - line_items: accumulated from all pages
+    - raw_text: concatenated from all pages
+    - amounts (total, cgst, sgst, igst, pre_gst): last non-null page wins
+      (grand total is usually on the last page)
+    - all other fields: first non-null value wins (header info on page 1)
+    """
     if not pages:
         return {}
+
+    amount_fields = {"total_amount", "pre_gst_amount", "cgst", "sgst", "igst", "tds_amount"}
+
     merged = dict(pages[0])
+
     for page in pages[1:]:
         for key, value in page.items():
+            if value is None:
+                continue
+
             if key == "line_items" and isinstance(value, list) and value:
-                merged_items = merged.get("line_items", []) or []
+                merged_items = merged.get("line_items") or []
                 merged["line_items"] = merged_items + value
+
             elif key == "raw_text":
-                existing = merged.get("raw_text", "")
-                merged["raw_text"] = f"{existing} {value}".strip() if existing else value
-            elif value is not None and merged.get(key) is None:
+                existing = merged.get("raw_text", "") or ""
+                merged["raw_text"] = f"{existing}\n{value}".strip()
+
+            elif key in amount_fields:
+                # Always take the latest non-null amount (grand total on last page)
                 merged[key] = value
+
+            elif key == "confidence" and isinstance(value, dict):
+                # Average confidence scores across pages
+                existing_conf = merged.get("confidence") or {}
+                merged["confidence"] = {
+                    k: round((existing_conf.get(k, 0) + value.get(k, 0)) / 2, 4)
+                    for k in set(existing_conf) | set(value)
+                }
+
+            else:
+                # Header fields — first non-null wins
+                if merged.get(key) is None:
+                    merged[key] = value
+
     return merged
 
 
