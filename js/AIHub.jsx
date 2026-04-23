@@ -1,16 +1,26 @@
 // Tijori AI — AI Intelligence Hub (Screen 18)
 
-const SUGGESTED_QUERIES = [
-  'Top 5 vendors by spend this quarter',
-  'How many invoices are pending approval?',
-  'Show anomaly summary',
-  'Total outstanding amount',
-  'Which department is over budget?',
-];
+const SUGGESTED_QUERIES = {
+  'CFO': ['Top 5 vendors by spend this quarter', 'Which department is over budget?', 'Show anomaly summary', 'Cash flow projection for next month'],
+  'Finance Admin': ['Audit log for last 24h', 'System health status', 'Pending vendor approvals', 'Anomaly summary'],
+  'Finance Manager': ['My department budget status', 'Pending team approvals', 'Variance analysis for this month', 'Top spenders in my team'],
+  'AP Clerk': ['My pending queue summary', 'Which invoices have anomalies?', 'Average processing time this week', 'Invoices near SLA limit'],
+  'Employee': ['Status of my last reimbursement', 'How much travel budget do I have left?', 'My expense summary for this year', 'Help me file a new expense'],
+  'Vendor': ['When will my last invoice be paid?', 'Total outstanding payments to me', 'Status of INV-2026-001', 'How to submit a new invoice?'],
+};
 
-const CopilotWidget = () => {
+const CopilotWidget = ({ role }) => {
+  const roleKey = role || 'CFO';
+  const queries = SUGGESTED_QUERIES[roleKey] || SUGGESTED_QUERIES['Employee'];
+  
+  const getGreeting = () => {
+    if (roleKey === 'Vendor') return "Hello! I'm your Vendor Assistant. Ask me about your invoices, payment status, or how to use the portal.";
+    if (roleKey === 'Employee') return "Hi! I'm your Personal Expense Assistant. I can help you track your reimbursements and check your budget.";
+    return `Hello! I'm your ${roleKey} Copilot. Ask me anything about financial data, vendors, invoices, or anomalies.`;
+  };
+
   const [messages, setMessages] = React.useState([
-    { role: 'ai', text: 'Hello! I\'m your CFO Copilot. Ask me anything about your financial data — vendors, invoices, anomalies, or cashflow.', time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) }
+    { role: 'ai', text: getGreeting(), time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) }
   ]);
   const [input, setInput] = React.useState('');
   const [loading, setLoading] = React.useState(false);
@@ -50,14 +60,16 @@ const CopilotWidget = () => {
     <Card style={{ padding: '0', overflow: 'hidden', marginTop: '24px' }}>
       <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F0EE', display: 'flex', alignItems: 'center', gap: '10px' }}>
         <AIBadge />
-        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A' }}>CFO Copilot</div>
+        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A' }}>
+          {roleKey === 'Vendor' ? 'Vendor Assistant' : roleKey === 'Employee' ? 'Expense Assistant' : `${roleKey} Copilot`}
+        </div>
         <LiveDot />
-        <span style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginLeft: 'auto' }}>Powered by OpenRouter · Real financial data</span>
+        <span style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginLeft: 'auto' }}>Powered by Claude 3 Haiku · Real-time data</span>
       </div>
 
       {/* Suggested queries */}
       <div style={{ padding: '12px 20px', borderBottom: '1px solid #F8F7F5', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-        {SUGGESTED_QUERIES.map(q => (
+        {queries.map(q => (
           <button key={q} onClick={() => sendMessage(q)} disabled={loading}
             style={{ background: '#F5F3FF', border: '1px solid #EDE9FE', borderRadius: '999px', padding: '5px 12px', fontSize: '11px', color: '#5B21B6', fontWeight: 600, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'all 150ms' }}>
             {q}
@@ -128,7 +140,7 @@ const CopilotWidget = () => {
   );
 };
 
-const AIHubScreen = ({ onNavigate }) => {
+const AIHubScreen = ({ role, onNavigate }) => {
   const [scenario, setScenario] = React.useState('Base');
   const [summaryOpen, setSummaryOpen] = React.useState(false);
   const [selectedMonth, setSelectedMonth] = React.useState(null);
@@ -488,7 +500,7 @@ const AIHubScreen = ({ onNavigate }) => {
       </Card>
 
       {/* CFO Copilot — NL Query */}
-      <CopilotWidget />
+      <CopilotWidget role={role} />
 
       {/* Summary detail panel */}
       <SidePanel open={summaryOpen} onClose={() => setSummaryOpen(false)} title={selectedMonth?.month || ''} width={500}>

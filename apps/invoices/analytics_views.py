@@ -147,7 +147,7 @@ class VendorRiskScoreView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        vendors = Vendor.objects.filter(status="ACTIVE").prefetch_related("submitted_expenses")[:20]
+        vendors = Vendor.objects.filter(status="ACTIVE").prefetch_related("expenses")[:20]
 
         scored = []
         for vendor in vendors:
@@ -898,4 +898,99 @@ class POMatchStatusView(APIView):
             "exceptions": len(results) - matched,
             "match_rate_pct": round(matched / len(results) * 100, 1) if results else 100,
             "items": results,
+        })
+
+# ─── 13. Command Center Intelligence ──────────────────────────────────────────
+
+class CommandCenterIntelligenceView(APIView):
+    """
+    GET /api/v1/invoices/analytics/command-center/
+    Aggregated real-time metrics for CFO Command Center.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        today = date.today()
+        
+        # 1. Risk Watch Feed (Top 5 high severity anomalies + velocity spikes)
+        risk_watch = []
+        anomalies = Expense.objects.filter(anomaly_severity__in=["HIGH", "CRITICAL"]).select_related("vendor").order_by("-created_at")[:5]
+        for a in anomalies:
+            risk_watch.append({
+                "id": f"anom-{a.id}",
+                "score": 85 if a.anomaly_severity == "HIGH" else 95,
+                "color": "#EF4444" if a.anomaly_severity == "CRITICAL" else "#F59E0B",
+                "title": f"Anomaly: {a.vendor.name}",
+                "desc": (a.ocr_raw or {}).get("anomaly_flags", ["Manual review required"])[0],
+                "time": "live"
+            })
+            
+        # 2. Treasury Health Index Calculation
+        out_total = float(Expense.objects.exclude(_status__in=["PAID", "REJECTED"]).aggregate(t=Sum("total_amount"))["t"] or 0)
+        paid_30 = float(Expense.objects.filter(_status="PAID", d365_paid_at__gte=today-timedelta(days=30)).aggregate(t=Sum("total_amount"))["t"] or 0)
+        
+        liquidity = 95 if out_total < 5000000 else 75 if out_total < 15000000 else 55
+        solvency = 80 if paid_30 > out_total * 0.2 else 60
+        global_health = round((liquidity + solvency) / 2)
+        
+        treasury = {
+            "global_index": global_health,
+            "liquidity": "Excellent" if liquidity >= 85 else "Good" if liquidity >= 70 else "Stable",
+            "solvency": "Strong" if solvency >= 80 else "Stable",
+            "health_color": "#10B981" if global_health >= 80 else "#F59E0B"
+        }
+
+        # 3. Cashflow mini-forecast (7 days)
+        from .budget_views import _build_cashflow_forecast
+        cf = _build_cashflow_forecast(days=30)
+        
+        return Response({
+            "risk_watch": risk_watch,
+            "treasury": treasury,
+            "cashflow_summary": cf["summary"],
+            "chart_data": cf["forecast"][:10],
+            "stats": {
+                "outstanding": out_total,
+                "anomalies": anomalies.count(),
+            }
+        })
+
+
+class AuditSweepView(APIView):
+    """
+    POST /api/v1/invoices/analytics/audit-sweep/
+    Triggers a comprehensive transaction scan.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        # In demo, we just trigger a bulk scan
+        from .employee_views import BulkScanAnomalyView
+        return BulkScanAnomalyView().post(request)
+
+
+class Generate10QView(APIView):
+    """
+    POST /api/v1/invoices/analytics/generate-10q/
+    Generates an AI-drafted regulatory filing draft.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        today = date.today()
+        ytd = Expense.objects.filter(_status="PAID", invoice_date__year=today.year).aggregate(t=Sum("total_amount"))["t"] or 0
+        
+        prompt = (
+            f"Write a formal financial summary for a 10-Q filing. "
+            f"YTD Operating Expenses: ₹{float(ytd):,.2f}. "
+            f"Current Date: {today}. Focus on expense trends and vendor obligations. "
+            f"Format as a professional report."
+        )
+        content = _ai_text(prompt, fallback="YTD Operating Expenses are within expected parameters.")
+        
+        return Response({
+            "title": f"10-Q Filing Draft - Q{ (today.month-1)//3 + 1 } {today.year}",
+            "generated_at": today.isoformat(),
+            "content": content,
+            "stats": {"ytd_expenses": float(ytd)}
         })

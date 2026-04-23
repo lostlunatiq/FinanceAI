@@ -338,11 +338,16 @@ class DashboardStatsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        is_vendor = hasattr(request.user, "vendor_profile") and request.user.vendor_profile is not None
+        is_cfo = request.user.is_superuser
+        grade = getattr(request.user, "employee_grade", 1)
+
         base_qs = Expense.objects.all()
 
-        # If vendor, scope to their bills
-        if hasattr(request.user, "vendor_profile"):
+        if is_vendor:
             base_qs = base_qs.filter(vendor=request.user.vendor_profile)
+        elif grade < 3 and not is_cfo:
+            base_qs = base_qs.filter(submitted_by=request.user)
 
         stats = {
             "total_pending": base_qs.filter(
@@ -354,6 +359,7 @@ class DashboardStatsView(APIView):
                     "PENDING_FIN_L1",
                     "PENDING_FIN_L2",
                     "PENDING_FIN_HEAD",
+                    "PENDING_CFO",
                 ]
             ).count(),
             "total_approved": base_qs.filter(

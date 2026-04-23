@@ -147,6 +147,11 @@ class BudgetUtilizationView(APIView):
             total=Sum("total_amount"), count=Count("id")
         ).order_by("-total")[:10]
 
+        # Employee breakdown
+        by_employee = qs.values("submitted_by__first_name", "submitted_by__last_name").annotate(
+            total=Sum("total_amount"), count=Count("id")
+        ).order_by("-total")[:10]
+
         return Response({
             "budget": _budget_to_dict(b),
             "monthly_spend": [
@@ -156,6 +161,14 @@ class BudgetUtilizationView(APIView):
             "top_vendors": [
                 {"vendor": v["vendor__name"], "amount": float(v["total"] or 0), "invoices": v["count"]}
                 for v in by_vendor
+            ],
+            "top_employees": [
+                {
+                    "name": f"{e['submitted_by__first_name']} {e['submitted_by__last_name']}".strip(),
+                    "amount": float(e["total"] or 0),
+                    "invoices": e["count"]
+                }
+                for e in by_employee
             ],
             "total_invoices": qs.count(),
         })

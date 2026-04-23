@@ -75,7 +75,7 @@ GRADE_FOR_STEP = {
 class Expense(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     ref_no = models.CharField(max_length=30, unique=True, blank=True)  # BILL-2026-00042
-    vendor = models.ForeignKey(Vendor, on_delete=models.PROTECT)
+    vendor = models.ForeignKey(Vendor, on_delete=models.PROTECT, related_name="expenses")
     submitted_by = models.ForeignKey(
         User, on_delete=models.PROTECT, related_name="submitted_expenses"
     )
