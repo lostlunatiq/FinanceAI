@@ -11,6 +11,8 @@ import logging
 from datetime import date, timedelta
 from decimal import Decimal
 
+from rich import json
+
 logger = logging.getLogger(__name__)
 
 # Signal weights for severity scoring
@@ -87,6 +89,15 @@ def run_anomaly_checks(expense) -> dict:
     else:
         severity = "NONE"
 
+    logger.info(
+        json.dumps(
+            {
+                "severity": severity,
+                "score": total_score,
+                "flags": [f["type"] for f in flags],
+            }
+        )
+    )
     return {"severity": severity, "flags": flags, "total_score": total_score}
 
 

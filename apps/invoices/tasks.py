@@ -33,13 +33,14 @@ def run_ocr_pipeline(self, expense_id: str):
     try:
         from ai.pipelines.ocr_pipeline import run as run_ocr
 
-        result = run_ocr(expense.invoice_file.path)
+        result = run_ocr(expense.invoice_file.path, process_all_pages=True)
 
         # Save OCR results to expense
         expense.ocr_raw = {
             "extracted_fields": result.extracted_fields,
             "raw_text": result.raw_text,
             "model_used": result.model_used,
+            "pages_processed": result.pages_processed,
             "c1": result.c1,
             "c2": result.c2,
             "c3": result.c3,
@@ -55,6 +56,15 @@ def run_ocr_pipeline(self, expense_id: str):
 
         if result.confidence >= review_threshold:
             fields = result.extracted_fields
+            # Multi-invoice PDF: find the matching invoice by number, or use first
+            if fields.get("multi_invoice") and fields.get("invoices"):
+                invoices = fields["invoices"]
+                matched = next(
+                    (inv for inv in invoices if inv.get("invoice_number") == expense.invoice_number),
+                    invoices[0],
+                )
+                fields = matched
+
             if fields.get("invoice_number") and not expense.invoice_number:
                 expense.invoice_number = fields["invoice_number"]
             if fields.get("invoice_date") and not expense.invoice_date:
@@ -127,7 +137,7 @@ def run_ocr_standalone(self, file_id: str):
     try:
         from ai.pipelines.ocr_pipeline import run as run_ocr
 
-        result = run_ocr(file_ref.path)
+        result = run_ocr(file_ref.path, process_all_pages=True)
 
         return {
             "success": result.success,
@@ -136,6 +146,7 @@ def run_ocr_standalone(self, file_id: str):
             "validation_errors": result.validation_errors,
             "flagged_manual": result.flagged_manual,
             "raw_text": result.raw_text,
+            "pages_processed": result.pages_processed,
         }
     except Exception as e:
         logger.error(f"OCR standalone failed for {file_id}: {e}", exc_info=True)

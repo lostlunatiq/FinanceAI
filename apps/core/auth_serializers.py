@@ -20,6 +20,7 @@ class LoginSerializer(serializers.Serializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source="department.name", read_only=True, default="")
     full_name = serializers.SerializerMethodField()
+    is_vendor = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -34,12 +35,15 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "department",
             "department_name",
             "employee_grade",
+            "is_vendor",
         ]
-        # Fix 2 — remove "role" from read_only_fields
         read_only_fields = ["id", "username", "is_superuser"]
 
     def get_full_name(self, obj):
         return obj.get_full_name() or obj.username
+
+    def get_is_vendor(self, obj):
+        return hasattr(obj, "vendor_profile") and obj.vendor_profile is not None
 
 
 class RegisterUserSerializer(serializers.ModelSerializer):

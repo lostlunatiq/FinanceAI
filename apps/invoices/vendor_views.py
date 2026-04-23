@@ -72,7 +72,7 @@ class VendorCreateView(APIView):
                     last_name=" ".join(vendor.name.split()[1:])
                     if len(vendor.name.split()) > 1
                     else "",
-                    role="vendor",
+                    employee_grade=1,
                     is_active=True,
                 )
                 portal_user.set_password(portal_password)
@@ -244,12 +244,34 @@ class VendorBillsView(APIView):
 
 
 class VendorBillDetailView(APIView):
-    """GET /api/v1/vendor/bills/<id>/ — Full bill detail with timeline."""
+    """GET/PATCH /api/v1/vendor/bills/<id>/ — Full bill detail with timeline."""
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
         expense = get_object_or_404(Expense, pk=pk)
+        return Response(VendorBillDetailSerializer(expense).data)
+
+    def patch(self, request, pk):
+        expense = get_object_or_404(Expense, pk=pk)
+
+        # Only the submitter can edit, and only while still in draft/submitted
+        if expense.submitted_by != request.user and not hasattr(request.user, "vendor_profile"):
+            return Response({"error": "Not allowed."}, status=status.HTTP_403_FORBIDDEN)
+
+        editable_statuses = {"DRAFT", "SUBMITTED", "QUERY_RAISED"}
+        if expense._status not in editable_statuses:
+            return Response(
+                {"error": f"Cannot edit invoice in '{expense._status}' status."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        allowed_fields = {"business_purpose", "invoice_number", "invoice_date"}
+        for field in allowed_fields:
+            if field in request.data:
+                setattr(expense, field, request.data[field])
+
+        expense.save(update_fields=list(allowed_fields & set(request.data.keys())))
         return Response(VendorBillDetailSerializer(expense).data)
 
 

@@ -155,6 +155,4 @@ def transition_expense(
             masked_after={"status": new_status, "reason": reason},
         )
 
-        _mirror_to_clickhouse(expense, actor, old_status, new_status, reason)
-
     return expense

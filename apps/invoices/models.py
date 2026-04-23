@@ -155,9 +155,14 @@ class Expense(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.ref_no:
-            # Auto-generate ref_no on first save
-            count = Expense.objects.count() + 1
-            self.ref_no = f"BILL-2026-{count:05d}"
+            from django.db.models import Max
+            from django.utils import timezone
+            year = timezone.now().year
+            last = Expense.objects.filter(
+                ref_no__startswith=f"BILL-{year}-"
+            ).aggregate(Max("ref_no"))["ref_no__max"]
+            num = (int(last.split("-")[-1]) + 1) if last else 1
+            self.ref_no = f"BILL-{year}-{num:05d}"
         super().save(*args, **kwargs)
 
     def __str__(self):

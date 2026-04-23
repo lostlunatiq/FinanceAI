@@ -259,5 +259,15 @@ LOGGING = {
             "level": "INFO",
             "propagate": False,
         },
+        "ai.pipelines.ocr_pipeline": {
+            "handlers": ["console"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
+        "ai.pipelines.anomaly_pipeline": {
+            "handlers": ["console"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
     },
 }

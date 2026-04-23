@@ -59,9 +59,8 @@ def call_vision_model(
         return _mock_vision_response()
 
     if model is None:
-        model = getattr(
-            settings, "OPENROUTER_MODEL_PRIMARY", "anthropic/claude-haiku-4-5"
-        )
+        model = getattr(settings, "OPENROUTER_MODEL_OCR", None) \
+             or getattr(settings, "OPENROUTER_MODEL_PRIMARY", "google/gemini-2.0-flash-001")
 
     # Models that support response_format json_object natively
     JSON_FORMAT_MODELS = {"gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"}
@@ -118,9 +117,8 @@ def call_text_model(
         return {"content": "{}", "model": "mock"}
 
     if model is None:
-        model = getattr(
-            settings, "OPENROUTER_MODEL_PRIMARY", "google/gemini-2.0-flash-001"
-        )
+        model = getattr(settings, "OPENROUTER_MODEL_TEXT", None) \
+             or getattr(settings, "OPENROUTER_MODEL_PRIMARY", "google/gemini-2.0-flash-001")
 
     messages = []
     if system_prompt:
