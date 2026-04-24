@@ -960,7 +960,7 @@ const App = () => {
   }, /*#__PURE__*/React.createElement("div", {
     key: `${roleKey}-${screen}`,
     style: {
-      animation: 'fadeUp 220ms ease both'
+      animation: 'fadeIn 220ms ease'
     }
   }, screenFn(navigate, roleKey, screenCtx)));
 };

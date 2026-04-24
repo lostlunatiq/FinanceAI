@@ -1,0 +1,60 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - img [ref=e5]
+    - img [ref=e258]
+    - generic [ref=e263]:
+      - img [ref=e265]
+      - generic [ref=e268]: Tijori AI
+    - generic [ref=e270]:
+      - generic [ref=e271]: Enterprise Finance OS
+      - heading "The Intelligent Financial OS for Enterprise." [level=1] [ref=e272]:
+        - text: The Intelligent
+        - text: Financial OS
+        - text: for Enterprise.
+      - paragraph [ref=e273]: AI-native accounts payable, anomaly detection, and real-time cash intelligence — unified.
+      - generic [ref=e274]:
+        - generic [ref=e275]:
+          - generic [ref=e276]: 94%
+          - generic [ref=e277]: Faster Cycles
+        - generic [ref=e278]:
+          - generic [ref=e279]: $2.4M
+          - generic [ref=e280]: Leakage Caught
+        - generic [ref=e281]:
+          - generic [ref=e282]: 12×
+          - generic [ref=e283]: ROI Average
+      - generic [ref=e284]:
+        - generic [ref=e285]: "\""
+        - paragraph [ref=e286]: Tijori AI reduced our month-end close from 12 days to 3. The anomaly engine caught ₹1.8Cr in duplicate invoices in the first quarter alone.
+        - generic [ref=e287]:
+          - generic [ref=e288]: SP
+          - generic [ref=e289]:
+            - generic [ref=e290]: Sunita Prasad
+            - generic [ref=e291]: CFO, Meridian Industries
+  - generic [ref=e293]:
+    - generic [ref=e294]: Enterprise Access
+    - heading "Welcome back." [level=2] [ref=e295]
+    - paragraph [ref=e296]: Sign in to your financial command center.
+    - button "Continue with Microsoft SSO" [ref=e297] [cursor=pointer]:
+      - img [ref=e298]
+      - text: Continue with Microsoft SSO
+    - generic [ref=e305]: or
+    - generic [ref=e307]:
+      - generic [ref=e308]: Username
+      - generic [ref=e309]:
+        - generic [ref=e310]: ✉
+        - textbox "e.g. fin_admin" [ref=e311]: fin_admin
+    - generic [ref=e313]:
+      - generic [ref=e314]: Password
+      - generic [ref=e315]:
+        - generic [ref=e316]: 🔒
+        - textbox "Enter your password" [ref=e317]: demo1234
+        - button "👁" [ref=e318] [cursor=pointer]:
+          - generic [ref=e319]: 👁
+    - generic [ref=e320]: "Demo: fin_admin / demo1234 | vendor1 / demo1234"
+    - button "Sign In to Dashboard" [ref=e321] [cursor=pointer]
+    - generic [ref=e322]:
+      - generic [ref=e323]: © 2026 Tijori AI, Inc.
+      - generic [ref=e324]:
+        - generic [ref=e325] [cursor=pointer]: Privacy
+        - generic [ref=e326] [cursor=pointer]: Security
+        - generic [ref=e327] [cursor=pointer]: Terms
