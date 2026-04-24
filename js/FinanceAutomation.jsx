@@ -605,3 +605,5 @@ const POMatchScreen = ({ onNavigate }) => {
     </PageWrap>
   );
 };
+
+Object.assign(window, { SpendAnalyticsScreen, WorkingCapitalScreen, VendorRiskScreen, GSTReconScreen, TDSComplianceScreen, PolicyComplianceScreen, DeptVarianceScreen, POMatchScreen });

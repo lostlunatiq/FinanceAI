@@ -517,16 +517,25 @@ function anomalyFlagToType(flag) {
 
 // Map a backend Expense record to the anomaly card format the UI expects
 function expenseToAnomaly(exp, index) {
-  const flags = exp.ocr_raw?.anomaly_flags || [];
+  const flags = exp.anomaly_flags || exp.ocr_raw?.anomaly_flags || [];
   const primaryFlag = flags[0];
+  const severity = exp.anomaly_severity || 'MEDIUM';
+  const flagType = primaryFlag
+    ? (typeof primaryFlag === 'string' ? primaryFlag : primaryFlag.type)
+    : null;
+  const flagMessage = primaryFlag
+    ? (typeof primaryFlag === 'string' ? primaryFlag : (primaryFlag.message || primaryFlag.type || 'Anomaly detected'))
+    : `${severity} severity anomaly detected`;
   return {
     id: `ANO-${String(index + 1).padStart(3, '0')}`,
-    score: severityToScore(exp.anomaly_severity),
+    score: severityToScore(severity),
     entity: exp.ref_no || exp.invoice_number || exp.id,
-    type: primaryFlag ? anomalyFlagToType(primaryFlag.type) : exp.anomaly_severity + ' Anomaly',
-    details: primaryFlag?.message || `Anomaly detected: ${exp.anomaly_severity}`,
-    logic: flags.slice(1).map(f => f.message).join(' | ') || `Severity: ${exp.anomaly_severity}. Score: ${exp.total_score || 0}.`,
-    status: 'OPEN',
+    type: flagType ? anomalyFlagToType(flagType) : severity + ' Anomaly',
+    details: flagMessage,
+    logic: flags.length > 1
+      ? flags.slice(1).map(f => typeof f === 'string' ? f : (f.message || f.type || '')).filter(Boolean).join(' | ')
+      : `Severity: ${severity}. Vendor: ${exp.vendor_name || 'Unknown'}. Amount: ₹${Number(exp.total_amount || 0).toLocaleString('en-IN')}`,
+    status: exp.anomaly_severity === 'NONE' ? 'RESOLVED' : 'OPEN',
     date: exp.created_at ? new Date(exp.created_at).toLocaleString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '',
     rawId: exp.id,
     _raw: exp,
