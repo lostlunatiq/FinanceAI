@@ -1036,14 +1036,42 @@ const TDSComplianceScreen = ({
 
 // ─── 6. Policy Compliance Screen ──────────────────────────────────────────────
 
-const DEFAULT_POLICIES = [
-  { id: 'p1', name: 'Business Purpose Required', rule: 'BUSINESS_PURPOSE_REQUIRED', description: 'All invoices must include a business justification note.', active: true, vendor_scope: 'All Vendors' },
-  { id: 'p2', name: 'No Off-Hours Submission', rule: 'WEEKEND_SUBMISSION', description: 'Flag invoices submitted outside business hours (6pm–9am, weekends).', active: true, vendor_scope: 'All Vendors' },
-  { id: 'p3', name: 'Duplicate Invoice Check', rule: 'POSSIBLE_DUPLICATE', description: 'Detect duplicate invoice numbers across vendors within 90 days.', active: true, vendor_scope: 'All Vendors' },
-  { id: 'p4', name: 'Single Vendor Spend Cap', rule: 'VENDOR_SPEND_CAP', description: 'Alert when a single vendor exceeds ₹50L spend in a quarter.', active: false, vendor_scope: 'All Vendors' },
-  { id: 'p5', name: 'Split Invoice Detection', rule: 'SPLIT_INVOICE', description: 'Flag invoices from same vendor on same day that appear to circumvent approval limits.', active: true, vendor_scope: 'All Vendors' },
-];
-
+const DEFAULT_POLICIES = [{
+  id: 'p1',
+  name: 'Business Purpose Required',
+  rule: 'BUSINESS_PURPOSE_REQUIRED',
+  description: 'All invoices must include a business justification note.',
+  active: true,
+  vendor_scope: 'All Vendors'
+}, {
+  id: 'p2',
+  name: 'No Off-Hours Submission',
+  rule: 'WEEKEND_SUBMISSION',
+  description: 'Flag invoices submitted outside business hours (6pm–9am, weekends).',
+  active: true,
+  vendor_scope: 'All Vendors'
+}, {
+  id: 'p3',
+  name: 'Duplicate Invoice Check',
+  rule: 'POSSIBLE_DUPLICATE',
+  description: 'Detect duplicate invoice numbers across vendors within 90 days.',
+  active: true,
+  vendor_scope: 'All Vendors'
+}, {
+  id: 'p4',
+  name: 'Single Vendor Spend Cap',
+  rule: 'VENDOR_SPEND_CAP',
+  description: 'Alert when a single vendor exceeds ₹50L spend in a quarter.',
+  active: false,
+  vendor_scope: 'All Vendors'
+}, {
+  id: 'p5',
+  name: 'Split Invoice Detection',
+  rule: 'SPLIT_INVOICE',
+  description: 'Flag invoices from same vendor on same day that appear to circumvent approval limits.',
+  active: true,
+  vendor_scope: 'All Vendors'
+}];
 const PolicyComplianceScreen = ({
   onNavigate
 }) => {
@@ -1056,29 +1084,44 @@ const PolicyComplianceScreen = ({
   const [policies, setPolicies] = React.useState(DEFAULT_POLICIES);
   const [createOpen, setCreateOpen] = React.useState(false);
   const [deleteConfirm, setDeleteConfirm] = React.useState(null);
-  const [newPolicy, setNewPolicy] = React.useState({ name: '', description: '', rule: '', vendor_scope: 'All Vendors', active: true });
+  const [newPolicy, setNewPolicy] = React.useState({
+    name: '',
+    description: '',
+    rule: '',
+    vendor_scope: 'All Vendors',
+    active: true
+  });
   const [saving, setSaving] = React.useState(false);
-
   const handleCreatePolicy = () => {
     if (!newPolicy.name.trim() || !newPolicy.rule.trim()) return;
     setSaving(true);
     setTimeout(() => {
-      setPolicies(prev => [...prev, { ...newPolicy, id: 'p' + Date.now(), rule: newPolicy.rule.toUpperCase().replace(/\s+/g, '_') }]);
-      setNewPolicy({ name: '', description: '', rule: '', vendor_scope: 'All Vendors', active: true });
+      setPolicies(prev => [...prev, {
+        ...newPolicy,
+        id: 'p' + Date.now(),
+        rule: newPolicy.rule.toUpperCase().replace(/\s+/g, '_')
+      }]);
+      setNewPolicy({
+        name: '',
+        description: '',
+        rule: '',
+        vendor_scope: 'All Vendors',
+        active: true
+      });
       setCreateOpen(false);
       setSaving(false);
     }, 600);
   };
-
-  const handleDeletePolicy = (id) => {
+  const handleDeletePolicy = id => {
     setPolicies(prev => prev.filter(p => p.id !== id));
     setDeleteConfirm(null);
   };
-
-  const handleTogglePolicy = (id) => {
-    setPolicies(prev => prev.map(p => p.id === id ? { ...p, active: !p.active } : p));
+  const handleTogglePolicy = id => {
+    setPolicies(prev => prev.map(p => p.id === id ? {
+      ...p,
+      active: !p.active
+    } : p));
   };
-
   if (loading) return /*#__PURE__*/React.createElement(PageWrap, null, /*#__PURE__*/React.createElement(ScreenLoader, null));
   if (error) return /*#__PURE__*/React.createElement(PageWrap, null, /*#__PURE__*/React.createElement(ErrorBanner, {
     msg: error
@@ -1090,146 +1133,326 @@ const PolicyComplianceScreen = ({
     WEEKEND_SUBMISSION: 'Off-Hours Submission',
     POSSIBLE_DUPLICATE: 'Possible Duplicate',
     VENDOR_SPEND_CAP: 'Vendor Spend Cap',
-    SPLIT_INVOICE: 'Split Invoice',
+    SPLIT_INVOICE: 'Split Invoice'
   };
-
-  return /*#__PURE__*/React.createElement(PageWrap, null,
-    /*#__PURE__*/React.createElement(SectionTitle, {
-      title: "Policy Compliance Check",
-      sub: "AI-driven policy rule validation — last 30 days"
-    }),
-    /*#__PURE__*/React.createElement("div", {
-      style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }
+  return /*#__PURE__*/React.createElement(PageWrap, null, /*#__PURE__*/React.createElement(SectionTitle, {
+    title: "Policy Compliance Check",
+    sub: "AI-driven policy rule validation \u2014 last 30 days"
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(4, 1fr)',
+      gap: '16px',
+      marginBottom: '24px'
+    }
+  }, /*#__PURE__*/React.createElement(AnalyticCard, {
+    title: "Invoices Checked",
+    value: d.total_checked || 0
+  }), /*#__PURE__*/React.createElement(AnalyticCard, {
+    title: "Compliant",
+    value: d.compliant_count || 0,
+    color: "#10B981"
+  }), /*#__PURE__*/React.createElement(AnalyticCard, {
+    title: "Violations Found",
+    value: d.violation_count || 0,
+    color: d.violation_count > 0 ? '#EF4444' : '#10B981'
+  }), /*#__PURE__*/React.createElement(AnalyticCard, {
+    title: "Compliance Rate",
+    value: `${d.compliance_rate_pct || 100}%`,
+    color: d.compliance_rate_pct >= 90 ? '#10B981' : '#F59E0B'
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: '4px',
+      marginBottom: '20px',
+      borderBottom: '2px solid #E2E8F0'
+    }
+  }, ['violations', 'manage'].map(tab => /*#__PURE__*/React.createElement("button", {
+    key: tab,
+    onClick: () => setPolicyTab(tab),
+    style: {
+      padding: '8px 20px',
+      border: 'none',
+      background: 'none',
+      cursor: 'pointer',
+      fontSize: '14px',
+      fontWeight: 600,
+      color: policyTab === tab ? '#5B21B6' : '#64748B',
+      borderBottom: policyTab === tab ? '2px solid #5B21B6' : '2px solid transparent',
+      marginBottom: '-2px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, tab === 'violations' ? 'Violations' : 'Manage Policies'))), policyTab === 'violations' && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SectionTitle, {
+    title: "Policy Violations",
+    sub: "Invoices with policy breaches requiring review"
+  }), /*#__PURE__*/React.createElement(Table, {
+    headers: ['Reference', 'Vendor', 'Rule', 'Severity', 'Detail'],
+    rows: violations.map(v => [/*#__PURE__*/React.createElement("span", {
+      style: {
+        fontFamily: "'JetBrains Mono', monospace",
+        fontSize: '12px'
+      }
+    }, v.ref_no), v.vendor, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: '11px',
+        fontWeight: 700,
+        color: '#5B21B6'
+      }
+    }, RULE_LABEL[v.rule] || v.rule), /*#__PURE__*/React.createElement(StatusChip, {
+      level: v.severity
+    }), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: '12px',
+        color: '#64748B',
+        fontFamily: "'Plus Jakarta Sans', sans-serif"
+      }
+    }, v.message)]),
+    emptyMsg: "\u2705 No policy violations found in the last 30 days"
+  })), policyTab === 'manage' && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '16px'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '14px',
+      color: '#64748B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, policies.length, " policies configured"), /*#__PURE__*/React.createElement(Btn, {
+    variant: "primary",
+    small: true,
+    onClick: () => setCreateOpen(true)
+  }, "+ Create Policy")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '10px'
+    }
+  }, policies.map(pol => /*#__PURE__*/React.createElement("div", {
+    key: pol.id,
+    style: {
+      background: '#fff',
+      border: '1px solid #E2E8F0',
+      borderRadius: '10px',
+      padding: '14px 18px',
+      display: 'flex',
+      alignItems: 'flex-start',
+      gap: '14px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      marginBottom: '4px'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontWeight: 700,
+      fontSize: '14px',
+      color: '#1E293B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, pol.name), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '10px',
+      fontWeight: 700,
+      padding: '2px 8px',
+      borderRadius: '9999px',
+      background: pol.active ? '#DCFCE7' : '#F1F5F9',
+      color: pol.active ? '#15803D' : '#94A3B8'
+    }
+  }, pol.active ? 'ACTIVE' : 'INACTIVE')), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#64748B',
+      marginBottom: '4px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, pol.description), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#94A3B8',
+      fontFamily: "'JetBrains Mono', monospace"
+    }
+  }, "Rule: ", pol.rule, " \xB7 Scope: ", pol.vendor_scope)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: '8px',
+      alignItems: 'center',
+      flexShrink: 0
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => handleTogglePolicy(pol.id),
+    style: {
+      padding: '5px 12px',
+      borderRadius: '6px',
+      border: '1px solid #E2E8F0',
+      background: pol.active ? '#FEF3C7' : '#DCFCE7',
+      color: pol.active ? '#92400E' : '#15803D',
+      fontSize: '12px',
+      fontWeight: 600,
+      cursor: 'pointer',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, pol.active ? 'Disable' : 'Enable'), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setDeleteConfirm(pol),
+    style: {
+      padding: '5px 12px',
+      borderRadius: '6px',
+      border: '1px solid #FEE2E2',
+      background: '#FEF2F2',
+      color: '#DC2626',
+      fontSize: '12px',
+      fontWeight: 600,
+      cursor: 'pointer',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Delete")))))), /*#__PURE__*/React.createElement(TjModal, {
+    open: createOpen,
+    onClose: () => {
+      setCreateOpen(false);
+      setNewPolicy({
+        name: '',
+        description: '',
+        rule: '',
+        vendor_scope: 'All Vendors',
+        active: true
+      });
     },
-      /*#__PURE__*/React.createElement(AnalyticCard, { title: "Invoices Checked", value: d.total_checked || 0 }),
-      /*#__PURE__*/React.createElement(AnalyticCard, { title: "Compliant", value: d.compliant_count || 0, color: "#10B981" }),
-      /*#__PURE__*/React.createElement(AnalyticCard, { title: "Violations Found", value: d.violation_count || 0, color: d.violation_count > 0 ? '#EF4444' : '#10B981' }),
-      /*#__PURE__*/React.createElement(AnalyticCard, { title: "Compliance Rate", value: `${d.compliance_rate_pct || 100}%`, color: d.compliance_rate_pct >= 90 ? '#10B981' : '#F59E0B' })
-    ),
-    /*#__PURE__*/React.createElement("div", {
-      style: { display: 'flex', gap: '4px', marginBottom: '20px', borderBottom: '2px solid #E2E8F0' }
-    },
-      ['violations', 'manage'].map(tab => /*#__PURE__*/React.createElement("button", {
-        key: tab,
-        onClick: () => setPolicyTab(tab),
-        style: {
-          padding: '8px 20px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 600,
-          color: policyTab === tab ? '#5B21B6' : '#64748B',
-          borderBottom: policyTab === tab ? '2px solid #5B21B6' : '2px solid transparent',
-          marginBottom: '-2px'
-        }
-      }, tab === 'violations' ? 'Violations' : 'Manage Policies'))
-    ),
-    policyTab === 'violations' && /*#__PURE__*/React.createElement("div", null,
-      /*#__PURE__*/React.createElement(SectionTitle, { title: "Policy Violations", sub: "Invoices with policy breaches requiring review" }),
-      /*#__PURE__*/React.createElement(Table, {
-        headers: ['Reference', 'Vendor', 'Rule', 'Severity', 'Detail'],
-        rows: violations.map(v => [
-          /*#__PURE__*/React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }, v.ref_no),
-          v.vendor,
-          /*#__PURE__*/React.createElement("span", { style: { fontSize: '11px', fontWeight: 700, color: '#5B21B6' } }, RULE_LABEL[v.rule] || v.rule),
-          /*#__PURE__*/React.createElement(StatusChip, { level: v.severity }),
-          /*#__PURE__*/React.createElement("span", { style: { fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" } }, v.message)
-        ]),
-        emptyMsg: "✅ No policy violations found in the last 30 days"
-      })
-    ),
-    policyTab === 'manage' && /*#__PURE__*/React.createElement("div", null,
-      /*#__PURE__*/React.createElement("div", {
-        style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }
-      },
-        /*#__PURE__*/React.createElement("span", { style: { fontSize: '14px', color: '#64748B' } }, `${policies.length} policies configured`),
-        /*#__PURE__*/React.createElement(Btn, { variant: 'primary', small: true, onClick: () => setCreateOpen(true) }, '+ Create Policy')
-      ),
-      /*#__PURE__*/React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: '10px' } },
-        policies.map(pol => /*#__PURE__*/React.createElement("div", {
-          key: pol.id,
-          style: {
-            background: '#fff', border: '1px solid #E2E8F0', borderRadius: '10px',
-            padding: '14px 18px', display: 'flex', alignItems: 'flex-start', gap: '14px'
-          }
-        },
-          /*#__PURE__*/React.createElement("div", { style: { flex: 1 } },
-            /*#__PURE__*/React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' } },
-              /*#__PURE__*/React.createElement("span", { style: { fontWeight: 700, fontSize: '14px', color: '#1E293B' } }, pol.name),
-              /*#__PURE__*/React.createElement("span", {
-                style: {
-                  fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '9999px',
-                  background: pol.active ? '#DCFCE7' : '#F1F5F9',
-                  color: pol.active ? '#15803D' : '#94A3B8'
-                }
-              }, pol.active ? 'ACTIVE' : 'INACTIVE')
-            ),
-            /*#__PURE__*/React.createElement("div", { style: { fontSize: '12px', color: '#64748B', marginBottom: '4px' } }, pol.description),
-            /*#__PURE__*/React.createElement("div", { style: { fontSize: '11px', color: '#94A3B8' } }, `Rule: ${pol.rule} · Scope: ${pol.vendor_scope}`)
-          ),
-          /*#__PURE__*/React.createElement("div", { style: { display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 } },
-            /*#__PURE__*/React.createElement("button", {
-              onClick: () => handleTogglePolicy(pol.id),
-              style: {
-                padding: '5px 12px', borderRadius: '6px', border: '1px solid #E2E8F0',
-                background: pol.active ? '#FEF3C7' : '#DCFCE7',
-                color: pol.active ? '#92400E' : '#15803D',
-                fontSize: '12px', fontWeight: 600, cursor: 'pointer'
-              }
-            }, pol.active ? 'Disable' : 'Enable'),
-            /*#__PURE__*/React.createElement("button", {
-              onClick: () => setDeleteConfirm(pol),
-              style: {
-                padding: '5px 12px', borderRadius: '6px', border: '1px solid #FEE2E2',
-                background: '#FEF2F2', color: '#DC2626',
-                fontSize: '12px', fontWeight: 600, cursor: 'pointer'
-              }
-            }, 'Delete')
-          )
-        ))
-      )
-    ),
-    /*#__PURE__*/React.createElement(TjModal, {
-      open: createOpen,
-      title: "Create Policy Rule",
-      onCancel: () => { setCreateOpen(false); setNewPolicy({ name: '', description: '', rule: '', vendor_scope: 'All Vendors', active: true }); },
-      onConfirm: handleCreatePolicy,
-      confirmLabel: saving ? 'Creating…' : 'Create Policy',
-      confirmDisabled: !newPolicy.name.trim() || !newPolicy.rule.trim() || saving
-    },
-      /*#__PURE__*/React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: '12px' } },
-        [
-          { label: 'Policy Name *', field: 'name', placeholder: 'e.g. No Weekend Submission' },
-          { label: 'Rule Code *', field: 'rule', placeholder: 'e.g. WEEKEND_SUBMISSION' },
-          { label: 'Description', field: 'description', placeholder: 'Describe what this policy enforces' },
-          { label: 'Vendor Scope', field: 'vendor_scope', placeholder: 'All Vendors or specific vendor name' },
-        ].map(({ label, field, placeholder }) => /*#__PURE__*/React.createElement("div", { key: field },
-          /*#__PURE__*/React.createElement("label", { style: { fontSize: '12px', fontWeight: 600, color: '#374151', display: 'block', marginBottom: '4px' } }, label),
-          /*#__PURE__*/React.createElement("input", {
-            value: newPolicy[field],
-            onChange: e => setNewPolicy(prev => ({ ...prev, [field]: e.target.value })),
-            placeholder,
-            style: { width: '100%', padding: '8px 10px', border: '1px solid #D1D5DB', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }
-          })
-        )),
-        /*#__PURE__*/React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
-          /*#__PURE__*/React.createElement("input", {
-            type: 'checkbox', id: 'pol-active', checked: newPolicy.active,
-            onChange: e => setNewPolicy(prev => ({ ...prev, active: e.target.checked }))
-          }),
-          /*#__PURE__*/React.createElement("label", { htmlFor: 'pol-active', style: { fontSize: '13px', color: '#374151', cursor: 'pointer' } }, 'Enable policy immediately')
-        )
-      )
-    ),
-    deleteConfirm && /*#__PURE__*/React.createElement(TjModal, {
-      open: true,
-      title: "Delete Policy",
-      onCancel: () => setDeleteConfirm(null),
-      onConfirm: () => handleDeletePolicy(deleteConfirm.id),
-      confirmLabel: 'Delete',
-      danger: true
-    },
-      /*#__PURE__*/React.createElement("p", { style: { margin: 0, fontSize: '14px', color: '#374151' } },
-        `Are you sure you want to delete "${deleteConfirm.name}"? This cannot be undone.`
-      )
-    )
-  );
+    title: "Create Policy Rule",
+    width: 500
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '12px'
+    }
+  }, [{
+    label: 'Policy Name *',
+    field: 'name',
+    placeholder: 'e.g. No Weekend Submission'
+  }, {
+    label: 'Rule Code *',
+    field: 'rule',
+    placeholder: 'e.g. WEEKEND_SUBMISSION'
+  }, {
+    label: 'Description',
+    field: 'description',
+    placeholder: 'Describe what this policy enforces'
+  }, {
+    label: 'Vendor Scope',
+    field: 'vendor_scope',
+    placeholder: 'All Vendors or specific vendor name'
+  }].map(({
+    label,
+    field,
+    placeholder
+  }) => /*#__PURE__*/React.createElement("div", {
+    key: field
+  }, /*#__PURE__*/React.createElement("label", {
+    style: {
+      fontSize: '12px',
+      fontWeight: 600,
+      color: '#374151',
+      display: 'block',
+      marginBottom: '4px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, label), /*#__PURE__*/React.createElement("input", {
+    value: newPolicy[field],
+    onChange: e => setNewPolicy(prev => ({
+      ...prev,
+      [field]: e.target.value
+    })),
+    placeholder: placeholder,
+    style: {
+      width: '100%',
+      padding: '8px 10px',
+      border: '1px solid #D1D5DB',
+      borderRadius: '6px',
+      fontSize: '13px',
+      boxSizing: 'border-box',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      outline: 'none'
+    }
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px'
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    id: "pol-active",
+    checked: newPolicy.active,
+    onChange: e => setNewPolicy(prev => ({
+      ...prev,
+      active: e.target.checked
+    }))
+  }), /*#__PURE__*/React.createElement("label", {
+    htmlFor: "pol-active",
+    style: {
+      fontSize: '13px',
+      color: '#374151',
+      cursor: 'pointer',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Enable policy immediately"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: '10px',
+      justifyContent: 'flex-end',
+      marginTop: '16px'
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    onClick: () => {
+      setCreateOpen(false);
+      setNewPolicy({
+        name: '',
+        description: '',
+        rule: '',
+        vendor_scope: 'All Vendors',
+        active: true
+      });
+    }
+  }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
+    variant: "primary",
+    onClick: handleCreatePolicy,
+    disabled: !newPolicy.name.trim() || !newPolicy.rule.trim() || saving
+  }, saving ? 'Creating…' : 'Create Policy'))), deleteConfirm && /*#__PURE__*/React.createElement(TjModal, {
+    open: true,
+    onClose: () => setDeleteConfirm(null),
+    title: "Delete Policy",
+    accentColor: "#DC2626"
+  }, /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: '0 0 20px',
+      fontSize: '14px',
+      color: '#374151',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Are you sure you want to delete ", /*#__PURE__*/React.createElement("strong", null, "\"", deleteConfirm.name, "\""), "? This cannot be undone."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: '10px',
+      justifyContent: 'flex-end'
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    onClick: () => setDeleteConfirm(null)
+  }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
+    variant: "destructive",
+    onClick: () => handleDeletePolicy(deleteConfirm.id)
+  }, "Delete"))));
 };
 
 // ─── 7. Department Variance Screen ────────────────────────────────────────────
@@ -1368,16 +1591,6 @@ const DeptVarianceScreen = ({
 
 // ─── 8. PO Match Screen ───────────────────────────────────────────────────────
 
-const PO_SYNTHETIC = [
-  { id: 'po1', ref_no: 'INV-2024-0041', vendor: 'Infosys BPO Ltd', amount: 420000, po_number: 'PO-2024-0112', po_amount: 420000, grn_received: true, variance: 0, match_status: 'MATCHED' },
-  { id: 'po2', ref_no: 'INV-2024-0057', vendor: 'TCS Consulting', amount: 815000, po_number: 'PO-2024-0098', po_amount: 800000, grn_received: true, variance: 15000, match_status: 'VARIANCE' },
-  { id: 'po3', ref_no: 'INV-2024-0063', vendor: 'Wipro Facilities', amount: 290000, po_number: null, po_amount: null, grn_received: false, variance: 0, match_status: 'MISSING_PO' },
-  { id: 'po4', ref_no: 'INV-2024-0071', vendor: 'HCL Technologies', amount: 560000, po_number: 'PO-2024-0134', po_amount: 560000, grn_received: false, variance: 0, match_status: 'MISSING_GRN' },
-  { id: 'po5', ref_no: 'INV-2024-0082', vendor: 'Mphasis Software', amount: 185000, po_number: 'PO-2024-0141', po_amount: 185000, grn_received: true, variance: 0, match_status: 'MATCHED' },
-  { id: 'po6', ref_no: 'INV-2024-0089', vendor: 'Zensar Technologies', amount: 730000, po_number: 'PO-2024-0159', po_amount: 700000, grn_received: true, variance: 30000, match_status: 'VARIANCE' },
-  { id: 'po7', ref_no: 'INV-2024-0095', vendor: 'Hexaware Systems', amount: 310000, po_number: null, po_amount: null, grn_received: false, variance: 0, match_status: 'MISSING_PO' },
-];
-
 const POMatchScreen = ({
   onNavigate
 }) => {
@@ -1386,127 +1599,94 @@ const POMatchScreen = ({
     loading,
     error
   } = useAnalytics(() => window.TijoriAPI.AnalyticsAPI.poMatch());
-  const [actionItem, setActionItem] = React.useState(null);
-  const [actionType, setActionType] = React.useState(null);
-  const [actionNote, setActionNote] = React.useState('');
-  const [actionDone, setActionDone] = React.useState({});
-  const [acting, setActing] = React.useState(false);
-
-  const handleAction = () => {
-    setActing(true);
-    setTimeout(() => {
-      setActionDone(prev => ({ ...prev, [actionItem.id]: actionType }));
-      setActing(false);
-      setActionItem(null);
-      setActionType(null);
-      setActionNote('');
-    }, 700);
-  };
-
   if (loading) return /*#__PURE__*/React.createElement(PageWrap, null, /*#__PURE__*/React.createElement(ScreenLoader, null));
   if (error) return /*#__PURE__*/React.createElement(PageWrap, null, /*#__PURE__*/React.createElement(ErrorBanner, {
     msg: error
   }));
   const d = data || {};
-  const rawItems = (d.items && d.items.length > 0) ? d.items : PO_SYNTHETIC;
-  const items = rawItems.map(item => ({ ...item, id: item.id || item.ref_no }));
-  const matched = items.filter(i => i.match_status === 'MATCHED').length;
-  const exceptions = items.filter(i => i.match_status !== 'MATCHED').length;
-  const matchRate = items.length > 0 ? Math.round(matched / items.length * 100) : 0;
-
+  const items = d.items || [];
   const STATUS_STYLE = {
-    MATCHED: { bg: '#ECFDF5', text: '#065F46' },
-    VARIANCE: { bg: '#FEF3C7', text: '#92400E' },
-    MISSING_PO: { bg: '#FEE2E2', text: '#991B1B' },
-    MISSING_GRN: { bg: '#FFF7ED', text: '#9A3412' }
+    MATCHED: {
+      bg: '#ECFDF5',
+      text: '#065F46'
+    },
+    VARIANCE: {
+      bg: '#FEF3C7',
+      text: '#92400E'
+    },
+    MISSING_PO: {
+      bg: '#FEE2E2',
+      text: '#991B1B'
+    },
+    MISSING_GRN: {
+      bg: '#FFF7ED',
+      text: '#9A3412'
+    }
   };
-
-  const ACTION_LABELS = { approve: 'Approve Match', flag: 'Flag Exception', grn: 'Request GRN' };
-  const ACTION_COLORS = { approve: '#5B21B6', flag: '#DC2626', grn: '#0284C7' };
-
-  return /*#__PURE__*/React.createElement(PageWrap, null,
-    /*#__PURE__*/React.createElement(SectionTitle, {
-      title: "Three-Way PO Match",
-      sub: "Invoice vs Purchase Order vs Goods Receipt Note"
+  return /*#__PURE__*/React.createElement(PageWrap, null, /*#__PURE__*/React.createElement(SectionTitle, {
+    title: "Three-Way PO Match",
+    sub: "Invoice vs Purchase Order vs Goods Receipt Note"
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(4, 1fr)',
+      gap: '16px',
+      marginBottom: '24px'
+    }
+  }, /*#__PURE__*/React.createElement(AnalyticCard, {
+    title: "Pending PO Match",
+    value: d.total_pending_po_match || 0
+  }), /*#__PURE__*/React.createElement(AnalyticCard, {
+    title: "Matched",
+    value: d.matched || 0,
+    color: "#10B981"
+  }), /*#__PURE__*/React.createElement(AnalyticCard, {
+    title: "Exceptions",
+    value: d.exceptions || 0,
+    color: d.exceptions > 0 ? '#EF4444' : '#10B981'
+  }), /*#__PURE__*/React.createElement(AnalyticCard, {
+    title: "Match Rate",
+    value: `${d.match_rate_pct || 0}%`,
+    color: d.match_rate_pct >= 80 ? '#10B981' : '#F59E0B'
+  })), /*#__PURE__*/React.createElement(Table, {
+    headers: ['Reference', 'Vendor', 'Invoice Amt', 'PO Number', 'PO Amount', 'GRN', 'Variance', 'Status'],
+    rows: items.map(item => {
+      const sc = STATUS_STYLE[item.match_status] || STATUS_STYLE.MISSING_PO;
+      return [/*#__PURE__*/React.createElement("span", {
+        style: {
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: '12px'
+        }
+      }, item.ref_no), item.vendor, fmt(item.amount), item.po_number ? /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: '12px',
+          color: '#5B21B6'
+        }
+      }, item.po_number) : /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: '#EF4444',
+          fontSize: '11px'
+        }
+      }, "No PO"), item.po_amount ? fmt(item.po_amount) : '—', item.grn_received ? '✅' : '❌', /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: item.variance > 0 ? '#F59E0B' : '#10B981',
+          fontWeight: 700
+        }
+      }, item.variance > 0 ? fmt(item.variance) : '—'), /*#__PURE__*/React.createElement("span", {
+        style: {
+          background: sc.bg,
+          color: sc.text,
+          borderRadius: '6px',
+          padding: '2px 8px',
+          fontSize: '10px',
+          fontWeight: 700,
+          fontFamily: "'Plus Jakarta Sans', sans-serif"
+        }
+      }, item.match_status.replace('_', ' '))];
     }),
-    /*#__PURE__*/React.createElement("div", {
-      style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }
-    },
-      /*#__PURE__*/React.createElement(AnalyticCard, { title: "Pending PO Match", value: d.total_pending_po_match || exceptions }),
-      /*#__PURE__*/React.createElement(AnalyticCard, { title: "Matched", value: d.matched || matched, color: "#10B981" }),
-      /*#__PURE__*/React.createElement(AnalyticCard, { title: "Exceptions", value: d.exceptions || exceptions, color: exceptions > 0 ? '#EF4444' : '#10B981' }),
-      /*#__PURE__*/React.createElement(AnalyticCard, { title: "Match Rate", value: `${d.match_rate_pct || matchRate}%`, color: (d.match_rate_pct || matchRate) >= 80 ? '#10B981' : '#F59E0B' })
-    ),
-    /*#__PURE__*/React.createElement(Table, {
-      headers: ['Reference', 'Vendor', 'Invoice Amt', 'PO Number', 'PO Amount', 'GRN', 'Variance', 'Status', 'Actions'],
-      rows: items.map(item => {
-        const sc = STATUS_STYLE[item.match_status] || STATUS_STYLE.MISSING_PO;
-        const done = actionDone[item.id];
-        return [
-          /*#__PURE__*/React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }, item.ref_no),
-          item.vendor,
-          fmt(item.amount),
-          item.po_number
-            ? /*#__PURE__*/React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#5B21B6' } }, item.po_number)
-            : /*#__PURE__*/React.createElement("span", { style: { color: '#EF4444', fontSize: '11px' } }, "No PO"),
-          item.po_amount ? fmt(item.po_amount) : '—',
-          item.grn_received ? '✅' : '❌',
-          /*#__PURE__*/React.createElement("span", {
-            style: { color: item.variance > 0 ? '#F59E0B' : '#10B981', fontWeight: 700 }
-          }, item.variance > 0 ? fmt(item.variance) : '—'),
-          /*#__PURE__*/React.createElement("span", {
-            style: { background: sc.bg, color: sc.text, borderRadius: '6px', padding: '2px 8px', fontSize: '10px', fontWeight: 700 }
-          }, item.match_status.replace(/_/g, ' ')),
-          done
-            ? /*#__PURE__*/React.createElement("span", { style: { fontSize: '11px', color: '#10B981', fontWeight: 700 } },
-                done === 'approve' ? '✓ Approved' : done === 'flag' ? '⚑ Flagged' : '📋 GRN Req')
-            : /*#__PURE__*/React.createElement("div", { style: { display: 'flex', gap: '4px', flexWrap: 'nowrap' } },
-                item.match_status === 'MATCHED' && /*#__PURE__*/React.createElement("button", {
-                  onClick: () => { setActionItem(item); setActionType('approve'); },
-                  style: { padding: '3px 8px', borderRadius: '5px', border: 'none', background: '#EDE9FE', color: '#5B21B6', fontSize: '11px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }
-                }, 'Approve'),
-                (item.match_status === 'VARIANCE' || item.match_status === 'MISSING_PO') && /*#__PURE__*/React.createElement("button", {
-                  onClick: () => { setActionItem(item); setActionType('flag'); },
-                  style: { padding: '3px 8px', borderRadius: '5px', border: 'none', background: '#FEE2E2', color: '#DC2626', fontSize: '11px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }
-                }, 'Flag'),
-                item.match_status === 'MISSING_GRN' && /*#__PURE__*/React.createElement("button", {
-                  onClick: () => { setActionItem(item); setActionType('grn'); },
-                  style: { padding: '3px 8px', borderRadius: '5px', border: 'none', background: '#E0F2FE', color: '#0284C7', fontSize: '11px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }
-                }, 'Req GRN')
-              )
-        ];
-      }),
-      emptyMsg: "No invoices pending PO match"
-    }),
-    actionItem && /*#__PURE__*/React.createElement(TjModal, {
-      open: true,
-      title: ACTION_LABELS[actionType],
-      onCancel: () => { setActionItem(null); setActionType(null); setActionNote(''); },
-      onConfirm: handleAction,
-      confirmLabel: acting ? 'Processing…' : ACTION_LABELS[actionType],
-      confirmDisabled: acting
-    },
-      /*#__PURE__*/React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: '12px' } },
-        /*#__PURE__*/React.createElement("div", { style: { background: '#F8FAFC', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#475569' } },
-          /*#__PURE__*/React.createElement("strong", null, actionItem.ref_no), ` — ${actionItem.vendor}`,
-          /*#__PURE__*/React.createElement("br", null),
-          `Amount: ${fmt(actionItem.amount)} · Status: ${actionItem.match_status.replace(/_/g, ' ')}`
-        ),
-        /*#__PURE__*/React.createElement("div", null,
-          /*#__PURE__*/React.createElement("label", { style: { fontSize: '12px', fontWeight: 600, color: '#374151', display: 'block', marginBottom: '4px' } },
-            actionType === 'approve' ? 'Approval Note (optional)' : actionType === 'flag' ? 'Exception Reason *' : 'GRN Request Note (optional)'
-          ),
-          /*#__PURE__*/React.createElement("textarea", {
-            value: actionNote,
-            onChange: e => setActionNote(e.target.value),
-            rows: 3,
-            placeholder: actionType === 'approve' ? 'Add any approval comment…' : actionType === 'flag' ? 'Describe the exception…' : 'Note for procurement team…',
-            style: { width: '100%', padding: '8px 10px', border: '1px solid #D1D5DB', borderRadius: '6px', fontSize: '13px', resize: 'vertical', boxSizing: 'border-box' }
-          })
-        )
-      )
-    )
-  );
+    emptyMsg: "No invoices pending PO match"
+  }));
 };
 Object.assign(window, {
   SpendAnalyticsScreen,

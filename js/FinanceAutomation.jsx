@@ -454,8 +454,42 @@ const TDSComplianceScreen = ({ onNavigate }) => {
 
 // ─── 6. Policy Compliance Screen ──────────────────────────────────────────────
 
+const DEFAULT_POLICIES = [
+  { id: 'p1', name: 'Business Purpose Required', rule: 'BUSINESS_PURPOSE_REQUIRED', description: 'All invoices must include a business justification note.', active: true, vendor_scope: 'All Vendors' },
+  { id: 'p2', name: 'No Off-Hours Submission', rule: 'WEEKEND_SUBMISSION', description: 'Flag invoices submitted outside business hours (6pm–9am, weekends).', active: true, vendor_scope: 'All Vendors' },
+  { id: 'p3', name: 'Duplicate Invoice Check', rule: 'POSSIBLE_DUPLICATE', description: 'Detect duplicate invoice numbers across vendors within 90 days.', active: true, vendor_scope: 'All Vendors' },
+  { id: 'p4', name: 'Single Vendor Spend Cap', rule: 'VENDOR_SPEND_CAP', description: 'Alert when a single vendor exceeds ₹50L spend in a quarter.', active: false, vendor_scope: 'All Vendors' },
+  { id: 'p5', name: 'Split Invoice Detection', rule: 'SPLIT_INVOICE', description: 'Flag invoices from same vendor on same day that appear to circumvent approval limits.', active: true, vendor_scope: 'All Vendors' },
+];
+
 const PolicyComplianceScreen = ({ onNavigate }) => {
   const { data, loading, error } = useAnalytics(() => window.TijoriAPI.AnalyticsAPI.policyCompliance());
+  const [policyTab, setPolicyTab] = React.useState('violations');
+  const [policies, setPolicies] = React.useState(DEFAULT_POLICIES);
+  const [createOpen, setCreateOpen] = React.useState(false);
+  const [deleteConfirm, setDeleteConfirm] = React.useState(null);
+  const [newPolicy, setNewPolicy] = React.useState({ name: '', description: '', rule: '', vendor_scope: 'All Vendors', active: true });
+  const [saving, setSaving] = React.useState(false);
+
+  const handleCreatePolicy = () => {
+    if (!newPolicy.name.trim() || !newPolicy.rule.trim()) return;
+    setSaving(true);
+    setTimeout(() => {
+      setPolicies(prev => [...prev, { ...newPolicy, id: 'p' + Date.now(), rule: newPolicy.rule.toUpperCase().replace(/\s+/g, '_') }]);
+      setNewPolicy({ name: '', description: '', rule: '', vendor_scope: 'All Vendors', active: true });
+      setCreateOpen(false);
+      setSaving(false);
+    }, 600);
+  };
+
+  const handleDeletePolicy = (id) => {
+    setPolicies(prev => prev.filter(p => p.id !== id));
+    setDeleteConfirm(null);
+  };
+
+  const handleTogglePolicy = (id) => {
+    setPolicies(prev => prev.map(p => p.id === id ? { ...p, active: !p.active } : p));
+  };
 
   if (loading) return <PageWrap><ScreenLoader /></PageWrap>;
   if (error) return <PageWrap><ErrorBanner msg={error} /></PageWrap>;
@@ -467,6 +501,8 @@ const PolicyComplianceScreen = ({ onNavigate }) => {
     BUSINESS_PURPOSE_REQUIRED: 'Missing Justification',
     WEEKEND_SUBMISSION: 'Off-Hours Submission',
     POSSIBLE_DUPLICATE: 'Possible Duplicate',
+    VENDOR_SPEND_CAP: 'Vendor Spend Cap',
+    SPLIT_INVOICE: 'Split Invoice',
   };
 
   return (
@@ -480,18 +516,108 @@ const PolicyComplianceScreen = ({ onNavigate }) => {
         <AnalyticCard title="Compliance Rate" value={`${d.compliance_rate_pct || 100}%`} color={d.compliance_rate_pct >= 90 ? '#10B981' : '#F59E0B'} />
       </div>
 
-      <SectionTitle title="Policy Violations" sub="Invoices with policy breaches requiring review" />
-      <Table
-        headers={['Reference', 'Vendor', 'Rule', 'Severity', 'Detail']}
-        rows={violations.map(v => [
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{v.ref_no}</span>,
-          v.vendor,
-          <span style={{ fontSize: '11px', fontWeight: 700, color: '#5B21B6' }}>{RULE_LABEL[v.rule] || v.rule}</span>,
-          <StatusChip level={v.severity} />,
-          <span style={{ fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{v.message}</span>,
-        ])}
-        emptyMsg="✅ No policy violations found in the last 30 days"
-      />
+      {/* Tab bar */}
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', borderBottom: '2px solid #E2E8F0' }}>
+        {['violations', 'manage'].map(tab => (
+          <button key={tab} onClick={() => setPolicyTab(tab)}
+            style={{ padding: '8px 20px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 600, color: policyTab === tab ? '#5B21B6' : '#64748B', borderBottom: policyTab === tab ? '2px solid #5B21B6' : '2px solid transparent', marginBottom: '-2px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            {tab === 'violations' ? 'Violations' : 'Manage Policies'}
+          </button>
+        ))}
+      </div>
+
+      {policyTab === 'violations' && (
+        <div>
+          <SectionTitle title="Policy Violations" sub="Invoices with policy breaches requiring review" />
+          <Table
+            headers={['Reference', 'Vendor', 'Rule', 'Severity', 'Detail']}
+            rows={violations.map(v => [
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{v.ref_no}</span>,
+              v.vendor,
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#5B21B6' }}>{RULE_LABEL[v.rule] || v.rule}</span>,
+              <StatusChip level={v.severity} />,
+              <span style={{ fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{v.message}</span>,
+            ])}
+            emptyMsg="✅ No policy violations found in the last 30 days"
+          />
+        </div>
+      )}
+
+      {policyTab === 'manage' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <span style={{ fontSize: '14px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{policies.length} policies configured</span>
+            <Btn variant="primary" small onClick={() => setCreateOpen(true)}>+ Create Policy</Btn>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {policies.map(pol => (
+              <div key={pol.id} style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '14px 18px', display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <span style={{ fontWeight: 700, fontSize: '14px', color: '#1E293B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{pol.name}</span>
+                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '9999px', background: pol.active ? '#DCFCE7' : '#F1F5F9', color: pol.active ? '#15803D' : '#94A3B8' }}>
+                      {pol.active ? 'ACTIVE' : 'INACTIVE'}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#64748B', marginBottom: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{pol.description}</div>
+                  <div style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'JetBrains Mono', monospace" }}>Rule: {pol.rule} · Scope: {pol.vendor_scope}</div>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+                  <button onClick={() => handleTogglePolicy(pol.id)}
+                    style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid #E2E8F0', background: pol.active ? '#FEF3C7' : '#DCFCE7', color: pol.active ? '#92400E' : '#15803D', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    {pol.active ? 'Disable' : 'Enable'}
+                  </button>
+                  <button onClick={() => setDeleteConfirm(pol)}
+                    style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid #FEE2E2', background: '#FEF2F2', color: '#DC2626', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Create Policy Modal */}
+      <TjModal open={createOpen} onClose={() => { setCreateOpen(false); setNewPolicy({ name: '', description: '', rule: '', vendor_scope: 'All Vendors', active: true }); }} title="Create Policy Rule" width={500}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {[
+            { label: 'Policy Name *', field: 'name', placeholder: 'e.g. No Weekend Submission' },
+            { label: 'Rule Code *', field: 'rule', placeholder: 'e.g. WEEKEND_SUBMISSION' },
+            { label: 'Description', field: 'description', placeholder: 'Describe what this policy enforces' },
+            { label: 'Vendor Scope', field: 'vendor_scope', placeholder: 'All Vendors or specific vendor name' },
+          ].map(({ label, field, placeholder }) => (
+            <div key={field}>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: '#374151', display: 'block', marginBottom: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{label}</label>
+              <input value={newPolicy[field]} onChange={e => setNewPolicy(prev => ({ ...prev, [field]: e.target.value }))} placeholder={placeholder}
+                style={{ width: '100%', padding: '8px 10px', border: '1px solid #D1D5DB', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none' }} />
+            </div>
+          ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input type="checkbox" id="pol-active" checked={newPolicy.active} onChange={e => setNewPolicy(prev => ({ ...prev, active: e.target.checked }))} />
+            <label htmlFor="pol-active" style={{ fontSize: '13px', color: '#374151', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Enable policy immediately</label>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '16px' }}>
+          <Btn variant="secondary" onClick={() => { setCreateOpen(false); setNewPolicy({ name: '', description: '', rule: '', vendor_scope: 'All Vendors', active: true }); }}>Cancel</Btn>
+          <Btn variant="primary" onClick={handleCreatePolicy} disabled={!newPolicy.name.trim() || !newPolicy.rule.trim() || saving}>
+            {saving ? 'Creating…' : 'Create Policy'}
+          </Btn>
+        </div>
+      </TjModal>
+
+      {/* Delete Confirm Modal */}
+      {deleteConfirm && (
+        <TjModal open={true} onClose={() => setDeleteConfirm(null)} title="Delete Policy" accentColor="#DC2626">
+          <p style={{ margin: '0 0 20px', fontSize: '14px', color: '#374151', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            Are you sure you want to delete <strong>"{deleteConfirm.name}"</strong>? This cannot be undone.
+          </p>
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <Btn variant="secondary" onClick={() => setDeleteConfirm(null)}>Cancel</Btn>
+            <Btn variant="destructive" onClick={() => handleDeletePolicy(deleteConfirm.id)}>Delete</Btn>
+          </div>
+        </TjModal>
+      )}
     </PageWrap>
   );
 };
