@@ -843,7 +843,7 @@ const BudgetDetailDrawer = ({ budget, open, onClose, onUpdated }) => {
 };
 
 // ─── BUDGET SCREEN ────────────────────────────────────────────────────────────
-const BudgetScreen = ({ onNavigate }) => {
+const BudgetScreen = ({ role, onNavigate }) => {
   const [createOpen, setCreateOpen] = React.useState(false);
   const [budgets, setBudgets] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
@@ -2042,7 +2042,7 @@ const VendorPortalScreen = ({ role, onNavigate }) => {
             {submitting ? 'Submitting…' : 'Submit for Approval'}
           </Btn>
         </div>
-        </>)}
+        </>}
       </TjModal>
 
       <FloatingCopilot role={role} />

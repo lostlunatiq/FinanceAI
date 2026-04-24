@@ -1,5 +1,24 @@
 // Tijori AI — CFO Command Center Dashboard
 
+const AIActionCard = ({ ac }) => {
+  const [hov, setHov] = React.useState(false);
+  return (
+    <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      onClick={ac.loading ? undefined : ac.action}
+      style={{ background: hov ? 'linear-gradient(135deg, #E8783B, #FF6B35)' : 'white', borderRadius: '16px', padding: '22px 20px', boxShadow: hov ? '0 8px 32px rgba(232,120,59,0.3)' : '0 2px 12px rgba(0,0,0,0.06)', transition: 'all 250ms ease', transform: hov ? 'translateY(-3px)' : 'none', cursor: ac.loading ? 'wait' : 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 140, opacity: ac.loading ? 0.7 : 1 }}>
+      <div>
+        <div style={{ fontSize: '22px', color: hov ? 'rgba(255,255,255,0.9)' : '#E8783B', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {ac.icon}
+          <AIBadge />
+        </div>
+        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '16px', color: hov ? 'white' : '#0F172A', letterSpacing: '-0.5px' }}>{ac.title}</div>
+        <div style={{ fontSize: '11px', color: hov ? 'rgba(255,255,255,0.7)' : '#94A3B8', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.4 }}>{ac.sub}</div>
+      </div>
+      <div style={{ fontSize: '12px', color: hov ? 'rgba(255,255,255,0.8)' : '#E8783B', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '12px' }}>{ac.loading ? 'Running…' : 'Run now →'}</div>
+    </div>
+  );
+};
+
 const DashboardScreen = ({ role, onNavigate }) => {
   const [copilotOpen, setCopilotOpen] = React.useState(false);
   const [copilotMsg, setCopilotMsg] = React.useState('');
@@ -94,7 +113,7 @@ const DashboardScreen = ({ role, onNavigate }) => {
 
   // Cash flow chart data
   const months = (intel?.chart_data || []).map(d => d.date?.slice(5) || '');
-  const projected = (intel?.chart_data || []).map(d => d.amount / 1000000); // in millions
+  const projected = (intel?.chart_data || []).map(d => (d.running_balance || 0) / 1000000); // in millions
   if (projected.length === 0) {
     // fallback
     for(let i=0; i<6; i++) projected.push(Math.random() * 5 + 2);
@@ -280,24 +299,7 @@ const DashboardScreen = ({ role, onNavigate }) => {
         {[
           { icon: '✦', title: 'Generate 10-Q', sub: 'AI-compiled regulatory filing draft', action: handleGenerate10Q, loading: runLoading.q },
           { icon: '⬡', title: 'Audit Sweep', sub: 'Full-spectrum transaction scan', action: handleAuditSweep, loading: runLoading.sweep },
-        ].map((ac, i) => {
-          const [hov, setHov] = React.useState(false);
-          return (
-            <div key={i} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-              onClick={ac.loading ? undefined : ac.action}
-              style={{ background: hov ? 'linear-gradient(135deg, #E8783B, #FF6B35)' : 'white', borderRadius: '16px', padding: '22px 20px', boxShadow: hov ? '0 8px 32px rgba(232,120,59,0.3)' : '0 2px 12px rgba(0,0,0,0.06)', transition: 'all 250ms ease', transform: hov ? 'translateY(-3px)' : 'none', cursor: ac.loading ? 'wait' : 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 140, opacity: ac.loading ? 0.7 : 1 }}>
-              <div>
-                <div style={{ fontSize: '22px', color: hov ? 'rgba(255,255,255,0.9)' : '#E8783B', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  {ac.icon}
-                  <AIBadge />
-                </div>
-                <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '16px', color: hov ? 'white' : '#0F172A', letterSpacing: '-0.5px' }}>{ac.title}</div>
-                <div style={{ fontSize: '11px', color: hov ? 'rgba(255,255,255,0.7)' : '#94A3B8', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.4 }}>{ac.sub}</div>
-              </div>
-              <div style={{ fontSize: '12px', color: hov ? 'rgba(255,255,255,0.8)' : '#E8783B', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '12px' }}>{ac.loading ? 'Running…' : 'Run now →'}</div>
-            </div>
-          );
-        })}
+        ].map((ac, i) => <AIActionCard key={i} ac={ac} />)}
       </div>
 
       {/* Floating Copilot FAB */}

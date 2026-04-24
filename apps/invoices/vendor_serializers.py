@@ -70,18 +70,18 @@ class VendorDetailSerializer(serializers.ModelSerializer):
         ]
 
     def get_total_invoices(self, obj):
-        return obj.expense_set.count()
+        return obj.expenses.count()
 
     def get_total_spend(self, obj):
         from django.db.models import Sum
 
-        result = obj.expense_set.filter(_status="PAID").aggregate(
+        result = obj.expenses.filter(_status="PAID").aggregate(
             total=Sum("total_amount")
         )
         return float(result["total"] or 0)
 
     def get_pending_invoices(self, obj):
-        return obj.expense_set.exclude(
+        return obj.expenses.exclude(
             _status__in=["PAID", "REJECTED", "WITHDRAWN", "AUTO_REJECT", "EXPIRED"]
         ).count()
 

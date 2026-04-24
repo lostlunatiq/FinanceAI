@@ -27,6 +27,16 @@ def _ai_text(prompt: str, fallback: str = "") -> str:
         return fallback
 
 
+def _anomaly_desc(ocr_raw) -> str:
+    flags = (ocr_raw or {}).get("anomaly_flags") or []
+    if not flags:
+        return "Manual review required"
+    first = flags[0]
+    if isinstance(first, dict):
+        return first.get("message") or first.get("type") or "Anomaly detected"
+    return str(first)
+
+
 # ─── 1. Smart Spend Intelligence ──────────────────────────────────────────────
 
 class SpendIntelligenceView(APIView):
@@ -692,7 +702,7 @@ class PolicyComplianceView(APIView):
 def _check_policy(expense) -> list:
     issues = []
     # Rule: invoices > ₹1L without business purpose
-    if float(expense.total_amount) > 100000 and not expense.business_purpose.strip():
+    if float(expense.total_amount) > 100000 and not (expense.business_purpose or "").strip():
         issues.append({
             "ref_no": expense.ref_no,
             "vendor": expense.vendor.name,
@@ -921,7 +931,7 @@ class CommandCenterIntelligenceView(APIView):
                 "score": 85 if a.anomaly_severity == "HIGH" else 95,
                 "color": "#EF4444" if a.anomaly_severity == "CRITICAL" else "#F59E0B",
                 "title": f"Anomaly: {a.vendor.name}",
-                "desc": (a.ocr_raw or {}).get("anomaly_flags", ["Manual review required"])[0],
+                "desc": _anomaly_desc(a.ocr_raw),
                 "time": "live"
             })
             
@@ -948,7 +958,7 @@ class CommandCenterIntelligenceView(APIView):
             "risk_watch": risk_watch,
             "treasury": treasury,
             "cashflow_summary": cf["summary"],
-            "chart_data": cf["forecast"][:10],
+            "chart_data": cf["daily_forecast"][:10],
             "stats": {
                 "outstanding": out_total,
                 "anomalies": anomalies.count(),
