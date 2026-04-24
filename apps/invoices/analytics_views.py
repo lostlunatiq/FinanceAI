@@ -109,11 +109,14 @@ class SpendIntelligenceView(APIView):
             for v in by_vendor_type
         ]
 
+        top_cat_name = categories[0]['category'] if categories else 'N/A'
+        top_cat_amt = categories[0]['amount'] if categories else 0
+
         ai_insight = _ai_text(
             f"Generate a 2-sentence CFO insight about this spend data: "
             f"YTD spend ₹{ytd_total:,.0f}, YoY change {yoy_change_pct:+.1f}%, "
-            f"top category: {categories[0]['category'] if categories else 'N/A'} "
-            f"at ₹{categories[0]['amount']:,.0f if categories else 0}. "
+            f"top category: {top_cat_name} "
+            f"at ₹{top_cat_amt:,.0f}. "
             f"Be actionable and concise.",
             fallback=f"YTD spend of ₹{ytd_total:,.0f} shows a {abs(yoy_change_pct):.1f}% "
                      f"{'increase' if yoy_change_pct >= 0 else 'decrease'} vs prior year. "

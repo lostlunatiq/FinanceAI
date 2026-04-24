@@ -77,8 +77,8 @@ def get_authority_settings(grade: int) -> dict:
         return {
             "grade": grade,
             "label": "CFO",
-            "approval_limit": float("inf"),
-            "settlement_limit": float("inf"),
+            "approval_limit": 999_999_999,
+            "settlement_limit": 999_999_999,
             "monthly_approval_budget": None,
             "monthly_settlement_budget": None,
         }
