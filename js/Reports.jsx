@@ -396,7 +396,7 @@ const ReportsScreen = ({ role, onNavigate }) => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
              {deptData.map(d => (
                <div key={d.name}>
-                 <div style={{ display: 'flex', -webkitBoxPack: 'justify', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
+                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
                    <span>{d.name}</span>
                    <span style={{ fontWeight: 700 }}>₹{d.spent}L</span>
                  </div>

@@ -6,9 +6,8 @@
   <title>Tijori AI — Enterprise Finance OS</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700;12..96,800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
-  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
-  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -194,28 +193,24 @@
     }
   </script>
 
-  <!-- API client (must load before React components) -->
-  <script src="js/api.js"></script>
+  <!-- API client -->
+  <script defer src="js/api.js"></script>
 
-  <!-- Design System (must load first — exports to window) -->
-  <script type="text/babel" src="js/DS.jsx"></script>
-
-  <!-- Screens -->
-  <script type="text/babel" src="js/Login.jsx"></script>
-  <script type="text/babel" src="js/Dashboard.jsx"></script>
-  <script type="text/babel" src="js/APHub.jsx"></script>
-  <script type="text/babel" src="js/APMatch.jsx"></script>
-  <script type="text/babel" src="js/BillDetail.jsx"></script>
-  <script type="text/babel" src="js/AIHub.jsx"></script>
-  <script type="text/babel" src="js/Anomaly.jsx"></script>
-  <script type="text/babel" src="js/Secondary.jsx"></script>
-  <script type="text/babel" src="js/PersonaDashboards.jsx"></script>
-  <script type="text/babel" src="js/IAM.jsx"></script>
-  <script type="text/babel" src="js/AR.jsx"></script>
-  <script type="text/babel" src="js/Reports.jsx"></script>
-  <script type="text/babel" src="js/FinanceAutomation.jsx"></script>
-
-  <!-- App root (must load last) -->
-  <script type="text/babel" src="js/App.jsx"></script>
+  <!-- Pre-compiled screens — no Babel needed, loads instantly -->
+  <script defer src="js/dist/DS.js"></script>
+  <script defer src="js/dist/Login.js"></script>
+  <script defer src="js/dist/Dashboard.js"></script>
+  <script defer src="js/dist/APHub.js"></script>
+  <script defer src="js/dist/APMatch.js"></script>
+  <script defer src="js/dist/BillDetail.js"></script>
+  <script defer src="js/dist/AIHub.js"></script>
+  <script defer src="js/dist/Anomaly.js"></script>
+  <script defer src="js/dist/Secondary.js"></script>
+  <script defer src="js/dist/PersonaDashboards.js"></script>
+  <script defer src="js/dist/IAM.js"></script>
+  <script defer src="js/dist/AR.js"></script>
+  <script defer src="js/dist/Reports.js"></script>
+  <script defer src="js/dist/FinanceAutomation.js"></script>
+  <script defer src="js/dist/App.js"></script>
 </body>
 </html>

@@ -380,7 +380,7 @@ def _format_context(ctx: dict) -> str:
     if "budget_health" in ctx:
         lines.append("Budget Health (Active):")
         for b in ctx["budget_health"]:
-            lines.append(f"  - {b['name']}: {b['util_pct']}% used (₹{b['spent']:,.0f} of ₹{b['total']:,.0f})")
+            lines.append(f"  - {b['dept']}: {b['util_pct']}% used (₹{b['spent']:,.0f} of ₹{b['total']:,.0f})")
             
     if "treasury_index" in ctx:
         lines.append(f"Treasury Health Index: {ctx['treasury_index']}%")
@@ -396,7 +396,7 @@ def _format_context(ctx: dict) -> str:
 def _rule_based_answer(question: str, ctx: dict) -> dict:
     q = question.lower()
     if any(w in q for w in ["vendor", "supplier", "spend", "top"]):
-        vendors = ctx["top_vendors"][:5]
+        vendors = ctx.get("top_vendors", [])[:5]
         answer = "Top vendors by total spend:\n" + "\n".join(
             f"{i + 1}. {v['vendor']}: ₹{v['total_spend']:,.0f}" for i, v in enumerate(vendors)
         )
@@ -409,10 +409,10 @@ def _rule_based_answer(question: str, ctx: dict) -> dict:
         answer = f"Total outstanding amount: ₹{ctx['total_outstanding']:,.0f}"
         insight = "Prioritize clearing the oldest pending invoices first."
     elif any(w in q for w in ["anomal", "fraud", "suspicious"]):
-        answer = f"There are {ctx['anomaly_count']} HIGH/CRITICAL anomalies requiring review."
+        answer = f"There are {ctx.get('anomaly_count', 'N/A')} HIGH/CRITICAL anomalies requiring review."
         insight = "Review flagged invoices immediately to prevent potential fraud."
     else:
-        answer = f"Outstanding: ₹{ctx['total_outstanding']:,.0f} | Anomalies: {ctx['anomaly_count']} | Your queue: {ctx['pending_my_queue']}"
+        answer = f"Outstanding: ₹{ctx['total_outstanding']:,.0f} | Anomalies: {ctx.get('anomaly_count', 'N/A')} | Your queue: {ctx['pending_my_queue']}"
         insight = "Review the dashboard for full financial overview."
     return {"answer": answer, "insight": insight, "context": ctx}
 

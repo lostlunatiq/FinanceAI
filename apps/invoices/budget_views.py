@@ -209,7 +209,7 @@ class CashFlowForecastView(APIView):
 
     def get(self, request):
         days = int(request.query_params.get("days", 90))
-        days = min(days, 180)
+        days = max(1, min(days, 180))
         return Response(_build_cashflow_forecast(days))
 
 
