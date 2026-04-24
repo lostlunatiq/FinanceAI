@@ -468,7 +468,7 @@ const App = () => {
 
   return (
     <AppShell roleKey={roleKey} screen={screen} onNavigate={navigate} onLogout={handleLogout} user={user}>
-      <div key={`${roleKey}-${screen}`} style={{ animation: 'fadeUp 220ms ease both' }}>
+      <div key={`${roleKey}-${screen}`} style={{ animation: 'fadeIn 220ms ease' }}>
         {screenFn(navigate, roleKey, screenCtx)}
       </div>
     </AppShell>
