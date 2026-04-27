@@ -37,19 +37,35 @@ class FinanceQueueView(APIView):
 
     def get(self, request):
         user = request.user
-        # ❌ getattr(user, 'role', '') in ("finance_admin", "finance_manager", "dept_head")
-        # ✅ grade 2+ sees all pending bills
-        if user.is_superuser or (user.employee_grade or 0) >= 2:
-            pending_statuses = [
-                "SUBMITTED",
-                "PENDING_L1",
-                "PENDING_L2",
-                "PENDING_HOD",
-                "PENDING_FIN_L1",
-                "PENDING_FIN_L2",
-                "PENDING_FIN_HEAD",
-                "QUERY_RAISED",
-            ]
+        grade = user.employee_grade or 0
+
+        if user.is_superuser or grade >= 2:
+            # CFO / superuser sees everything including PENDING_CFO
+            if user.is_superuser or grade >= 5:
+                pending_statuses = [
+                    "SUBMITTED",
+                    "PENDING_L1",
+                    "PENDING_L2",
+                    "PENDING_HOD",
+                    "PENDING_FIN_L1",
+                    "PENDING_FIN_L2",
+                    "PENDING_FIN_HEAD",
+                    "PENDING_CFO",
+                    "QUERY_RAISED",
+                ]
+            else:
+                # G2 / G3 / G4 Finance Admin — PENDING_CFO is CFO-only, excluded
+                pending_statuses = [
+                    "SUBMITTED",
+                    "PENDING_L1",
+                    "PENDING_L2",
+                    "PENDING_HOD",
+                    "PENDING_FIN_L1",
+                    "PENDING_FIN_L2",
+                    "PENDING_FIN_HEAD",
+                    "QUERY_RAISED",
+                ]
+
             expenses = (
                 Expense.objects.filter(_status__in=pending_statuses)
                 .select_related("vendor")
@@ -375,13 +391,164 @@ class ScanAnomalyView(APIView):
 
 
 class InternalExpenseListView(APIView):
-    """GET /api/v1/finance/expenses/ — All expenses for finance team."""
+    """
+    GET  /api/v1/invoices/finance/expenses/ — RBAC-scoped expense list.
+    POST /api/v1/invoices/finance/expenses/ — Submit internal employee expense.
+
+    Visibility:
+      G1 Employee   : only own submissions
+      G2 Dept Head  : own + all in same department
+      G3 Fin Manager: own + all grades <= 3
+      G4+ Admin/CFO : everything
+    """
 
     permission_classes = [IsAuthenticated]
 
+    # ── Grade-based daily/trip limits per category (₹) ──────────────────────
+    GRADE_LIMITS = {
+        1: {"Travel": 5000,  "Food": 1000,  "Stay": 3000,  "Training": 10000, "Office": 2000,  "Misc": 1000},
+        2: {"Travel": 15000, "Food": 3000,  "Stay": 8000,  "Training": 25000, "Office": 5000,  "Misc": 3000},
+        3: {"Travel": 50000, "Food": 10000, "Stay": 25000, "Training": 75000, "Office": 15000, "Misc": 10000},
+        4: {"Travel": 150000,"Food": 30000, "Stay": 75000, "Training": 200000,"Office": 50000, "Misc": 30000},
+        5: {"Travel": 999999,"Food": 99999, "Stay": 999999,"Training": 999999,"Office": 999999,"Misc": 99999},
+    }
+
+    def _scoped_qs(self, user):
+        from django.db.models import Q
+        grade = user.employee_grade or 1
+        qs = Expense.objects.select_related("vendor", "submitted_by").order_by("-created_at")
+        if user.is_superuser or grade >= 4:
+            return qs  # full access
+        if grade == 3:
+            # Finance Manager sees grades 1-3
+            return qs.filter(submitted_by__employee_grade__lte=3)
+        if grade == 2:
+            # Dept Head sees own department
+            if user.department_id:
+                return qs.filter(submitted_by__department=user.department)
+            return qs.filter(submitted_by=user)
+        # Grade 1: own only
+        return qs.filter(submitted_by=user)
+
     def get(self, request):
-        expenses = Expense.objects.select_related("vendor").order_by("-created_at")[:100]
-        return Response(VendorBillListSerializer(expenses, many=True, context={"request": request}).data)
+        qs = self._scoped_qs(request.user)
+        # Optional filters
+        cat = request.query_params.get("category")
+        if cat:
+            qs = qs.filter(ocr_raw__expense_category=cat)
+        status_f = request.query_params.get("status")
+        if status_f:
+            qs = qs.filter(_status=status_f.upper())
+        expenses = qs[:200]
+        data = []
+        for exp in expenses:
+            ocr = exp.ocr_raw or {}
+            grade = exp.submitted_by.employee_grade or 1
+            category = ocr.get("expense_category", "Misc")
+            limit = self.GRADE_LIMITS.get(grade, {}).get(category, 0)
+            data.append({
+                "id": str(exp.id),
+                "ref_no": exp.ref_no,
+                "submitted_by": exp.submitted_by.get_full_name() or exp.submitted_by.username,
+                "submitted_by_grade": grade,
+                "department": exp.submitted_by.department.name if exp.submitted_by.department_id else "—",
+                "vendor_name": exp.vendor.name if exp.vendor_id else "Internal",
+                "expense_category": category,
+                "description": ocr.get("expense_description", exp.business_purpose or ""),
+                "total_amount": float(exp.total_amount or 0),
+                "grade_limit": limit,
+                "over_limit": float(exp.total_amount or 0) > limit > 0,
+                "status": exp._status,
+                "created_at": exp.created_at.isoformat(),
+                "submitted_at": exp.submitted_at.isoformat() if exp.submitted_at else None,
+                "invoice_file_url": request.build_absolute_uri(f"/api/v1/files/{exp.invoice_file_id}/") if exp.invoice_file_id else None,
+            })
+        return Response(data)
+
+    def post(self, request):
+        """Submit internal employee expense (no external vendor needed)."""
+        from .models import Vendor
+        from decimal import Decimal, InvalidOperation
+
+        user = request.user
+        grade = user.employee_grade or 1
+
+        category = request.data.get("expense_category", "Misc")
+        description = request.data.get("description", "")
+        amount_raw = request.data.get("amount", "0")
+        try:
+            amount = Decimal(str(amount_raw))
+        except InvalidOperation:
+            return Response({"error": "Invalid amount."}, status=400)
+
+        if amount <= 0:
+            return Response({"error": "Amount must be greater than zero."}, status=400)
+
+        # Grade limit check
+        limit = self.GRADE_LIMITS.get(grade, {}).get(category, 0)
+        over_limit = limit > 0 and float(amount) > limit
+        # Don't block submission — just flag it
+
+        # Find or create INTERNAL system vendor
+        internal_vendor = Vendor.objects.filter(name="INTERNAL").first()
+        if not internal_vendor:
+            # Use first active vendor as system placeholder for demo
+            internal_vendor = Vendor.objects.filter(status="ACTIVE").first()
+            if not internal_vendor:
+                return Response(
+                    {"error": "No active vendor configured. Ask Finance Admin to add one."},
+                    status=400
+                )
+
+        ocr_raw = {
+            "expense_category": category,
+            "expense_description": description,
+            "grade_at_submission": grade,
+            "grade_limit": limit,
+            "over_limit": over_limit,
+            "internal_expense": True,
+        }
+        if request.data.get("file_id"):
+            ocr_raw["file_id"] = request.data["file_id"]
+
+        expense = Expense(
+            vendor=internal_vendor,
+            submitted_by=user,
+            invoice_number=f"EXP-{user.username.upper()[:6]}",
+            invoice_date=timezone.now().date(),
+            pre_gst_amount=amount,
+            total_amount=amount,
+            business_purpose=description,
+            ocr_raw=ocr_raw,
+        )
+        expense._force_status("SUBMITTED")
+        expense.submitted_at = timezone.now()
+        expense.save()
+
+        # Write audit log
+        from apps.core.models import AuditLog
+        AuditLog.objects.create(
+            user=user,
+            action="expense.submitted",
+            entity_type="Expense",
+            entity_id=expense.id,
+            masked_after={
+                "category": category,
+                "amount": float(amount),
+                "over_limit": over_limit,
+                "submitted_by_grade": grade,
+            },
+        )
+
+        return Response({
+            "id": str(expense.id),
+            "ref_no": expense.ref_no,
+            "expense_category": category,
+            "total_amount": float(amount),
+            "over_limit": over_limit,
+            "grade_limit": limit,
+            "status": expense._status,
+        }, status=201)
 
 
 class AnomalyListView(APIView):
@@ -565,3 +732,107 @@ class SettlePaymentView(APIView):
             update_fields=["d365_document_no", "d365_posted_at", "d365_paid_at", "d365_payment_utr"]
         )
         return Response(VendorBillDetailSerializer(expense, context={"request": request}).data)
+
+
+class SuperiorOverrideApproveView(APIView):
+    """
+    POST /api/v1/invoices/finance/bills/<pk>/superior-approve/
+    CFO / Finance Admin directly approves the expense, auto-clearing all
+    intermediate pending steps with "Skipped via Higher Authority" markers.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        from .services import superior_override_approve, InsufficientRole
+
+        expense = get_object_or_404(Expense, pk=pk)
+        reason = request.data.get("reason", "Approved by superior authority")
+        anomaly_override = request.data.get("anomaly_override_reason", "")
+
+        if expense.anomaly_severity in ("HIGH", "CRITICAL") and not anomaly_override:
+            return Response(
+                {"error": "anomaly_override_reason required for HIGH/CRITICAL anomaly approvals."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            expense = superior_override_approve(expense, request.user, reason)
+        except (InvalidTransition, InsufficientRole) as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(VendorBillDetailSerializer(expense, context={"request": request}).data)
+
+
+class RiskWatchView(APIView):
+    """
+    GET /api/v1/invoices/risk-watch/
+    Returns prioritized anomaly alerts for Finance Admin / CFO (grade >= 2).
+    Scoped by grade:
+      - G2 HOD: sees their department's anomalies
+      - G3+ Finance: sees all anomalies
+    """
+
+    permission_classes = [IsAuthenticated, HasMinimumGrade.make(2)]
+
+    def get(self, request):
+        user = request.user
+        grade = user.employee_grade or 1
+
+        # High-risk invoices not yet resolved
+        terminal = ["PAID", "REJECTED", "WITHDRAWN", "AUTO_REJECT", "EXPIRED"]
+        qs = (
+            Expense.objects.filter(anomaly_severity__in=["HIGH", "CRITICAL"])
+            .exclude(_status__in=terminal)
+            .select_related("vendor", "submitted_by")
+            .order_by("-updated_at")
+        )
+
+        if not user.is_superuser and grade < 3 and user.department_id:
+            qs = qs.filter(submitted_by__department=user.department)
+
+        alerts = []
+        for exp in qs[:20]:
+            flags = []
+            if exp.ocr_raw and isinstance(exp.ocr_raw, dict):
+                flags = exp.ocr_raw.get("anomaly_flags", [])
+            score = 92 if exp.anomaly_severity == "CRITICAL" else 75
+            alerts.append({
+                "id": str(exp.id),
+                "ref_no": exp.ref_no,
+                "vendor": exp.vendor.name,
+                "amount": float(exp.total_amount or 0),
+                "severity": exp.anomaly_severity,
+                "score": score,
+                "status": exp.status,
+                "flags": flags,
+                "updated_at": exp.updated_at.isoformat(),
+            })
+
+        # Low-risk: pending without anomalies but overdue SLA
+        low_risk = (
+            Expense.objects.filter(
+                anomaly_severity__in=["LOW", "MEDIUM", None, ""],
+                _status__in=["PENDING_L1", "PENDING_L2", "PENDING_HOD", "PENDING_FIN_L1", "PENDING_FIN_L2"],
+            )
+            .select_related("vendor")
+            .order_by("created_at")[:5]
+        )
+        for exp in low_risk:
+            alerts.append({
+                "id": str(exp.id),
+                "ref_no": exp.ref_no,
+                "vendor": exp.vendor.name,
+                "amount": float(exp.total_amount or 0),
+                "severity": exp.anomaly_severity or "LOW",
+                "score": 30,
+                "status": exp.status,
+                "flags": [],
+                "updated_at": exp.updated_at.isoformat(),
+            })
+
+        return Response({
+            "total_high_risk": len([a for a in alerts if a["severity"] in ("HIGH", "CRITICAL")]),
+            "total_alerts": len(alerts),
+            "alerts": alerts,
+        })

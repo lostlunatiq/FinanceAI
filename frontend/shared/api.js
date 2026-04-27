@@ -252,8 +252,16 @@ class FinanceAPI {
     }
 
     // ─── Extra Modules (Expenses & Anomalies) ────────────────────
-    async getInternalExpenses() {
-        return this.request('/invoices/finance/expenses/');
+    async getInternalExpenses(params = {}) {
+        const q = new URLSearchParams(params).toString();
+        return this.request(`/invoices/finance/expenses/${q ? '?' + q : ''}`);
+    }
+
+    async submitInternalExpense(data) {
+        return this.request('/invoices/finance/expenses/', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
     }
 
     async getAnomalies() {
@@ -354,6 +362,63 @@ class FinanceAPI {
 
     async nlQuery(question) {
         return this.request('/nl-query/', { method: 'POST', body: JSON.stringify({ question }) });
+    }
+
+    // ─── Superior Override Approval ───────────────────
+    async superiorApprove(billId, reason = 'Approved by superior authority', anomalyOverride = '') {
+        return this.request(`/invoices/finance/bills/${billId}/superior-approve/`, {
+            method: 'POST',
+            body: JSON.stringify({ reason, anomaly_override_reason: anomalyOverride }),
+        });
+    }
+
+    // ─── Risk Watch ───────────────────────────────────
+    async getRiskWatch() {
+        return this.request('/invoices/risk-watch/');
+    }
+
+    // ─── 10-Q Filing Draft ────────────────────────────
+    async generate10Q() {
+        return this.request('/invoices/analytics/generate-10q/', { method: 'POST', body: '{}' });
+    }
+
+    // ─── Compliance Analytics ─────────────────────────
+    async getGSTRecon(month = '') {
+        return this.request(`/invoices/analytics/gst-recon/${month ? '?month=' + month : ''}`);
+    }
+
+    async getTDSCompliance() {
+        return this.request('/invoices/analytics/tds-compliance/');
+    }
+
+    async getPolicyCompliance() {
+        return this.request('/invoices/analytics/policy-compliance/');
+    }
+
+    async getWorkingCapital() {
+        return this.request('/invoices/analytics/working-capital/');
+    }
+
+    async getDeptVariance() {
+        return this.request('/invoices/analytics/dept-variance/');
+    }
+
+    // ─── Notifications (from approval queue) ─────────
+    async getNotifications() {
+        try {
+            const queue = await this.getApprovalQueue();
+            if (!queue) return [];
+            const items = Array.isArray(queue) ? queue : (queue.results || []);
+            return items.slice(0, 10).map(bill => ({
+                id: bill.id,
+                title: `Invoice ${bill.ref_no || bill.id.slice(0, 8)} awaiting approval`,
+                vendor: bill.vendor_name || bill.vendor || 'Unknown Vendor',
+                amount: bill.total_amount || 0,
+                status: bill.status,
+                href: `/frontend/accounts_payable_hub/code.html?bill_id=${bill.id}`,
+                type: 'approval',
+            }));
+        } catch { return []; }
     }
 }
 

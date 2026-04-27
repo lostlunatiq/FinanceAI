@@ -3,157 +3,338 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Anomaly Detection - FinanceAI</title>
+    <title>AI Anomaly Engine - FinanceAI</title>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <script id="tailwind-config">
         tailwind.config = {
-          darkMode: "class",
-          theme: {
-            extend: {
-              "colors": {
-                      "surface-variant": "#e3e2e2",
-                      "outline": "#6f797a",
-                      "error": "#ba1a1a",
-                      "surface-container-lowest": "#ffffff",
-                      "surface-container-high": "#e9e8e7",
-                      "surface-container-low": "#f5f3f3",
-                      "inverse-surface": "#303031",
-                      "on-surface": "#1b1c1c",
-                      "surface-container-highest": "#e3e2e2",
-                      "outline-variant": "#bec8ca",
-                      "on-surface-variant": "#3e494a",
-                      "on-background": "#1b1c1c",
-                      "inverse-on-surface": "#f2f0f0",
-                      "surface-container": "#efeded",
-                      "primary": "#00535b",
-                      "primary-container": "#006d77",
-                      "on-primary-container": "#9becf7",
-                      "on-primary": "#ffffff",
-                      "error": "#ba1a1a",
-                      "error-container": "#ffdad6",
-                      "on-error-container": "#93000a",
-                      "secondary": "#495f84",
-                      "secondary-container": "#bcd2fe",
-                      "on-secondary-container": "#445a7f",
-                      "surface-container-highest": "#e3e2e2",
-                      "primary-fixed": "#9ff0fb",
-                      "primary-fixed-dim": "#82d3de",
-                      "on-primary-fixed": "#001f23",
-                      "on-primary-fixed-variant": "#004f56"
-              },
-               "fontFamily": {
-                      "headline": ["Manrope"],
-                      "body": ["Inter"],
-                      "label": ["Inter"]
-              }
-            }
-          }
+          darkMode:"class",
+          theme:{ extend:{
+            colors:{
+              "primary":"#00535b","primary-container":"#006d77","on-primary":"#ffffff",
+              "error":"#ba1a1a","error-container":"#ffdad6","on-error-container":"#93000a",
+              "surface":"#fbf9f9","surface-container-lowest":"#ffffff",
+              "surface-container-low":"#f5f3f3","surface-container":"#efeded",
+              "surface-container-high":"#e9e8e7","surface-container-highest":"#e3e2e2",
+              "on-surface":"#1b1c1c","on-surface-variant":"#3e494a",
+              "outline":"#6f797a","outline-variant":"#bec8ca",
+              "tertiary":"#6300c9","secondary":"#495f84",
+            },
+            fontFamily:{ headline:["Manrope"],body:["Inter"] }
+          }}
         }
     </script>
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #fbf9f9; }
-        .font-manrope { font-family: 'Manrope', sans-serif; }
+        body { font-family:'Inter',sans-serif; background:#fbf9f9; }
+        .primary-gradient { background: linear-gradient(135deg,#00535b,#006d77); }
+        .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
+        .pulse-dot { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+        .severity-CRITICAL { border-left: 4px solid #ba1a1a; }
+        .severity-HIGH     { border-left: 4px solid #f97316; }
+        .severity-MEDIUM   { border-left: 4px solid #eab308; }
+        .severity-LOW      { border-left: 4px solid #6f797a; }
     </style>
 </head>
-<body class="bg-surface text-on-surface min-h-screen">
-    <header class="flex justify-between items-center bg-surface-container-lowest px-8 py-4 border-b border-outline-variant lg:ml-64 relative z-30 shadow-sm">
-        <div class="flex items-center gap-4 text-sm text-outline font-medium tracking-wide" id="breadcrumb-area">
-            <span>Finance Hub</span>
-            <span class="material-symbols-outlined text-sm">chevron_right</span>
-            <span class="text-on-surface font-bold text-error">Anomaly Engine</span>
-        </div>
-        <div class="flex items-center gap-4">
-            <div class="relative group">
-                <span class="material-symbols-outlined text-on-surface-variant cursor-pointer p-2 hover:bg-slate-100 rounded-full transition-colors">notifications</span>
-            </div>
-            <span class="material-symbols-outlined text-on-surface-variant cursor-pointer p-2 hover:bg-slate-100 rounded-full transition-colors">account_circle</span>
-        </div>
-    </header>
+<body class="text-on-surface antialiased">
 
-    <div id="sidebar-container" class="z-40"></div>
+<div id="sidebar-container" class="z-40"></div>
 
-    <main class="lg:ml-64 p-8 relative">
-        <section class="max-w-7xl mx-auto space-y-6">
-            <div class="flex justify-between items-end mb-8">
-                <div>
-                    <h1 class="text-3xl font-headline font-extrabold tracking-tight">AI Fraud & Anomaly Engine</h1>
-                    <p class="text-on-surface-variant mt-2 max-w-lg">Continuous monitoring for duplicate invoices, inflated values, and abnormal velocity.</p>
+<main class="lg:ml-64 min-h-screen">
+  <!-- Header -->
+  <div class="w-full h-16 sticky top-0 z-40 bg-surface-container-lowest flex justify-between items-center px-8 border-b border-outline-variant/30 shadow-sm">
+    <div class="flex items-center gap-3">
+      <button data-back class="p-2 rounded-lg hover:bg-surface-container-low transition-colors text-on-surface-variant">
+        <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+      </button>
+      <div>
+        <h2 class="text-sm font-bold text-on-surface font-headline">AI Fraud & Anomaly Engine</h2>
+        <p class="text-xs text-on-surface-variant">Continuous monitoring — duplicate, spike, policy violations</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <button id="force-scan-btn" class="flex items-center gap-2 px-4 py-2 bg-surface-container-high text-sm font-bold rounded-xl hover:bg-surface-container-highest transition-colors">
+        <span class="material-symbols-outlined text-[16px]">sync</span> Force Scan
+      </button>
+      <button class="p-2 text-on-surface-variant hover:bg-surface-container-low transition-colors rounded-xl">
+        <span class="material-symbols-outlined text-[20px]">notifications</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="px-8 py-8 max-w-7xl mx-auto space-y-8">
+
+    <!-- Alert banner -->
+    <div id="alert-banner" class="hidden bg-error/10 border border-error/30 rounded-xl p-5 flex items-start gap-4">
+      <span class="material-symbols-outlined text-error text-[32px] shrink-0 pulse-dot">warning</span>
+      <div>
+        <h3 class="font-headline font-bold text-error text-base" id="banner-title">Anomalies Detected</h3>
+        <p class="text-sm text-on-surface mt-0.5" id="banner-detail">Scanning...</p>
+      </div>
+    </div>
+
+    <!-- KPI Row -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-5">
+      <div class="bg-surface-container-lowest p-5 rounded-xl border border-error/20">
+        <p class="text-[10px] font-bold text-error uppercase tracking-widest">Critical</p>
+        <h2 class="text-3xl font-headline font-black mt-1 text-error" id="kpi-critical">—</h2>
+        <p class="text-xs text-on-surface-variant mt-1">immediate action</p>
+      </div>
+      <div class="bg-surface-container-lowest p-5 rounded-xl border border-orange-200">
+        <p class="text-[10px] font-bold text-orange-600 uppercase tracking-widest">High</p>
+        <h2 class="text-3xl font-headline font-black mt-1 text-orange-600" id="kpi-high">—</h2>
+        <p class="text-xs text-on-surface-variant mt-1">review required</p>
+      </div>
+      <div class="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant/20">
+        <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Total Flagged</p>
+        <h2 class="text-3xl font-headline font-black mt-1" id="kpi-total">—</h2>
+        <p class="text-xs text-on-surface-variant mt-1">all severities</p>
+      </div>
+      <div class="bg-surface-container-lowest p-5 rounded-xl border border-primary/20">
+        <p class="text-[10px] font-bold text-primary uppercase tracking-widest">At Risk (₹)</p>
+        <h2 class="text-2xl font-headline font-black mt-1 text-primary" id="kpi-amount">—</h2>
+        <p class="text-xs text-on-surface-variant mt-1">flagged exposure</p>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="flex flex-wrap gap-3 items-center">
+      <select id="filter-severity" class="text-sm border border-outline-variant/40 rounded-lg px-3 py-2 bg-surface-container-lowest focus:ring-2 focus:ring-primary/20 focus:outline-none">
+        <option value="">All Severities</option>
+        <option value="CRITICAL">Critical Only</option>
+        <option value="HIGH">High Only</option>
+        <option value="MEDIUM">Medium</option>
+        <option value="LOW">Low</option>
+      </select>
+      <button id="apply-sev-filter" class="px-4 py-2 primary-gradient text-white text-sm font-bold rounded-lg">Apply</button>
+      <button id="clear-sev-filter" class="px-4 py-2 bg-surface-container-high text-sm font-bold rounded-lg hover:bg-surface-container-highest">Clear</button>
+      <span class="ml-auto text-xs text-on-surface-variant" id="anomaly-count-label"></span>
+    </div>
+
+    <!-- Anomaly Table -->
+    <div class="bg-surface-container-lowest rounded-xl border border-outline-variant/10 overflow-hidden shadow-sm">
+      <table class="w-full text-left border-collapse">
+        <thead class="bg-surface-container-low border-b border-outline-variant/20 text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">
+          <tr>
+            <th class="px-5 py-3">Severity / Score</th>
+            <th class="px-5 py-3">Invoice Ref</th>
+            <th class="px-5 py-3">Vendor</th>
+            <th class="px-5 py-3">Amount</th>
+            <th class="px-5 py-3">Status</th>
+            <th class="px-5 py-3">Flags</th>
+            <th class="px-5 py-3">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="anomaly-tbody" class="text-sm divide-y divide-outline-variant/10">
+          <tr><td colspan="7" class="py-16 text-center text-on-surface-variant">
+            <span class="material-symbols-outlined animate-spin block mx-auto text-[32px] mb-2">refresh</span>
+            Scanning for anomalies...
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Policy Violations Section -->
+    <div>
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-headline font-bold text-lg text-on-surface">Policy Violations (Last 30 Days)</h3>
+        <span class="text-xs text-on-surface-variant" id="policy-count-label"></span>
+      </div>
+      <div id="policy-list" class="space-y-3">
+        <div class="flex items-center justify-center py-8 text-on-surface-variant text-sm">
+          <span class="material-symbols-outlined animate-spin mr-2">refresh</span> Loading...
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="/frontend/shared/api.js"></script>
+<script src="/frontend/shared/auth.js"></script>
+<script>
+let allAnomalies = [];
+let filteredAnomalies = [];
+
+const SEV_COLOR = {
+    CRITICAL: { text:'text-error', bg:'bg-error/10', border:'border-error/30' },
+    HIGH:     { text:'text-orange-600', bg:'bg-orange-50', border:'border-orange-200' },
+    MEDIUM:   { text:'text-yellow-700', bg:'bg-yellow-50', border:'border-yellow-200' },
+    LOW:      { text:'text-on-surface-variant', bg:'bg-surface-container-low', border:'border-outline-variant/20' },
+};
+
+document.addEventListener('DOMContentLoaded', async () => {
+    await Promise.all([_loadAnomalies(), _loadPolicyViolations()]);
+
+    document.getElementById('force-scan-btn').addEventListener('click', async () => {
+        const btn = document.getElementById('force-scan-btn');
+        btn.innerHTML = '<span class="material-symbols-outlined text-[16px] animate-spin">refresh</span> Scanning...';
+        btn.disabled = true;
+        try {
+            await window.api.request('/invoices/finance/scan-all/', { method: 'POST', body: '{}' });
+            await _loadAnomalies();
+        } catch(e) { console.warn(e); }
+        btn.innerHTML = '<span class="material-symbols-outlined text-[16px]">sync</span> Force Scan';
+        btn.disabled = false;
+    });
+
+    document.getElementById('apply-sev-filter').addEventListener('click', () => {
+        const sev = document.getElementById('filter-severity').value;
+        filteredAnomalies = sev ? allAnomalies.filter(a => a.anomaly_severity === sev) : allAnomalies;
+        _renderAnomalies(filteredAnomalies);
+    });
+    document.getElementById('clear-sev-filter').addEventListener('click', () => {
+        document.getElementById('filter-severity').value = '';
+        filteredAnomalies = allAnomalies;
+        _renderAnomalies(filteredAnomalies);
+    });
+});
+
+async function _loadAnomalies() {
+    try {
+        const data = await window.api.getAnomalies();
+        allAnomalies = Array.isArray(data) ? data : (data?.results || []);
+        filteredAnomalies = allAnomalies;
+        _updateKPIs(allAnomalies);
+        _renderAnomalies(allAnomalies);
+    } catch(e) {
+        document.getElementById('anomaly-tbody').innerHTML =
+            `<tr><td colspan="7" class="py-10 text-center text-error text-sm">Failed to load: ${e.message}</td></tr>`;
+    }
+}
+
+function _updateKPIs(list) {
+    const critical = list.filter(a => a.anomaly_severity === 'CRITICAL').length;
+    const high = list.filter(a => a.anomaly_severity === 'HIGH').length;
+    const totalAmt = list.reduce((s, a) => s + parseFloat(a.total_amount || 0), 0);
+
+    document.getElementById('kpi-critical').textContent = critical;
+    document.getElementById('kpi-high').textContent = high;
+    document.getElementById('kpi-total').textContent = list.length;
+    document.getElementById('kpi-amount').textContent = '₹' + totalAmt.toLocaleString('en-IN', {maximumFractionDigits: 0});
+
+    const banner = document.getElementById('alert-banner');
+    if (critical > 0 || high > 0) {
+        banner.classList.remove('hidden');
+        document.getElementById('banner-title').textContent = `${critical} Critical + ${high} High Anomalies Detected`;
+        document.getElementById('banner-detail').textContent =
+            `${list.length} flagged invoices with ₹${totalAmt.toLocaleString('en-IN', {maximumFractionDigits:0})} at risk. Immediate review recommended.`;
+    }
+}
+
+function _renderAnomalies(list) {
+    const tbody = document.getElementById('anomaly-tbody');
+    document.getElementById('anomaly-count-label').textContent = `${list.length} result${list.length !== 1 ? 's' : ''}`;
+
+    if (!list.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="py-16 text-center text-on-surface-variant text-sm">
+            <span class="material-symbols-outlined block text-[40px] mx-auto mb-2 text-primary">verified</span>
+            System nominal — no anomalies detected.
+        </td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = list.map(ano => {
+        const sev = ano.anomaly_severity || 'HIGH';
+        const col = SEV_COLOR[sev] || SEV_COLOR.HIGH;
+        const flags = ano.ocr_raw?.anomaly_flags || [];
+        const flagHTML = flags.length
+            ? flags.slice(0,2).map(f => `<span class="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-error/10 text-error mr-1">${f.type || f}</span>`).join('')
+            : `<span class="text-xs text-on-surface-variant">Pattern mismatch</span>`;
+        const score = sev === 'CRITICAL' ? 98 : sev === 'HIGH' ? 76 : sev === 'MEDIUM' ? 51 : 25;
+        const statusLabel = (ano._status || ano.status || '').replace(/_/g, ' ');
+
+        return `<tr class="hover:bg-surface-container-low transition-colors cursor-pointer severity-${sev}"
+                    onclick="openInvestigation('${ano.id}','${ano.ref_no || ''}','${ano.anomaly_severity}','${(ano.vendor?.name||ano.vendor_name||'').replace(/'/g,"\\'")}',${parseFloat(ano.total_amount||0)})">
+            <td class="px-5 py-4">
+                <span class="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-black uppercase ${col.bg} ${col.text}">${sev}</span>
+                <div class="text-xs text-on-surface-variant mt-1">Score: ${score}</div>
+            </td>
+            <td class="px-5 py-4">
+                <div class="font-bold text-primary text-xs">${ano.ref_no || ano.id?.slice(0,8)}</div>
+                <div class="text-xs text-on-surface-variant mt-0.5">${new Date(ano.created_at||Date.now()).toLocaleDateString('en-IN')}</div>
+            </td>
+            <td class="px-5 py-4 text-sm font-medium">${ano.vendor?.name || ano.vendor_name || '—'}</td>
+            <td class="px-5 py-4 font-bold text-sm">₹${Number(ano.total_amount||0).toLocaleString('en-IN',{maximumFractionDigits:0})}</td>
+            <td class="px-5 py-4">
+                <span class="text-xs font-semibold text-on-surface-variant">${statusLabel}</span>
+            </td>
+            <td class="px-5 py-4">${flagHTML}</td>
+            <td class="px-5 py-4">
+                <div class="flex gap-2">
+                    <button onclick="event.stopPropagation(); openInvestigation('${ano.id}','${ano.ref_no||''}','${ano.anomaly_severity}','${(ano.vendor?.name||ano.vendor_name||'').replace(/'/g,"\\'")}',${parseFloat(ano.total_amount||0)})"
+                        class="text-xs font-bold px-3 py-1.5 rounded-lg bg-error/10 text-error hover:bg-error/20 transition-colors flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[13px]">search</span> Investigate
+                    </button>
+                    <a href="/frontend/accounts_payable_hub/code.html?bill_id=${ano.id}"
+                       onclick="event.stopPropagation()"
+                       class="text-xs font-bold px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
+                        Review
+                    </a>
                 </div>
-                <button class="flex items-center gap-2 bg-surface-container-high text-on-surface px-5 py-2.5 rounded-xl font-bold font-manrope shadow hover:bg-surface-variant transition">
-                    <span class="material-symbols-outlined">sync</span> Force Scan
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+async function _loadPolicyViolations() {
+    const container = document.getElementById('policy-list');
+    try {
+        const data = await window.api.request('/invoices/analytics/policy-compliance/');
+        if (!data) return;
+        const violations = data.violations || [];
+        document.getElementById('policy-count-label').textContent =
+            `${data.violation_count} violations | ${data.compliance_rate_pct}% compliant | ${data.total_checked} checked`;
+
+        if (!violations.length) {
+            container.innerHTML = `<div class="p-5 bg-primary/5 border border-primary/20 rounded-xl text-sm text-primary font-semibold flex items-center gap-2">
+                <span class="material-symbols-outlined text-[18px]">verified</span>
+                All expenses are policy compliant in the last 30 days.
+            </div>`;
+            return;
+        }
+
+        container.innerHTML = violations.slice(0,10).map(v => `
+            <div class="flex items-start gap-4 p-4 bg-surface-container-lowest rounded-xl border border-outline-variant/10 hover:bg-surface-container-low transition-colors">
+                <span class="material-symbols-outlined text-error text-[20px] mt-0.5 shrink-0">policy</span>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-bold text-sm text-on-surface">${v.ref_no || v.expense_id?.slice?.(0,8) || '—'}</span>
+                        <span class="text-[10px] font-black bg-error/10 text-error px-2 py-0.5 rounded uppercase">${v.rule || 'Policy Violation'}</span>
+                    </div>
+                    <p class="text-xs text-on-surface-variant mt-1">${v.detail || v.message || 'Expense does not meet compliance requirements'}</p>
+                    <p class="text-xs text-outline mt-0.5">Amount: ₹${Number(v.amount||0).toLocaleString('en-IN')} • ${v.vendor || ''} • ${v.submitted_by || ''}</p>
+                </div>
+                <button onclick="openInvestigation('${v.expense_id||''}','${v.ref_no||''}','POLICY','${v.vendor||''}',${v.amount||0})"
+                    class="text-xs font-bold px-3 py-1.5 rounded-lg bg-error/10 text-error hover:bg-error/20 transition-colors flex items-center gap-1 shrink-0">
+                    <span class="material-symbols-outlined text-[13px]">search</span> Investigate
                 </button>
-            </div>
+            </div>`).join('');
 
-            <!-- Dashboard Map -->
-            <div class="bg-error/10 p-6 rounded-xl border border-error/20 flex gap-6 items-start">
-                <span class="material-symbols-outlined text-error text-4xl">warning</span>
-                <div>
-                    <h3 class="font-headline font-bold text-error text-xl">High Probability Flags Detected</h3>
-                    <p class="text-sm mt-1 text-on-surface">3 Invoices match known structural signatures of double-billing logic. 1 Expense matches off-shift pattern.</p>
-                </div>
-            </div>
+    } catch(e) {
+        container.innerHTML = `<p class="text-sm text-on-surface-variant p-4">Policy data unavailable: ${e.message}</p>`;
+    }
+}
 
-            <!-- List -->
-            <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/30 overflow-hidden mt-8">
-                <table class="w-full text-left border-collapse">
-                    <thead class="bg-surface-container-low border-b border-outline-variant/30 text-xs uppercase tracking-wider font-bold text-on-surface-variant">
-                        <tr>
-                            <th class="p-4">Confidence</th>
-                            <th class="p-4">Entity Ref</th>
-                            <th class="p-4">Anomaly Details</th>
-                            <th class="p-4">Extracted AI Logic</th>
-                            <th class="p-4">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="anomaly-tbody" class="text-sm">
-                        <!-- Content dynamically injected here -->
-                    </tbody>
-                </table>
-            </div>
-        </section>
-    </main>
+function openInvestigation(id, ref, severity, vendor, amount) {
+    const query = severity === 'POLICY'
+        ? `Investigate policy violation for expense ${ref || id?.slice(0,8)}. Vendor: ${vendor}. Amount: ₹${Number(amount).toLocaleString('en-IN')}. What rules did it violate and what action should be taken?`
+        : `Investigate ${severity} anomaly: Expense ${ref || id?.slice(0,8)} from vendor "${vendor}" worth ₹${Number(amount).toLocaleString('en-IN')}. What patterns triggered this flag? Is this a duplicate, inflated amount, or policy violation? What should I do next?`;
 
-    <script src="/frontend/shared/api.js"></script>
-    <script src="/frontend/shared/auth.js"></script>
-    <script src="/frontend/shared/layout.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', async () => {
-            try {
-                const anomalies = await window.api.getAnomalies();
-                const tbody = document.getElementById('anomaly-tbody');
-
-                if (!anomalies || anomalies.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-on-surface-variant font-medium">System nominal. No critical anomalies detected matching signatures.</td></tr>';
-                    return;
-                }
-
-                let html = '';
-                anomalies.forEach(ano => {
-                    const sev = ano.anomaly_severity || 'HIGH';
-                    const cssColor = (sev === 'CRITICAL') ? 'text-error' : 'text-orange-600';
-                    const badgeClass = (sev === 'CRITICAL') ? 'bg-error/10 text-error' : 'bg-orange-100 text-orange-800';
-
-                    html += `
-                        <tr class="border-b border-outline-variant/10 hover:bg-surface-container transition-colors cursor-pointer ${cssColor} font-medium">
-                            <td class="p-4 font-bold">${sev === 'CRITICAL' ? '98%' : '75%'}</td>
-                            <td class="p-4">${ano.ref_no || ano.id.substring(0,8)} (${ano.vendor?.name})</td>
-                            <td class="p-4">Detected variance. Check exact matching parameters.</td>
-                            <td class="p-4"><span class="${badgeClass} px-2 py-1 rounded text-[10px] uppercase font-bold tracking-widest">${sev} FLAG</span></td>
-                            <td class="p-4">
-                                <button class="text-xs ${sev==='CRITICAL' ? 'bg-error text-on-error' : 'bg-surface-container-high'} px-3 py-1 rounded font-bold hover:opacity-90">Investigate</button>
-                            </td>
-                        </tr>
-                    `;
-                });
-
-                tbody.innerHTML = html;
-
-            } catch (err) {
-                console.error('Failed to load anomalies', err);
+    if (typeof window.openChatbot === 'function') {
+        window.openChatbot(query);
+    } else {
+        // Chatbot not yet loaded — store and open after layout.js loads
+        window._pendingChatQuery = query;
+        const checkInterval = setInterval(() => {
+            if (typeof window.openChatbot === 'function') {
+                clearInterval(checkInterval);
+                window.openChatbot(window._pendingChatQuery);
             }
-        });
-    </script>
+        }, 200);
+    }
+}
+</script>
+<script src="/frontend/shared/layout.js"></script>
 </body>
 </html>

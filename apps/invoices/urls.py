@@ -106,6 +106,12 @@ urlpatterns = [
         employee_views.EscalateAnomalyView.as_view(),
         name="finance-escalate",
     ),
+    path(
+        "finance/bills/<uuid:pk>/superior-approve/",
+        employee_views.SuperiorOverrideApproveView.as_view(),
+        name="finance-superior-approve",
+    ),
+    path("risk-watch/", employee_views.RiskWatchView.as_view(), name="risk-watch"),
     # ─── New Finance Automation Analytics ────────────────────────
     path("analytics/spend-intelligence/", analytics_views.SpendIntelligenceView.as_view(), name="spend-intelligence"),
     path("analytics/vendor-risk/",        analytics_views.VendorRiskScoreView.as_view(),   name="vendor-risk"),

@@ -1,347 +1,732 @@
 <!DOCTYPE html>
-
-<html class="light" lang="en"><head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>FinanceAI | Budgetary Guardrails</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&amp;family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<script id="tailwind-config">
-      tailwind.config = {
-        darkMode: "class",
-        theme: {
-          extend: {
-            "colors": {
-                    "tertiary-fixed": "#ecdcff",
-                    "surface-container-lowest": "#ffffff",
-                    "secondary-container": "#bcd2fe",
-                    "on-tertiary-container": "#e9d7ff",
-                    "outline": "#6f797a",
-                    "on-surface": "#1b1c1c",
-                    "surface-container-low": "#f5f3f3",
-                    "on-secondary-fixed": "#001b3d",
-                    "surface-dim": "#dbdad9",
-                    "on-primary-fixed": "#001f23",
-                    "on-tertiary-fixed": "#270057",
-                    "on-primary-container": "#9becf7",
-                    "on-secondary-fixed-variant": "#31476b",
-                    "tertiary-container": "#7d30e6",
-                    "primary": "#00535b",
-                    "tertiary": "#6300c9",
-                    "secondary-fixed": "#d6e3ff",
-                    "on-tertiary-fixed-variant": "#5f00c0",
-                    "surface-container-high": "#e9e8e7",
-                    "on-primary": "#ffffff",
-                    "on-secondary": "#ffffff",
-                    "error-container": "#ffdad6",
-                    "on-secondary-container": "#445a7f",
-                    "surface-variant": "#e3e2e2",
-                    "error": "#ba1a1a",
-                    "primary-fixed": "#9ff0fb",
-                    "secondary": "#495f84",
-                    "on-primary-fixed-variant": "#004f56",
-                    "inverse-surface": "#303031",
-                    "on-error-container": "#93000a",
-                    "on-surface-variant": "#3e494a",
-                    "surface-container-highest": "#e3e2e2",
-                    "primary-container": "#006d77",
-                    "background": "#fbf9f9",
-                    "inverse-primary": "#82d3de",
-                    "surface-tint": "#006972",
-                    "surface": "#fbf9f9",
-                    "inverse-on-surface": "#f2f0f0",
-                    "on-background": "#1b1c1c",
-                    "surface-bright": "#fbf9f9",
-                    "secondary-fixed-dim": "#b1c7f2",
-                    "outline-variant": "#bec8ca",
-                    "on-tertiary": "#ffffff",
-                    "on-error": "#ffffff",
-                    "tertiary-fixed-dim": "#d5baff",
-                    "primary-fixed-dim": "#82d3de",
-                    "surface-container": "#efeded"
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Compliance - FinanceAI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+          darkMode:"class",
+          theme:{ extend:{
+            colors:{
+              "primary":"#00535b","primary-container":"#006d77","on-primary":"#ffffff",
+              "error":"#ba1a1a","error-container":"#ffdad6","on-error-container":"#93000a",
+              "surface":"#fbf9f9","surface-container-lowest":"#ffffff",
+              "surface-container-low":"#f5f3f3","surface-container":"#efeded",
+              "surface-container-high":"#e9e8e7","surface-container-highest":"#e3e2e2",
+              "on-surface":"#1b1c1c","on-surface-variant":"#3e494a",
+              "outline":"#6f797a","outline-variant":"#bec8ca",
+              "tertiary":"#6300c9","secondary":"#495f84",
             },
-            "borderRadius": {
-                    "DEFAULT": "0.125rem",
-                    "lg": "0.25rem",
-                    "xl": "0.5rem",
-                    "full": "0.75rem"
-            },
-            "fontFamily": {
-                    "headline": ["Manrope"],
-                    "body": ["Inter"],
-                    "label": ["Inter"]
-            }
-          },
-        },
-      }
+            fontFamily:{ headline:["Manrope"],body:["Inter"] }
+          }}
+        }
     </script>
-<style>
-        body { font-family: 'Inter', sans-serif; background-color: #fbf9f9; }
-        .font-manrope { font-family: 'Manrope', sans-serif; }
-        .glass-effect { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(24px); }
-        .sidebar-active { background: white; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); font-weight: 600; }
-        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
-        .gradient-btn { background: linear-gradient(135deg, #00535b 0%, #006d77 100%); }
-        .asymmetric-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 2rem; }
+    <style>
+        body { font-family:'Inter',sans-serif; background:#fbf9f9; }
+        .primary-gradient { background: linear-gradient(135deg,#00535b,#006d77); }
+        .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
+        .fill-icon { font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24; }
+        .pulse-dot { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+        .tab-btn.active { border-bottom: 2px solid #00535b; color: #00535b; font-weight: 700; }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+        .status-badge { display: inline-flex; align-items:center; gap:4px; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+        .badge-ok { background:#dcfce7; color:#166534; }
+        .badge-warn { background:#fef9c3; color:#854d0e; }
+        .badge-error { background:#fee2e2; color:#991b1b; }
+        .baki-card { border-left: 3px solid; }
+        .baki-critical { border-color: #ba1a1a; }
+        .baki-warning { border-color: #f97316; }
+        .baki-ok { border-color: #16a34a; }
+        .progress-bar { height:6px; border-radius:999px; background:#e3e2e2; overflow:hidden; }
+        .progress-fill { height:100%; border-radius:999px; transition: width 0.8s ease; }
     </style>
 </head>
-<body class="bg-background text-on-surface selection:bg-primary-fixed selection:text-on-primary-fixed">
-<!-- TopNavBar -->
-<header class="fixed top-0 w-full z-50 bg-slate-50/85 backdrop-blur-xl shadow-sm h-16">
-<div class="flex justify-between items-center px-8 h-full w-full max-w-[1920px] mx-auto">
-<div class="flex items-center gap-8">
-<span class="text-xl font-bold tracking-tighter text-teal-950">FinanceAI</span>
+<body class="text-on-surface antialiased">
 
-</div>
-<div class="flex items-center gap-4">
-<button class="p-2 text-slate-500 hover:bg-slate-100/50 rounded-full transition-colors">
-<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
-</button>
-<button class="p-2 text-slate-500 hover:bg-slate-100/50 rounded-full transition-colors">
-<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
-</button>
-</div>
-</div>
-<div class="bg-slate-200/20 h-[1px] w-full"></div>
-</header>
-<!-- SideNavBar -->
-
-<!-- Main Content Canvas -->
 <div id="sidebar-container" class="z-40"></div>
-<main class="lg:pl-64 pt-24 pb-12 px-8 min-h-screen">
-<div class="max-w-[1400px] mx-auto">
-<!-- Editorial Header -->
-<header class="mb-12">
-<div class="flex justify-between items-end">
-<div>
-<span class="text-primary font-bold tracking-widest text-[10px] uppercase block mb-2">Operational Integrity</span>
-<h1 class="text-3xl font-manrope font-extrabold tracking-tight text-on-surface">Budgetary Guardrails</h1>
-</div>
-<div class="text-right">
-<p class="text-on-surface-variant font-manrope text-sm font-medium">Q3 Fiscal Year 2024</p>
-<p class="text-outline text-xs">Updated 4 minutes ago</p>
-</div>
-</div>
-</header>
-<!-- Status Banner (Conditional Error State) -->
-<div class="mb-8 p-6 bg-error-container rounded-xl flex items-center justify-between border-l-4 border-error">
-<div class="flex items-center gap-4">
-<div class="w-12 h-12 rounded-full bg-error flex items-center justify-center">
-<span class="material-symbols-outlined text-white" data-icon="lock_person">lock_person</span>
-</div>
-<div>
-<h3 class="font-manrope font-bold text-on-error-container">Booking Suspension Active</h3>
-<p class="text-sm text-on-error-container opacity-80">Engineering department has reached 100% budget utilization. All outbound bookings are halted.</p>
-</div>
-</div>
-<button class="bg-error text-white px-6 py-3 rounded-full font-manrope font-bold text-sm hover:opacity-90 transition-opacity">
-                    Initiate BRR Request
-                </button>
-</div>
-<!-- Departmental Bento Grid -->
-<div class="asymmetric-grid">
-<!-- Primary Insight: Progress Rings -->
-<div class="space-y-6">
-<section class="bg-surface-container-lowest p-8 rounded-xl shadow-sm">
-<div class="flex justify-between items-center mb-10">
-<h2 class="font-manrope font-bold text-xl text-teal-900">Departmental Utilization</h2>
-<div class="flex gap-2">
-<span class="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-green-600"><span class="w-2 h-2 rounded-full bg-green-600"></span> Safe</span>
-<span class="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-500"><span class="w-2 h-2 rounded-full bg-amber-500"></span> Caution</span>
-<span class="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-error"><span class="w-2 h-2 rounded-full bg-error"></span> Locked</span>
-</div>
-</div>
-<div class="grid grid-cols-2 gap-12">
-<!-- Ring 1: Engineering (Red/100%) -->
-<div class="flex flex-col items-center gap-4">
-<div class="relative w-40 h-40">
-<svg class="w-full h-full transform -rotate-90">
-<circle class="text-surface-container" cx="80" cy="80" fill="transparent" r="70" stroke="currentColor" stroke-width="12"></circle>
-<circle class="text-error" cx="80" cy="80" fill="transparent" r="70" stroke="currentColor" stroke-dasharray="440" stroke-dashoffset="0" stroke-width="12"></circle>
-</svg>
-<div class="absolute inset-0 flex flex-col items-center justify-center">
-<span class="text-3xl font-manrope font-black text-on-surface">100%</span>
-<span class="material-symbols-outlined text-error text-lg" data-icon="block">block</span>
-</div>
-</div>
-<div class="text-center">
-<h4 class="font-manrope font-bold text-teal-950">Engineering</h4>
-<p class="text-xs text-outline">$2.4M / $2.4M</p>
-</div>
-</div>
-<!-- Ring 2: Marketing (Amber/87%) -->
-<div class="flex flex-col items-center gap-4">
-<div class="relative w-40 h-40">
-<svg class="w-full h-full transform -rotate-90">
-<circle class="text-surface-container" cx="80" cy="80" fill="transparent" r="70" stroke="currentColor" stroke-width="12"></circle>
-<circle class="text-amber-500" cx="80" cy="80" fill="transparent" r="70" stroke="currentColor" stroke-dasharray="440" stroke-dashoffset="57" stroke-width="12"></circle>
-</svg>
-<div class="absolute inset-0 flex flex-col items-center justify-center">
-<span class="text-3xl font-manrope font-black text-on-surface">87%</span>
-<span class="text-[10px] font-bold text-amber-600 uppercase">Caution</span>
-</div>
-</div>
-<div class="text-center">
-<h4 class="font-manrope font-bold text-teal-950">Marketing</h4>
-<p class="text-xs text-outline">$1.1M / $1.3M</p>
-</div>
-</div>
-<!-- Ring 3: Operations (Green/42%) -->
-<div class="flex flex-col items-center gap-4">
-<div class="relative w-40 h-40">
-<svg class="w-full h-full transform -rotate-90">
-<circle class="text-surface-container" cx="80" cy="80" fill="transparent" r="70" stroke="currentColor" stroke-width="12"></circle>
-<circle class="text-green-600" cx="80" cy="80" fill="transparent" r="70" stroke="currentColor" stroke-dasharray="440" stroke-dashoffset="255" stroke-width="12"></circle>
-</svg>
-<div class="absolute inset-0 flex flex-col items-center justify-center">
-<span class="text-3xl font-manrope font-black text-on-surface">42%</span>
-<span class="text-[10px] font-bold text-green-600 uppercase">Healthy</span>
-</div>
-</div>
-<div class="text-center">
-<h4 class="font-manrope font-bold text-teal-950">Operations</h4>
-<p class="text-xs text-outline">$650K / $1.5M</p>
-</div>
-</div>
-<!-- Ring 4: Research (Green/68%) -->
-<div class="flex flex-col items-center gap-4">
-<div class="relative w-40 h-40">
-<svg class="w-full h-full transform -rotate-90">
-<circle class="text-surface-container" cx="80" cy="80" fill="transparent" r="70" stroke="currentColor" stroke-width="12"></circle>
-<circle class="text-green-600" cx="80" cy="80" fill="transparent" r="70" stroke="currentColor" stroke-dasharray="440" stroke-dashoffset="140" stroke-width="12"></circle>
-</svg>
-<div class="absolute inset-0 flex flex-col items-center justify-center">
-<span class="text-3xl font-manrope font-black text-on-surface">68%</span>
-<span class="text-[10px] font-bold text-green-600 uppercase">Optimal</span>
-</div>
-</div>
-<div class="text-center">
-<h4 class="font-manrope font-bold text-teal-950">Research &amp; Dev</h4>
-<p class="text-xs text-outline">$544K / $800K</p>
-</div>
-</div>
-</div>
-</section>
-</div>
-<!-- Secondary Context: BRR Log & Active Blocks -->
-<div class="space-y-6">
-<section class="bg-surface-container-low p-8 rounded-xl h-full flex flex-col">
-<div class="flex items-center justify-between mb-8">
-<h2 class="font-manrope font-bold text-xl text-teal-900">Enforcement Logs</h2>
-<button class="text-primary font-bold text-xs uppercase tracking-widest hover:underline transition-all">View Archive</button>
-</div>
-<div class="flex-grow space-y-4">
-<!-- Log Item 1: High Priority Error -->
-<div class="bg-surface-container-lowest p-5 rounded-xl flex items-start gap-4">
-<div class="p-2 bg-error/10 text-error rounded-lg">
-<span class="material-symbols-outlined" data-icon="gavel">gavel</span>
-</div>
-<div class="flex-grow">
-<div class="flex justify-between items-start">
-<span class="text-xs font-bold text-error uppercase tracking-tighter mb-1">Booking Prevented</span>
-<span class="text-[10px] text-outline">14:22 PM</span>
-</div>
-<h4 class="text-sm font-bold text-on-surface">SaaS Subscription: AWS Renewal</h4>
-<p class="text-xs text-on-surface-variant mt-1 leading-relaxed">System blocked $12,400 transaction for Engineering. Cap exceeded.</p>
-<div class="mt-4 flex gap-2">
-<button class="bg-primary text-white text-[10px] font-bold uppercase py-2 px-3 rounded-lg">Review BRR</button>
-<button class="bg-surface-container-high text-on-surface text-[10px] font-bold uppercase py-2 px-3 rounded-lg">Dismiss</button>
-</div>
-</div>
-</div>
-<!-- Log Item 2: Warning -->
-<div class="bg-surface-container-lowest p-5 rounded-xl flex items-start gap-4 opacity-75">
-<div class="p-2 bg-amber-500/10 text-amber-600 rounded-lg">
-<span class="material-symbols-outlined" data-icon="warning">warning</span>
-</div>
-<div class="flex-grow">
-<div class="flex justify-between items-start">
-<span class="text-xs font-bold text-amber-600 uppercase tracking-tighter mb-1">Threshold Alert</span>
-<span class="text-[10px] text-outline">09:15 AM</span>
-</div>
-<h4 class="text-sm font-bold text-on-surface">Marketing Dept. &gt; 85%</h4>
-<p class="text-xs text-on-surface-variant mt-1">Approaching quarterly limit. Only critical bookings advised.</p>
-</div>
-</div>
-<!-- Log Item 3: Success -->
-<div class="bg-surface-container-lowest p-5 rounded-xl flex items-start gap-4 opacity-75">
-<div class="p-2 bg-green-600/10 text-green-600 rounded-lg">
-<span class="material-symbols-outlined" data-icon="check_circle">check_circle</span>
-</div>
-<div class="flex-grow">
-<div class="flex justify-between items-start">
-<span class="text-xs font-bold text-green-600 uppercase tracking-tighter mb-1">BRR Approved</span>
-<span class="text-[10px] text-outline">Yesterday</span>
-</div>
-<h4 class="text-sm font-bold text-on-surface">Ops: Q3 Travel Fund</h4>
-<p class="text-xs text-on-surface-variant mt-1">+$45,000 reallocated from Contingency to Operations.</p>
-</div>
-</div>
-</div>
-<!-- Mini Map / Location Context -->
-<div class="mt-8">
-<div class="rounded-xl overflow-hidden h-32 relative bg-slate-200">
-<img class="w-full h-full object-cover grayscale opacity-50" data-alt="abstract architectural top-down map style with minimalist lines and soft teal and gray tones" data-location="New York" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDYvnEXUsQD3kvye0odMBuq0sWTWM0md52SzMtQxJq8Sb52LOoQgz_dUVk22qaW2TI5Q8BzbyD1ryB2gxGSeyYtYnSf3sa8F8J32ByTrCuCbW-lIYfiwE2MTMUudvajo3m18cddxpLq5XBXanRDxeva2o4FgRcFmcbtU-NzuHa8qJGIaqRsW1a0hPw1LU0VECvNjY1Sx7bkY6uznAdJ8acoCdYOqGVL12WugI5Hb10i55HGr7C1Hw2Nl5sqlnVzbb5Ic32vZaeebQZg"/>
-<div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-<div class="bg-primary/90 text-white px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase">Global Enforcement Active</div>
-</div>
-</div>
-</div>
-</section>
-</div>
-</div>
-<!-- Bottom Control Bar -->
-<section class="mt-12 grid grid-cols-3 gap-6">
-<div class="bg-surface-container-lowest p-6 rounded-xl flex items-center gap-4 group cursor-pointer hover:bg-primary transition-colors duration-300">
-<div class="w-12 h-12 rounded-xl bg-primary-container/20 text-primary flex items-center justify-center group-hover:bg-white/20 group-hover:text-white transition-colors">
-<span class="material-symbols-outlined" data-icon="account_tree">account_tree</span>
-</div>
-<div>
-<h4 class="font-manrope font-bold text-on-surface group-hover:text-white transition-colors">Reallocation Flow</h4>
-<p class="text-xs text-outline group-hover:text-white/60 transition-colors">Manage inter-departmental transfers</p>
-</div>
-</div>
-<div class="bg-surface-container-lowest p-6 rounded-xl flex items-center gap-4 group cursor-pointer hover:bg-primary transition-colors duration-300">
-<div class="w-12 h-12 rounded-xl bg-primary-container/20 text-primary flex items-center justify-center group-hover:bg-white/20 group-hover:text-white transition-colors">
-<span class="material-symbols-outlined" data-icon="shield_lock">shield_lock</span>
-</div>
-<div>
-<h4 class="font-manrope font-bold text-on-surface group-hover:text-white transition-colors">Guardrail Logic</h4>
-<p class="text-xs text-outline group-hover:text-white/60 transition-colors">Configure 70/85/100 thresholds</p>
-</div>
-</div>
-<div class="bg-surface-container-lowest p-6 rounded-xl flex items-center gap-4 group cursor-pointer hover:bg-primary transition-colors duration-300">
-<div class="w-12 h-12 rounded-xl bg-primary-container/20 text-primary flex items-center justify-center group-hover:bg-white/20 group-hover:text-white transition-colors">
-<span class="material-symbols-outlined" data-icon="contract_edit">contract_edit</span>
-</div>
-<div>
-<h4 class="font-manrope font-bold text-on-surface group-hover:text-white transition-colors">BRR Templates</h4>
-<p class="text-xs text-outline group-hover:text-white/60 transition-colors">Download reallocation documentation</p>
-</div>
-</div>
-</section>
-</div>
+
+<main class="lg:ml-64 min-h-screen">
+
+  <!-- Header -->
+  <div class="w-full h-16 sticky top-0 z-40 bg-surface-container-lowest flex justify-between items-center px-8 border-b border-outline-variant/30 shadow-sm">
+    <div class="flex items-center gap-3">
+      <button data-back class="p-2 rounded-lg hover:bg-surface-container-low transition-colors text-on-surface-variant">
+        <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+      </button>
+      <div>
+        <h2 class="text-sm font-bold text-on-surface font-headline">Financial Compliance Hub</h2>
+        <p class="text-xs text-on-surface-variant">GST · TDS · Policy · Baki Hai Tracker</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <!-- Month picker for GST -->
+      <div class="flex items-center gap-2 bg-surface-container px-3 py-1.5 rounded-xl text-sm">
+        <span class="material-symbols-outlined text-[16px] text-on-surface-variant">calendar_month</span>
+        <input type="month" id="gst-month-picker" class="bg-transparent text-sm font-medium text-on-surface border-none outline-none"
+               value="">
+      </div>
+      <button id="refresh-btn" class="flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-bold rounded-xl hover:opacity-90 transition-opacity">
+        <span class="material-symbols-outlined text-[16px]">sync</span> Refresh
+      </button>
+      <button class="p-2 text-on-surface-variant hover:bg-surface-container-low transition-colors rounded-xl" id="notif-bell">
+        <span class="material-symbols-outlined text-[20px]" data-icon="notifications">notifications</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="px-8 py-8 max-w-7xl mx-auto space-y-8">
+
+    <!-- Global status banner -->
+    <div id="compliance-banner" class="hidden rounded-xl p-4 flex items-center gap-4 border">
+      <span class="material-symbols-outlined text-[28px] shrink-0 pulse-dot" id="banner-icon">warning</span>
+      <div class="flex-1">
+        <h3 class="font-headline font-bold text-sm" id="banner-title">Checking compliance…</h3>
+        <p class="text-xs text-on-surface-variant mt-0.5" id="banner-detail"></p>
+      </div>
+      <span id="banner-badge" class="status-badge"></span>
+    </div>
+
+    <!-- KPI Row -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-5">
+      <div class="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant/30">
+        <p class="text-[10px] font-bold text-primary uppercase tracking-widest">GST Mismatches</p>
+        <p class="text-3xl font-headline font-black mt-1" id="kpi-gst-mismatches">—</p>
+        <p class="text-xs text-on-surface-variant mt-1" id="kpi-gst-period">Current month</p>
+      </div>
+      <div class="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant/30">
+        <p class="text-[10px] font-bold text-amber-600 uppercase tracking-widest">TDS Missed</p>
+        <p class="text-3xl font-headline font-black mt-1" id="kpi-tds-missed">—</p>
+        <p class="text-xs text-on-surface-variant mt-1">Potential missed deductions</p>
+      </div>
+      <div class="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant/30">
+        <p class="text-[10px] font-bold text-red-700 uppercase tracking-widest">Policy Violations</p>
+        <p class="text-3xl font-headline font-black mt-1" id="kpi-violations">—</p>
+        <p class="text-xs text-on-surface-variant mt-1" id="kpi-compliance-rate">Last 30 days</p>
+      </div>
+      <div class="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant/30">
+        <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Total TDS Deducted</p>
+        <p class="text-3xl font-headline font-black mt-1" id="kpi-tds-total">—</p>
+        <p class="text-xs text-on-surface-variant mt-1">Across all approved bills</p>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="border-b border-outline-variant/30">
+      <div class="flex gap-0">
+        <button class="tab-btn active px-6 py-3 text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors" data-tab="gst">
+          GST Reconciliation
+        </button>
+        <button class="tab-btn px-6 py-3 text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors" data-tab="tds">
+          TDS Compliance
+        </button>
+        <button class="tab-btn px-6 py-3 text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors" data-tab="policy">
+          Policy Violations
+        </button>
+        <button class="tab-btn px-6 py-3 text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors" data-tab="baki">
+          Baki Hai Tracker
+        </button>
+      </div>
+    </div>
+
+    <!-- ── TAB: GST ── -->
+    <div class="tab-panel active" id="panel-gst">
+      <!-- GST Summary cards -->
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+        <div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/20 col-span-2 md:col-span-1">
+          <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Pre-GST</p>
+          <p class="text-xl font-headline font-black mt-1 text-primary" id="gst-pre">—</p>
+        </div>
+        <div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/20">
+          <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">CGST</p>
+          <p class="text-xl font-headline font-black mt-1" id="gst-cgst">—</p>
+        </div>
+        <div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/20">
+          <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">SGST</p>
+          <p class="text-xl font-headline font-black mt-1" id="gst-sgst">—</p>
+        </div>
+        <div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/20">
+          <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">IGST</p>
+          <p class="text-xl font-headline font-black mt-1" id="gst-igst">—</p>
+        </div>
+        <div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/20">
+          <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Total GST</p>
+          <p class="text-xl font-headline font-black mt-1 text-amber-600" id="gst-total-gst">—</p>
+        </div>
+        <div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/20">
+          <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Eff. Rate</p>
+          <p class="text-xl font-headline font-black mt-1" id="gst-eff-rate">—</p>
+        </div>
+      </div>
+
+      <!-- GST flags table -->
+      <div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden">
+        <div class="px-6 py-4 border-b border-outline-variant/20 flex items-center justify-between">
+          <h3 class="font-headline font-bold text-base text-on-surface">GST Flag Report</h3>
+          <span id="gst-flag-count" class="status-badge badge-ok">0 flags</span>
+        </div>
+        <div id="gst-flags-body" class="divide-y divide-outline-variant/10">
+          <div class="flex items-center justify-center py-16 text-on-surface-variant">
+            <span class="material-symbols-outlined text-[40px] mr-3 opacity-30">pending</span>
+            <span class="text-sm">Loading GST data…</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TAB: TDS ── -->
+    <div class="tab-panel" id="panel-tds">
+      <!-- TDS status banner -->
+      <div id="tds-status-banner" class="mb-6 p-4 rounded-xl border flex items-center gap-4 hidden">
+        <span class="material-symbols-outlined text-[28px] shrink-0" id="tds-banner-icon">check_circle</span>
+        <div>
+          <p class="font-bold text-sm" id="tds-banner-title"></p>
+          <p class="text-xs text-on-surface-variant" id="tds-banner-detail"></p>
+        </div>
+      </div>
+
+      <!-- By-section breakdown -->
+      <div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden mb-6">
+        <div class="px-6 py-4 border-b border-outline-variant/20">
+          <h3 class="font-headline font-bold text-base">TDS by Section</h3>
+          <p class="text-xs text-on-surface-variant mt-0.5">Deduction breakdown across all approved invoices</p>
+        </div>
+        <div id="tds-sections-body" class="divide-y divide-outline-variant/10">
+          <div class="flex items-center justify-center py-16 text-on-surface-variant">
+            <span class="material-symbols-outlined text-[40px] mr-3 opacity-30">pending</span>
+            <span class="text-sm">Loading TDS data…</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action items -->
+      <div id="tds-action-section" class="hidden bg-error-container/40 border border-error/20 rounded-xl p-5">
+        <h3 class="font-headline font-bold text-sm text-error flex items-center gap-2 mb-3">
+          <span class="material-symbols-outlined text-[18px]">report_problem</span>
+          Action Required
+        </h3>
+        <ul id="tds-action-list" class="space-y-2 text-sm text-on-surface"></ul>
+      </div>
+    </div>
+
+    <!-- ── TAB: POLICY ── -->
+    <div class="tab-panel" id="panel-policy">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h3 class="font-headline font-bold text-base">Policy Violation Report</h3>
+          <p class="text-xs text-on-surface-variant mt-0.5">Last 30 days · All active submissions checked against policy rules</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <select id="policy-severity-filter" class="bg-surface-container text-sm px-3 py-2 rounded-xl border-none outline-none font-medium">
+            <option value="">All Severities</option>
+            <option value="HIGH">High</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="LOW">Low</option>
+          </select>
+          <button id="investigate-policy-btn" class="flex items-center gap-2 px-4 py-2 bg-tertiary/10 text-tertiary text-sm font-bold rounded-xl hover:bg-tertiary/20 transition-colors">
+            <span class="material-symbols-outlined text-[16px]">psychology</span> Ask AI
+          </button>
+        </div>
+      </div>
+
+      <!-- Compliance rate bar -->
+      <div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-5 mb-6">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm font-bold">Overall Compliance Rate</span>
+          <span id="compliance-rate-label" class="text-2xl font-headline font-black text-primary">—%</span>
+        </div>
+        <div class="progress-bar">
+          <div id="compliance-rate-bar" class="progress-fill bg-primary" style="width:0%"></div>
+        </div>
+        <div class="flex justify-between text-xs text-on-surface-variant mt-2">
+          <span id="compliant-count-label">— compliant</span>
+          <span id="violation-count-label">— violations</span>
+        </div>
+      </div>
+
+      <!-- Violations table -->
+      <div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden">
+        <div id="policy-violations-body" class="divide-y divide-outline-variant/10">
+          <div class="flex items-center justify-center py-16 text-on-surface-variant">
+            <span class="material-symbols-outlined text-[40px] mr-3 opacity-30">pending</span>
+            <span class="text-sm">Loading policy data…</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TAB: BAKI HAI ── -->
+    <div class="tab-panel" id="panel-baki">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h3 class="font-headline font-bold text-base">Baki Hai — Outstanding Tracker</h3>
+          <p class="text-xs text-on-surface-variant mt-0.5">Departments and categories with pending/unpaid obligations</p>
+        </div>
+        <button id="baki-ai-btn" class="flex items-center gap-2 px-4 py-2 bg-tertiary/10 text-tertiary text-sm font-bold rounded-xl hover:bg-tertiary/20 transition-colors">
+          <span class="material-symbols-outlined text-[16px]">psychology</span> Investigate with AI
+        </button>
+      </div>
+
+      <!-- Summary stats -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/30">
+          <p class="text-[10px] font-bold text-red-700 uppercase tracking-widest">Outstanding Bills</p>
+          <p class="text-2xl font-headline font-black mt-1" id="baki-outstanding-count">—</p>
+        </div>
+        <div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/30">
+          <p class="text-[10px] font-bold text-amber-600 uppercase tracking-widest">Total Outstanding ₹</p>
+          <p class="text-2xl font-headline font-black mt-1" id="baki-outstanding-amt">—</p>
+        </div>
+        <div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/30">
+          <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Overdue >45 Days</p>
+          <p class="text-2xl font-headline font-black mt-1" id="baki-overdue">—</p>
+        </div>
+        <div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/30">
+          <p class="text-[10px] font-bold text-orange-700 uppercase tracking-widest">MSME At-Risk</p>
+          <p class="text-2xl font-headline font-black mt-1" id="baki-msme">—</p>
+        </div>
+      </div>
+
+      <!-- Aging buckets visual -->
+      <div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-6 mb-6">
+        <h4 class="font-headline font-bold text-sm mb-5">Payables Aging (Outstanding Bills)</h4>
+        <div class="grid grid-cols-4 gap-4" id="baki-aging-grid">
+          <div class="text-center opacity-40">
+            <div class="text-xs text-on-surface-variant mb-2">0–30 Days</div>
+            <div class="text-2xl font-headline font-black text-green-600">—</div>
+            <div class="text-xs text-on-surface-variant mt-1">—</div>
+          </div>
+          <div class="text-center opacity-40">
+            <div class="text-xs text-on-surface-variant mb-2">31–60 Days</div>
+            <div class="text-2xl font-headline font-black text-amber-500">—</div>
+            <div class="text-xs text-on-surface-variant mt-1">—</div>
+          </div>
+          <div class="text-center opacity-40">
+            <div class="text-xs text-on-surface-variant mb-2">61–90 Days</div>
+            <div class="text-2xl font-headline font-black text-orange-500">—</div>
+            <div class="text-xs text-on-surface-variant mt-1">—</div>
+          </div>
+          <div class="text-center opacity-40">
+            <div class="text-xs text-on-surface-variant mb-2">&gt;90 Days</div>
+            <div class="text-2xl font-headline font-black text-red-600">—</div>
+            <div class="text-xs text-on-surface-variant mt-1">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Overdue vendor list -->
+      <div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden">
+        <div class="px-6 py-4 border-b border-outline-variant/20 flex items-center justify-between">
+          <h4 class="font-headline font-bold text-sm">Overdue Vendor Bills (&gt;90 Days)</h4>
+          <span class="status-badge badge-warn" id="baki-overdue-badge">Loading…</span>
+        </div>
+        <div id="baki-overdue-body" class="divide-y divide-outline-variant/10">
+          <div class="flex items-center justify-center py-12 text-on-surface-variant">
+            <span class="material-symbols-outlined text-[40px] mr-3 opacity-30">pending</span>
+            <span class="text-sm">Loading data…</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Non-compliant categories -->
+      <div class="mt-6">
+        <h4 class="font-headline font-bold text-sm mb-4">Category Compliance Status</h4>
+        <div id="baki-categories-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /max-w -->
 </main>
-<!-- FAB (Suppressed based on logic - but providing for completeness if needed in dashboard context) -->
-<button class="fixed bottom-8 right-8 w-14 h-14 rounded-full gradient-btn shadow-2xl flex items-center justify-center text-white hover:scale-105 transition-transform">
-<span class="material-symbols-outlined" data-icon="add" style="font-variation-settings: 'FILL' 0;">add</span>
-</button>
-<!-- Shared Scripts -->
+
 <script src="/frontend/shared/api.js"></script>
-<script src="/frontend/shared/auth.js"></script>
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
-        // Wire Sign Out
-        const signOutEl = document.querySelector('[data-logout]');
-        if (signOutEl) {
-            signOutEl.addEventListener('click', () => {
-                AUTH.clearSession();
-                window.location.href = '/frontend/financeai_login/code.html';
-            });
-        }
-    });
-</script>
 <script src="/frontend/shared/layout.js"></script>
-</body></html>
+<script>
+(async function() {
+  // ── Helpers ──────────────────────────────────────────────────────────────
+  const $ = id => document.getElementById(id);
+  const fmt = n => n == null ? '—' : '₹' + Number(n).toLocaleString('en-IN', {maximumFractionDigits:0});
+  const fmtPct = n => n == null ? '—' : n.toFixed(1) + '%';
+
+  // Set default month picker to current month
+  const now = new Date();
+  const mo = String(now.getMonth()+1).padStart(2,'0');
+  $('gst-month-picker').value = `${now.getFullYear()}-${mo}`;
+
+  // ── Tab switching ─────────────────────────────────────────────────────────
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      $('panel-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // ── Severity badge helper ────────────────────────────────────────────────
+  function severityBadge(sev) {
+    const map = { HIGH:'badge-error', MEDIUM:'badge-warn', LOW:'status-badge badge-ok text-green-700 bg-green-50' };
+    const cls = map[sev] || 'badge-ok';
+    return `<span class="status-badge ${cls}">${sev || 'INFO'}</span>`;
+  }
+
+  // ── Load all data ─────────────────────────────────────────────────────────
+  async function loadAll() {
+    const month = $('gst-month-picker').value;
+    const [gstRes, tdsRes, policyRes, wkRes] = await Promise.allSettled([
+      window.api.request(`/invoices/analytics/gst-recon/${month ? '?month=' + month : ''}`),
+      window.api.request('/invoices/analytics/tds-compliance/'),
+      window.api.request('/invoices/analytics/policy-compliance/'),
+      window.api.request('/invoices/analytics/working-capital/'),
+    ]);
+
+    const gst    = gstRes.status    === 'fulfilled' ? gstRes.value    : null;
+    const tds    = tdsRes.status    === 'fulfilled' ? tdsRes.value    : null;
+    const policy = policyRes.status === 'fulfilled' ? policyRes.value : null;
+    const wk     = wkRes.status     === 'fulfilled' ? wkRes.value     : null;
+
+    renderKPIs(gst, tds, policy);
+    renderBanner(gst, tds, policy);
+    renderGST(gst);
+    renderTDS(tds);
+    renderPolicy(policy);
+    renderBaki(wk, policy);
+  }
+
+  // ── KPIs ──────────────────────────────────────────────────────────────────
+  function renderKPIs(gst, tds, policy) {
+    $('kpi-gst-mismatches').textContent = gst ? gst.summary.mismatch_count : '—';
+    if (gst) $('kpi-gst-period').textContent = `${gst.period.from} → ${gst.period.to}`;
+
+    $('kpi-tds-missed').textContent  = tds ? tds.potentially_missed_deductions : '—';
+    $('kpi-tds-total').textContent   = tds ? fmt(tds.total_tds_deducted) : '—';
+
+    if (policy) {
+      $('kpi-violations').textContent    = policy.violation_count;
+      $('kpi-compliance-rate').textContent = `${policy.compliance_rate_pct}% compliant · last 30d`;
+    }
+  }
+
+  // ── Global banner ─────────────────────────────────────────────────────────
+  function renderBanner(gst, tds, policy) {
+    const issues = [];
+    if (gst   && gst.summary.mismatch_count > 0)          issues.push(`${gst.summary.mismatch_count} GST mismatch(es)`);
+    if (tds   && tds.potentially_missed_deductions > 0)    issues.push(`${tds.potentially_missed_deductions} missed TDS deduction(s)`);
+    if (policy && policy.violation_count > 0)              issues.push(`${policy.violation_count} policy violation(s)`);
+
+    const banner = $('compliance-banner');
+    banner.classList.remove('hidden');
+
+    if (issues.length === 0) {
+      banner.className = 'rounded-xl p-4 flex items-center gap-4 border bg-green-50 border-green-200';
+      $('banner-icon').textContent = 'check_circle';
+      $('banner-icon').className   = 'material-symbols-outlined fill-icon text-[28px] shrink-0 text-green-600';
+      $('banner-title').textContent  = 'All Systems Compliant';
+      $('banner-detail').textContent = 'No GST mismatches, TDS gaps, or policy violations found.';
+      $('banner-badge').className    = 'status-badge badge-ok';
+      $('banner-badge').textContent  = 'COMPLIANT';
+    } else {
+      banner.className = 'rounded-xl p-4 flex items-center gap-4 border bg-red-50 border-red-200';
+      $('banner-icon').textContent = 'warning';
+      $('banner-icon').className   = 'material-symbols-outlined text-[28px] shrink-0 text-red-600 pulse-dot';
+      $('banner-title').textContent  = 'Compliance Issues Detected';
+      $('banner-detail').textContent = issues.join(' · ');
+      $('banner-badge').className    = 'status-badge badge-error';
+      $('banner-badge').textContent  = 'ACTION REQUIRED';
+    }
+  }
+
+  // ── GST Tab ───────────────────────────────────────────────────────────────
+  function renderGST(gst) {
+    if (!gst) {
+      $('gst-flags-body').innerHTML = '<div class="flex items-center justify-center py-12 text-red-500 text-sm">Failed to load GST data.</div>';
+      return;
+    }
+    const s = gst.summary;
+    $('gst-pre').textContent      = fmt(s.total_pre_gst);
+    $('gst-cgst').textContent     = fmt(s.total_cgst);
+    $('gst-sgst').textContent     = fmt(s.total_sgst);
+    $('gst-igst').textContent     = fmt(s.total_igst);
+    $('gst-total-gst').textContent = fmt(s.total_gst);
+    $('gst-eff-rate').textContent  = fmtPct(s.effective_gst_rate_pct);
+
+    const count = gst.flags.length;
+    const badge = $('gst-flag-count');
+    badge.textContent = `${count} flag${count !== 1 ? 's' : ''}`;
+    badge.className   = `status-badge ${count > 0 ? 'badge-error' : 'badge-ok'}`;
+
+    if (count === 0) {
+      $('gst-flags-body').innerHTML = `
+        <div class="flex flex-col items-center justify-center py-14 text-on-surface-variant gap-3">
+          <span class="material-symbols-outlined fill-icon text-[48px] text-green-500">check_circle</span>
+          <p class="text-sm font-medium">No GST discrepancies found for this period.</p>
+        </div>`;
+      return;
+    }
+
+    $('gst-flags-body').innerHTML = gst.flags.map(f => `
+      <div class="px-6 py-4 hover:bg-surface-container-low transition-colors flex flex-wrap items-center gap-4">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-0.5">
+            <span class="font-mono text-xs font-bold text-primary">${f.ref_no || '—'}</span>
+            <span class="text-xs text-on-surface-variant">· ${f.invoice_date || ''}</span>
+          </div>
+          <p class="text-sm font-semibold text-on-surface truncate">${f.vendor}</p>
+          <p class="text-xs text-red-600 mt-0.5">${f.issue}</p>
+        </div>
+        <div class="text-right shrink-0">
+          <p class="text-xs text-on-surface-variant">Declared</p>
+          <p class="text-sm font-bold">${fmt(f.declared_total)}</p>
+        </div>
+        <div class="text-right shrink-0">
+          <p class="text-xs text-on-surface-variant">Calculated</p>
+          <p class="text-sm font-bold">${fmt(f.calculated_total)}</p>
+        </div>
+        <div class="text-right shrink-0">
+          <p class="text-xs text-on-surface-variant">Variance</p>
+          <p class="text-sm font-bold ${f.variance !== 0 ? 'text-red-600' : 'text-green-600'}">${f.variance > 0 ? '+' : ''}${fmt(f.variance)}</p>
+        </div>
+      </div>`).join('');
+  }
+
+  // ── TDS Tab ───────────────────────────────────────────────────────────────
+  function renderTDS(tds) {
+    if (!tds) {
+      $('tds-sections-body').innerHTML = '<div class="flex items-center justify-center py-12 text-red-500 text-sm">Failed to load TDS data.</div>';
+      return;
+    }
+
+    // Status banner
+    const tdsBanner = $('tds-status-banner');
+    tdsBanner.classList.remove('hidden');
+    if (tds.compliance_status === 'COMPLIANT') {
+      tdsBanner.className = 'mb-6 p-4 rounded-xl border flex items-center gap-4 bg-green-50 border-green-200';
+      $('tds-banner-icon').textContent = 'check_circle';
+      $('tds-banner-icon').className   = 'material-symbols-outlined fill-icon text-[28px] shrink-0 text-green-600';
+      $('tds-banner-title').textContent  = 'TDS Compliant';
+      $('tds-banner-detail').textContent = 'No missed TDS deductions detected.';
+    } else {
+      tdsBanner.className = 'mb-6 p-4 rounded-xl border flex items-center gap-4 bg-amber-50 border-amber-200';
+      $('tds-banner-icon').textContent = 'warning';
+      $('tds-banner-icon').className   = 'material-symbols-outlined text-[28px] shrink-0 text-amber-600';
+      $('tds-banner-title').textContent  = 'TDS Action Required';
+      $('tds-banner-detail').textContent = `${tds.potentially_missed_deductions} invoice(s) may have missed TDS deductions.`;
+    }
+
+    // Sections
+    if (!tds.by_section || tds.by_section.length === 0) {
+      $('tds-sections-body').innerHTML = `
+        <div class="flex flex-col items-center justify-center py-14 text-on-surface-variant gap-3">
+          <span class="material-symbols-outlined text-[48px] opacity-30">receipt_long</span>
+          <p class="text-sm">No TDS data available. Bills with TDS deductions will appear here.</p>
+        </div>`;
+    } else {
+      $('tds-sections-body').innerHTML = `
+        <div class="px-6 py-3 bg-surface-container-low grid grid-cols-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+          <span>Section</span><span class="text-right">Invoice Count</span><span class="text-right">Total Base</span>
+          <span class="text-right">TDS Deducted · Eff. Rate</span>
+        </div>
+        ${tds.by_section.map(s => `
+        <div class="px-6 py-4 grid grid-cols-4 hover:bg-surface-container-low transition-colors items-center">
+          <div>
+            <p class="font-bold text-sm text-primary">${s.section}</p>
+          </div>
+          <div class="text-right text-sm">${s.count}</div>
+          <div class="text-right text-sm">${fmt(s.total_base)}</div>
+          <div class="text-right">
+            <p class="text-sm font-bold">${fmt(s.total_tds)}</p>
+            <p class="text-xs text-on-surface-variant">${fmtPct(s.effective_rate)}</p>
+          </div>
+        </div>`).join('')}`;
+    }
+
+    // Action items
+    if (tds.action_items && tds.action_items.length > 0) {
+      $('tds-action-section').classList.remove('hidden');
+      $('tds-action-list').innerHTML = tds.action_items.map(a => `
+        <li class="flex items-start gap-2">
+          <span class="material-symbols-outlined text-error text-[16px] mt-0.5 shrink-0">error</span>
+          <span>${a}</span>
+        </li>`).join('');
+    }
+  }
+
+  // ── Policy Tab ────────────────────────────────────────────────────────────
+  let _allViolations = [];
+
+  function renderPolicy(policy) {
+    if (!policy) {
+      $('policy-violations-body').innerHTML = '<div class="flex items-center justify-center py-12 text-red-500 text-sm">Failed to load policy data.</div>';
+      return;
+    }
+
+    const rate = policy.compliance_rate_pct || 0;
+    $('compliance-rate-label').textContent   = fmtPct(rate);
+    $('compliance-rate-bar').style.width     = rate + '%';
+    $('compliance-rate-bar').className       = `progress-fill ${rate >= 90 ? 'bg-green-500' : rate >= 70 ? 'bg-amber-500' : 'bg-red-500'}`;
+    $('compliant-count-label').textContent   = `${policy.compliant_count} compliant`;
+    $('violation-count-label').textContent   = `${policy.violation_count} violations`;
+
+    _allViolations = policy.violations || [];
+    renderViolationsTable(_allViolations);
+  }
+
+  function renderViolationsTable(violations) {
+    if (!violations || violations.length === 0) {
+      $('policy-violations-body').innerHTML = `
+        <div class="flex flex-col items-center justify-center py-14 text-on-surface-variant gap-3">
+          <span class="material-symbols-outlined fill-icon text-[48px] text-green-500">verified_user</span>
+          <p class="text-sm font-medium">No policy violations found in the last 30 days.</p>
+        </div>`;
+      return;
+    }
+
+    $('policy-violations-body').innerHTML = `
+      <div class="px-6 py-3 bg-surface-container-low grid grid-cols-12 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+        <span class="col-span-2">Ref No</span>
+        <span class="col-span-3">Vendor</span>
+        <span class="col-span-4">Issue</span>
+        <span class="col-span-2">Rule</span>
+        <span class="col-span-1 text-center">Severity</span>
+      </div>
+      ${violations.map(v => `
+      <div class="px-6 py-4 grid grid-cols-12 hover:bg-surface-container-low transition-colors items-center gap-1">
+        <div class="col-span-2">
+          <span class="font-mono text-xs font-bold text-primary">${v.ref_no || '—'}</span>
+        </div>
+        <div class="col-span-3 text-sm text-on-surface truncate">${v.vendor || '—'}</div>
+        <div class="col-span-4 text-xs text-on-surface-variant">${v.message || '—'}</div>
+        <div class="col-span-2">
+          <span class="text-xs font-mono bg-surface-container px-2 py-0.5 rounded">${v.rule || '—'}</span>
+        </div>
+        <div class="col-span-1 text-center">${severityBadge(v.severity)}</div>
+      </div>`).join('')}`;
+  }
+
+  // Policy severity filter
+  $('policy-severity-filter').addEventListener('change', e => {
+    const sev = e.target.value;
+    renderViolationsTable(sev ? _allViolations.filter(v => v.severity === sev) : _allViolations);
+  });
+
+  // Ask AI about policy
+  $('investigate-policy-btn').addEventListener('click', () => {
+    const query = `Analyze policy violations in the last 30 days. Total violations: ${$('kpi-violations').textContent}. Compliance rate: ${$('compliance-rate-label').textContent}. What are the most common rule breaches and recommended remediation?`;
+    if (window.openChatbot) window.openChatbot(query);
+    else { window._pendingChatQuery = query; }
+  });
+
+  // ── Baki Hai Tab ──────────────────────────────────────────────────────────
+  function renderBaki(wk, policy) {
+    if (!wk) {
+      $('baki-overdue-body').innerHTML = '<div class="flex items-center justify-center py-12 text-red-500 text-sm">Failed to load working capital data.</div>';
+      return;
+    }
+
+    // Summary KPIs
+    const totalAmt = Object.values(wk.aging).reduce((s, b) => s + b.amount, 0);
+    const totalCnt = Object.values(wk.aging).reduce((s, b) => s + b.count, 0);
+    $('baki-outstanding-count').textContent = totalCnt;
+    $('baki-outstanding-amt').textContent   = fmt(totalAmt);
+    $('baki-overdue').textContent           = wk.dpo_days ? `DPO: ${wk.dpo_days}d` : '—';
+    $('baki-msme').textContent              = wk.msme_breach_risk_count || 0;
+
+    // Aging grid
+    const aging = wk.aging;
+    const agingBuckets = [
+      { key:'0_30_days',  label:'0–30 Days',  cls:'text-green-600',  cnt: aging['0_30_days']?.count || 0,  amt: aging['0_30_days']?.amount || 0 },
+      { key:'31_60_days', label:'31–60 Days', cls:'text-amber-500',  cnt: aging['31_60_days']?.count || 0, amt: aging['31_60_days']?.amount || 0 },
+      { key:'61_90_days', label:'61–90 Days', cls:'text-orange-500', cnt: aging['61_90_days']?.count || 0, amt: aging['61_90_days']?.amount || 0 },
+      { key:'over_90_days',label:'>90 Days',  cls:'text-red-600',    cnt: aging['over_90_days']?.count || 0, amt: aging['over_90_days']?.amount || 0 },
+    ];
+
+    $('baki-aging-grid').innerHTML = agingBuckets.map(b => `
+      <div class="text-center">
+        <div class="text-xs text-on-surface-variant mb-2">${b.label}</div>
+        <div class="text-2xl font-headline font-black ${b.cls}">${b.cnt}</div>
+        <div class="text-xs text-on-surface-variant mt-1">${fmt(b.amt)}</div>
+      </div>`).join('');
+
+    // Overdue vendors
+    const overdue = wk.overdue_vendors || [];
+    $('baki-overdue-badge').textContent = `${overdue.length} vendor${overdue.length !== 1 ? 's' : ''}`;
+    $('baki-overdue-badge').className   = `status-badge ${overdue.length > 0 ? 'badge-error' : 'badge-ok'}`;
+
+    if (overdue.length === 0) {
+      $('baki-overdue-body').innerHTML = `
+        <div class="flex flex-col items-center justify-center py-12 text-on-surface-variant gap-3">
+          <span class="material-symbols-outlined fill-icon text-[48px] text-green-500">check_circle</span>
+          <p class="text-sm">No bills overdue beyond 90 days.</p>
+        </div>`;
+    } else {
+      $('baki-overdue-body').innerHTML = `
+        <div class="px-6 py-3 bg-surface-container-low grid grid-cols-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+          <span>Vendor</span><span>Ref No</span><span class="text-right">Amount</span><span class="text-right">Days Overdue</span>
+        </div>
+        ${overdue.map(v => `
+        <div class="px-6 py-4 grid grid-cols-4 items-center hover:bg-surface-container-low transition-colors">
+          <div class="text-sm font-semibold text-on-surface truncate pr-2">${v.vendor}</div>
+          <div class="font-mono text-xs font-bold text-primary">${v.ref_no}</div>
+          <div class="text-sm font-bold text-right">${fmt(v.amount)}</div>
+          <div class="text-right">
+            <span class="status-badge badge-error">${v.days}d</span>
+          </div>
+        </div>`).join('')}`;
+    }
+
+    // Category compliance from policy violations
+    renderBakiCategories(policy);
+  }
+
+  function renderBakiCategories(policy) {
+    const categories = ['Travel', 'Food', 'Stay', 'Training', 'Office', 'Misc'];
+    const violationsByCategory = {};
+    if (policy && policy.violations) {
+      policy.violations.forEach(v => {
+        const cat = v.category || 'Other';
+        if (!violationsByCategory[cat]) violationsByCategory[cat] = 0;
+        violationsByCategory[cat]++;
+      });
+    }
+
+    $('baki-categories-grid').innerHTML = categories.map(cat => {
+      const count = violationsByCategory[cat] || 0;
+      const cls = count === 0 ? 'baki-ok' : count <= 2 ? 'baki-warning' : 'baki-critical';
+      const badge = count === 0 ? 'badge-ok' : count <= 2 ? 'badge-warn' : 'badge-error';
+      const label = count === 0 ? 'Compliant' : `${count} violation${count !== 1 ? 's' : ''}`;
+      return `
+        <div class="baki-card ${cls} bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/20 hover:shadow-sm transition-shadow">
+          <div class="flex items-center justify-between mb-3">
+            <span class="font-headline font-bold text-sm">${cat}</span>
+            <span class="status-badge ${badge}">${label}</span>
+          </div>
+          <p class="text-xs text-on-surface-variant">${count === 0 ? 'No policy breaches in last 30 days' : 'Review required — policy rules breached'}</p>
+        </div>`;
+    }).join('');
+  }
+
+  // Baki AI investigate
+  $('baki-ai-btn').addEventListener('click', () => {
+    const outstanding = $('baki-outstanding-amt').textContent;
+    const msme = $('baki-msme').textContent;
+    const query = `Investigate our outstanding payables and Baki Hai status. Total outstanding: ${outstanding}. MSME breach risk count: ${msme}. Which vendors are most overdue and what should we prioritize for payment to avoid compliance issues?`;
+    if (window.openChatbot) window.openChatbot(query);
+    else { window._pendingChatQuery = query; }
+  });
+
+  // Refresh button
+  $('refresh-btn').addEventListener('click', loadAll);
+  $('gst-month-picker').addEventListener('change', loadAll);
+
+  // Initial load
+  loadAll();
+})();
+</script>
+</body>
+</html>

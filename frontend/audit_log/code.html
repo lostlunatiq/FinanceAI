@@ -152,145 +152,51 @@
 <!-- Contextual Filters Section -->
 <section class="bg-surface-container-low p-6 rounded-xl mb-8 flex flex-wrap gap-4 items-center">
 <div class="flex-1 min-w-[200px]">
-<label class="block text-[10px] uppercase font-bold text-on-surface-variant/70 mb-1 ml-1">User Entity</label>
-<select class="w-full bg-surface-container-lowest border-none rounded-lg text-sm px-3 py-2.5 focus:ring-2 focus:ring-primary/20">
-<option>All Users</option>
-<option>Jane Doe (Admin)</option>
-<option>Marcus Sterling (Auditor)</option>
-<option>Finance Automation Bot</option>
-</select>
-</div>
-<div class="flex-1 min-w-[200px]">
 <label class="block text-[10px] uppercase font-bold text-on-surface-variant/70 mb-1 ml-1">Action Type</label>
-<select class="w-full bg-surface-container-lowest border-none rounded-lg text-sm px-3 py-2.5 focus:ring-2 focus:ring-primary/20">
-<option>All Actions</option>
-<option>Invoice Approval</option>
-<option>Vendor Modification</option>
-<option>Access Permission Change</option>
-<option>System Update</option>
+<select id="filter-action" class="w-full bg-surface-container-lowest border-none rounded-lg text-sm px-3 py-2.5 focus:ring-2 focus:ring-primary/20">
+<option value="">All Actions</option>
+<option value="approved">Approvals</option>
+<option value="rejected">Rejections</option>
+<option value="submitted">Submissions</option>
+<option value="query">Queries</option>
+<option value="override">Superior Override</option>
+<option value="paid">Payments</option>
+<option value="vendor">Vendor Changes</option>
 </select>
 </div>
 <div class="flex-1 min-w-[200px]">
-<label class="block text-[10px] uppercase font-bold text-on-surface-variant/70 mb-1 ml-1">Date Range</label>
-<div class="flex items-center bg-surface-container-lowest rounded-lg px-3 py-2.5">
-<span class="material-symbols-outlined text-sm text-on-surface-variant mr-2" data-icon="calendar_today">calendar_today</span>
-<input class="bg-transparent border-none p-0 text-sm w-full focus:ring-0" type="text" value="Oct 01, 2023 - Oct 31, 2023"/>
+<label class="block text-[10px] uppercase font-bold text-on-surface-variant/70 mb-1 ml-1">Entity Type</label>
+<select id="filter-entity" class="w-full bg-surface-container-lowest border-none rounded-lg text-sm px-3 py-2.5 focus:ring-2 focus:ring-primary/20">
+<option value="">All Entities</option>
+<option value="Expense">Invoices / Expenses</option>
+<option value="Vendor">Vendor</option>
+<option value="User">User / Auth</option>
+</select>
 </div>
-</div>
-<div class="flex items-end h-full self-end">
-<button class="bg-surface-container-high text-primary px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-surface-container-highest transition-colors">
-                        Clear Filters
-                    </button>
+<div class="flex items-end h-full self-end gap-2">
+<button id="apply-filters" class="primary-gradient text-white px-5 py-2.5 rounded-lg font-bold text-sm transition-opacity hover:opacity-90">
+  Apply
+</button>
+<button id="clear-filters" class="bg-surface-container-high text-primary px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-surface-container-highest transition-colors">
+  Clear
+</button>
 </div>
 </section>
-<!-- Timeline-Style Audit Log (Asymmetric Editorial Layout) -->
+<!-- Timeline-Style Audit Log (Live Data) -->
 <div class="relative">
-<!-- Vertical Timeline Guide -->
 <div class="absolute left-[31px] top-0 bottom-0 w-px bg-outline-variant/20 hidden md:block"></div>
-<div class="space-y-12">
-<!-- Date Header -->
-<div class="relative flex items-center gap-6">
-<div class="w-16 h-16 rounded-full bg-surface-container-high flex items-center justify-center z-10 signature-shadow">
-<span class="font-bold text-primary font-headline">24</span>
+<!-- Live log entries injected here -->
+<div id="audit-timeline" class="space-y-8">
+  <div class="flex items-center justify-center py-16 text-on-surface-variant">
+    <span class="material-symbols-outlined animate-spin mr-2">refresh</span> Loading audit records...
+  </div>
 </div>
-<div>
-<h3 class="text-xl font-bold font-headline text-on-surface">October 2023</h3>
-<p class="text-sm text-on-surface-variant">12 recorded events</p>
+<!-- Pagination -->
+<div class="mt-12 flex justify-center gap-3" id="audit-pagination">
+  <button id="audit-load-more" class="hidden bg-surface-container-lowest border border-outline-variant/30 text-on-surface-variant px-10 py-3 rounded-xl font-semibold hover:bg-surface-container-low transition-colors signature-shadow">
+    Load more records
+  </button>
 </div>
-</div>
-<!-- Audit Item 1 -->
-<div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
-<div class="md:col-span-1 flex justify-center pt-4">
-<div class="w-3 h-3 rounded-full bg-primary-container ring-4 ring-background z-10"></div>
-</div>
-<div class="md:col-span-7">
-<div class="bg-surface-container-lowest p-6 rounded-xl signature-shadow border border-outline-variant/10">
-<div class="flex justify-between items-start mb-4">
-<span class="bg-primary/10 text-primary text-[10px] font-bold px-2 py-1 rounded">INVOICE_APPROVAL</span>
-<span class="text-xs text-on-surface-variant font-mono">ID: AL-98234-X</span>
-</div>
-<h4 class="text-lg font-semibold mb-2">Invoice #INV-2023-004 Approved</h4>
-<p class="text-on-surface-variant leading-relaxed text-sm">Action authorized for vendor <span class="font-bold text-on-surface">Global Logistics Corp</span> in the amount of <span class="font-bold text-on-surface">$12,450.00</span>. All compliance checks passed.</p>
-<div class="mt-4 pt-4 border-t border-outline-variant/10 flex items-center gap-3">
-<img alt="Jane Doe" class="w-6 h-6 rounded-full" data-alt="professional headshot of a diverse woman with glasses, smiling softly in a brightly lit modern office" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBwDnVxtGgsacxGOsdbT_F_kLFelCYRVjtjIV-zHgnaPqA_7unHntuhwrNAvqgACebgw4R165xEWe95wIj9Zruy6DA4ELAg3ExcKemuthNXETeMvzCJY9yeLLl7ZYg_WPE_2TLbr0PHjkFDv0mr6hjv71oMk2GlkeuAOY5x8N7oDzz4hSJ7Z_HyaiKz_qMUKiGFCKIuLDIdP_FGu0Zh2rz7lvQAIFde5J8qKveHcJ00vW3JbVy7_Dv4CKa0h4NyYebyljDu6O7Q7tVG"/>
-<span class="text-xs text-on-surface-variant">Initiated by <strong class="text-on-surface">Jane Doe</strong> (Controller) at 09:42 AM EST</span>
-</div>
-</div>
-</div>
-<div class="md:col-span-4 hidden md:block">
-<div class="p-6 bg-surface-container-low/50 rounded-xl">
-<h5 class="text-[10px] font-bold text-on-surface-variant/70 uppercase mb-3">Technical Metadata</h5>
-<div class="space-y-2 font-mono text-[11px] text-on-surface-variant">
-<div class="flex justify-between"><span>IP Address</span><span class="text-on-surface">192.168.1.14</span></div>
-<div class="flex justify-between"><span>User Agent</span><span class="text-on-surface truncate ml-4">Chrome 118 / MacOS</span></div>
-<div class="flex justify-between"><span>Auth Type</span><span class="text-on-surface">MFA_BIOMETRIC</span></div>
-</div>
-</div>
-</div>
-</div>
-<!-- Audit Item 2 - ALERT TYPE -->
-<div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
-<div class="md:col-span-1 flex justify-center pt-4">
-<div class="w-3 h-3 rounded-full bg-error ring-4 ring-background z-10"></div>
-</div>
-<div class="md:col-span-7">
-<div class="bg-surface-container-lowest p-6 rounded-xl signature-shadow border border-error/5">
-<div class="flex justify-between items-start mb-4">
-<span class="bg-error/10 text-error text-[10px] font-bold px-2 py-1 rounded">CRITICAL_CHANGE</span>
-<span class="text-xs text-on-surface-variant font-mono">ID: AL-98255-Y</span>
-</div>
-<h4 class="text-lg font-semibold mb-2 text-on-surface">Vendor Bank Details Modified</h4>
-<p class="text-on-surface-variant leading-relaxed text-sm">ACH Routing number for <span class="font-bold text-on-surface">Apex Software Solutions</span> was changed. This action triggered a mandatory 24-hour verification hold.</p>
-<div class="mt-4 flex gap-2">
-<div class="px-3 py-2 bg-surface-container-low rounded-lg text-xs">
-<span class="block text-[9px] text-on-surface-variant/70 mb-0.5">FROM</span>
-<span class="font-mono line-through opacity-50">**** 4421</span>
-</div>
-<div class="px-3 py-2 bg-surface-container-low rounded-lg text-xs">
-<span class="block text-[9px] text-on-surface-variant/70 mb-0.5">TO</span>
-<span class="font-mono text-primary">**** 8802</span>
-</div>
-</div>
-<div class="mt-4 pt-4 border-t border-outline-variant/10 flex items-center gap-3">
-<span class="material-symbols-outlined text-primary text-sm" data-icon="psychology">psychology</span>
-<span class="text-xs text-on-surface-variant">Automated trigger by <strong class="text-on-surface">Security Watchdog AI</strong> at 11:15 AM EST</span>
-</div>
-</div>
-</div>
-<div class="md:col-span-4 flex items-center h-full">
-<div class="flex items-center gap-3 text-error">
-<span class="material-symbols-outlined" data-icon="warning">warning</span>
-<span class="text-xs font-bold font-headline">Verification Pending</span>
-</div>
-</div>
-</div>
-<!-- Audit Item 3 -->
-<div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
-<div class="md:col-span-1 flex justify-center pt-4">
-<div class="w-3 h-3 rounded-full bg-outline ring-4 ring-background z-10"></div>
-</div>
-<div class="md:col-span-7">
-<div class="bg-surface-container-lowest p-6 rounded-xl signature-shadow border border-outline-variant/10">
-<div class="flex justify-between items-start mb-4">
-<span class="bg-secondary/10 text-secondary text-[10px] font-bold px-2 py-1 rounded">ACCESS_GRANT</span>
-<span class="text-xs text-on-surface-variant font-mono">ID: AL-98288-Z</span>
-</div>
-<h4 class="text-lg font-semibold mb-2">New Auditor Account Created</h4>
-<p class="text-on-surface-variant leading-relaxed text-sm">Role <span class="font-bold text-on-surface">External_Auditor</span> provisioned for <span class="font-bold text-on-surface">m.sterling@pwc-audit.com</span> with read-only ledger access.</p>
-<div class="mt-4 pt-4 border-t border-outline-variant/10 flex items-center gap-3">
-<div class="w-6 h-6 rounded-full bg-secondary-container flex items-center justify-center text-[10px] font-bold text-on-secondary-container">MS</div>
-<span class="text-xs text-on-surface-variant">Admin action by <strong class="text-on-surface">Marcus Sterling</strong> at 02:30 PM EST</span>
-</div>
-</div>
-</div>
-</div>
-</div>
-</div>
-<!-- Load More / Pagination -->
-<div class="mt-16 flex justify-center">
-<button class="bg-surface-container-lowest border border-outline-variant/30 text-on-surface-variant px-12 py-3 rounded-xl font-semibold hover:bg-surface-container-low transition-colors signature-shadow">
-                    Load previous records
-                </button>
 </div>
 </div>
 </main>
@@ -304,16 +210,131 @@
 <script src="/frontend/shared/api.js"></script>
 <script src="/frontend/shared/auth.js"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        // Wire Sign Out
-        const signOutEl = document.querySelector('[data-logout]');
-        if (signOutEl) {
-            signOutEl.addEventListener('click', () => {
-                AUTH.clearSession();
-                window.location.href = '/frontend/financeai_login/code.html';
-            });
+const AUDIT_PAGE_SIZE = 25;
+let auditOffset = 0;
+let auditTotal = 0;
+let auditFilters = {};
+
+function _actionColor(action) {
+    if (action.includes('approved') || action.includes('paid')) return 'bg-primary/10 text-primary';
+    if (action.includes('rejected') || action.includes('critical') || action.includes('override')) return 'bg-error/10 text-error';
+    if (action.includes('query')) return 'bg-tertiary/10 text-tertiary';
+    return 'bg-secondary/10 text-secondary';
+}
+function _dotColor(action) {
+    if (action.includes('approved') || action.includes('paid')) return 'bg-primary-container';
+    if (action.includes('rejected') || action.includes('override')) return 'bg-error';
+    if (action.includes('query')) return 'bg-tertiary';
+    return 'bg-outline';
+}
+function _actionLabel(action) {
+    return action.replace('expense.', '').replace(/_/g, ' ').toUpperCase();
+}
+function _renderEntry(entry) {
+    const ts = new Date(entry.timestamp);
+    const timeStr = ts.toLocaleString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const details = entry.details || {};
+    const detailText = details.reason ? `Reason: ${details.reason}` :
+        details.status ? `Status → ${details.status}` : '';
+    const isOverride = entry.action.includes('override');
+    const borderClass = isOverride ? 'border-error/20' : 'border-outline-variant/10';
+    const entityLink = entry.entity_id
+        ? `<a href="/frontend/accounts_payable_hub/code.html?bill_id=${entry.entity_id}" class="text-xs text-primary font-mono hover:underline">${entry.entity_id.slice(0, 8)}…</a>`
+        : '';
+    return `
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+      <div class="md:col-span-1 flex justify-center pt-4">
+        <div class="w-3 h-3 rounded-full ${_dotColor(entry.action)} ring-4 ring-background z-10"></div>
+      </div>
+      <div class="md:col-span-8">
+        <div class="bg-surface-container-lowest p-5 rounded-xl signature-shadow border ${borderClass}">
+          <div class="flex justify-between items-start mb-3">
+            <span class="${_actionColor(entry.action)} text-[10px] font-bold px-2 py-1 rounded">${_actionLabel(entry.action)}</span>
+            <span class="text-xs text-on-surface-variant font-mono">${timeStr}</span>
+          </div>
+          <h4 class="text-base font-semibold mb-1 text-on-surface">
+            ${entry.entity_type}${entry.entity_id ? ' — ' : ''}${entityLink}
+          </h4>
+          ${detailText ? `<p class="text-on-surface-variant text-sm">${detailText}</p>` : ''}
+          ${isOverride ? '<div class="mt-2 inline-flex items-center gap-1 bg-error/5 text-error text-xs font-bold px-2 py-1 rounded"><span class="material-symbols-outlined text-[12px]">shield</span> Superior Override</div>' : ''}
+          <div class="mt-3 pt-3 border-t border-outline-variant/10 flex items-center gap-2">
+            <div class="w-5 h-5 rounded-full bg-primary flex items-center justify-center text-white text-[9px] font-bold">
+              ${(entry.actor || 'S')[0].toUpperCase()}
+            </div>
+            <span class="text-xs text-on-surface-variant">
+              By <strong class="text-on-surface">${entry.actor}</strong>
+              ${entry.actor_role ? `(Grade ${entry.actor_role})` : ''}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function loadAuditLog(reset = false) {
+    if (reset) { auditOffset = 0; }
+    const timeline = document.getElementById('audit-timeline');
+    const loadMoreBtn = document.getElementById('audit-load-more');
+
+    try {
+        const params = { limit: AUDIT_PAGE_SIZE, offset: auditOffset, ...auditFilters };
+        const data = await window.api.getAuditLog(params);
+        if (!data) return;
+        auditTotal = data.total || 0;
+        const entries = data.results || [];
+
+        if (reset) {
+            if (entries.length === 0) {
+                timeline.innerHTML = '<div class="py-16 text-center text-on-surface-variant text-sm">No audit records visible for your role.</div>';
+                return;
+            }
+            timeline.innerHTML = '';
         }
+        entries.forEach(e => {
+            const el = document.createElement('div');
+            el.innerHTML = _renderEntry(e);
+            timeline.appendChild(el.firstElementChild);
+        });
+
+        auditOffset += entries.length;
+        if (loadMoreBtn) {
+            loadMoreBtn.classList.toggle('hidden', auditOffset >= auditTotal);
+        }
+    } catch (e) {
+        if (reset) timeline.innerHTML = `<div class="py-16 text-center text-error text-sm">Failed to load audit log: ${e.message}</div>`;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadAuditLog(true);
+
+    document.getElementById('audit-load-more')?.addEventListener('click', () => loadAuditLog(false));
+
+    // Filter buttons
+    document.getElementById('apply-filters')?.addEventListener('click', () => {
+        auditFilters = {};
+        const action = document.getElementById('filter-action')?.value;
+        const entity = document.getElementById('filter-entity')?.value;
+        if (action) auditFilters.action = action;
+        if (entity) auditFilters.entity_type = entity;
+        loadAuditLog(true);
     });
+    document.getElementById('clear-filters')?.addEventListener('click', () => {
+        auditFilters = {};
+        document.getElementById('filter-action').value = '';
+        document.getElementById('filter-entity').value = '';
+        loadAuditLog(true);
+    });
+
+    // Wire sign out
+    const signOutEl = document.querySelector('[data-logout]');
+    if (signOutEl) {
+        signOutEl.addEventListener('click', () => {
+            AUTH.clearSession();
+            window.location.href = '/frontend/financeai_login/code.html';
+        });
+    }
+});
 </script>
 <script src="/frontend/shared/layout.js"></script>
 </body></html>
