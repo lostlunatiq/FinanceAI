@@ -306,11 +306,44 @@ document.addEventListener('DOMContentLoaded', async () => {
   const user = AUTH.getUser();
   if (!user) return;
 
-  // Fill profile from stored user
+  const grade = AUTH.getGrade();
+  const isVendor = AUTH.isVendor();
+  const isSuperuser = AUTH.isSuperuser();
+
+  // ─── RBAC: Hide sections based on role ────────────────────────────────────
+  // Access Hierarchy / Role Permissions table: only G4+ / superuser / admin
+  const accessSection = document.querySelector('section.lg\\:col-span-8');
+  if (accessSection) {
+    const accessTable = accessSection.querySelector('.overflow-x-auto');
+    const accessHeader = accessSection.querySelector('h4');
+    if (isVendor || grade < 3) {
+      // Hide the permission matrix entirely for vendors and junior staff
+      if (accessTable) accessTable.closest('.bg-white')?.classList.add('hidden');
+    } else if (grade < 4 && !isSuperuser) {
+      // G3 Finance Manager: show read-only, hide "Apply Changes" button
+      const applyBtn = accessSection.querySelector('button');
+      if (applyBtn && applyBtn.textContent.trim() === 'Apply Changes') applyBtn.classList.add('hidden');
+    }
+
+    // Security / Dual-Auth card: only G3+ can see
+    const securityGrid = accessSection.querySelector('.grid.grid-cols-1.md\\:grid-cols-2');
+    if (securityGrid) {
+      if (isVendor || grade < 3) {
+        securityGrid.classList.add('hidden');
+      }
+    }
+
+    // "Institutional Audit" / Recent Activity card: hide for vendors
+    const auditCard = securityGrid?.querySelector('.bg-surface-container-low');
+    if (auditCard && isVendor) auditCard.classList.add('hidden');
+  }
+
+  // ─── Fill profile from stored user ─────────────────────────────────────────
   const nameEl = document.querySelector('h3.text-2xl.font-bold');
   const roleEl = document.querySelector('p.text-on-surface-variant.text-sm.mb-6');
   if (nameEl) nameEl.textContent = user.full_name || user.username;
-  if (roleEl) roleEl.textContent = (user.role || '').replace(/_/g,' ').replace(/\b\w/g, l=>l.toUpperCase());
+  const gradeLabel = {1:'Employee',2:'Department Head',3:'Finance Manager',4:'Finance Admin',5:'CFO'}[grade] || `Grade ${grade}`;
+  if (roleEl) roleEl.textContent = isVendor ? 'Vendor' : gradeLabel;
 
   // Replace avatar with initials
   const avatarWrapper = document.querySelector('.w-32.h-32.rounded-full');
@@ -323,15 +356,39 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     const profile = await window.api.getMe();
     if (nameEl) nameEl.textContent = profile.full_name || profile.username;
-    if (roleEl) roleEl.textContent = (profile.role || '').replace(/_/g,' ').replace(/\b\w/g, l=>l.toUpperCase());
+    const fetchedGrade = profile.employee_grade || grade;
+    const fetchedLabel = {1:'Employee',2:'Department Head',3:'Finance Manager',4:'Finance Admin',5:'CFO'}[fetchedGrade] || `Grade ${fetchedGrade}`;
+    if (roleEl) roleEl.textContent = profile.is_vendor ? 'Vendor' : fetchedLabel;
     if (avatarWrapper) {
       const initials = (profile.full_name || profile.username || 'U').split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
       avatarWrapper.innerHTML = `<div class="w-full h-full rounded-full primary-gradient flex items-center justify-center text-white text-3xl font-bold">${initials}</div>`;
     }
-    // Update email field if present
     const emailField = document.querySelector('input[type="email"]');
     if (emailField) emailField.value = profile.email || '';
+
+    // ID field
+    const idField = document.querySelector('.font-mono.font-medium');
+    if (idField) idField.textContent = `G${fetchedGrade}-${(profile.id || '').slice(0,6).toUpperCase()}`;
   } catch (e) { console.warn('Could not load profile', e); }
+
+  // ─── Change Password handler ────────────────────────────────────────────────
+  const secBtn = document.querySelector('.bg-primary.p-8.rounded-full button');
+  if (secBtn) {
+    secBtn.textContent = 'Change Password';
+    secBtn.className = 'bg-white/10 hover:bg-white/20 px-6 py-2 rounded-xl text-sm font-bold transition-all border border-white/20';
+    secBtn.addEventListener('click', async () => {
+      const old_p = prompt('Current password:');
+      const new_p = prompt('New password (min 8 chars):');
+      if (!old_p || !new_p || new_p.length < 8) return alert('Password must be at least 8 characters.');
+      try {
+        await window.api.request('/auth/change-password/', {
+          method: 'POST',
+          body: JSON.stringify({ old_password: old_p, new_password: new_p }),
+        });
+        alert('Password updated successfully.');
+      } catch (e) { alert('Failed: ' + (e.message || 'Unknown error')); }
+    });
+  }
 });
 </script>
 </body></html>

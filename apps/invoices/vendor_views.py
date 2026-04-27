@@ -349,18 +349,18 @@ class DashboardStatsView(APIView):
         elif grade < 3 and not is_cfo:
             base_qs = base_qs.filter(submitted_by=request.user)
 
+        # PENDING_CFO is only visible to CFO/superuser — exclude for Finance Admin (G4)
+        is_cfo_level = is_cfo or grade >= 5
+        pending_statuses_for_role = [
+            "SUBMITTED", "PENDING_L1", "PENDING_L2", "PENDING_HOD",
+            "PENDING_FIN_L1", "PENDING_FIN_L2", "PENDING_FIN_HEAD",
+        ]
+        if is_cfo_level:
+            pending_statuses_for_role.append("PENDING_CFO")
+
         stats = {
             "total_pending": base_qs.filter(
-                _status__in=[
-                    "SUBMITTED",
-                    "PENDING_L1",
-                    "PENDING_L2",
-                    "PENDING_HOD",
-                    "PENDING_FIN_L1",
-                    "PENDING_FIN_L2",
-                    "PENDING_FIN_HEAD",
-                    "PENDING_CFO",
-                ]
+                _status__in=pending_statuses_for_role
             ).count(),
             "total_approved": base_qs.filter(
                 _status__in=["APPROVED", "PENDING_D365", "BOOKED_D365", "POSTED_D365"]

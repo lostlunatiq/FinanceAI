@@ -487,12 +487,72 @@ document.addEventListener('DOMContentLoaded', async () => {
             <p class="text-xs text-emerald-600 mt-1">UTR: ${bill.d365_payment_utr}</p>
           </div>` : ''}
 
+        ${bill.invoice_file_url ? `
+          <a href="${bill.invoice_file_url}" target="_blank"
+             class="w-full mt-2 py-2.5 border-2 border-outline-variant rounded-xl text-on-surface-variant text-sm font-bold hover:border-primary/40 hover:text-primary transition-all flex items-center justify-center gap-2">
+            <span class="material-symbols-outlined text-[18px]">open_in_new</span>
+            View Uploaded Document
+          </a>` : ''}
+
         ${queryBtn}
+
+        <!-- Vendor Audit Trail for this invoice -->
+        <div class="mt-4 border-t border-outline-variant/10 pt-4">
+          <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-3">Activity History</p>
+          <div id="vendor-audit-trail" class="space-y-2">
+            <div class="text-xs text-on-surface-variant animate-pulse">Loading history...</div>
+          </div>
+        </div>
       </div>`;
 
     // Wire query button
     const qBtn = document.querySelector(`[data-open-query="${bill.id}"]`);
     if (qBtn) qBtn.addEventListener('click', () => openQueryModal(bill.id));
+
+    // Load vendor-visible audit trail for this invoice
+    _loadVendorAuditTrail(bill.id);
+  }
+
+  async function _loadVendorAuditTrail(billId) {
+    const container = document.getElementById('vendor-audit-trail');
+    if (!container) return;
+    try {
+      const data = await window.api.getAuditLog({ entity_type: 'Expense', limit: 10 });
+      const entries = (data?.results || []).filter(e => e.entity_id === billId);
+      if (entries.length === 0) {
+        container.innerHTML = '<p class="text-xs text-on-surface-variant">No activity recorded yet.</p>';
+        return;
+      }
+      const actionLabel = a => ({
+        'expense.submitted': 'Submitted',
+        'expense.pending_l1': 'Under Review (L1)',
+        'expense.pending_hod': 'Under Review (HOD)',
+        'expense.pending_fin_l1': 'Under Review (Finance)',
+        'expense.pending_fin_l2': 'Under Review (Finance L2)',
+        'expense.pending_fin_head': 'Final Finance Review',
+        'expense.approved': '✅ Approved',
+        'expense.rejected': '❌ Rejected',
+        'expense.query_raised': '❓ Query Raised',
+        'expense.paid': '💸 Payment Sent',
+        'expense.withdrawn': 'Withdrawn',
+      })[a] || a.replace('expense.','').replace(/_/g,' ');
+      container.innerHTML = entries.map(e => {
+        const ts = new Date(e.timestamp);
+        const timeStr = ts.toLocaleDateString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+        const isRejected = e.action.includes('rejected');
+        const isApproved = e.action.includes('approved') || e.action.includes('paid');
+        const color = isApproved ? 'text-primary' : isRejected ? 'text-error' : 'text-on-surface-variant';
+        return `<div class="flex items-start gap-2">
+          <div class="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${isApproved ? 'bg-primary' : isRejected ? 'bg-error' : 'bg-outline-variant'}"></div>
+          <div class="min-w-0">
+            <p class="text-xs font-semibold ${color}">${actionLabel(e.action)}</p>
+            <p class="text-[10px] text-on-surface-variant">${timeStr}</p>
+          </div>
+        </div>`;
+      }).join('');
+    } catch (err) {
+      container.innerHTML = '<p class="text-xs text-error">Could not load history.</p>';
+    }
   }
 
   // ── Filter buttons ─────────────────────────────────────────────

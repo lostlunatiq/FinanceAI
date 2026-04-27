@@ -353,6 +353,85 @@ def create_next_approval_step(expense):
     return step
 
 
+def superior_override_approve(expense: Expense, actor, reason: str = "") -> Expense:
+    """
+    CFO / Finance Admin direct approval — auto-clears all intermediate pending steps.
+    All skipped levels are recorded as "Skipped via Higher Authority".
+    Requires actor grade >= 4 or superuser.
+    """
+    from .models import GRADE_FOR_STEP, STEP_TO_STATUS
+
+    actor_grade = actor.employee_grade or 1
+    if not (actor.is_superuser or actor_grade >= 4):
+        raise InsufficientRole("Superior override requires Finance Admin grade (4+) or superuser.")
+
+    terminal = {"APPROVED", "PAID", "REJECTED", "AUTO_REJECT", "WITHDRAWN", "EXPIRED"}
+    if expense.status in terminal:
+        raise InvalidTransition(f"Expense is already in terminal state: {expense.status}")
+
+    with transaction.atomic():
+        expense = Expense.objects.select_for_update().get(pk=expense.pk)
+        old_status = expense.status
+        now = timezone.now()
+        max_level = 6  # PENDING_FIN_HEAD is the last step before APPROVED
+
+        override_note = (
+            f"Skipped via Higher Authority — approved by "
+            f"{actor.get_full_name() or actor.username} (Grade {actor_grade})"
+        )
+        final_reason = reason or "Approved by Higher Authority"
+
+        for level in range(1, max_level + 1):
+            existing = expense.approval_steps.filter(level=level).first()
+            if existing:
+                if existing.status == "PENDING":
+                    existing.status = "APPROVED"
+                    existing.actual_actor = actor
+                    existing.decided_at = now
+                    existing.decision_reason = (
+                        final_reason if level == max_level else override_note
+                    )
+                    existing.save(
+                        update_fields=["status", "actual_actor", "decided_at", "decision_reason"]
+                    )
+            else:
+                approver_fallback = _find_approver_for_level(level) or actor
+                ExpenseApprovalStep.objects.create(
+                    expense=expense,
+                    level=level,
+                    grade_required=GRADE_FOR_STEP.get(level, 1),
+                    assigned_to=approver_fallback,
+                    actual_actor=actor,
+                    status="APPROVED",
+                    decided_at=now,
+                    decision_reason=(
+                        final_reason if level == max_level else override_note
+                    ),
+                )
+
+        expense._force_status("APPROVED")
+        expense.current_step = max_level
+        expense.approved_at = now
+        expense.save()
+
+        AuditLog.objects.create(
+            user=actor,
+            action="expense.superior_override_approved",
+            entity_type="Expense",
+            entity_id=expense.id,
+            masked_before={"status": old_status},
+            masked_after={
+                "status": "APPROVED",
+                "reason": final_reason,
+                "override": True,
+                "actor_grade": actor_grade,
+                "note": "All intermediate steps auto-cleared by superior authority",
+            },
+        )
+
+    return expense
+
+
 def transition_expense(
     expense: Expense, new_status: str, actor, reason: str = "", skip_sod: bool = False
 ) -> Expense:

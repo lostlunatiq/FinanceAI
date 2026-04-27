@@ -125,7 +125,8 @@
 <h1 class="text-2xl lg:text-3xl font-extrabold tracking-tight font-headline text-primary">Intelligence Command</h1>
 <p class="text-on-surface-variant font-body text-lg">Thursday, October 24th — Operational Overview</p>
 </div>
-<button class="primary-gradient text-on-primary px-8 py-3.5 rounded-full font-headline font-bold text-sm shadow-lg shadow-primary/20 hover:scale-105 transition-transform">
+<button id="ask-your-data-btn" class="primary-gradient text-on-primary px-8 py-3.5 rounded-full font-headline font-bold text-sm shadow-lg shadow-primary/20 hover:scale-105 transition-transform flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">psychology</span>
                     Ask Your Data
                 </button>
 </header>
@@ -225,64 +226,22 @@
 </div>
 </div>
 </section>
-<!-- Anomaly Feed (35% width equivalent) -->
+<!-- Anomaly Feed (35% width equivalent) — Risk Watch (Live) -->
 <section class="xl:col-span-4 space-y-6">
 <div class="flex items-center justify-between">
 <h2 class="text-2xl font-bold font-headline">Risk Watch</h2>
-<span class="text-xs font-bold text-on-surface-variant flex items-center gap-1">
-                            PRIORITIZED FEED <span class="material-symbols-outlined text-[14px]" data-icon="filter_list">filter_list</span>
+<span class="text-xs font-bold text-on-surface-variant flex items-center gap-1" id="rw-count-label">
+  PRIORITIZED FEED <span class="material-symbols-outlined text-[14px]">filter_list</span>
 </span>
 </div>
-<div class="space-y-4 max-h-[580px] overflow-y-auto no-scrollbar pr-1">
-<!-- Anomaly 1 -->
-<div class="bg-surface-container-low p-6 rounded-xl border-l-4 border-error space-y-4 group hover:bg-surface-container transition-colors">
-<div class="flex justify-between items-start">
-<div class="bg-error/10 text-error px-2 py-1 rounded text-[10px] font-black tracking-tighter">SCORE: 92</div>
-<span class="text-xs text-on-surface-variant font-medium">2 min ago</span>
+<div id="risk-watch-list" class="space-y-4 max-h-[580px] overflow-y-auto no-scrollbar pr-1">
+  <div class="flex items-center justify-center py-8 text-on-surface-variant text-sm gap-2">
+    <span class="material-symbols-outlined animate-spin">refresh</span> Loading risk alerts...
+  </div>
 </div>
-<div>
-<h3 class="font-bold text-on-surface leading-tight">Duplicate Invoice Detected: Vendor X-104</h3>
-<p class="text-sm text-on-surface-variant mt-1">Found matching $14,200.00 entries across 2 separate cost centers.</p>
-</div>
-<div class="flex items-center gap-3">
-<button class="text-xs font-bold text-primary px-3 py-2 bg-primary/5 rounded-lg hover:bg-primary/10 transition-colors uppercase tracking-widest">Explain</button>
-<button class="text-xs font-bold text-on-surface-variant hover:text-on-surface px-3 py-2 transition-colors uppercase tracking-widest">Dismiss</button>
-</div>
-</div>
-<!-- Anomaly 2 -->
-<div class="bg-surface-container-low p-6 rounded-xl border-l-4 border-tertiary space-y-4 group hover:bg-surface-container transition-colors">
-<div class="flex justify-between items-start">
-<div class="bg-tertiary/10 text-tertiary px-2 py-1 rounded text-[10px] font-black tracking-tighter">SCORE: 68</div>
-<span class="text-xs text-on-surface-variant font-medium">1 hour ago</span>
-</div>
-<div>
-<h3 class="font-bold text-on-surface leading-tight">DPO Drift: EMEA Region</h3>
-<p class="text-sm text-on-surface-variant mt-1">Average payment cycle shortened by 4.2 days without policy shift.</p>
-</div>
-<div class="flex items-center gap-3">
-<button class="text-xs font-bold text-primary px-3 py-2 bg-primary/5 rounded-lg hover:bg-primary/10 transition-colors uppercase tracking-widest">Explain</button>
-<button class="text-xs font-bold text-on-surface-variant hover:text-on-surface px-3 py-2 transition-colors uppercase tracking-widest">Dismiss</button>
-</div>
-</div>
-<!-- Anomaly 3 -->
-<div class="bg-surface-container-low p-6 rounded-xl border-l-4 border-secondary space-y-4 group hover:bg-surface-container transition-colors">
-<div class="flex justify-between items-start">
-<div class="bg-secondary/10 text-secondary px-2 py-1 rounded text-[10px] font-black tracking-tighter">SCORE: 45</div>
-<span class="text-xs text-on-surface-variant font-medium">4 hours ago</span>
-</div>
-<div>
-<h3 class="font-bold text-on-surface leading-tight">Unusual AWS Spend Spike</h3>
-<p class="text-sm text-on-surface-variant mt-1">Intra-day cloud consumption increased by 22% vs 7-day average.</p>
-</div>
-<div class="flex items-center gap-3">
-<button class="text-xs font-bold text-primary px-3 py-2 bg-primary/5 rounded-lg hover:bg-primary/10 transition-colors uppercase tracking-widest">Explain</button>
-<button class="text-xs font-bold text-on-surface-variant hover:text-on-surface px-3 py-2 transition-colors uppercase tracking-widest">Dismiss</button>
-</div>
-</div>
-</div>
-<button class="w-full py-4 border-2 border-dashed border-outline-variant rounded-xl text-on-surface-variant text-sm font-bold hover:border-primary/40 hover:text-primary transition-all">
-                        View Audit Log
-                    </button>
+<button id="view-audit-log-btn" class="w-full py-4 border-2 border-dashed border-outline-variant rounded-xl text-on-surface-variant text-sm font-bold hover:border-primary/40 hover:text-primary transition-all">
+  View Audit Log
+</button>
 </section>
 </div>
 <!-- Bottom Context Grid (Bento style) -->
@@ -318,11 +277,11 @@
 </div>
 </div>
 <!-- Fast Action Card 1 -->
-<div class="bg-surface-container-low p-8 rounded-xl flex flex-col justify-between group cursor-pointer hover:bg-primary-container hover:text-on-primary-container transition-all">
+<div id="generate-10q-card" class="bg-surface-container-low p-8 rounded-xl flex flex-col justify-between group cursor-pointer hover:bg-primary-container hover:text-on-primary-container transition-all">
 <span class="material-symbols-outlined text-primary group-hover:text-on-primary-container transition-colors" data-icon="auto_awesome">auto_awesome</span>
 <div>
 <h4 class="font-bold font-headline mt-4">Generate 10-Q</h4>
-<p class="text-xs opacity-70 mt-1">AI-assisted draft based on Q3 real-time data.</p>
+<p class="text-xs opacity-70 mt-1">AI-assisted draft based on real-time YTD data.</p>
 </div>
 </div>
 <!-- Fast Action Card 2 -->
@@ -334,6 +293,50 @@
 </div>
 </div>
 </div>
+
+<!-- ── Dept Variance Chart ─────────────────────────────────────────────────── -->
+<section class="bg-surface-container-lowest rounded-xl p-8 space-y-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <h2 class="text-xl font-bold font-headline text-on-surface">Department Budget vs Actual</h2>
+      <p class="text-xs text-on-surface-variant mt-0.5">YTD approved spend vs allocated budget — real-time</p>
+    </div>
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-2 text-xs font-bold text-on-surface-variant">
+        <span class="w-3 h-3 rounded bg-primary"></span> Actual Spend
+        <span class="w-3 h-3 rounded bg-primary/20 ml-2"></span> Budget
+      </div>
+      <span id="over-budget-badge" class="hidden text-xs font-bold px-2 py-1 rounded-full bg-red-100 text-red-700"></span>
+    </div>
+  </div>
+  <div id="dept-variance-chart" class="space-y-4">
+    <div class="flex items-center justify-center py-12 text-on-surface-variant">
+      <span class="material-symbols-outlined animate-spin mr-2">refresh</span>
+      <span class="text-sm">Loading dept variance data…</span>
+    </div>
+  </div>
+</section>
+
+<!-- ── CFO Skip Threshold Status ──────────────────────────────────────────── -->
+<section class="bg-surface-container-lowest rounded-xl p-8">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h2 class="text-xl font-bold font-headline text-on-surface">CFO Skip Threshold</h2>
+      <p class="text-xs text-on-surface-variant mt-0.5">Bills below threshold are auto-approved after HOD sign-off — visible here in Global History</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="text-xs text-on-surface-variant font-medium">Current threshold:</span>
+      <span class="font-headline font-black text-lg text-primary" id="skip-threshold-display">₹50,000</span>
+    </div>
+  </div>
+  <div id="cfo-skip-items" class="divide-y divide-outline-variant/10">
+    <div class="flex items-center justify-center py-10 text-on-surface-variant">
+      <span class="material-symbols-outlined animate-spin mr-2">refresh</span>
+      <span class="text-sm">Loading auto-approved history…</span>
+    </div>
+  </div>
+</section>
+
 </main>
 <!-- Visual Texture Element (Abstract Background) -->
 <div class="fixed bottom-0 right-0 -z-10 opacity-10 pointer-events-none">
@@ -388,25 +391,221 @@ document.addEventListener('DOMContentLoaded', async () => {
             kpiNumbers[2].nextElementSibling && (kpiNumbers[2].nextElementSibling.textContent = 'Anomalies');
         }
 
-        // Update Risk Watch anomaly count badge
-        const anomalyScore = document.querySelector('.bg-error\\/10.text-error.px-2');
-        if (anomalyScore && stats.anomaly_count > 0) {
-            anomalyScore.textContent = `SCORE: ${stats.anomaly_count > 5 ? 92 : 68}`;
-        }
-
     } catch (e) {
         console.warn('Could not load dashboard stats:', e);
     }
 
-    // Wire "View Audit Log" button
-    document.querySelectorAll('button').forEach(btn => {
-        if (btn.textContent.trim() === 'View Audit Log') {
-            btn.addEventListener('click', () => {
-                window.location.href = '/frontend/audit_log/code.html';
-            });
+    // ─── RBAC Guard: only Finance Admin (G4+) and CFO/superuser belong here ──
+    const grade = AUTH.getGrade();
+    if (!AUTH.isSuperuser() && grade < 4) {
+        // Soft redirect — Intelligence Hub is restricted
+        const main = document.querySelector('main');
+        if (main) {
+            main.innerHTML = `
+              <div class="flex flex-col items-center justify-center py-32 text-center max-w-lg mx-auto">
+                <span class="material-symbols-outlined text-[64px] text-on-surface-variant">lock</span>
+                <h2 class="text-xl font-bold mt-4 text-on-surface">Restricted: Intelligence Command</h2>
+                <p class="text-sm text-on-surface-variant mt-2">
+                  This dashboard is reserved for Finance Admin (Grade 4) and CFO. Your current grade does not include access.
+                </p>
+                <a href="/frontend/accounts_payable_hub/code.html" class="mt-6 px-6 py-2.5 primary-gradient text-white rounded-xl font-bold text-sm">
+                  Go to AP Ledger
+                </a>
+              </div>`;
         }
+        return;
+    }
+
+    // ─── Risk Watch: load live anomaly data ─────────────────────────────────
+    await _loadRiskWatch();
+
+    // ─── Dept Variance Chart ─────────────────────────────────────────────────
+    await _loadDeptVariance();
+
+    // ─── CFO Skip Auto-Approved History ──────────────────────────────────────
+    await _loadCFOSkipHistory();
+
+    // Wire "View Audit Log" button
+    const auditBtn = document.getElementById('view-audit-log-btn');
+    if (auditBtn) auditBtn.addEventListener('click', () => { window.location.href = '/frontend/audit_log/code.html'; });
+
+    // Wire "Ask Your Data" → opens chatbot
+    const askBtn = document.getElementById('ask-your-data-btn');
+    if (askBtn) askBtn.addEventListener('click', () => {
+        if (typeof window.openChatbot === 'function') window.openChatbot();
+        else alert('Chatbot is not loaded yet. Please refresh.');
+    });
+
+    // Wire "Generate 10-Q" card
+    const tenqCard = document.getElementById('generate-10q-card');
+    if (tenqCard) tenqCard.addEventListener('click', () => {
+        if (typeof window.show10QModal === 'function') window.show10QModal();
+        else alert('10-Q module not loaded. Please refresh.');
     });
 });
+
+function _riskSeverityStyle(severity) {
+    if (severity === 'CRITICAL') return { border: 'border-error', badge: 'bg-error/10 text-error' };
+    if (severity === 'HIGH')     return { border: 'border-tertiary', badge: 'bg-tertiary/10 text-tertiary' };
+    return { border: 'border-secondary', badge: 'bg-secondary/10 text-secondary' };
+}
+
+function _timeAgo(isoString) {
+    const diff = (Date.now() - new Date(isoString)) / 1000;
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+    return `${Math.floor(diff/86400)}d ago`;
+}
+
+function _renderRiskAlert(alert) {
+    const { border, badge } = _riskSeverityStyle(alert.severity);
+    const flags = alert.flags || [];
+    const topFlag = flags[0];
+    const flagText = topFlag
+        ? (topFlag.message || topFlag.type || 'Anomaly detected')
+        : `₹${Number(alert.amount).toLocaleString('en-IN')} — ${alert.status.replace(/_/g,' ')}`;
+    const title = topFlag
+        ? `${topFlag.type || alert.severity} — ${alert.vendor}`
+        : `${alert.severity} Risk: ${alert.vendor}`;
+
+    return `
+    <div class="bg-surface-container-low p-5 rounded-xl border-l-4 ${border} space-y-3 group hover:bg-surface-container transition-colors">
+      <div class="flex justify-between items-start">
+        <div class="${badge} px-2 py-1 rounded text-[10px] font-black tracking-tighter">SCORE: ${alert.score}</div>
+        <span class="text-xs text-on-surface-variant font-medium">${_timeAgo(alert.updated_at)}</span>
+      </div>
+      <div>
+        <h3 class="font-bold text-on-surface leading-tight text-sm">${title}</h3>
+        <p class="text-xs text-on-surface-variant mt-1">${flagText}</p>
+        <p class="text-xs text-on-surface-variant/60 font-mono mt-0.5">${alert.ref_no}</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="/frontend/accounts_payable_hub/code.html?bill_id=${alert.id}"
+           class="text-xs font-bold text-primary px-3 py-1.5 bg-primary/5 rounded-lg hover:bg-primary/10 transition-colors uppercase tracking-widest">
+          Review
+        </a>
+        <button onclick="this.closest('.bg-surface-container-low').remove()"
+                class="text-xs font-bold text-on-surface-variant hover:text-on-surface px-3 py-1.5 transition-colors uppercase tracking-widest">
+          Dismiss
+        </button>
+      </div>
+    </div>`;
+}
+
+async function _loadDeptVariance() {
+    const container = document.getElementById('dept-variance-chart');
+    if (!container) return;
+    try {
+        const data = await window.api.getDeptVariance();
+        const depts = (data && data.departments) || [];
+
+        if (data && data.over_budget_depts > 0) {
+            const badge = document.getElementById('over-budget-badge');
+            if (badge) { badge.textContent = `${data.over_budget_depts} dept${data.over_budget_depts !== 1 ? 's' : ''} over budget`; badge.classList.remove('hidden'); }
+        }
+
+        if (!depts.length) {
+            container.innerHTML = '<div class="text-sm text-on-surface-variant text-center py-8">No department budget data for this fiscal year.</div>';
+            return;
+        }
+
+        const fmt = n => '₹' + Number(n).toLocaleString('en-IN', {maximumFractionDigits:0});
+        const maxVal = Math.max(...depts.map(d => Math.max(d.budget, d.actual)));
+
+        container.innerHTML = depts.map(dept => {
+            const budgetPct = maxVal ? (dept.budget / maxVal * 100) : 0;
+            const actualPct = maxVal ? (dept.actual / maxVal * 100) : 0;
+            const isOver = dept.status === 'OVER_BUDGET';
+            const varSign = dept.variance > 0 ? '+' : '';
+            const varColor = isOver ? 'text-red-600' : 'text-green-600';
+            return `
+            <div class="space-y-1">
+              <div class="flex items-center justify-between text-xs font-medium">
+                <span class="font-bold text-on-surface w-28 truncate">${dept.department}</span>
+                <div class="flex items-center gap-3">
+                  <span class="text-on-surface-variant">${fmt(dept.actual)} / ${fmt(dept.budget)}</span>
+                  <span class="font-bold ${varColor} w-20 text-right">${varSign}${fmtPct(dept.variance_pct)}</span>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${isOver ? 'bg-red-100 text-red-700' : 'bg-green-50 text-green-700'}">${dept.status.replace('_', ' ')}</span>
+                </div>
+              </div>
+              <div class="relative h-5 bg-primary/10 rounded-full overflow-hidden">
+                <div class="absolute left-0 top-0 h-full bg-primary/20 rounded-full transition-all" style="width:${budgetPct.toFixed(1)}%"></div>
+                <div class="absolute left-0 top-0 h-full ${isOver ? 'bg-red-500' : 'bg-primary'} rounded-full transition-all" style="width:${actualPct.toFixed(1)}%"></div>
+              </div>
+            </div>`;
+        }).join('');
+    } catch (e) {
+        container.innerHTML = '<div class="text-sm text-on-surface-variant text-center py-8">Department variance data unavailable.</div>';
+    }
+}
+
+function fmtPct(n) { return (n == null ? '—' : n.toFixed(1) + '%'); }
+
+const CFO_SKIP_THRESHOLD = 50000; // ₹50,000 — bills below this are auto-approved after HOD
+
+async function _loadCFOSkipHistory() {
+    const container = document.getElementById('cfo-skip-items');
+    if (!container) return;
+    try {
+        const audit = await window.api.getAuditLog({ limit: 50 });
+        const items = Array.isArray(audit) ? audit : (audit.results || []);
+        // Filter for HOD approvals on small amounts (simulated skip)
+        const skipped = items.filter(a =>
+            (a.action || '').includes('approved') &&
+            !(a.action || '').includes('cfo') &&
+            a.amount && Number(a.amount) < CFO_SKIP_THRESHOLD
+        ).slice(0, 10);
+
+        if (!skipped.length) {
+            container.innerHTML = `
+              <div class="py-10 text-center text-on-surface-variant">
+                <p class="text-sm">No auto-approved (CFO-skip) items found.</p>
+                <p class="text-xs mt-1 opacity-70">Bills under ₹50,000 approved by HOD will appear here.</p>
+              </div>`;
+            return;
+        }
+
+        const fmt = n => '₹' + Number(n).toLocaleString('en-IN', {maximumFractionDigits:0});
+        container.innerHTML = `
+          <div class="px-0 py-2 grid grid-cols-5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant border-b border-outline-variant/20 mb-2">
+            <span>Ref / Action</span><span>User</span><span class="text-right">Amount</span><span class="text-center">Stage</span><span class="text-right">When</span>
+          </div>
+          ${skipped.map(a => `
+          <div class="grid grid-cols-5 items-center py-3 hover:bg-surface-container-low rounded-lg transition-colors">
+            <div>
+              <p class="text-xs font-mono font-bold text-primary">${a.object_repr || '—'}</p>
+              <p class="text-[10px] text-on-surface-variant">${(a.action || '').replace(/_/g,' ')}</p>
+            </div>
+            <div class="text-sm text-on-surface">${a.user || '—'}</div>
+            <div class="text-right text-sm font-bold">${a.amount ? fmt(a.amount) : '—'}</div>
+            <div class="text-center">
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-50 text-green-700">HOD-AUTO</span>
+            </div>
+            <div class="text-right text-xs text-on-surface-variant">${_timeAgo(a.timestamp || a.created_at || '')}</div>
+          </div>`).join('')}`;
+    } catch (e) {
+        container.innerHTML = '<div class="py-8 text-center text-sm text-on-surface-variant">Could not load CFO skip history.</div>';
+    }
+}
+
+async function _loadRiskWatch() {
+    const list = document.getElementById('risk-watch-list');
+    const countLabel = document.getElementById('rw-count-label');
+    if (!list) return;
+    try {
+        const data = await window.api.getRiskWatch();
+        if (!data || !data.alerts || data.alerts.length === 0) {
+            list.innerHTML = '<div class="py-8 text-center text-on-surface-variant text-sm">No active risk alerts — system is clean.</div>';
+            return;
+        }
+        list.innerHTML = data.alerts.map(_renderRiskAlert).join('');
+        if (countLabel) countLabel.innerHTML = `${data.total_alerts} ALERTS <span class="material-symbols-outlined text-[14px]">filter_list</span>`;
+    } catch (e) {
+        list.innerHTML = '<div class="py-8 text-center text-on-surface-variant text-sm">Risk Watch unavailable — check API connection.</div>';
+        console.warn('Risk Watch load error:', e);
+    }
+}
 </script>
 <script src="/frontend/shared/layout.js"></script>
 </body></html>

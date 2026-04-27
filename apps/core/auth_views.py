@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.shortcuts import get_object_or_404
+from django.db.models import Q
 
 from .auth_serializers import LoginSerializer, UserProfileSerializer, RegisterUserSerializer
 from .permissions import HasMinimumGrade
@@ -165,32 +166,124 @@ class DepartmentListView(APIView):
 
 class AuditLogListView(APIView):
     """
-    GET /api/v1/audit/ — Paginated audit log
+    GET /api/v1/audit/ — Paginated audit log with role-based visibility.
+
+    Visibility tiers:
+      - Vendor          : only their own invoice lifecycle events (no internal notes)
+      - G1 Employee     : only their own actions
+      - G2 HOD          : actions by G1 and G2 users (no finance-level notes)
+      - G3 Finance Mgr  : actions by G1-G3 users (no CFO overrides)
+      - G4 Finance Admin: full trail of everyone *below* CFO; sees who paused,
+                          who uploaded, when documents arrived; no CFO-tier overrides
+      - G5 / superuser  : full unrestricted access (CFO)
     """
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        user = request.user
+        grade = user.employee_grade or 1
+        is_vendor = hasattr(user, "vendor_profile") and user.vendor_profile is not None
+        is_cfo = user.is_superuser or grade >= 5
+
         limit = min(int(request.query_params.get("limit", 50)), 200)
         offset = int(request.query_params.get("offset", 0))
         entity_type = request.query_params.get("entity_type")
-        action = request.query_params.get("action")
-        user_id = request.query_params.get("user_id")
+        action_filter = request.query_params.get("action")
 
         qs = AuditLog.objects.select_related("user").order_by("-created_at")
 
+        if is_vendor:
+            # Vendors see only their own invoice lifecycle events — no internal details
+            from apps.invoices.models import Expense
+
+            vendor_expense_ids = list(
+                Expense.objects.filter(vendor=user.vendor_profile).values_list("id", flat=True)
+            )
+            vendor_visible_actions = [
+                "expense.submitted",
+                "expense.approved",
+                "expense.rejected",
+                "expense.query_raised",
+                "expense.pending_l1",
+                "expense.pending_hod",
+                "expense.pending_fin_l1",
+                "expense.pending_fin_l2",
+                "expense.pending_fin_head",
+                "expense.paid",
+                "expense.withdrawn",
+            ]
+            qs = qs.filter(
+                entity_type="Expense",
+                entity_id__in=vendor_expense_ids,
+                action__in=vendor_visible_actions,
+            )
+
+        elif not is_cfo and grade < 4:
+            # Mid-level: restrict to logs from users at or below their grade
+            visible_user_ids = list(
+                User.objects.filter(
+                    employee_grade__lte=grade, is_active=True
+                ).values_list("id", flat=True)
+            )
+            if str(user.id) not in [str(uid) for uid in visible_user_ids]:
+                visible_user_ids.append(user.id)
+
+            qs = qs.filter(user_id__in=visible_user_ids)
+
+            # G2 HOD cannot see finance-level or CFO override actions
+            if grade < 3:
+                qs = qs.exclude(
+                    action__in=[
+                        "expense.pending_fin_l1",
+                        "expense.pending_fin_l2",
+                        "expense.pending_fin_head",
+                        "expense.superior_override_approved",
+                    ]
+                )
+            else:
+                # G3 cannot see CFO overrides
+                qs = qs.exclude(action="expense.superior_override_approved")
+
+        elif not is_cfo and grade == 4:
+            # G4 Finance Admin: full trail BELOW CFO. Excludes CFO actions and superuser overrides.
+            # This gives admins the document lifecycle (arrival, hold, upload, approval) while
+            # keeping CFO-tier strategic actions opaque.
+            cfo_user_ids = list(
+                User.objects.filter(
+                    Q(is_superuser=True) | Q(employee_grade__gte=5)
+                ).values_list("id", flat=True)
+            )
+            qs = qs.exclude(user_id__in=cfo_user_ids).exclude(
+                action__in=[
+                    "expense.superior_override_approved",
+                ]
+            )
+
+        # G5+ / superuser (CFO): full access — sees ALL juniors' approve/reject/comments,
+        # superior overrides, and every entity. No additional filtering.
+
         if entity_type:
             qs = qs.filter(entity_type=entity_type)
-        if action:
-            qs = qs.filter(action__icontains=action)
-        if user_id:
-            qs = qs.filter(user_id=user_id)
+        if action_filter:
+            qs = qs.filter(action__icontains=action_filter)
+        # user_id filter only available to admins
+        user_id_param = request.query_params.get("user_id")
+        if user_id_param and (user.is_superuser or grade >= 4):
+            qs = qs.filter(user_id=user_id_param)
 
         total = qs.count()
         entries = qs[offset : offset + limit]
 
         results = []
         for entry in entries:
+            details = entry.masked_after or {}
+            # Strip internal fields from vendor-facing view
+            if is_vendor:
+                details = {
+                    k: v for k, v in details.items()
+                    if k not in ("reason", "override", "actor_grade", "note")
+                }
             results.append(
                 {
                     "id": str(entry.id),
@@ -200,7 +293,7 @@ class AuditLogListView(APIView):
                     "actor": entry.user.get_full_name() if entry.user else "System",
                     "actor_role": entry.user.employee_grade if entry.user else None,
                     "timestamp": entry.created_at.isoformat(),
-                    "details": entry.masked_after or {},
+                    "details": details,
                 }
             )
 
