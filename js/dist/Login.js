@@ -3,8 +3,8 @@
 const LoginScreen = ({
   onLogin
 }) => {
-  const [username, setUsername] = React.useState('fin_admin');
-  const [password, setPassword] = React.useState('demo1234');
+  const [username, setUsername] = React.useState('');
+  const [password, setPassword] = React.useState('');
   const [showPass, setShowPass] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
@@ -521,9 +521,10 @@ const LoginScreen = ({
     style: {
       fontSize: '11px',
       color: '#94A3B8',
+      cursor: 'pointer',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "Demo: fin_admin / demo1234 | vendor1 / demo1234")), /*#__PURE__*/React.createElement("button", {
+  }, "Forgot password?")), /*#__PURE__*/React.createElement("button", {
     onClick: handleLogin,
     disabled: loading,
     style: {

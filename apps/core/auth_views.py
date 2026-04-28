@@ -523,5 +523,65 @@ class GroupListView(APIView):
         name = request.data.get("name")
         if not name:
             return Response({"error": "Group name required."}, status=400)
-        group, created = Group.objects.get_or_create(name=name)
+        user_ids = request.data.get("user_ids") or []
+        group, created = Group.objects.get_or_create(name=name.strip())
+        if isinstance(user_ids, list) and user_ids:
+            users = User.objects.filter(id__in=user_ids, is_active=True)
+            group.user_set.set(users)
         return Response(GroupSerializer(group).data, status=201 if created else 200)
+
+
+class GroupDetailView(APIView):
+    permission_classes = [IsAuthenticated, HasMinimumGrade.make(4)]
+
+    def patch(self, request, pk):
+        group = get_object_or_404(Group, pk=pk)
+        name = (request.data.get("name") or "").strip()
+        user_ids = request.data.get("user_ids")
+        if name:
+            group.name = name
+            group.save(update_fields=["name"])
+        if isinstance(user_ids, list):
+            users = User.objects.filter(id__in=user_ids, is_active=True)
+            group.user_set.set(users)
+        return Response(GroupSerializer(group).data)
+
+
+from rest_framework.permissions import IsAdminUser
+from django.http import HttpResponse
+import csv
+
+class UserExportView(APIView):
+    """
+    GET /api/v1/auth/users/export/
+    Admin-only endpoint to export users to CSV, with audit logging.
+    """
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get(self, request):
+        users = User.objects.all().order_by("employee_grade", "username")
+        
+        # Log the export
+        AuditLog.objects.create(
+            user=request.user,
+            action="system.user_export",
+            entity_type="User",
+            masked_after={"count": users.count(), "format": "CSV"}
+        )
+
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="users_export.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow(["ID", "Username", "Email", "First Name", "Last Name", "Grade", "Department", "Is Active", "Is Vendor"])
+        
+        for user in users:
+            dept = user.department.name if user.department else ""
+            is_vendor = hasattr(user, "vendor_profile") and user.vendor_profile is not None
+            writer.writerow([
+                str(user.id), user.username, user.email, user.first_name, user.last_name,
+                user.employee_grade, dept, user.is_active, is_vendor
+            ])
+            
+        return response
+

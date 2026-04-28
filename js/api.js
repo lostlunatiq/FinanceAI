@@ -149,6 +149,16 @@ const AuthAPI = {
     return apiFetch(`/auth/users/${id}/`, { method: 'PATCH', body: JSON.stringify(data) });
   },
 
+  async exportUsers() {
+    // Return the blob so the frontend can trigger download
+    const token = localStorage.getItem('tijori_token');
+    const response = await fetch(`${API_BASE}/auth/users/export/`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!response.ok) throw new Error('Export failed');
+    return response.blob();
+  },
+
   async createUser(data) {
     return apiFetch('/auth/register/', { method: 'POST', body: JSON.stringify(data) });
   },
@@ -182,8 +192,12 @@ const AuthAPI = {
     return apiFetch('/auth/groups/');
   },
 
-  async createGroup(name) {
-    return apiFetch('/auth/groups/', { method: 'POST', body: JSON.stringify({ name }) });
+  async createGroup(name, userIds = []) {
+    return apiFetch('/auth/groups/', { method: 'POST', body: JSON.stringify({ name, user_ids: userIds }) });
+  },
+
+  async updateGroup(id, data) {
+    return apiFetch(`/auth/groups/${id}/`, { method: 'PATCH', body: JSON.stringify(data) });
   },
 };
 

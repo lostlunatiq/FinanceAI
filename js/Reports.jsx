@@ -727,6 +727,10 @@ const LiveReportsScreen = ({ role, onNavigate }) => {
   const [workingCapital, setWorkingCapital] = React.useState(null);
   const [policy, setPolicy] = React.useState(null);
   const [recentInvoices, setRecentInvoices] = React.useState([]);
+  const [filterStatus, setFilterStatus] = React.useState('');
+  const [filterCategory, setFilterCategory] = React.useState('');
+  const [filterDept, setFilterDept] = React.useState('');
+  const [filterSearch, setFilterSearch] = React.useState('');
 
   React.useEffect(() => {
     const { AnalyticsAPI, BillsAPI } = window.TijoriAPI;
@@ -750,7 +754,25 @@ const LiveReportsScreen = ({ role, onNavigate }) => {
   const topBudgets = budgetHealth?.budgets || [];
   const topVendors = spend?.top_vendors || [];
   const riskyVendors = risk?.vendors?.slice(0, 5) || [];
-  const recentRows = recentInvoices.slice(0, 10);
+
+  const allCategories = [...new Set(recentInvoices.map(r => r.business_purpose || r.expense_category || 'General').filter(Boolean))];
+  const allDepts = [...new Set(recentInvoices.map(r => r.department_name || r.department).filter(Boolean))];
+
+  const recentRows = recentInvoices.filter(row => {
+    if (filterStatus && (row.status || row._status) !== filterStatus) return false;
+    if (filterCategory) {
+      const cat = row.business_purpose || row.expense_category || 'General';
+      if (!cat.toLowerCase().includes(filterCategory.toLowerCase())) return false;
+    }
+    if (filterDept && (row.department_name || row.department) !== filterDept) return false;
+    if (filterSearch) {
+      const s = filterSearch.toLowerCase();
+      const party = (row.vendor_name || row.vendor?.name || row.submitted_by_name || '').toLowerCase();
+      const ref = (row.ref_no || row.id || '').toString().toLowerCase();
+      if (!party.includes(s) && !ref.includes(s)) return false;
+    }
+    return true;
+  }).slice(0, 20);
 
   const exportCsv = () => {
     const rows = [['Type', 'Name', 'Value']];
@@ -778,6 +800,39 @@ const LiveReportsScreen = ({ role, onNavigate }) => {
           <Btn variant="secondary" onClick={exportCsv}>Export CSV</Btn>
           <Btn variant="primary" onClick={() => onNavigate && onNavigate('ai-hub')}>Open AI Hub</Btn>
         </div>
+      </div>
+
+      {/* Filter Bar */}
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '14px 16px', background: '#F8F7F5', borderRadius: '12px', marginBottom: '20px', flexWrap: 'wrap', border: '1px solid #F1F0EE' }}>
+        <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap' }}>Filters</span>
+        <input value={filterSearch} onChange={e => setFilterSearch(e.target.value)} placeholder="Search vendor or ref #…"
+          style={{ padding: '7px 11px', border: '1.5px solid #E2E8F0', borderRadius: '8px', fontSize: '12px', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', background: 'white', minWidth: 180 }} />
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+          style={{ padding: '7px 11px', border: '1.5px solid #E2E8F0', borderRadius: '8px', fontSize: '12px', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', background: 'white', color: '#0F172A', cursor: 'pointer' }}>
+          <option value="">All Statuses</option>
+          {['SUBMITTED','PENDING_L1','PENDING_L2','PENDING_HOD','PENDING_FIN_L1','APPROVED','REJECTED','PAID','QUERY_RAISED'].map(s => (
+            <option key={s} value={s}>{s.replace(/_/g,' ')}</option>
+          ))}
+        </select>
+        <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}
+          style={{ padding: '7px 11px', border: '1.5px solid #E2E8F0', borderRadius: '8px', fontSize: '12px', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', background: 'white', color: '#0F172A', cursor: 'pointer' }}>
+          <option value="">All Categories</option>
+          {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        {allDepts.length > 0 && (
+          <select value={filterDept} onChange={e => setFilterDept(e.target.value)}
+            style={{ padding: '7px 11px', border: '1.5px solid #E2E8F0', borderRadius: '8px', fontSize: '12px', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', background: 'white', color: '#0F172A', cursor: 'pointer' }}>
+            <option value="">All Departments</option>
+            {allDepts.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        )}
+        {(filterStatus || filterCategory || filterDept || filterSearch) && (
+          <button onClick={() => { setFilterStatus(''); setFilterCategory(''); setFilterDept(''); setFilterSearch(''); }}
+            style={{ padding: '7px 12px', borderRadius: '8px', border: 'none', background: '#FEE2E2', color: '#991B1B', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            Clear ×
+          </button>
+        )}
+        <span style={{ marginLeft: 'auto', fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{recentRows.length} result{recentRows.length !== 1 ? 's' : ''}</span>
       </div>
 
       <StatsRow cards={[

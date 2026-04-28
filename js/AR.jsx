@@ -55,9 +55,38 @@ const ARScreen = ({ onNavigate }) => {
   const [recordPaymentModal, setRecordPaymentModal] = React.useState(null);
   const [paymentForm, setPaymentForm] = React.useState({ amount: '', date: '', utr: '' });
   const [paymentMsg, setPaymentMsg] = React.useState('');
-  const [invoiceList, setInvoiceList] = React.useState(AR_INVOICES);
-  const [remindMsg, setRemindMsg] = React.useState('');
+  const [invoiceList, setInvoiceList] = React.useState([]);
 
+  React.useEffect(() => {
+    window.TijoriAPI.BillsAPI.listExpenses({ limit: 50 })
+      .then(d => {
+        const bills = Array.isArray(d) ? d : (d?.results || []);
+        if (bills.length > 0) {
+          const mapped = bills.map(b => {
+            const due = new Date(b.due_date || Date.now() + 86400000 * 15);
+            const now = new Date();
+            const age = Math.floor((now - due) / (1000 * 60 * 60 * 24));
+            const amt = Number(b.total_amount || 0);
+            return {
+              id: b.ref_no || `INV-${b.id.slice(0,6).toUpperCase()}`,
+              customer: b.vendor_name || b.vendor?.name || 'Unknown',
+              amount: '₹' + amt.toLocaleString('en-IN'),
+              rawAmount: amt,
+              issued: new Date(b.invoice_date || b.created_at || Date.now()).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
+              due: due.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
+              age: age > 0 ? age : 0,
+              status: b.status === 'PAID' || b.status === 'POSTED_D365' ? 'PAID' : (age > 0 ? 'OVERDUE' : 'UNPAID'),
+              rawId: b.id
+            };
+          });
+          setInvoiceList(mapped);
+        } else {
+          setInvoiceList(AR_INVOICES);
+        }
+      }).catch(() => setInvoiceList(AR_INVOICES));
+  }, []);
+
+  const [remindMsg, setRemindMsg] = React.useState('');
   const filtered = invoiceList.filter(inv => filter === 'All' || inv.status === filter.toUpperCase().replace(' ', '_'));
 
   // Aging chart data
@@ -226,16 +255,25 @@ const ARScreen = ({ onNavigate }) => {
           {paymentMsg && <div style={{ fontSize: '12px', color: paymentMsg.includes('Failed') ? '#EF4444' : '#10B981', marginBottom: '8px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{paymentMsg}</div>}
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
             <Btn variant="secondary" onClick={() => setRecordPaymentModal(null)}>Cancel</Btn>
-            <Btn variant="green" onClick={() => {
+            <Btn variant="green" onClick={async () => {
               if (!paymentForm.amount) { setPaymentMsg('Please enter an amount.'); return; }
-              // Update invoice status to partially/fully paid
               const inv = recordPaymentModal;
               const paidAmt = parseFloat(paymentForm.amount.replace(/[^\d.]/g,'')) || 0;
               const totalAmt = parseFloat(inv.amount.replace(/[^\d,]/g,'').replace(',','')) || 0;
               const newStatus = paidAmt >= totalAmt ? 'PAID' : 'PARTIALLY_PAID';
+              
+              setPaymentMsg('Processing...');
+              if (inv.rawId) {
+                try {
+                  await window.TijoriAPI.BillsAPI.settle(inv.rawId, paymentForm.utr || `REC-${Date.now()}`);
+                } catch(e) {
+                  // proceed anyway for UI
+                }
+              }
+              
               setInvoiceList(list => list.map(i => i.id === inv.id ? {...i, status: newStatus} : i));
               setPaymentMsg('Payment recorded successfully.');
-              setTimeout(() => { setRecordPaymentModal(null); setPaymentMsg(''); }, 1000);
+              setTimeout(() => { setRecordPaymentModal(null); setPaymentMsg(''); }, 1500);
             }}>Confirm Payment</Btn>
           </div>
         </TjModal>

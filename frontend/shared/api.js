@@ -282,6 +282,13 @@ class FinanceAPI {
         });
     }
 
+    async settleBill(billId, paymentUtr = '') {
+        return this.request(`/invoices/finance/bills/${billId}/settle/`, {
+            method: 'POST',
+            body: JSON.stringify({ payment_utr: paymentUtr }),
+        });
+    }
+
     async respondQuery(billId, response, queryId = null) {
         return this.request(`/invoices/finance/bills/${billId}/respond-query/`, {
             method: 'POST',

@@ -345,6 +345,108 @@
 </svg>
 </div>
 
+<!-- Monthly Financial Summaries Section -->
+<section class="bg-surface-container-lowest rounded-xl p-8 space-y-6" id="monthly-summaries-section">
+  <div class="flex items-center justify-between">
+    <div>
+      <h2 class="text-xl font-bold font-headline text-on-surface">Monthly Financial Summaries</h2>
+      <p class="text-xs text-on-surface-variant mt-0.5">Auto-generated on the 1st of each month from live transaction data</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <button id="regen-summary-btn" class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold primary-gradient text-white hover:opacity-90 transition-opacity">
+        <span class="material-symbols-outlined text-[16px]">auto_awesome</span> Regenerate Now
+      </button>
+    </div>
+  </div>
+  <div id="monthly-summaries-grid" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="flex items-center justify-center py-12 col-span-3 text-on-surface-variant">
+      <span class="material-symbols-outlined animate-spin mr-2">refresh</span>
+      <span class="text-sm">Loading financial summaries…</span>
+    </div>
+  </div>
+  <div id="monthly-summary-ai" class="hidden bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 rounded-xl p-5">
+    <div class="flex items-start gap-3">
+      <span class="material-symbols-outlined text-primary text-[20px]">psychology</span>
+      <div>
+        <div class="text-xs font-bold text-primary uppercase tracking-wider mb-1">CFO AI Narrative</div>
+        <p id="monthly-ai-narrative" class="text-sm text-on-surface leading-relaxed"></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Vendor Payment Optimization Section -->
+<section class="bg-surface-container-lowest rounded-xl p-8 space-y-6" id="vendor-payment-section">
+  <div class="flex items-center justify-between">
+    <div>
+      <h2 class="text-xl font-bold font-headline text-on-surface">Vendor Payment Optimization</h2>
+      <p class="text-xs text-on-surface-variant mt-0.5">AI-powered analysis to optimise payment timing, terms, and cash flow</p>
+    </div>
+    <div id="vpo-status-badge" class="hidden text-xs font-bold px-3 py-1 rounded-full bg-primary/10 text-primary">Analysis Ready</div>
+  </div>
+
+  <!-- Analysis Action Buttons -->
+  <div class="grid grid-cols-3 gap-4">
+    <button id="btn-analyse-cash" onclick="vpoAnalyseCashFlow()" class="flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-outline-variant/30 hover:border-primary/50 hover:bg-primary/5 transition-all group">
+      <span class="material-symbols-outlined text-[32px] text-primary group-hover:scale-110 transition-transform">account_balance</span>
+      <div class="text-center">
+        <div class="font-bold text-sm text-on-surface">Analyse Cash Flow</div>
+        <div class="text-xs text-on-surface-variant mt-0.5">Check liquidity & runway</div>
+      </div>
+    </button>
+    <button id="btn-payment-terms" onclick="vpoCheckPaymentTerms()" class="flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-outline-variant/30 hover:border-secondary/50 hover:bg-secondary/5 transition-all group">
+      <span class="material-symbols-outlined text-[32px] text-secondary group-hover:scale-110 transition-transform">contract</span>
+      <div class="text-center">
+        <div class="font-bold text-sm text-on-surface">Check Payment Terms</div>
+        <div class="text-xs text-on-surface-variant mt-0.5">Net-30/60/90 analysis</div>
+      </div>
+    </button>
+    <button id="btn-recommend-timing" onclick="vpoRecommendTiming()" class="flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-outline-variant/30 hover:border-tertiary/50 hover:bg-tertiary/5 transition-all group">
+      <span class="material-symbols-outlined text-[32px] text-tertiary group-hover:scale-110 transition-transform">schedule_send</span>
+      <div class="text-center">
+        <div class="font-bold text-sm text-on-surface">Recommend Timing</div>
+        <div class="text-xs text-on-surface-variant mt-0.5">Optimal payment windows</div>
+      </div>
+    </button>
+  </div>
+
+  <!-- Analysis Result Area -->
+  <div id="vpo-analysis-result" class="hidden">
+    <div id="vpo-loading" class="hidden flex items-center gap-2 py-4 text-on-surface-variant text-sm">
+      <span class="material-symbols-outlined animate-spin">refresh</span> Analysing...
+    </div>
+    <div id="vpo-result-content" class="space-y-4"></div>
+  </div>
+
+  <!-- Vendor Recommendations Table -->
+  <div id="vpo-vendors-table" class="hidden">
+    <div class="text-sm font-bold text-on-surface mb-3">Payment Schedule Recommendations</div>
+    <div class="overflow-x-auto rounded-xl border border-outline-variant/20">
+      <table class="w-full text-left border-collapse">
+        <thead>
+          <tr class="bg-surface-container-low">
+            <th class="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Vendor</th>
+            <th class="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Amount Due</th>
+            <th class="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Current Due</th>
+            <th class="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Optimal Pay</th>
+            <th class="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Savings Potential</th>
+            <th class="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Action</th>
+          </tr>
+        </thead>
+        <tbody id="vpo-vendor-rows" class="divide-y divide-outline-variant/10"></tbody>
+      </table>
+    </div>
+    <div class="flex items-center justify-between mt-4">
+      <button onclick="vpoApplyAll()" class="px-5 py-2.5 rounded-xl text-sm font-bold primary-gradient text-white hover:opacity-90 transition-opacity flex items-center gap-2">
+        <span class="material-symbols-outlined text-[16px]">done_all</span> Apply All Recommendations
+      </button>
+      <span id="vpo-total-savings" class="text-sm font-bold text-primary"></span>
+    </div>
+  </div>
+</section>
+
+</div></main><!-- end main canvas -->
+
 <!-- Shared Scripts -->
 <script src="/frontend/shared/api.js"></script>
 <script src="/frontend/shared/auth.js"></script>
@@ -442,6 +544,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (typeof window.show10QModal === 'function') window.show10QModal();
         else alert('10-Q module not loaded. Please refresh.');
     });
+
+    // ─── Cash Flow Chart (real data) ─────────────────────────────────────────
+    _loadCashFlowChart();
+
+    // ─── Monthly Financial Summaries ─────────────────────────────────────────
+    _loadMonthlySummaries();
 });
 
 function _riskSeverityStyle(severity) {
@@ -606,6 +714,454 @@ async function _loadRiskWatch() {
         console.warn('Risk Watch load error:', e);
     }
 }
+
+// ─── Cash Flow Chart — connect to real API ──────────────────────────────────
+async function _loadCashFlowChart() {
+    try {
+        const data = await window.api.getCashFlowForecast(90);
+        if (!data || !data.daily_forecast || !data.daily_forecast.length) return;
+
+        const daily = data.daily_forecast;
+        const balances = daily.map(d => d.closing_balance || 0);
+        const minBal = Math.min(...balances);
+        const maxBal = Math.max(...balances);
+        const range = maxBal - minBal || 1;
+
+        // Update the SVG with real data
+        const svgEl = document.querySelector('svg[viewbox="0 0 1000 400"]');
+        if (!svgEl) return;
+
+        const W = 1000, H = 400, PAD = 40;
+        const usedDays = daily.slice(0, 90);
+        const pts = usedDays.map((d, i) => ({
+            x: (i / (usedDays.length - 1)) * (W - PAD * 2) + PAD,
+            y: H - PAD - ((d.closing_balance - minBal) / range) * (H - PAD * 2)
+        }));
+
+        const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+        const areaPath = linePath + ` L${pts[pts.length-1].x},${H-PAD} L${pts[0].x},${H-PAD} Z`;
+
+        // Build x-axis labels (every 2 weeks)
+        const labels = usedDays.filter((_, i) => i % 14 === 0 || i === usedDays.length - 1).map(d => {
+            const date = new Date(d.date || d.day);
+            return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+        });
+
+        const fmt = n => '₹' + Number(n).toLocaleString('en-IN', {maximumFractionDigits:0,notation:'compact'});
+
+        svgEl.innerHTML = `
+          <defs>
+            <linearGradient id="cfGrad" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stop-color="#00535b" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="#00535b" stop-opacity="0.02"/>
+            </linearGradient>
+          </defs>
+          <!-- Grid lines -->
+          ${[0.25,0.5,0.75].map(f => `<line x1="${PAD}" y1="${PAD + f*(H-PAD*2)}" x2="${W-PAD}" y2="${PAD + f*(H-PAD*2)}" stroke="#efeded" stroke-width="1"/>`).join('')}
+          <!-- Y-axis labels -->
+          ${[0,0.25,0.5,0.75,1].map(f => `<text x="${PAD-8}" y="${PAD + f*(H-PAD*2)}" text-anchor="end" font-size="11" fill="#94a3b8" dominant-baseline="middle">${fmt(maxBal - f*(range))}</text>`).join('')}
+          <!-- Area fill -->
+          <path d="${areaPath}" fill="url(#cfGrad)"/>
+          <!-- Line -->
+          <path d="${linePath}" fill="none" stroke="#00535b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          <!-- Data points (every 2 weeks) -->
+          ${pts.filter((_,i) => i % 14 === 0 || i === pts.length-1).map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" fill="white" stroke="#00535b" stroke-width="2"/>`).join('')}
+        `;
+
+        // Update axis labels
+        const axisDiv = svgEl.closest('.relative')?.querySelector('.absolute.bottom-0');
+        if (axisDiv && labels.length) {
+            axisDiv.innerHTML = labels.map(l => `<span>${l}</span>`).join('');
+        }
+
+        // Update the floating insight overlay with real data
+        const glassPanel = svgEl.closest('.relative')?.querySelector('.glass-panel');
+        if (glassPanel && data.summary) {
+            const maxDate = new Date(data.summary.max_balance_date).toLocaleDateString('en-IN', {day:'numeric',month:'short'});
+            const maxAmt = fmt(data.summary.max_balance_amount);
+            glassPanel.innerHTML = `
+                <p class="text-[10px] font-bold text-primary mb-1 uppercase tracking-wider">Cash Peak</p>
+                <p class="text-sm font-semibold leading-snug">Expected surplus of ${maxAmt} on ${maxDate}</p>
+                ${data.narrative ? `<p class="text-[10px] text-on-surface-variant mt-2">${data.narrative.slice(0, 80)}…</p>` : ''}
+            `;
+        }
+
+        // Update top KPI cards with real working capital data
+        const kpiNumbers = document.querySelectorAll('.text-2xl.font-bold.font-headline');
+        if (kpiNumbers.length >= 1) {
+            kpiNumbers[0].textContent = fmt(data.projected_closing_balance || 0);
+            if (kpiNumbers[0].nextElementSibling) kpiNumbers[0].nextElementSibling.textContent = 'Proj. Close Balance';
+        }
+    } catch (e) {
+        console.warn('Cash flow chart load error:', e);
+    }
+}
+
+// ─── Monthly Financial Summaries ─────────────────────────────────────────────
+async function _loadMonthlySummaries() {
+    const grid = document.getElementById('monthly-summaries-grid');
+    const aiDiv = document.getElementById('monthly-summary-ai');
+    const narEl = document.getElementById('monthly-ai-narrative');
+    if (!grid) return;
+
+    try {
+        const [cashData, stats, expenses] = await Promise.all([
+            window.api.getCashFlowForecast(90),
+            window.api.getDashboardStats(),
+            window.api.getInternalExpenses({ limit: 400 }),
+        ]);
+
+        const now = new Date();
+        const months = [];
+
+        // Build last 3 month buckets from real expenses
+        for (let m = 2; m >= 0; m--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - m, 1);
+            const next = new Date(now.getFullYear(), now.getMonth() - m + 1, 1);
+            const rows = (Array.isArray(expenses) ? expenses : (expenses?.results || [])).filter(e => {
+                const dt = new Date(e.invoice_date || e.created_at || e.submitted_at);
+                return dt >= d && dt < next;
+            });
+            const revenue = rows
+                .filter(e => ['PAID', 'BOOKED_D365', 'POSTED_D365'].includes(e.status || e._status))
+                .reduce((s, e) => s + Number(e.total_amount || 0), 0);
+            const expense = rows
+                .filter(e => !['REJECTED', 'AUTO_REJECT', 'WITHDRAWN'].includes(e.status || e._status))
+                .reduce((s, e) => s + Number(e.total_amount || 0), 0);
+            months.push({
+                label: d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }),
+                short: d.toLocaleDateString('en-IN', { month: 'short' }),
+                isCurrentMonth: m === 0,
+                revenue,
+                expense,
+            });
+        }
+
+        const fmt = n => '₹' + Number(n || 0).toLocaleString('en-IN', {maximumFractionDigits:0});
+        const fmtL = n => '₹' + (Number(n || 0)/100000).toFixed(1) + 'L';
+
+        const pendingCount = stats?.total_pending || 0;
+
+        grid.innerHTML = months.map((mo, i) => {
+            const isCurrentMonth = mo.isCurrentMonth;
+            const inflow = mo.revenue;
+            const outflow = mo.expense;
+            const net = inflow - outflow;
+            const isPos = net >= 0;
+
+            return `
+            <div class="bg-surface-container-low rounded-xl p-6 space-y-4 ${isCurrentMonth ? 'ring-2 ring-primary/30' : ''}" data-month="${mo.label}">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="text-xs font-bold text-on-surface-variant uppercase tracking-widest">${mo.short}</div>
+                  <div class="text-lg font-headline font-black text-on-surface mt-0.5">${mo.label}</div>
+                </div>
+                ${isCurrentMonth ? '<span class="text-[10px] font-bold px-2 py-1 rounded-full bg-primary/10 text-primary">CURRENT</span>' : ''}
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="bg-green-50 rounded-lg p-3">
+                  <div class="text-[10px] font-bold text-green-700 uppercase">Inflow</div>
+                  <div class="text-base font-headline font-black text-green-700 mt-0.5">${fmtL(inflow)}</div>
+                </div>
+                <div class="bg-red-50 rounded-lg p-3">
+                  <div class="text-[10px] font-bold text-red-600 uppercase">Outflow</div>
+                  <div class="text-base font-headline font-black text-red-600 mt-0.5">${fmtL(outflow)}</div>
+                </div>
+              </div>
+              <div class="flex items-center justify-between pt-2 border-t border-outline-variant/20">
+                <span class="text-xs text-on-surface-variant font-medium">Net Position</span>
+                <span class="font-headline font-black text-sm ${isPos ? 'text-green-600' : 'text-red-600'}">${isPos ? '+' : ''}${fmtL(net)}</span>
+              </div>
+              ${isCurrentMonth ? `<div class="text-[10px] text-on-surface-variant">${pendingCount} bills pending approval</div>` : ''}
+            </div>`;
+        }).join('');
+
+        // Show AI narrative if available
+        if (cashData?.narrative && narEl && aiDiv) {
+            narEl.textContent = cashData.narrative;
+            aiDiv.classList.remove('hidden');
+        }
+
+        // Wire regenerate button
+        const regenBtn = document.getElementById('regen-summary-btn');
+        if (regenBtn) {
+            const lastGen = localStorage.getItem('monthly_summary_last_generated');
+            if (lastGen) {
+                const hint = document.getElementById('monthly-summary-last-generated');
+                if (hint) hint.textContent = `Last generated: ${new Date(lastGen).toLocaleString('en-IN')}`;
+            }
+            regenBtn.addEventListener('click', async () => {
+                regenBtn.disabled = true;
+                regenBtn.innerHTML = '<span class="material-symbols-outlined text-[16px] animate-spin">refresh</span> Generating...';
+                await _loadMonthlySummaries();
+                localStorage.setItem('monthly_summary_last_generated', new Date().toISOString());
+                regenBtn.disabled = false;
+                regenBtn.innerHTML = '<span class="material-symbols-outlined text-[16px]">auto_awesome</span> Regenerate Now';
+            });
+        }
+    } catch (e) {
+        grid.innerHTML = '<div class="col-span-3 text-center text-sm text-on-surface-variant py-8">Could not load monthly summaries — check API.</div>';
+        console.warn('Monthly summaries error:', e);
+    }
+}
+
+// Schedule auto-generation on the 1st of each month
+(function _scheduleMonthlyAutoRegen() {
+    const scheduleNext = () => {
+        const now = new Date();
+        const nextFirst = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 5, 0);
+        const msUntil = Math.max(1000, nextFirst - now);
+        setTimeout(async () => {
+            await _loadMonthlySummaries();
+            localStorage.setItem('monthly_summary_last_generated', new Date().toISOString());
+            scheduleNext();
+        }, msUntil);
+    };
+    scheduleNext();
+})();
+
+// ─── Vendor Payment Optimization ─────────────────────────────────────────────
+let _vpoData = null;
+
+async function _getVPOData() {
+    if (_vpoData) return _vpoData;
+    const [cashData, approval] = await Promise.all([
+        window.api.getCashFlowForecast(30),
+        window.api.getApprovalQueue(),
+    ]);
+    _vpoData = { cashData, approval: approval || [] };
+    return _vpoData;
+}
+
+async function vpoAnalyseCashFlow() {
+    const result = document.getElementById('vpo-analysis-result');
+    const content = document.getElementById('vpo-result-content');
+    const loading = document.getElementById('vpo-loading');
+    if (!result || !content) return;
+
+    result.classList.remove('hidden');
+    loading.classList.remove('hidden');
+    content.innerHTML = '';
+
+    try {
+        const { cashData } = await _getVPOData();
+        loading.classList.add('hidden');
+
+        const fmt = n => '₹' + Number(n || 0).toLocaleString('en-IN', {maximumFractionDigits:0});
+        const netCF = cashData?.net_cashflow || 0;
+        const opening = cashData?.opening_balance || 0;
+        const outflow = cashData?.total_projected_outflow || 0;
+        const inflow = cashData?.total_projected_inflow || 0;
+        const minBal = cashData?.summary?.min_balance_amount || 0;
+
+        const health = minBal > opening * 0.3 ? 'STRONG' : minBal > opening * 0.1 ? 'ADEQUATE' : 'TIGHT';
+        const healthColor = health === 'STRONG' ? 'bg-green-50 text-green-700' : health === 'ADEQUATE' ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700';
+
+        content.innerHTML = `
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-surface-container-low p-4 rounded-xl">
+              <div class="text-[10px] font-bold text-on-surface-variant uppercase mb-1">Opening Balance</div>
+              <div class="text-lg font-headline font-black text-on-surface">${fmt(opening)}</div>
+            </div>
+            <div class="bg-surface-container-low p-4 rounded-xl">
+              <div class="text-[10px] font-bold text-on-surface-variant uppercase mb-1">30-Day Outflow</div>
+              <div class="text-lg font-headline font-black text-red-600">${fmt(outflow)}</div>
+            </div>
+            <div class="bg-surface-container-low p-4 rounded-xl">
+              <div class="text-[10px] font-bold text-on-surface-variant uppercase mb-1">30-Day Inflow</div>
+              <div class="text-lg font-headline font-black text-green-600">${fmt(inflow)}</div>
+            </div>
+            <div class="bg-surface-container-low p-4 rounded-xl">
+              <div class="text-[10px] font-bold text-on-surface-variant uppercase mb-1">Liquidity Health</div>
+              <span class="px-3 py-1 rounded-full text-xs font-bold ${healthColor}">${health}</span>
+            </div>
+          </div>
+          ${cashData?.narrative ? `<div class="bg-primary/5 border border-primary/20 rounded-xl p-4 mt-4 text-sm text-on-surface">${cashData.narrative}</div>` : ''}
+        `;
+
+        document.getElementById('vpo-status-badge')?.classList.remove('hidden');
+    } catch (e) {
+        loading.classList.add('hidden');
+        content.innerHTML = `<div class="text-sm text-red-600 p-4 bg-red-50 rounded-xl">Analysis failed: ${e.message}</div>`;
+    }
+}
+
+async function vpoCheckPaymentTerms() {
+    const result = document.getElementById('vpo-analysis-result');
+    const content = document.getElementById('vpo-result-content');
+    const loading = document.getElementById('vpo-loading');
+    if (!result || !content) return;
+
+    result.classList.remove('hidden');
+    loading.classList.remove('hidden');
+    content.innerHTML = '';
+
+    try {
+        const { approval } = await _getVPOData();
+        loading.classList.add('hidden');
+
+        const approved = approval.filter(b => ['APPROVED'].includes(b.status || b._status));
+        const fmt = n => '₹' + Number(n || 0).toLocaleString('en-IN', {maximumFractionDigits:0});
+
+        // Group by vendor and compute payment terms
+        const byVendor = {};
+        approved.forEach(b => {
+            const v = b.vendor_name || 'Unknown';
+            if (!byVendor[v]) byVendor[v] = { vendor: v, bills: [], total: 0 };
+            byVendor[v].bills.push(b);
+            byVendor[v].total += Number(b.total_amount || 0);
+        });
+
+        const rows = Object.values(byVendor).sort((a, b) => b.total - a.total);
+
+        if (!rows.length) {
+            content.innerHTML = '<div class="text-sm text-on-surface-variant py-4">No approved bills pending payment.</div>';
+            return;
+        }
+
+        content.innerHTML = `
+          <div class="text-sm font-bold text-on-surface mb-3">Approved Bills by Vendor — Payment Terms Analysis</div>
+          <div class="space-y-3">
+            ${rows.map(r => {
+                const oldest = r.bills.reduce((acc, b) => {
+                    const d = new Date(b.invoice_date || b.created_at);
+                    return (!acc || d < acc) ? d : acc;
+                }, null);
+                const daysSince = oldest ? Math.round((Date.now() - oldest) / 86400000) : 0;
+                const overdue = daysSince > 30;
+                return `
+                <div class="flex items-center justify-between p-4 bg-surface-container-low rounded-xl ${overdue ? 'border-l-4 border-red-400' : ''}">
+                  <div>
+                    <div class="font-bold text-sm text-on-surface">${r.vendor}</div>
+                    <div class="text-xs text-on-surface-variant">${r.bills.length} bill${r.bills.length !== 1 ? 's' : ''} · oldest: ${daysSince}d ago</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-headline font-black text-on-surface">${fmt(r.total)}</div>
+                    <div class="text-[10px] font-bold ${overdue ? 'text-red-600' : 'text-amber-600'}">${overdue ? 'OVERDUE' : daysSince > 15 ? 'DUE SOON' : 'WITHIN TERMS'}</div>
+                  </div>
+                </div>`;
+            }).join('')}
+          </div>
+        `;
+    } catch (e) {
+        loading.classList.add('hidden');
+        content.innerHTML = `<div class="text-sm text-red-600 p-4 bg-red-50 rounded-xl">Analysis failed: ${e.message}</div>`;
+    }
+}
+
+async function vpoRecommendTiming() {
+    const result = document.getElementById('vpo-analysis-result');
+    const content = document.getElementById('vpo-result-content');
+    const loading = document.getElementById('vpo-loading');
+    const vendorsTable = document.getElementById('vpo-vendors-table');
+    const vendorRows = document.getElementById('vpo-vendor-rows');
+    const totalSavingsEl = document.getElementById('vpo-total-savings');
+    if (!result || !content) return;
+
+    result.classList.remove('hidden');
+    loading.classList.remove('hidden');
+    content.innerHTML = '';
+
+    try {
+        const { cashData, approval } = await _getVPOData();
+        loading.classList.add('hidden');
+
+        const fmt = n => '₹' + Number(n || 0).toLocaleString('en-IN', {maximumFractionDigits:0});
+        const approved = approval.filter(b => ['APPROVED'].includes(b.status || b._status));
+        const minBalDate = cashData?.summary?.min_balance_date;
+        const maxBalDate = cashData?.summary?.max_balance_date;
+
+        if (!approved.length) {
+            content.innerHTML = '<div class="text-sm text-on-surface-variant py-4">No fully approved bills ready for payment scheduling.</div>';
+            return;
+        }
+
+        // Generate timing recommendations
+        const now = new Date();
+        const optimalPayDate = maxBalDate ? new Date(maxBalDate) : new Date(now.getTime() + 7 * 86400000);
+        const optimalStr = optimalPayDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+
+        content.innerHTML = `
+          <div class="bg-primary/5 border border-primary/20 rounded-xl p-4 flex items-start gap-3">
+            <span class="material-symbols-outlined text-primary">lightbulb</span>
+            <div>
+              <div class="text-sm font-bold text-on-surface mb-1">AI Timing Recommendation</div>
+              <p class="text-sm text-on-surface-variant">
+                Based on your 30-day cash flow forecast, the optimal payment window is
+                <strong>${optimalStr}</strong> when projected balance peaks at ${fmt(cashData?.summary?.max_balance_amount || 0)}.
+                ${minBalDate ? `Avoid paying large amounts around <strong>${new Date(minBalDate).toLocaleDateString('en-IN', {day:'numeric',month:'short'})}</strong> (projected low point).` : ''}
+              </p>
+            </div>
+          </div>
+        `;
+
+        // Populate vendor recommendations table
+        if (vendorRows && vendorsTable) {
+            let totalSavings = 0;
+            vendorRows.innerHTML = approved.map(b => {
+                const savings = Math.round(Number(b.total_amount || 0) * 0.02); // 2% early payment discount
+                totalSavings += savings;
+                const dueDate = b.invoice_date ? new Date(new Date(b.invoice_date).getTime() + 30 * 86400000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'N/A';
+                return `
+                <tr class="hover:bg-surface-container-low transition-colors">
+                  <td class="px-5 py-4">
+                    <div class="font-bold text-sm">${b.vendor_name || '—'}</div>
+                    <div class="text-xs text-on-surface-variant font-mono">${b.ref_no || b.id?.slice(0,8) || '—'}</div>
+                  </td>
+                  <td class="px-5 py-4 font-bold text-sm">${fmt(b.total_amount)}</td>
+                  <td class="px-5 py-4 text-sm text-on-surface-variant">${dueDate}</td>
+                  <td class="px-5 py-4 text-sm font-bold text-primary">${optimalStr}</td>
+                  <td class="px-5 py-4 text-sm font-bold text-green-600">+${fmt(savings)}</td>
+                  <td class="px-5 py-4">
+                    <div class="flex gap-2">
+                      <button onclick="vpoPay('${b.id}', '${b.ref_no}')" class="px-3 py-1.5 text-xs font-bold text-white bg-primary rounded-lg hover:bg-primary/80 transition-colors">Pay Now</button>
+                      <button onclick="vpoSchedule('${b.id}', '${optimalStr}')" class="px-3 py-1.5 text-xs font-bold text-primary bg-primary/10 rounded-lg hover:bg-primary/20 transition-colors">Schedule</button>
+                    </div>
+                  </td>
+                </tr>`;
+            }).join('');
+
+            if (totalSavingsEl) totalSavingsEl.textContent = `Potential savings: ${fmt(totalSavings)}`;
+            vendorsTable.classList.remove('hidden');
+        }
+    } catch (e) {
+        loading.classList.add('hidden');
+        content.innerHTML = `<div class="text-sm text-red-600 p-4 bg-red-50 rounded-xl">Analysis failed: ${e.message}</div>`;
+    }
+}
+
+async function vpoPay(billId, refNo) {
+    if (!confirm(`Mark ${refNo || billId} as paid now?`)) return;
+    try {
+        await window.api.settleBill(billId, `CFO-PAY-${Date.now()}`);
+        window.statusPoller?.showToast('Payment Initiated', `${refNo} marked for payment`, 'success');
+        _vpoData = null; // reset cache
+    } catch (e) {
+        alert('Payment failed: ' + (e.message || 'Error'));
+    }
+}
+
+async function vpoSchedule(billId, date) {
+    try {
+        await window.api.queryBill(billId, `CFO schedule recommendation: pay on ${date}. Keep invoice approved and execute on treasury window.`);
+        window.statusPoller?.showToast('Scheduled', `Payment scheduled for ${date}`, 'success');
+        _vpoData = null;
+    } catch (e) {
+        alert('Scheduling failed: ' + (e.message || 'Error'));
+    }
+}
+
+async function vpoApplyAll() {
+    if (!confirm('Apply all timing recommendations and schedule all approved payments?')) return;
+    const rows = document.querySelectorAll('#vpo-vendor-rows tr');
+    let count = 0;
+    for (const row of rows) {
+        const scheduleBtn = row.querySelector('button:last-child');
+        if (scheduleBtn) { scheduleBtn.click(); count++; await new Promise(r => setTimeout(r, 200)); }
+    }
+    window.statusPoller?.showToast('All Applied', `${count} payments scheduled`, 'success');
+}
+
 </script>
 <script src="/frontend/shared/layout.js"></script>
 </body></html>

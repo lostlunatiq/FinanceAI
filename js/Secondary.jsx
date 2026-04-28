@@ -480,11 +480,12 @@ const ExpensesScreen = ({ role: propRole, onNavigate }) => {
             {expFiltered.map(e => {
               const rowId = e.ref_no || (e.id ? String(e.id).slice(0, 8).toUpperCase() : '—');
               const refNo = e.ref_no;
-              const employee = e.submitted_by || e.submitted_by_name || '—';
-              const category = e.expense_category || e.category || '—';
-              const dept = e.department || null;
+              // Always prefer the human-readable name; submitted_by is a UUID/ID not a name
+              const employee = e.submitted_by_name || e.submitted_by_display || e.submitted_by_username || '—';
+              const category = e.expense_category || e.category || e.business_purpose?.slice(0, 30) || '—';
+              const dept = e.department_name || e.department || null;
               const amount = e.total_amount != null ? `₹${Number(e.total_amount).toLocaleString('en-IN')}` : '—';
-              const date = (e.submitted_at || e.created_at) ? new Date(e.submitted_at || e.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—';
+              const date = (e.submitted_at || e.created_at || e.invoice_date) ? new Date(e.submitted_at || e.created_at || e.invoice_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—';
               const aiCat = false;
               const catConf = null;
               return (
