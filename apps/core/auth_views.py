@@ -96,7 +96,7 @@ class UserListView(APIView):
     permission_classes = [IsAuthenticated, HasMinimumGrade.make(4)]
 
     def get(self, request):
-        users = User.objects.all().order_by("employee_grade", "first_name")
+        users = User.objects.filter(vendor_profile__isnull=True).order_by("employee_grade", "first_name")
         # Fix 4 — remove role_filter, filter by grade instead
         grade_filter = request.query_params.get("grade")
         if grade_filter:
