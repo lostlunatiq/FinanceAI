@@ -25,7 +25,11 @@ class VendorListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        vendors = Vendor.objects.all().order_by("-created_at")
+        vendors = (
+            Vendor.objects.exclude(name="Internal Expense")
+            .exclude(vendor_type="internal")
+            .order_by("-created_at")
+        )
 
         # Optional filters
         status_filter = request.query_params.get("status")
@@ -93,11 +97,17 @@ class VendorDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
-        vendor = get_object_or_404(Vendor, pk=pk)
+        vendor = get_object_or_404(
+            Vendor.objects.exclude(name="Internal Expense").exclude(vendor_type="internal"),
+            pk=pk,
+        )
         return Response(VendorDetailSerializer(vendor, context={"request": request}).data)
 
     def patch(self, request, pk):
-        vendor = get_object_or_404(Vendor, pk=pk)
+        vendor = get_object_or_404(
+            Vendor.objects.exclude(name="Internal Expense").exclude(vendor_type="internal"),
+            pk=pk,
+        )
         serializer = VendorOnboardSerializer(vendor, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -110,7 +120,10 @@ class VendorActivateView(APIView):
     permission_classes = [IsAuthenticated, HasMinimumGrade.make(4)]
 
     def post(self, request, pk):
-        vendor = get_object_or_404(Vendor, pk=pk)
+        vendor = get_object_or_404(
+            Vendor.objects.exclude(name="Internal Expense").exclude(vendor_type="internal"),
+            pk=pk,
+        )
         action = request.data.get("action", "activate")
 
         if action == "activate":
@@ -343,6 +356,11 @@ class DashboardStatsView(APIView):
         grade = getattr(request.user, "employee_grade", 1)
 
         base_qs = Expense.objects.all()
+        type_filter = request.query_params.get("type")
+        if type_filter == "internal":
+            base_qs = base_qs.filter(vendor__name="Internal Expense")
+        elif type_filter == "vendor":
+            base_qs = base_qs.exclude(vendor__name="Internal Expense")
 
         if is_vendor:
             base_qs = base_qs.filter(vendor=request.user.vendor_profile)
@@ -375,7 +393,7 @@ class DashboardStatsView(APIView):
             ),
             "my_queue_count": ExpenseApprovalStep.objects.filter(
                 assigned_to=request.user, status="PENDING"
-            ).count(),
+            ).filter(expense__in=base_qs).count(),
             "anomaly_count": base_qs.filter(anomaly_severity__in=["HIGH", "CRITICAL"]).count(),
         }
 

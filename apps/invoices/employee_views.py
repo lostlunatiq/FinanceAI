@@ -68,6 +68,7 @@ class FinanceQueueView(APIView):
 
             expenses = (
                 Expense.objects.filter(_status__in=pending_statuses)
+                .exclude(vendor__name="Internal Expense")
                 .select_related("vendor")
                 .order_by("-created_at")
             )
@@ -78,6 +79,7 @@ class FinanceQueueView(APIView):
         # Grade 1 — only their assigned queue
         pending_steps = (
             ExpenseApprovalStep.objects.filter(assigned_to=user, status="PENDING")
+            .exclude(expense__vendor__name="Internal Expense")
             .select_related("expense", "expense__vendor")
             .order_by("-expense__created_at")
         )
@@ -416,7 +418,7 @@ class InternalExpenseListView(APIView):
     def _scoped_qs(self, user):
         from django.db.models import Q
         grade = user.employee_grade or 1
-        qs = Expense.objects.select_related("vendor", "submitted_by").order_by("-created_at")
+        qs = Expense.objects.filter(vendor__name="Internal Expense").select_related("vendor", "submitted_by").order_by("-created_at")
         if user.is_superuser or grade >= 4:
             return qs  # full access
         if grade == 3:
@@ -461,6 +463,7 @@ class InternalExpenseListView(APIView):
                 "status": exp._status,
                 "created_at": exp.created_at.isoformat(),
                 "submitted_at": exp.submitted_at.isoformat() if exp.submitted_at else None,
+                "invoice_file": str(exp.invoice_file_id) if exp.invoice_file_id else None,
                 "invoice_file_url": request.build_absolute_uri(f"/api/v1/files/{exp.invoice_file_id}/") if exp.invoice_file_id else None,
             })
         return Response(data)
@@ -468,7 +471,9 @@ class InternalExpenseListView(APIView):
     def post(self, request):
         """Submit internal employee expense (no external vendor needed)."""
         from .models import Vendor
+        from datetime import date
         from decimal import Decimal, InvalidOperation
+        from apps.core.models import FileRef
 
         user = request.user
         grade = user.employee_grade or 1
@@ -490,15 +495,10 @@ class InternalExpenseListView(APIView):
         # Don't block submission — just flag it
 
         # Find or create INTERNAL system vendor
-        internal_vendor = Vendor.objects.filter(name="INTERNAL").first()
-        if not internal_vendor:
-            # Use first active vendor as system placeholder for demo
-            internal_vendor = Vendor.objects.filter(status="ACTIVE").first()
-            if not internal_vendor:
-                return Response(
-                    {"error": "No active vendor configured. Ask Finance Admin to add one."},
-                    status=400
-                )
+        internal_vendor, _ = Vendor.objects.get_or_create(
+            name="Internal Expense",
+            defaults={"status": "ACTIVE", "is_approved": True, "vendor_type": "internal"}
+        )
 
         ocr_raw = {
             "expense_category": category,
@@ -510,16 +510,27 @@ class InternalExpenseListView(APIView):
         }
         if request.data.get("file_id"):
             ocr_raw["file_id"] = request.data["file_id"]
+        invoice_file = None
+        if request.data.get("file_id"):
+            invoice_file = FileRef.objects.filter(pk=request.data["file_id"]).first()
+
+        invoice_date = timezone.now().date()
+        if request.data.get("invoice_date"):
+            try:
+                invoice_date = date.fromisoformat(request.data["invoice_date"])
+            except ValueError:
+                return Response({"error": "Invalid invoice_date."}, status=400)
 
         expense = Expense(
             vendor=internal_vendor,
             submitted_by=user,
             invoice_number=f"EXP-{user.username.upper()[:6]}",
-            invoice_date=timezone.now().date(),
+            invoice_date=invoice_date,
             pre_gst_amount=amount,
             total_amount=amount,
             business_purpose=description,
             ocr_raw=ocr_raw,
+            invoice_file=invoice_file,
         )
         expense._force_status("SUBMITTED")
         expense.submitted_at = timezone.now()

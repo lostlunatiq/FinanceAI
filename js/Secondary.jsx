@@ -2,15 +2,6 @@
 
 // ─── VENDOR MANAGEMENT ───────────────────────────────────────────────────────
 
-const VENDORS = [
-  { id: 'VND-001', name: 'TechLogistics Solutions Global', gst: '27AABCT3518Q1ZL', category: 'Logistics', status: 'ACTIVE', outstanding: '₹3,40,000' },
-  { id: 'VND-002', name: 'NovaBridge Infra Ltd.', gst: '29AACCN2609R1ZP', category: 'Infrastructure', status: 'ACTIVE', outstanding: '₹8,40,000' },
-  { id: 'VND-003', name: 'GlobalSync Technologies', gst: '06AACGG1234K1ZA', category: 'IT Services', status: 'ACTIVE', outstanding: '₹1,22,500' },
-  { id: 'VND-004', name: 'Sigma Electrical Works', gst: '09AACGS5678M1ZB', category: 'Electrical', status: 'PENDING', outstanding: '₹2,15,500' },
-  { id: 'VND-005', name: 'Acme Office Supplies', gst: '24AACGA9012N1ZC', category: 'Supplies', status: 'ACTIVE', outstanding: '₹45,200' },
-  { id: 'VND-006', name: 'ShellBridge Exports', gst: '33AACGS3456P1ZD', category: 'Exports', status: 'SUSPENDED', outstanding: '₹0' },
-];
-
 const VendorsScreen = ({ onNavigate }) => {
   const [addOpen, setAddOpen] = React.useState(false);
   const [step, setStep] = React.useState(0);
@@ -309,14 +300,13 @@ const ExpensesScreen = ({ role: propRole, onNavigate }) => {
   const [ocrResult, setOcrResult] = React.useState(null);
   const [submitLoading, setSubmitLoading] = React.useState(false);
   const [submitError, setSubmitError] = React.useState('');
-  const [expVendorName, setExpVendorName] = React.useState('');
 
   const currentRole = propRole || localStorage.getItem('tj_role') || 'CFO';
   const isVendor = currentRole === 'Vendor';
 
   const inferredCategory = React.useMemo(() => {
     const text = [
-      ocrResult?.extracted_fields?.vendor_name,
+      ocrResult?.extracted_fields?.merchant_name,
       ocrResult?.raw_text,
       expDesc,
     ].filter(Boolean).join(' ').toLowerCase();
@@ -339,12 +329,19 @@ const ExpensesScreen = ({ role: propRole, onNavigate }) => {
   );
   const ocrFailed = !!(uploadDone && ocrResult && !ocrSucceeded);
 
+  const [stats, setStats] = React.useState(null);
+
   React.useEffect(() => {
-    const { BillsAPI } = window.TijoriAPI;
+    const { BillsAPI, DashboardAPI } = window.TijoriAPI;
     setLoadingExp(true);
-    BillsAPI.listExpenses()
-      .then(data => setExpenses(data || []))
-      .catch(() => {})
+    Promise.allSettled([
+      BillsAPI.listExpenses(),
+      DashboardAPI.stats({ type: 'internal' })
+    ])
+      .then(([expRes, statsRes]) => {
+        if (expRes.status === 'fulfilled') setExpenses(expRes.value || []);
+        if (statsRes.status === 'fulfilled') setStats(statsRes.value);
+      })
       .finally(() => setLoadingExp(false));
   }, []);
 
@@ -362,9 +359,9 @@ const ExpensesScreen = ({ role: propRole, onNavigate }) => {
         const f = ocr.extracted_fields;
         if (f.total_amount) setExpAmount(String(f.total_amount));
         if (f.invoice_date) setExpDate(f.invoice_date);
-        if (f.vendor_name) {
-          setExpVendorName(f.vendor_name);
-          setExpDesc(`Services from ${f.vendor_name}`);
+        const merchantName = f.merchant_name || f.vendor_name || f.supplier_name;
+        if (merchantName && !expDesc) {
+          setExpDesc(`Receipt from ${merchantName}`);
         }
       }
       if (ocr.status === 'FAILED' || !(ocr.confidence > 0)) {
@@ -383,16 +380,15 @@ const ExpensesScreen = ({ role: propRole, onNavigate }) => {
     try {
       const { BillsAPI } = window.TijoriAPI;
       const payload = {
-        business_purpose: expDesc || expCategory,
-        total_amount: parseFloat(expAmount) || 0,
-        invoice_date: expDate || null,
-        pre_gst_amount: parseFloat(expAmount) || 0,
-        vendor_name: expVendorName || 'Internal Expense',
-        ...(uploadedFileRef ? { invoice_file: uploadedFileRef } : {}),
+        expense_category: expCategory || 'Misc',
+        description: expDesc || expCategory,
+        amount: parseFloat(expAmount) || 0,
+        ...(expDate ? { invoice_date: expDate } : {}),
+        ...(uploadedFileRef ? { file_id: uploadedFileRef } : {}),
       };
       await BillsAPI.submitExpense(payload);
       setPanelOpen(false);
-      setExpAmount(''); setExpDate(''); setExpDesc(''); setExpVendorName(''); setUploadDone(false); setUploadedFileRef(null); setOcrResult(null); setAiCatAccepted(false);
+      setExpAmount(''); setExpDate(''); setExpDesc(''); setUploadDone(false); setUploadedFileRef(null); setOcrResult(null); setAiCatAccepted(false);
       BillsAPI.listExpenses().then(data => setExpenses(data || [])).catch(() => {});
     } catch (err) {
       setSubmitError(err.message || 'Submit failed.');
@@ -426,12 +422,17 @@ const ExpensesScreen = ({ role: propRole, onNavigate }) => {
 
   const expFiltered = expenses.filter(e => {
     const mStatus = statusFilter === 'ALL' || (e.status || '').includes(statusFilter);
-    const mSearch = !searchExp || (e.vendor_name || '').toLowerCase().includes(searchExp.toLowerCase()) || (e.ref_no || '').toLowerCase().includes(searchExp.toLowerCase()) || (e.invoice_number || '').toLowerCase().includes(searchExp.toLowerCase());
+    const searchTerm = searchExp.toLowerCase();
+    const mSearch = !searchExp ||
+      (e.submitted_by || '').toLowerCase().includes(searchTerm) ||
+      (e.description || '').toLowerCase().includes(searchTerm) ||
+      (e.expense_category || '').toLowerCase().includes(searchTerm) ||
+      (e.ref_no || '').toLowerCase().includes(searchTerm);
     return mStatus && mSearch;
   });
 
   const totalSpend  = expenses.reduce((s, e) => s + parseFloat(e.total_amount || 0), 0);
-  const pendingSpend = expenses.filter(e => e.status?.startsWith('PENDING')).reduce((s, e) => s + parseFloat(e.total_amount || 0), 0);
+  const pendingSpend = expenses.filter(e => (e.status || '').startsWith('PENDING')).reduce((s, e) => s + parseFloat(e.total_amount || 0), 0);
   const paidSpend   = expenses.filter(e => e.status === 'PAID').reduce((s, e) => s + parseFloat(e.total_amount || 0), 0);
   const fmtS = (n) => n >= 100000 ? `₹${(n/100000).toFixed(1)}L` : `₹${Math.round(n).toLocaleString('en-IN')}`;
 
@@ -449,7 +450,7 @@ const ExpensesScreen = ({ role: propRole, onNavigate }) => {
       {/* Filters */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '14px', alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: 200, maxWidth: 300 }}>
-          <input value={searchExp} onChange={e => setSearchExp(e.target.value)} placeholder="Search by vendor, ref no…"
+          <input value={searchExp} onChange={e => setSearchExp(e.target.value)} placeholder="Search by employee, category, ref no…"
             style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1.5px solid #E2E8F0', borderRadius: '10px', fontSize: '12px', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', background: '#FAFAF8' }} />
           <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', fontSize: '12px' }}>🔍</span>
         </div>
@@ -477,15 +478,15 @@ const ExpensesScreen = ({ role: propRole, onNavigate }) => {
               <tr><td colSpan={!isVendor ? 8 : 7} style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '13px' }}>No expenses found{statusFilter !== 'ALL' ? ` with status ${statusFilter}` : ''}.</td></tr>
             ) : null}
             {expFiltered.map(e => {
-              const rowId = e.invoice_number || e.ref_no || (e.id ? String(e.id).slice(0, 8).toUpperCase() : '—');
+              const rowId = e.ref_no || (e.id ? String(e.id).slice(0, 8).toUpperCase() : '—');
               const refNo = e.ref_no;
-              const employee = e.vendor_name || e.submitted_by_name || '—';
-              const category = e.business_purpose || e.category || '—';
+              const employee = e.submitted_by || e.submitted_by_name || '—';
+              const category = e.expense_category || e.category || '—';
               const dept = e.department || null;
               const amount = e.total_amount != null ? `₹${Number(e.total_amount).toLocaleString('en-IN')}` : '—';
-              const date = e.invoice_date ? new Date(e.invoice_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—';
-              const aiCat = !!(e.ocr_confidence && e.ocr_confidence > 0);
-              const catConf = e.ocr_confidence ? Math.round(e.ocr_confidence * 100) : null;
+              const date = (e.submitted_at || e.created_at) ? new Date(e.submitted_at || e.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—';
+              const aiCat = false;
+              const catConf = null;
               return (
               <React.Fragment key={e.id || rowId}>
                 <tr style={{ borderTop: '1px solid #F1F0EE', height: 52, transition: 'background 150ms', cursor: 'pointer' }}
@@ -537,7 +538,7 @@ const ExpensesScreen = ({ role: propRole, onNavigate }) => {
                             <div style={{ width: 60, height: 80, background: '#F1F5F9', border: '1px solid #E2E8F0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', color: '#CBD5E1' }}>📄</div>
                             <div>
                               <div style={{ fontSize: '12px', fontWeight: 600, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{e.invoice_number || 'No file reference'}</div>
-                              <div style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>{e.ocr_confidence ? `OCR Confidence: ${Math.round(e.ocr_confidence*100)}%` : 'Manual submission'}</div>
+                              <div style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>{e.over_limit ? 'Over policy limit' : 'Within policy limit'}</div>
                               <button style={{ marginTop: '6px', fontSize: '11px', color: '#E8783B', fontWeight: 700, border: 'none', background: 'none', padding: 0, cursor: 'pointer' }} onClick={() => { if (e.invoice_file) { window.TijoriAPI.FilesAPI.open(e.invoice_file); } else { alert('No file attached to this expense.'); } }}>View Full Receipt ↗</button>
                             </div>
                           </div>
@@ -546,7 +547,7 @@ const ExpensesScreen = ({ role: propRole, onNavigate }) => {
                           <div style={{ fontSize: '10px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Category & Policy</div>
                           <div style={{ background: '#F8F7F5', border: '1.5px dashed #E2E8F0', borderRadius: '8px', padding: '10px 14px' }}>
                             <div style={{ fontSize: '12px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>{category}</div>
-                            <div style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>Policy: Global Travel & Expense v2.4</div>
+                            <div style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>{e.description || 'No description provided'}</div>
                           </div>
                         </div>
                         <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: '12px', padding: '14px' }}>
@@ -574,11 +575,11 @@ const ExpensesScreen = ({ role: propRole, onNavigate }) => {
         <TjModal open={!!selectedInv} onClose={() => { setSelectedInv(null); setReviewNotes(''); setReviewMsg(''); }} title="Review Expense" accentColor="#065F46" width={480}>
           <div style={{ padding: '12px 14px', background: '#F8F7F5', borderRadius: '10px', marginBottom: '16px' }}>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#E8783B' }}>{selectedInv.ref_no || String(selectedInv.id).slice(0,8).toUpperCase()}</div>
-            <div style={{ fontWeight: 600, fontSize: '14px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '4px' }}>{selectedInv.vendor_name || selectedInv.submitted_by_name || '—'}</div>
+            <div style={{ fontWeight: 600, fontSize: '14px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '4px' }}>{selectedInv.submitted_by || selectedInv.submitted_by_name || '—'}</div>
             <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '22px', color: '#E8783B', letterSpacing: '-0.5px', marginTop: '4px' }}>
               ₹{selectedInv.total_amount ? Number(selectedInv.total_amount).toLocaleString('en-IN') : '—'}
             </div>
-            <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Purpose: {selectedInv.business_purpose || '—'}</div>
+            <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Purpose: {selectedInv.description || selectedInv.business_purpose || '—'}</div>
           </div>
           <TjTextarea label="Approval Notes (optional)" placeholder="Add any notes for this approval…" value={reviewNotes} onChange={e => setReviewNotes(e.target.value)} rows={3} />
           {reviewMsg && <div style={{ fontSize: '12px', color: reviewMsg.includes('Failed') ? '#EF4444' : '#10B981', marginBottom: '8px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{reviewMsg}</div>}
@@ -590,7 +591,7 @@ const ExpensesScreen = ({ role: propRole, onNavigate }) => {
       )}
 
       {/* File Expense Side Panel */}
-      <SidePanel open={panelOpen} onClose={() => setPanelOpen(false)} title="File Expense / Bill">
+      <SidePanel open={panelOpen} onClose={() => setPanelOpen(false)} title="File Internal Expense">
         {/* Upload zone */}
         <div style={{ border: `1.5px dashed ${ocrFailed ? '#F59E0B' : uploadDone ? '#10B981' : '#E2E8F0'}`, borderRadius: '12px', padding: '24px', textAlign: 'center', marginBottom: '20px', background: ocrFailed ? '#FFFBEB' : uploadDone ? '#F0FDF4' : '#FAFAF8', cursor: 'pointer', transition: 'all 200ms', position: 'relative' }}
           onMouseEnter={e => { if (!uploadDone) e.currentTarget.style.borderColor = '#E8783B'; }}
@@ -1058,9 +1059,9 @@ const GuardrailsScreen = ({ onNavigate }) => {
     { name: 'Human Resources', spent: 0.544, total: 0.8, color: '#F59E0B' },
   ];
   const logs = [
-    { time: '09:14', text: 'System blocked $12,400 transaction for Engineering. Cap exceeded.', entity: 'TechLogistics' },
+    { time: '09:14', text: 'System blocked $12,400 transaction for Engineering. Cap exceeded.', entity: 'System' },
     { time: '08:52', text: 'Warning email sent to Engineering HOD — 98% threshold crossed.', entity: 'System' },
-    { time: 'Apr 18', text: 'System blocked $8,200 transaction for Engineering.', entity: 'GlobalSync' },
+    { time: 'Apr 18', text: 'System blocked $8,200 transaction for Engineering.', entity: 'System' },
     { time: 'Apr 17', text: 'Marketing budget warning triggered at 85%.', entity: 'System' },
   ];
 
@@ -1121,14 +1122,6 @@ const GuardrailsScreen = ({ onNavigate }) => {
 };
 
 // ─── AUDIT LOG ────────────────────────────────────────────────────────────────
-
-const AUDIT_ENTRIES = [
-  { id: 1, user: 'Rohan Kapoor', action: 'approved', entity: 'INV-2024-087', type: 'APPROVAL', time: 'Apr 19, 09:45', detail: '{ "invoice": "INV-2024-087", "amount": 45200, "role": "CFO", "status": "APPROVED" }' },
-  { id: 2, user: 'System', action: 'flagged anomaly on', entity: 'INV-2024-082', type: 'SYSTEM', time: 'Apr 19, 09:14', detail: '{ "anomaly_id": "ANO-001", "score": 94, "type": "DUPLICATE_INVOICE" }' },
-  { id: 3, user: 'Priya Mehta', action: 'raised query on', entity: 'INV-2024-089', type: 'INVOICE', time: 'Apr 19, 08:30', detail: '{ "invoice": "INV-2024-089", "query": "Please provide original PO reference." }' },
-  { id: 4, user: 'Finance Admin', action: 'activated vendor', entity: 'VND-003', type: 'VENDOR', time: 'Apr 18, 17:20', detail: '{ "vendor_id": "VND-003", "name": "GlobalSync Technologies", "status": "ACTIVE" }' },
-  { id: 5, user: 'Aisha Nair', action: 'submitted expense', entity: 'EXP-2024-441', type: 'INVOICE', time: 'Apr 18, 23:43', detail: '{ "expense_id": "EXP-2024-441", "amount": 4200, "category": "Travel" }' },
-];
 
 const AuditScreen = ({ role, onNavigate, initialFilter }) => {
   const [view,         setView]         = React.useState('timeline');

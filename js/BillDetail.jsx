@@ -2,7 +2,7 @@
 // Full-page detail — never a drawer
 
 const APPROVAL_STAGES_DATA = [
-  { stage: 'Submitted', actor: 'TechLogistics', date: 'Apr 11, 2026 09:15', state: 'done', dept: null, category: null, notes: 'Invoice submitted with all attachments.' },
+  { stage: 'Submitted', actor: 'Vendor', date: 'Apr 11, 2026 09:15', state: 'done', dept: null, category: null, notes: 'Invoice submitted with all attachments.' },
   { stage: 'L1 Review', actor: 'Priya Mehta', date: 'Apr 11, 2026 14:32', state: 'done', dept: 'Engineering — CC-001', category: 'Infrastructure', notes: 'Approved — charged to Engineering. AI category accepted.' },
   { stage: 'Dept Head Review', actor: 'Dev Kapoor', date: 'Apr 12, 2026 10:20', state: 'done', dept: null, category: null, notes: 'Approved within departmental budget.' },
   { stage: 'Finance L1', actor: 'Kavitha Sharma', date: 'Apr 13, 2026 11:00', state: 'done', dept: null, category: null, notes: 'Finance L1 approved.' },
@@ -15,13 +15,13 @@ const APPROVAL_STAGES_DATA = [
 
 const COMMENTS_DATA = [
   { id: 1, user: 'Priya Mehta', role: 'AP Clerk', time: 'Apr 11, 14:35', text: 'Please confirm the PO reference for this invoice. Could not locate matching PO in system.', internal: false, initials: 'PM' },
-  { id: 2, user: 'TechLogistics', role: 'Vendor', time: 'Apr 11, 16:20', text: 'The service was rendered under a blanket agreement — PO reference: BLA-2026-004. Please check with procurement.', internal: false, initials: 'TL' },
+  { id: 2, user: 'Vendor', role: 'Vendor', time: 'Apr 11, 16:20', text: 'The service was rendered under a blanket agreement — PO reference: BLA-2026-004. Please check with procurement.', internal: false, initials: 'TL' },
   { id: 3, user: 'Kavitha Sharma', role: 'Finance Manager', time: 'Apr 12, 09:10', text: 'Blanket agreement verified with procurement. Proceeding to approval.', internal: true, initials: 'KS' },
 ];
 
 const ATTACHMENTS_DATA = [
-  { name: 'Invoice_TL_0842.pdf', size: '342 KB', type: 'pdf', uploader: 'TechLogistics', date: 'Apr 11' },
-  { name: 'GST_Certificate.pdf', size: '128 KB', type: 'pdf', uploader: 'TechLogistics', date: 'Apr 11' },
+  { name: 'Invoice_TL_0842.pdf', size: '342 KB', type: 'pdf', uploader: 'Vendor', date: 'Apr 11' },
+  { name: 'GST_Certificate.pdf', size: '128 KB', type: 'pdf', uploader: 'Vendor', date: 'Apr 11' },
   { name: 'Service_Completion.pdf', size: '512 KB', type: 'pdf', uploader: 'Priya Mehta', date: 'Apr 11' },
 ];
 
@@ -48,8 +48,8 @@ const FINANCE_CHECKLIST = [
 const BILL_DATA_FALLBACK = {
   id: 'BILL-2026-00042',
   vendorCode: 'VND-001',
-  vendorName: 'TechLogistics Solutions Global',
-  vendorName2: 'TechLogistics India',
+  vendorName: 'Vendor Solutions Global',
+  vendorName2: 'Vendor India',
   gstin: '27AABCT3518Q1ZL',
   pan: 'AABCT3518Q',
   msme: false,

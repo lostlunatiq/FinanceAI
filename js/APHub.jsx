@@ -49,7 +49,7 @@ const APHubScreen = ({ role: propRole, onNavigate }) => {
   const loadBills = () => {
     const { BillsAPI, DashboardAPI } = window.TijoriAPI;
     setLoadingBills(true);
-    Promise.all([BillsAPI.queue(), DashboardAPI.stats()])
+    Promise.all([BillsAPI.queue(), DashboardAPI.stats({ type: 'vendor' })])
       .then(([bills, s]) => {
         setInvoices((bills || []).map(expenseToRow));
         setStats(s);
