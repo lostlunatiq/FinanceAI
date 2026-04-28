@@ -1,6 +1,6 @@
 // Tijori AI — Anomaly Detection (AI Fraud Engine)
 
-const AnomalyScreen = ({ onNavigate }) => {
+const AnomalyScreen = ({ role, onNavigate }) => {
   const [activePanel, setActivePanel] = React.useState(null);
   const [scanLoading, setScanLoading] = React.useState(false);
   const [scanned, setScanned] = React.useState(false);
@@ -206,7 +206,14 @@ const AnomalyScreen = ({ onNavigate }) => {
               <Btn variant="primary" style={{ flex: 1 }} onClick={() => handleEscalate(activePanel.rawId)}>Escalate to CFO</Btn>
               <Btn variant="green" style={{ flex: 1 }} onClick={() => handleMarkSafe(activePanel.rawId)}>Mark as Safe</Btn>
             </div>
-            <button style={{ width: '100%', marginTop: '10px', padding: '10px', background: '#F5F3FF', border: '1px solid #EDE9FE', borderRadius: '10px', cursor: 'pointer', fontSize: '13px', color: '#5B21B6', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            <button onClick={() => {
+                setActivePanel(null);
+                if (onNavigate) onNavigate('ai-hub');
+                setTimeout(() => {
+                  window.dispatchEvent(new CustomEvent('copilot:prefill', { detail: { query: `Explain anomaly for ${activePanel.entity}: ${activePanel.type} — ${activePanel.details}` } }));
+                }, 300);
+              }}
+              style={{ width: '100%', marginTop: '10px', padding: '10px', background: '#F5F3FF', border: '1px solid #EDE9FE', borderRadius: '10px', cursor: 'pointer', fontSize: '13px', color: '#5B21B6', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               ✦ Explain this anomaly in Copilot
             </button>
           </>

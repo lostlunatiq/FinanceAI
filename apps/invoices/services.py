@@ -34,6 +34,7 @@ STATUS_TO_NEXT_STATUS = {
     "PENDING_FIN_L1": "PENDING_FIN_L2",
     "PENDING_FIN_L2": "PENDING_FIN_HEAD",
     "PENDING_FIN_HEAD": "APPROVED",
+    "PENDING_CFO": "APPROVED",  # CFO final approval
 }
 
 LEVEL_AFTER = {1: 3, 3: 4, 4: 5, 5: 6}
@@ -55,10 +56,10 @@ DEFAULT_APPROVAL_AUTHORITIES = {
     },
     3: {
         "label": "Finance Manager",
-        "approval_limit": 100_000,
-        "settlement_limit": 100_000,
-        "monthly_approval_budget": 1_000_000,
-        "monthly_settlement_budget": 1_000_000,
+        "approval_limit": 10_000_000,
+        "settlement_limit": 10_000_000,
+        "monthly_approval_budget": 50_000_000,
+        "monthly_settlement_budget": 50_000_000,
     },
     4: {
         "label": "Finance Admin",
@@ -218,11 +219,12 @@ def can_user_take_step_action(user, expense) -> bool:
         return False
     if getattr(user, "vendor_profile", None):
         return False
+    # CFO / superuser can act on any non-terminal bill including PENDING_CFO
+    if user.is_superuser:
+        return True
     pending_step = get_current_pending_step(expense)
     if not pending_step:
         return False
-    if user.is_superuser:
-        return True
     user_grade = user.employee_grade or 1
     if user_grade < (pending_step.grade_required or 1):
         return False
@@ -274,12 +276,15 @@ def _find_approver_for_level(level: int):
     from .models import GRADE_FOR_STEP
 
     min_grade = GRADE_FOR_STEP.get(level, 1)
+    # Exclude vendor users (those with a vendor_profile) and superusers from auto-assignment
     return (
         User.objects.filter(
             employee_grade__gte=min_grade,
             is_active=True,
+            is_superuser=False,
         )
-        .order_by("employee_grade")
+        .exclude(vendor_profile__isnull=False)
+        .order_by("employee_grade", "username")
         .first()
     )
 

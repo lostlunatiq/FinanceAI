@@ -421,16 +421,45 @@ const ExpensesScreen = ({ role: propRole, onNavigate }) => {
   const budgetPct = budgetInfo ? Math.round((budgetInfo.rem / budgetInfo.total) * 100) : null;
   const budgetColor = budgetPct === null ? '#94A3B8' : budgetPct > 50 ? '#10B981' : budgetPct > 20 ? '#F59E0B' : '#EF4444';
 
+  const [statusFilter, setStatusFilter] = React.useState('ALL');
+  const [searchExp,    setSearchExp]    = React.useState('');
+
+  const expFiltered = expenses.filter(e => {
+    const mStatus = statusFilter === 'ALL' || (e.status || '').includes(statusFilter);
+    const mSearch = !searchExp || (e.vendor_name || '').toLowerCase().includes(searchExp.toLowerCase()) || (e.ref_no || '').toLowerCase().includes(searchExp.toLowerCase()) || (e.invoice_number || '').toLowerCase().includes(searchExp.toLowerCase());
+    return mStatus && mSearch;
+  });
+
+  const totalSpend  = expenses.reduce((s, e) => s + parseFloat(e.total_amount || 0), 0);
+  const pendingSpend = expenses.filter(e => e.status?.startsWith('PENDING')).reduce((s, e) => s + parseFloat(e.total_amount || 0), 0);
+  const paidSpend   = expenses.filter(e => e.status === 'PAID').reduce((s, e) => s + parseFloat(e.total_amount || 0), 0);
+  const fmtS = (n) => n >= 100000 ? `₹${(n/100000).toFixed(1)}L` : `₹${Math.round(n).toLocaleString('en-IN')}`;
+
   return (
     <div style={{ padding: '32px' }}>
       <SectionHeader title="Internal Expenses" subtitle="Manage employee reimbursements and operational expenditures."
         right={<Btn variant="primary" icon={<span>+</span>} onClick={() => { setPanelOpen(true); setUploadDone(false); setAiCatAccepted(false); setExpAmount(''); }}>File Expense</Btn>} />
 
       <StatsRow cards={[
-        { label: 'Unapproved Spend', value: '₹12,450', delta: '↑ ₹3.2K', deltaType: 'negative', color: '#EF4444', pulse: true },
-        { label: 'Approved This Month', value: '₹48,200', delta: '↑ 12%', deltaType: 'positive', color: '#10B981' },
-        { label: 'Reimbursed', value: '₹31,100', delta: 'Settled', deltaType: 'positive', color: '#10B981' },
+        { label: 'Pending Approval', value: loadingExp ? '…' : fmtS(pendingSpend), delta: `${expenses.filter(e => e.status?.startsWith('PENDING')).length} items`, deltaType: 'negative', color: '#EF4444', pulse: true },
+        { label: 'Total in System', value: loadingExp ? '…' : fmtS(totalSpend), delta: `${expenses.length} expenses`, deltaType: 'neutral', color: '#E8783B' },
+        { label: 'Paid / Reimbursed', value: loadingExp ? '…' : fmtS(paidSpend), delta: `${expenses.filter(e => e.status === 'PAID').length} settled`, deltaType: 'positive', color: '#10B981' },
       ]} />
+
+      {/* Filters */}
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '14px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: 200, maxWidth: 300 }}>
+          <input value={searchExp} onChange={e => setSearchExp(e.target.value)} placeholder="Search by vendor, ref no…"
+            style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1.5px solid #E2E8F0', borderRadius: '10px', fontSize: '12px', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', background: '#FAFAF8' }} />
+          <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', fontSize: '12px' }}>🔍</span>
+        </div>
+        {[['ALL','All'], ['PENDING','Pending'], ['APPROVED','Approved'], ['REJECTED','Rejected'], ['PAID','Paid']].map(([v, l]) => (
+          <button key={v} onClick={() => setStatusFilter(v)}
+            style={{ padding: '6px 14px', borderRadius: '999px', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif", background: statusFilter === v ? '#E8783B' : '#F8F7F5', color: statusFilter === v ? 'white' : '#64748B', transition: 'all 150ms' }}>
+            {l}
+          </button>
+        ))}
+      </div>
 
       <div style={{ background: 'white', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -444,10 +473,10 @@ const ExpensesScreen = ({ role: propRole, onNavigate }) => {
           <tbody>
             {loadingExp ? (
               <tr><td colSpan={!isVendor ? 8 : 7} style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '13px' }}>Loading expenses…</td></tr>
-            ) : expenses.length === 0 ? (
-              <tr><td colSpan={!isVendor ? 8 : 7} style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '13px' }}>No expenses found.</td></tr>
+            ) : expFiltered.length === 0 ? (
+              <tr><td colSpan={!isVendor ? 8 : 7} style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '13px' }}>No expenses found{statusFilter !== 'ALL' ? ` with status ${statusFilter}` : ''}.</td></tr>
             ) : null}
-            {expenses.map(e => {
+            {expFiltered.map(e => {
               const rowId = e.invoice_number || e.ref_no || (e.id ? String(e.id).slice(0, 8).toUpperCase() : '—');
               const refNo = e.ref_no;
               const employee = e.vendor_name || e.submitted_by_name || '—';
@@ -757,7 +786,16 @@ const BudgetDetailDrawer = ({ budget, open, onClose, onUpdated }) => {
             <TjInput label="Warning %" value={editForm.warning_threshold} onChange={e => setEditForm(f => ({...f, warning_threshold: e.target.value}))} />
             <TjInput label="Critical %" value={editForm.critical_threshold} onChange={e => setEditForm(f => ({...f, critical_threshold: e.target.value}))} />
           </div>
-          <Btn variant="primary" onClick={handleSave} style={{ width: '100%', justifyContent: 'center', marginTop: 4 }}>Save Changes</Btn>
+          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+            <Btn variant="primary" onClick={handleSave} style={{ flex: 1, justifyContent: 'center' }}>Save Changes</Btn>
+            <Btn variant="destructive" small onClick={async () => {
+              if (!window.confirm('Close/delete this budget?')) return;
+              try {
+                await window.TijoriAPI.BudgetAPI.deleteBudget(budget.id);
+                onUpdated();
+              } catch(e) { alert(e.message || 'Delete failed'); }
+            }}>Delete</Btn>
+          </div>
         </div>
       )}
 
@@ -1092,71 +1130,137 @@ const AUDIT_ENTRIES = [
   { id: 5, user: 'Aisha Nair', action: 'submitted expense', entity: 'EXP-2024-441', type: 'INVOICE', time: 'Apr 18, 23:43', detail: '{ "expense_id": "EXP-2024-441", "amount": 4200, "category": "Travel" }' },
 ];
 
-const AuditScreen = ({ onNavigate }) => {
-  const [view, setView] = React.useState('timeline');
-  const [expanded, setExpanded] = React.useState(null);
-  const [filterChip, setFilterChip] = React.useState('All');
+const AuditScreen = ({ role, onNavigate, initialFilter }) => {
+  const [view,         setView]         = React.useState('timeline');
+  const [expanded,     setExpanded]     = React.useState(null);
+  const [filterChip,   setFilterChip]   = React.useState(initialFilter || 'All');
+  const [search,       setSearch]       = React.useState('');
+  const [dateFrom,     setDateFrom]     = React.useState('');
+  const [dateTo,       setDateTo]       = React.useState('');
   const [auditEntries, setAuditEntries] = React.useState([]);
   const [loadingAudit, setLoadingAudit] = React.useState(true);
-  const typeColor = { APPROVAL: '#10B981', INVOICE: '#E8783B', VENDOR: '#8B5CF6', SYSTEM: '#94A3B8', USER: '#3B82F6' };
-  const chips = ['All', 'Invoice', 'Approval', 'Vendor', 'System'];
+  const [total,        setTotal]        = React.useState(0);
+  const typeColor = { APPROVAL: '#10B981', INVOICE: '#E8783B', VENDOR: '#8B5CF6', SYSTEM: '#94A3B8', USER: '#3B82F6', EXPENSE: '#E8783B' };
+  const chips = ['All', 'Invoice', 'Approval', 'Vendor', 'User', 'System'];
 
-  React.useEffect(() => {
+  const parseEntries = (data) => {
+    const entries = Array.isArray(data) ? data : (data?.results || []);
+    return entries.map((entry, i) => {
+      const actionStr = entry.action || '';
+      const parts     = actionStr.split('.');
+      const domain    = parts[0] ? parts[0].toUpperCase() : 'SYSTEM';
+      const verb      = parts[1] ? parts[1].replace(/_/g, ' ') : actionStr;
+      const typeMap   = { EXPENSE: 'INVOICE', VENDOR: 'VENDOR', USER: 'USER', SYSTEM: 'SYSTEM' };
+      const type      = typeMap[domain] || (actionStr.includes('approv') ? 'APPROVAL' : 'SYSTEM');
+
+      const details   = entry.details || {};
+      let entityName  = entry.entity_type || '—';
+      if (entry.entity_id) {
+        const shortId = String(entry.entity_id).slice(0, 8).toUpperCase();
+        entityName = details.ref_no || details.invoice_number || `${entry.entity_type || ''}:${shortId}`;
+      }
+
+      const reason = details.reason || details.decision_reason || '';
+      const amount = details.total_amount ? `₹${Number(details.total_amount).toLocaleString('en-IN')}` : '';
+
+      return {
+        id:     entry.id || i,
+        user:   entry.actor || 'System',
+        action: verb || actionStr,
+        entity: entityName,
+        type,
+        time:   entry.timestamp ? new Date(entry.timestamp).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—',
+        reason,
+        amount,
+        detail: Object.keys(details).length > 0 ? JSON.stringify(details, null, 2) : null,
+        raw:    entry,
+      };
+    });
+  };
+
+  const loadAudit = () => {
     const { AuditAPI } = window.TijoriAPI;
-    AuditAPI.list()
+    setLoadingAudit(true);
+    const params = { limit: 100 };
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo)   params.date_to   = dateTo;
+    AuditAPI.list(params)
       .then(data => {
-        const entries = Array.isArray(data) ? data : (data && data.results ? data.results : []);
-        const rows = entries.map((entry, i) => {
-          const actionStr = entry.action || 'action';
-          const parts = actionStr.split('.');
-          const typeKey = parts[0] ? parts[0].toUpperCase() : 'SYSTEM';
-          const actionVerb = parts[1] ? parts[1].replace(/_/g, ' ') : actionStr;
-          const typeMap = { USER: 'USER', EXPENSE: 'INVOICE', VENDOR: 'VENDOR', SYSTEM: 'SYSTEM', INVOICE: 'INVOICE' };
-          
-          // Intelligent entity naming
-          let entityName = entry.entity_type || '—';
-          if (entry.entity_id) {
-            const shortId = String(entry.entity_id).slice(0, 8).toUpperCase();
-            // If it was an expense, use ref_no if available in after state
-            const after = entry.masked_after || {};
-            entityName = after.ref_no || after.invoice_number || `${entityName}:${shortId}`;
-          }
-
-          return {
-            id: entry.id || i,
-            user: entry.actor_name || entry.actor || 'System',
-            action: actionVerb,
-            entity: entityName,
-            type: typeMap[typeKey] || 'SYSTEM',
-            time: entry.timestamp ? new Date(entry.timestamp).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—',
-            detail: entry.masked_after || entry.masked_before ? JSON.stringify({ 
-              before: entry.masked_before, 
-              after: entry.masked_after 
-            }, null, 2) : JSON.stringify(entry.details || {}, null, 2),
-            raw: entry
-          };
-        });
-        setAuditEntries(rows);
+        setAuditEntries(parseEntries(data));
+        setTotal(data?.total || (Array.isArray(data) ? data.length : 0));
       })
       .catch(() => {})
       .finally(() => setLoadingAudit(false));
-  }, []);
+  };
 
-  const filtered = auditEntries.filter(e => filterChip === 'All' || e.type.startsWith(filterChip.toUpperCase()));
+  React.useEffect(() => { loadAudit(); }, []);
+
+  const exportCSV = () => {
+    const rows = filtered.map(e => [e.time, e.user, e.action, e.entity, e.type, e.reason, e.amount].join(','));
+    const csv  = ['Timestamp,User,Action,Entity,Type,Reason,Amount', ...rows].join('\n');
+    const a    = document.createElement('a');
+    a.href     = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+    a.download = `audit_log_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+  };
+
+  const filtered = auditEntries.filter(e => {
+    const matchType   = filterChip === 'All' || e.type === filterChip.toUpperCase() || (filterChip === 'Invoice' && e.type === 'EXPENSE');
+    const matchSearch = !search || e.user.toLowerCase().includes(search.toLowerCase()) || e.entity.toLowerCase().includes(search.toLowerCase()) || e.action.toLowerCase().includes(search.toLowerCase());
+    return matchType && matchSearch;
+  });
+
+  // Dynamic stats from live data
+  const stats = React.useMemo(() => ({
+    invoice:  auditEntries.filter(e => e.type === 'INVOICE' || e.type === 'EXPENSE').length,
+    approval: auditEntries.filter(e => e.type === 'APPROVAL' || e.action.includes('approv') || e.action.includes('reject')).length,
+    vendor:   auditEntries.filter(e => e.type === 'VENDOR').length,
+    user:     auditEntries.filter(e => e.type === 'USER').length,
+    system:   auditEntries.filter(e => e.type === 'SYSTEM').length,
+  }), [auditEntries]);
 
   return (
     <div style={{ padding: '32px' }}>
-      <SectionHeader title="Audit Registry" subtitle="A permanent, immutable record of every transaction and system event."
-        right={<><input type="date" style={{ padding: '8px 12px', border: '1.5px solid #E2E8F0', borderRadius: '10px', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '12px', outline: 'none', background: '#FAFAF8' }} /><Btn variant="secondary" small>Export CSV ↓</Btn></>} />
+      <SectionHeader title="Audit Registry" subtitle="Permanent, immutable record of every transaction and system event. Role-filtered view."
+        right={
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+              style={{ padding: '8px 10px', border: '1.5px solid #E2E8F0', borderRadius: '10px', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '12px', outline: 'none', background: '#FAFAF8' }} />
+            <span style={{ color: '#94A3B8', fontSize: '12px' }}>→</span>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+              style={{ padding: '8px 10px', border: '1.5px solid #E2E8F0', borderRadius: '10px', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '12px', outline: 'none', background: '#FAFAF8' }} />
+            <Btn variant="secondary" small onClick={loadAudit}>Apply</Btn>
+            <Btn variant="secondary" small onClick={exportCSV}>Export CSV ↓</Btn>
+          </div>
+        } />
+
+      {/* Dynamic stats */}
       <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        {[['Invoice Actions', 12, '#E8783B'], ['Approvals', 8, '#10B981'], ['Vendor Changes', 3, '#8B5CF6'], ['Login Events', 24, '#3B82F6'], ['System Actions', 7, '#94A3B8']].map(([l, v, c]) => (
+        {[
+          ['Invoice Actions', stats.invoice,  '#E8783B'],
+          ['Approvals',       stats.approval, '#10B981'],
+          ['Vendor Changes',  stats.vendor,   '#8B5CF6'],
+          ['User Events',     stats.user,     '#3B82F6'],
+          ['System Actions',  stats.system,   '#94A3B8'],
+        ].map(([l, v, c]) => (
           <div key={l} style={{ background: 'white', borderRadius: '10px', padding: '10px 16px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <span style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '18px', color: c }}>{v}</span>
+            <span style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '18px', color: c }}>{loadingAudit ? '…' : v}</span>
             <span style={{ fontSize: '11px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{l}</span>
           </div>
         ))}
+        <div style={{ background: 'white', borderRadius: '10px', padding: '10px 16px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', display: 'flex', gap: '8px', alignItems: 'center', marginLeft: 'auto' }}>
+          <span style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '18px', color: '#0F172A' }}>{total}</span>
+          <span style={{ fontSize: '11px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Total Entries</span>
+        </div>
       </div>
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', alignItems: 'center' }}>
+
+      {/* Search + filter bar */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', minWidth: 200 }}>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search user, entity, action…"
+            style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1.5px solid #E2E8F0', borderRadius: '10px', fontSize: '12px', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', background: '#FAFAF8' }} />
+          <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', fontSize: '12px' }}>🔍</span>
+        </div>
         {chips.map(c => (
           <button key={c} onClick={() => setFilterChip(c)}
             style={{ padding: '6px 14px', borderRadius: '999px', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif", background: filterChip === c ? '#E8783B' : '#F8F7F5', color: filterChip === c ? 'white' : '#64748B', transition: 'all 150ms' }}>
@@ -1181,18 +1285,25 @@ const AuditScreen = ({ onNavigate }) => {
           {filtered.map(e => (
             <div key={e.id} style={{ marginBottom: '16px', position: 'relative' }}>
               <div style={{ position: 'absolute', left: -26, top: 12, width: 12, height: 12, borderRadius: '50%', background: typeColor[e.type] || '#94A3B8', border: '2px solid white', boxShadow: `0 0 0 2px ${typeColor[e.type] || '#94A3B8'}44` }} />
-              <div style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', cursor: 'pointer', border: '1px solid #F1F0EE' }} onClick={() => setExpanded(expanded === e.id ? null : e.id)}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', cursor: 'pointer', border: `1px solid ${expanded === e.id ? '#E8783B44' : '#F1F0EE'}`, transition: 'border-color 150ms' }}
+                onClick={() => setExpanded(expanded === e.id ? null : e.id)}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     <span style={{ background: (typeColor[e.type] || '#94A3B8') + '22', color: typeColor[e.type] || '#94A3B8', padding: '2px 8px', borderRadius: '6px', fontSize: '9px', fontWeight: 700, letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{e.type}</span>
                     <span style={{ fontSize: '13px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 500 }}>
                       <strong>{e.user}</strong> {e.action} <span style={{ color: '#E8783B', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{e.entity}</span>
                     </span>
+                    {e.amount && <span style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '13px', color: '#10B981', letterSpacing: '-0.3px' }}>{e.amount}</span>}
                   </div>
-                  <span style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{e.time}</span>
+                  <span style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", flexShrink: 0, marginLeft: 8 }}>{e.time}</span>
                 </div>
-                {expanded === e.id && (
-                  <div style={{ marginTop: '10px', background: '#F8F7F5', borderRadius: '8px', padding: '10px', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#475569', lineHeight: 1.6 }}>{e.detail}</div>
+                {e.reason && (
+                  <div style={{ fontSize: '12px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '4px', fontStyle: 'italic' }}>
+                    Reason: {e.reason}
+                  </div>
+                )}
+                {expanded === e.id && e.detail && (
+                  <div style={{ marginTop: '10px', background: '#F8F7F5', borderRadius: '8px', padding: '10px', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#475569', lineHeight: 1.6, whiteSpace: 'pre-wrap', overflow: 'auto', maxHeight: 200 }}>{e.detail}</div>
                 )}
               </div>
             </div>
@@ -1203,20 +1314,23 @@ const AuditScreen = ({ onNavigate }) => {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#F8F7F5' }}>
-                {['Type', 'User', 'Action', 'Entity', 'Timestamp'].map(h => (
+                {['Type', 'User', 'Action', 'Entity', 'Amount', 'Reason', 'Timestamp'].map(h => (
                   <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '10px', fontWeight: 700, color: '#94A3B8', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.map(e => (
-                <tr key={e.id} style={{ borderTop: '1px solid #F1F0EE', height: 52, transition: 'background 150ms' }}
+                <tr key={e.id} style={{ borderTop: '1px solid #F1F0EE', height: 52, transition: 'background 150ms', cursor: 'pointer' }}
                   onMouseEnter={ev => ev.currentTarget.style.background = '#FFF8F5'}
-                  onMouseLeave={ev => ev.currentTarget.style.background = 'white'}>
+                  onMouseLeave={ev => ev.currentTarget.style.background = 'white'}
+                  onClick={() => setExpanded(expanded === e.id ? null : e.id)}>
                   <td style={{ padding: '0 16px' }}><span style={{ background: (typeColor[e.type] || '#94A3B8') + '22', color: typeColor[e.type] || '#94A3B8', padding: '3px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{e.type}</span></td>
                   <td style={{ padding: '0 16px', fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{e.user}</td>
-                  <td style={{ padding: '0 16px', fontSize: '13px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{e.action}</td>
-                  <td style={{ padding: '0 16px', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#E8783B' }}>{e.entity}</td>
+                  <td style={{ padding: '0 16px', fontSize: '12px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{e.action}</td>
+                  <td style={{ padding: '0 16px', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#E8783B' }}>{e.entity}</td>
+                  <td style={{ padding: '0 16px', fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '13px', color: '#10B981' }}>{e.amount || '—'}</td>
+                  <td style={{ padding: '0 16px', fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif", maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.reason || '—'}</td>
                   <td style={{ padding: '0 16px', fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{e.time}</td>
                 </tr>
               ))}
@@ -1256,7 +1370,11 @@ const SettingsScreen = ({ role: propRole, onNavigate }) => {
     setProfileSaving(true); setProfileMsg('');
     try {
       const { AuthAPI } = window.TijoriAPI;
-      const updated = await AuthAPI.updateProfile(profileForm);
+      const updated = await AuthAPI.updateProfile({
+        first_name: profileForm.first_name,
+        last_name: profileForm.last_name,
+        email: profileForm.email,
+      });
       setProfile(p => ({ ...p, ...updated }));
       setProfileMsg('Profile updated successfully.');
       setTimeout(() => { setEditProfileOpen(false); setProfileMsg(''); }, 1200);
@@ -1269,9 +1387,10 @@ const SettingsScreen = ({ role: propRole, onNavigate }) => {
 
   const handleChangePassword = () => {
     const { AuthAPI } = window.TijoriAPI;
-    AuthAPI.changePassword({ old_password: pwForm.current, new_password: pwForm.new_password })
-      .then(() => { setPwMsg('Password updated.'); setPwForm({ current: '', new_password: '' }); })
-      .catch(() => setPwMsg('Failed to update password.'));
+    if (!pwForm.current || !pwForm.new_password) { setPwMsg('Both fields required.'); return; }
+    AuthAPI.changePassword({ old_password: pwForm.current, new_password: pwForm.new_password, confirm_password: pwForm.new_password })
+      .then(() => { setPwMsg('Password updated successfully.'); setPwForm({ current: '', new_password: '' }); })
+      .catch(e => setPwMsg('Failed: ' + (e.message || 'Error')));
   };
 
   const displayName = profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.username : (JSON.parse(localStorage.getItem('tj_user') || '{}').name || 'User');

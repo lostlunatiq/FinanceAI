@@ -410,7 +410,28 @@ const APHubScreen = ({
       fontSize: '12px',
       fontWeight: 600,
       fontFamily: "'Plus Jakarta Sans', sans-serif"
-    }
+    },
+    onClick: async () => {
+      const {
+        BillsAPI
+      } = window.TijoriAPI;
+      setActionLoading(true);
+      setActionError('');
+      const selectedRawIds = filtered.filter(inv => selected.includes(inv.id)).map(inv => inv.rawId);
+      let errors = [];
+      for (const rawId of selectedRawIds) {
+        try {
+          await BillsAPI.approve(rawId, 'Bulk approved', '');
+        } catch (e) {
+          errors.push(rawId);
+        }
+      }
+      setActionLoading(false);
+      setSelected([]);
+      loadBills();
+      if (errors.length) setActionError(`${errors.length} invoice(s) could not be approved.`);
+    },
+    disabled: actionLoading
   }, "Bulk Approve"), /*#__PURE__*/React.createElement("button", {
     style: {
       padding: '6px 14px',
@@ -422,7 +443,28 @@ const APHubScreen = ({
       fontSize: '12px',
       fontWeight: 600,
       fontFamily: "'Plus Jakarta Sans', sans-serif"
-    }
+    },
+    onClick: async () => {
+      const {
+        BillsAPI
+      } = window.TijoriAPI;
+      setActionLoading(true);
+      setActionError('');
+      const selectedRawIds = filtered.filter(inv => selected.includes(inv.id)).map(inv => inv.rawId);
+      let errors = [];
+      for (const rawId of selectedRawIds) {
+        try {
+          await BillsAPI.reject(rawId, 'Bulk rejected');
+        } catch (e) {
+          errors.push(rawId);
+        }
+      }
+      setActionLoading(false);
+      setSelected([]);
+      loadBills();
+      if (errors.length) setActionError(`${errors.length} invoice(s) could not be rejected.`);
+    },
+    disabled: actionLoading
   }, "Bulk Reject"), /*#__PURE__*/React.createElement("button", {
     onClick: () => setSelected([]),
     style: {

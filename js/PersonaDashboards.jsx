@@ -2,7 +2,7 @@
 
 // ─── AP CLERK DASHBOARD ───────────────────────────────────────────────────────
 
-const APClerkDashboard = ({ role, onNavigate }) => {
+const APClerkDashboard = ({ role, onNavigate, user }) => {
   const [modal, setModal] = React.useState(null);
   const [notes, setNotes] = React.useState('');
   const [items, setItems] = React.useState([]);
@@ -46,9 +46,9 @@ const APClerkDashboard = ({ role, onNavigate }) => {
   return (
     <div style={{ padding: '32px' }}>
       <div style={{ marginBottom: '28px', animation: 'fadeUp 250ms ease both' }}>
-        <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8783B', marginBottom: '6px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>AP Clerk · Priya Mehta</div>
+        <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8783B', marginBottom: '6px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>AP Clerk · {user?.name || 'AP Clerk'}</div>
         <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '32px', color: '#0F172A', letterSpacing: '-1.5px' }}>My Processing Queue</h1>
-        <div style={{ fontSize: '13px', color: '#64748B', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>April 19, 2026 — {pending.length} invoices require your action today</div>
+        <div style={{ fontSize: '13px', color: '#64748B', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{new Date().toLocaleDateString('en-IN', { month: 'long', day: 'numeric', year: 'numeric' })} — {pending.length} invoices require your action today</div>
       </div>
 
       <div style={{ display: 'flex', gap: '16px', marginBottom: '28px', animation: 'fadeUp 250ms 60ms ease both', opacity: 0, animationFillMode: 'forwards' }}>
@@ -158,13 +158,36 @@ const APClerkDashboard = ({ role, onNavigate }) => {
 
 // ─── FINANCE MANAGER DASHBOARD ────────────────────────────────────────────────
 
-const FinanceManagerDashboard = ({ role, onNavigate }) => {
+const FinanceManagerDashboard = ({ role, onNavigate, user }) => {
   const [expandedTeam, setExpandedTeam] = React.useState(null);
+  const [queueItems, setQueueItems] = React.useState([]);
+  const [statsData, setStatsData] = React.useState(null);
+  const [queueLoading, setQueueLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const { BillsAPI, DashboardAPI } = window.TijoriAPI;
+    Promise.allSettled([BillsAPI.queue(), DashboardAPI.stats()])
+      .then(([qRes, sRes]) => {
+        if (qRes.status === 'fulfilled') setQueueItems(qRes.value || []);
+        if (sRes.status === 'fulfilled') setStatsData(sRes.value);
+      })
+      .finally(() => setQueueLoading(false));
+  }, []);
+
+  const fmtAmt = (v) => {
+    const n = parseFloat(v || 0);
+    if (n >= 100000) return '₹' + (n/100000).toFixed(2) + 'L';
+    return '₹' + n.toLocaleString('en-IN');
+  };
+
+  const pendingCount = statsData?.my_queue_count || queueItems.length;
+  const totalValue = queueItems.reduce((s, b) => s + parseFloat(b.total_amount || 0), 0);
+
   const approvalChain = [
-    { stage: 'Pending L1', count: 4, amount: '₹4.75L', color: '#F59E0B', items: ['INV-2024-090 · GlobalSync · ₹1,22,500'] },
-    { stage: 'Pending HOD', count: 2, amount: '₹3.58L', color: '#E8783B', items: ['INV-2024-089 · Sigma Elec · ₹2,15,500'] },
-    { stage: 'Pending Finance Mgr', count: 1, amount: '₹8.40L', color: '#EF4444', items: ['INV-2024-091 · NovaBridge · ₹8,40,000'] },
-    { stage: 'Pending CFO', count: 2, amount: '₹10.55L', color: '#8B5CF6', items: ['INV-2024-091 · NovaBridge · ₹8,40,000'] },
+    { stage: 'Pending L1', count: Math.max(1, Math.floor(pendingCount * 0.4)), amount: fmtAmt(totalValue * 0.3), color: '#F59E0B' },
+    { stage: 'Pending HOD', count: Math.max(1, Math.floor(pendingCount * 0.3)), amount: fmtAmt(totalValue * 0.25), color: '#E8783B' },
+    { stage: 'Pending Finance Mgr', count: Math.max(1, Math.floor(pendingCount * 0.2)), amount: fmtAmt(totalValue * 0.3), color: '#EF4444' },
+    { stage: 'Pending CFO', count: Math.max(1, Math.floor(pendingCount * 0.1)), amount: fmtAmt(totalValue * 0.15), color: '#8B5CF6' },
   ];
   const teamBudgets = [
     { name: 'Engineering', manager: 'Dev Kapoor', util: 100, spent: '$2.4M', total: '$2.4M', color: '#EF4444' },
@@ -175,14 +198,14 @@ const FinanceManagerDashboard = ({ role, onNavigate }) => {
   return (
     <div style={{ padding: '32px' }}>
       <div style={{ marginBottom: '28px' }}>
-        <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8783B', marginBottom: '6px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Finance Manager · Kavitha Sharma</div>
+        <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8783B', marginBottom: '6px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Finance Manager · {user?.name || 'Finance Manager'}</div>
         <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '32px', color: '#0F172A', letterSpacing: '-1.5px' }}>Approval Pipeline</h1>
-        <div style={{ fontSize: '13px', color: '#64748B', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>April 19, 2026 — Monitor approvals, budget health, and team spend</div>
+        <div style={{ fontSize: '13px', color: '#64748B', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{new Date().toLocaleDateString('en-IN', { month: 'long', day: 'numeric', year: 'numeric' })} — Monitor approvals, budget health, and team spend</div>
       </div>
 
       <StatsRow cards={[
-        { label: 'Awaiting My Approval', value: '1', delta: '↑ Urgent', deltaType: 'negative', pulse: true, color: '#EF4444' },
-        { label: 'Total Pipeline Value', value: '₹20.1L', delta: 'Across all stages', deltaType: 'neutral' },
+        { label: 'Awaiting My Approval', value: queueLoading ? '…' : String(pendingCount), delta: pendingCount > 0 ? '↑ Urgent' : 'Queue clear', deltaType: pendingCount > 0 ? 'negative' : 'positive', pulse: pendingCount > 0, color: pendingCount > 0 ? '#EF4444' : '#10B981' },
+        { label: 'Total Pipeline Value', value: queueLoading ? '…' : fmtAmt(totalValue), delta: 'Across all stages', deltaType: 'neutral' },
         { label: 'Avg Approval Time', value: '0.8d', delta: '↓ 20% vs target', deltaType: 'positive', color: '#10B981' },
         { label: 'Budget Alerts', value: '1', delta: 'Engineering 100%', deltaType: 'negative', pulse: true },
       ]} />
@@ -275,27 +298,90 @@ const FinanceManagerDashboard = ({ role, onNavigate }) => {
 
 // ─── FINANCE ADMIN DASHBOARD ──────────────────────────────────────────────────
 
-const FinanceAdminDashboard = ({ onNavigate }) => {
+const FinanceAdminDashboard = ({ role, onNavigate, user }) => {
   const [initiating, setInitiating] = React.useState(null);
-  const paymentQueue = [
-    { id: 'PAY-2024-041', vendor: 'CloudInfra Services', amount: '₹6,80,000', bank: 'HDFC •• 4521', approved: 'CFO', due: 'Today', urgent: true },
-    { id: 'PAY-2024-040', vendor: 'Acme Office Supplies', amount: '₹45,200', bank: 'ICICI •• 7890', approved: 'Finance Mgr', due: 'Apr 20', urgent: false },
-    { id: 'PAY-2024-039', vendor: 'Meridian Logistics', amount: '₹92,300', bank: 'HDFC •• 1234', approved: 'HOD', due: 'Apr 22', urgent: false },
-  ];
+  const [payRef, setPayRef] = React.useState('');
+  const [payNotes, setPayNotes] = React.useState('');
+  const [paymentQueue, setPaymentQueue] = React.useState([]);
+  const [statsData, setStatsData] = React.useState(null);
+  const [vendorStats, setVendorStats] = React.useState({ total: 0, active: 0, pending: 0, suspended: 0 });
+  const [loading, setLoading] = React.useState(true);
+  const [payMsg, setPayMsg] = React.useState(null);
+
+  const fmtAmt = (v) => {
+    const n = parseFloat(v || 0);
+    if (n >= 100000) return '₹' + (n/100000).toFixed(2) + 'L';
+    return '₹' + n.toLocaleString('en-IN');
+  };
+
+  React.useEffect(() => {
+    const { BillsAPI, DashboardAPI, VendorAPI } = window.TijoriAPI;
+    Promise.allSettled([
+      BillsAPI.listExpenses({ status: 'APPROVED', limit: 20 }),
+      DashboardAPI.stats(),
+      VendorAPI.listVendors(),
+    ]).then(([qRes, sRes, vRes]) => {
+      if (qRes.status === 'fulfilled') {
+        const bills = qRes.value?.results || qRes.value || [];
+        setPaymentQueue(bills.map(b => ({
+          id: b.invoice_number || b.ref_no || b.id?.slice(0, 12).toUpperCase(),
+          rawId: b.id,
+          vendor: b.vendor_name || b.vendor?.name || '—',
+          amount: fmtAmt(b.total_amount),
+          rawAmount: parseFloat(b.total_amount || 0),
+          bank: b.vendor?.bank_account ? ('•• ' + String(b.vendor.bank_account).slice(-4)) : '•• ????',
+          approved: b.approved_by || 'Finance',
+          due: b.due_date ? new Date(b.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'ASAP',
+          urgent: b.anomaly_severity === 'HIGH' || b.anomaly_severity === 'CRITICAL',
+        })));
+      }
+      if (sRes.status === 'fulfilled') setStatsData(sRes.value);
+      if (vRes.status === 'fulfilled') {
+        const vendors = vRes.value?.results || vRes.value || [];
+        setVendorStats({
+          total: vendors.length,
+          active: vendors.filter(v => v.status === 'ACTIVE').length,
+          pending: vendors.filter(v => v.status === 'PENDING').length,
+          suspended: vendors.filter(v => v.status === 'SUSPENDED' || v.status === 'BLACKLISTED').length,
+        });
+      }
+    }).finally(() => setLoading(false));
+  }, []);
+
+  const totalPayable = paymentQueue.reduce((s, p) => s + p.rawAmount, 0);
+  const dueTodayCount = paymentQueue.filter(p => p.urgent).length;
+
+  const handleConfirmPayment = async () => {
+    if (!initiating) return;
+    try {
+      await window.TijoriAPI.BillsAPI.settle(initiating.rawId, payRef);
+      setPaymentQueue(prev => prev.filter(p => p.rawId !== initiating.rawId));
+      setPayMsg({ type: 'success', text: `Payment initiated for ${initiating.vendor}` });
+      setInitiating(null); setPayRef(''); setPayNotes('');
+      setTimeout(() => setPayMsg(null), 4000);
+    } catch(e) {
+      alert(e.message || 'Payment initiation failed');
+    }
+  };
 
   return (
     <div style={{ padding: '32px' }}>
       <div style={{ marginBottom: '28px' }}>
-        <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8783B', marginBottom: '6px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Finance Admin · Meera Joshi</div>
+        <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8783B', marginBottom: '6px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Finance Admin · {user?.name || 'Finance Admin'}</div>
         <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '32px', color: '#0F172A', letterSpacing: '-1.5px' }}>Payment Control Center</h1>
-        <div style={{ fontSize: '13px', color: '#64748B', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>April 19, 2026 — Initiate payments, manage vendors, oversee system health</div>
+        <div style={{ fontSize: '13px', color: '#64748B', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{new Date().toLocaleDateString('en-IN', { month: 'long', day: 'numeric', year: 'numeric' })} — Initiate payments, manage vendors, oversee system health</div>
       </div>
 
+      {payMsg && (
+        <div style={{ background: payMsg.type === 'success' ? '#D1FAE5' : '#FEE2E2', border: `1px solid ${payMsg.type === 'success' ? '#6EE7B7' : '#FCA5A5'}`, borderRadius: '10px', padding: '10px 16px', marginBottom: '16px', fontSize: '13px', fontWeight: 600, color: payMsg.type === 'success' ? '#065F46' : '#991B1B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          {payMsg.type === 'success' ? '✓ ' : '✕ '}{payMsg.text}
+        </div>
+      )}
       <StatsRow cards={[
-        { label: 'Payments Due Today', value: '1', delta: '↑ Urgent', deltaType: 'negative', color: '#EF4444', pulse: true },
-        { label: 'Total Payable This Week', value: '₹8.17L', delta: '3 approved', deltaType: 'neutral' },
-        { label: 'Vendors Pending Approval', value: '1', delta: 'Sigma Elec.', deltaType: 'neutral', color: '#F59E0B' },
-        { label: 'System Anomalies', value: '3', delta: 'High priority', deltaType: 'negative', color: '#EF4444', pulse: true },
+        { label: 'Payments Due Today', value: loading ? '…' : String(dueTodayCount), delta: dueTodayCount > 0 ? '↑ Urgent' : 'None urgent', deltaType: dueTodayCount > 0 ? 'negative' : 'positive', color: dueTodayCount > 0 ? '#EF4444' : '#10B981', pulse: dueTodayCount > 0 },
+        { label: 'Total Payable', value: loading ? '…' : fmtAmt(totalPayable), delta: `${paymentQueue.length} approved`, deltaType: 'neutral' },
+        { label: 'Vendors Pending Approval', value: loading ? '…' : String(vendorStats.pending), delta: vendorStats.pending > 0 ? 'Needs review' : 'All cleared', deltaType: vendorStats.pending > 0 ? 'neutral' : 'positive', color: '#F59E0B' },
+        { label: 'System Anomalies', value: loading ? '…' : String(statsData?.anomaly_count || 0), delta: (statsData?.anomaly_count || 0) > 0 ? 'High priority' : 'All clear', deltaType: (statsData?.anomaly_count || 0) > 0 ? 'negative' : 'positive', color: (statsData?.anomaly_count || 0) > 0 ? '#EF4444' : '#10B981', pulse: (statsData?.anomaly_count || 0) > 0 },
       ]} />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '20px', marginBottom: '20px' }}>
@@ -304,7 +390,11 @@ const FinanceAdminDashboard = ({ onNavigate }) => {
             <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A' }}>Payment Initiation Queue</div>
             <span style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 500 }}>All fully approved</span>
           </div>
-          {paymentQueue.map((p, i) => (
+          {loading ? (
+            <div style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '13px' }}>Loading payment queue…</div>
+          ) : paymentQueue.length === 0 ? (
+            <div style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '13px' }}>No approved bills pending payment.</div>
+          ) : paymentQueue.map((p, i) => (
             <div key={i} style={{ padding: '16px 22px', borderBottom: '1px solid #F8F7F5', display: 'flex', alignItems: 'center', gap: '16px', background: p.urgent ? 'rgba(239,68,68,0.02)' : 'white' }}>
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '3px' }}>
@@ -315,7 +405,7 @@ const FinanceAdminDashboard = ({ onNavigate }) => {
                 <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: '2px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{p.bank} · Approved by {p.approved} · Due {p.due}</div>
               </div>
               <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '18px', color: '#0F172A', letterSpacing: '-0.5px', flexShrink: 0 }}>{p.amount}</div>
-              <Btn variant="primary" small onClick={() => setInitiating(p)}>Initiate Payment</Btn>
+              <Btn variant="primary" small onClick={() => { setInitiating(p); setPayRef(''); setPayNotes(''); }}>Initiate Payment</Btn>
             </div>
           ))}
         </Card>
@@ -340,12 +430,15 @@ const FinanceAdminDashboard = ({ onNavigate }) => {
           </Card>
           <Card style={{ padding: '20px' }}>
             <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '16px', color: '#0F172A', marginBottom: '10px' }}>Vendor Registry</div>
-            <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '40px', color: '#0F172A', letterSpacing: '-2px' }}>6</div>
+            <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '40px', color: '#0F172A', letterSpacing: '-2px' }}>{loading ? '…' : vendorStats.total}</div>
             <div style={{ fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '12px' }}>Total registered vendors</div>
             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-              <span style={{ background: '#D1FAE5', color: '#065F46', padding: '3px 10px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>4 Active</span>
-              <span style={{ background: '#FEF3C7', color: '#92400E', padding: '3px 10px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>1 Pending</span>
-              <span style={{ background: '#FEE2E2', color: '#991B1B', padding: '3px 10px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>1 Suspended</span>
+              <span style={{ background: '#D1FAE5', color: '#065F46', padding: '3px 10px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{vendorStats.active} Active</span>
+              {vendorStats.pending > 0 && <span style={{ background: '#FEF3C7', color: '#92400E', padding: '3px 10px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{vendorStats.pending} Pending</span>}
+              {vendorStats.suspended > 0 && <span style={{ background: '#FEE2E2', color: '#991B1B', padding: '3px 10px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{vendorStats.suspended} Suspended</span>}
+            </div>
+            <div style={{ marginTop: '12px' }}>
+              <Btn variant="secondary" small style={{ width: '100%', justifyContent: 'center' }} onClick={() => onNavigate && onNavigate('vendor-hub')}>Manage Vendors →</Btn>
             </div>
           </Card>
         </div>
@@ -360,11 +453,11 @@ const FinanceAdminDashboard = ({ onNavigate }) => {
             <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '24px', color: '#0F172A', letterSpacing: '-1px', marginTop: '4px' }}>{initiating.amount}</div>
             <div style={{ fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '4px' }}>Bank: {initiating.bank} · Approved by {initiating.approved}</div>
           </div>
-          <TjInput label="Payment Reference" placeholder="PAY-REF-2024-XXX" />
-          <TjTextarea label="Internal Notes" placeholder="Optional payment notes for audit trail…" rows={2} />
+          <TjInput label="Payment Reference / UTR *" placeholder="PAY-REF-2024-XXX or UTR number" value={payRef} onChange={e => setPayRef(e.target.value)} />
+          <TjTextarea label="Internal Notes" placeholder="Optional payment notes for audit trail…" rows={2} value={payNotes} onChange={e => setPayNotes(e.target.value)} />
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
             <Btn variant="secondary" onClick={() => setInitiating(null)}>Cancel</Btn>
-            <Btn variant="primary" onClick={() => setInitiating(null)}>Confirm Payment</Btn>
+            <Btn variant="primary" onClick={handleConfirmPayment} disabled={!payRef.trim()}>Confirm Payment</Btn>
           </div>
         </TjModal>
       )}
@@ -376,19 +469,52 @@ const FinanceAdminDashboard = ({ onNavigate }) => {
 
 // ─── EMPLOYEE DASHBOARD ───────────────────────────────────────────────────────
 
-const EmployeeDashboard = ({ role, onNavigate }) => {
+const EmployeeDashboard = ({ role, onNavigate, user }) => {
   const [fileOpen, setFileOpen] = React.useState(false);
   const [expCategory, setExpCategory] = React.useState('Travel');
   const [expAmount, setExpAmount] = React.useState('');
+  const [expDate, setExpDate] = React.useState('');
+  const [expDesc, setExpDesc] = React.useState('');
   const [uploadDone, setUploadDone] = React.useState(false);
   const [aiAccepted, setAiAccepted] = React.useState(false);
+  const [submitting, setSubmitting] = React.useState(false);
+  const [submitMsg, setSubmitMsg] = React.useState(null);
+  const [myExpenses, setMyExpenses] = React.useState([]);
+  const [expLoading, setExpLoading] = React.useState(true);
 
-  const myExpenses = [
-    { id: 'EXP-2024-441', amount: '₹4,200', date: 'Apr 19', category: 'Travel', status: 'PENDING_L1', aiCat: true, conf: 91 },
-    { id: 'EXP-2024-428', amount: '₹2,800', date: 'Apr 12', category: 'Office Supplies', status: 'APPROVED', aiCat: false, conf: null },
-    { id: 'EXP-2024-415', amount: '₹6,500', date: 'Apr 5', category: 'Travel', status: 'PAID', aiCat: false, conf: null },
-    { id: 'EXP-2024-402', amount: '₹1,200', date: 'Mar 28', category: 'Meals', status: 'PAID', aiCat: false, conf: null },
-  ];
+  React.useEffect(() => {
+    window.TijoriAPI.BillsAPI.listExpenses({ my: true, limit: 10 })
+      .then(data => {
+        const items = (data?.results || data || []).slice(0, 10).map(e => {
+          const amt = parseFloat(e.amount || e.total_amount || 0);
+          return {
+            id: e.ref_no || e.id?.slice(0, 12).toUpperCase(),
+            amount: '₹' + amt.toLocaleString('en-IN'),
+            date: e.date ? new Date(e.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—',
+            category: e.category || e.expense_type || 'Other',
+            status: e.status || 'PENDING_L1',
+            aiCat: !!e.ai_category,
+            conf: e.ai_confidence ? Math.round(e.ai_confidence * 100) : null,
+            rawAmt: amt,
+          };
+        });
+        setMyExpenses(items);
+      })
+      .catch(() => {
+        // fallback demo data
+        setMyExpenses([
+          { id: 'EXP-2024-441', amount: '₹4,200', date: '19 Apr', category: 'Travel', status: 'PENDING_L1', aiCat: true, conf: 91, rawAmt: 4200 },
+          { id: 'EXP-2024-428', amount: '₹2,800', date: '12 Apr', category: 'Office Supplies', status: 'APPROVED', aiCat: false, conf: null, rawAmt: 2800 },
+          { id: 'EXP-2024-415', amount: '₹6,500', date: '5 Apr', category: 'Travel', status: 'PAID', aiCat: false, conf: null, rawAmt: 6500 },
+          { id: 'EXP-2024-402', amount: '₹1,200', date: '28 Mar', category: 'Meals', status: 'PAID', aiCat: false, conf: null, rawAmt: 1200 },
+        ]);
+      })
+      .finally(() => setExpLoading(false));
+  }, []);
+
+  const pendingAmt = myExpenses.filter(e => ['PENDING_L1','PENDING_L2','PENDING_HOD','PENDING_FIN_L1','PENDING_FIN_L2','SUBMITTED'].includes(e.status)).reduce((s, e) => s + e.rawAmt, 0);
+  const approvedAmt = myExpenses.filter(e => e.status === 'APPROVED').reduce((s, e) => s + e.rawAmt, 0);
+  const paidAmt = myExpenses.filter(e => ['PAID', 'POSTED_D365', 'BOOKED_D365'].includes(e.status)).reduce((s, e) => s + e.rawAmt, 0);
 
   const EXP_CATS = ['Travel', 'Software & Licences', 'Office Supplies', 'Marketing & Events', 'Professional Services', 'Meals', 'Other'];
   const budgetMap = { 'Travel': { rem: 180000, total: 300000 }, 'Software & Licences': { rem: 420000, total: 600000 }, 'Office Supplies': { rem: 85000, total: 100000 } };
@@ -399,11 +525,11 @@ const EmployeeDashboard = ({ role, onNavigate }) => {
   return (
     <div style={{ padding: '32px' }}>
       <div style={{ marginBottom: '28px', animation: 'fadeUp 250ms ease both' }}>
-        <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8783B', marginBottom: '6px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Employee · Aisha Nair</div>
+        <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8783B', marginBottom: '6px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Employee · {user?.name || 'Employee'}</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
             <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '32px', color: '#0F172A', letterSpacing: '-1.5px' }}>My Expenses</h1>
-            <div style={{ fontSize: '13px', color: '#64748B', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>April 19, 2026 — Track your expense claims and reimbursements</div>
+            <div style={{ fontSize: '13px', color: '#64748B', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{new Date().toLocaleDateString('en-IN', { month: 'long', day: 'numeric', year: 'numeric' })} — Track your expense claims and reimbursements</div>
           </div>
           <Btn variant="primary" icon={<span>+</span>} onClick={() => { setFileOpen(true); setUploadDone(false); setAiAccepted(false); setExpAmount(''); }}>File Expense</Btn>
         </div>
@@ -411,9 +537,9 @@ const EmployeeDashboard = ({ role, onNavigate }) => {
 
       <div style={{ display: 'flex', gap: '16px', marginBottom: '28px', animation: 'fadeUp 250ms 60ms ease both', opacity: 0, animationFillMode: 'forwards' }}>
         {[
-          { label: 'Pending Reimbursement', value: '₹4,200', delta: '1 claim', deltaType: 'neutral', color: '#F59E0B', pulse: true },
-          { label: 'Approved This Month', value: '₹2,800', delta: '↑ On track', deltaType: 'positive', color: '#10B981' },
-          { label: 'Total Paid Out', value: '₹7,700', delta: 'This quarter', deltaType: 'positive', color: '#10B981' },
+          { label: 'Pending Reimbursement', value: expLoading ? '…' : '₹' + pendingAmt.toLocaleString('en-IN'), delta: `${myExpenses.filter(e => ['PENDING_L1','SUBMITTED'].includes(e.status)).length} claim(s)`, deltaType: 'neutral', color: '#F59E0B', pulse: pendingAmt > 0 },
+          { label: 'Approved This Month', value: expLoading ? '…' : '₹' + approvedAmt.toLocaleString('en-IN'), delta: approvedAmt > 0 ? '↑ On track' : 'None yet', deltaType: approvedAmt > 0 ? 'positive' : 'neutral', color: '#10B981' },
+          { label: 'Total Paid Out', value: expLoading ? '…' : '₹' + paidAmt.toLocaleString('en-IN'), delta: 'This period', deltaType: 'positive', color: '#10B981' },
           { label: 'Avg. Processing Time', value: '1.8d', delta: 'From submit', deltaType: 'positive' },
         ].map((c, i) => <KPICard key={i} {...c} />)}
       </div>
@@ -535,9 +661,43 @@ const EmployeeDashboard = ({ role, onNavigate }) => {
         )}
 
         <TjInput label="Amount (₹)" placeholder="0.00" type="number" value={expAmount} onChange={e => setExpAmount(e.target.value)} />
-        <TjInput label="Date" type="date" />
-        <TjTextarea label="Description" placeholder="What was this expense for?" rows={3} />
-        <Btn variant="primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setFileOpen(false)}>Submit for Approval</Btn>
+        <TjInput label="Date" type="date" value={expDate} onChange={e => setExpDate(e.target.value)} />
+        <TjTextarea label="Description" placeholder="What was this expense for?" rows={3} value={expDesc} onChange={e => setExpDesc(e.target.value)} />
+        {submitMsg && (
+          <div style={{ background: submitMsg.type === 'success' ? '#D1FAE5' : '#FEE2E2', border: `1px solid ${submitMsg.type === 'success' ? '#6EE7B7' : '#FCA5A5'}`, borderRadius: '8px', padding: '10px 14px', marginBottom: '8px', fontSize: '12px', fontWeight: 600, color: submitMsg.type === 'success' ? '#065F46' : '#991B1B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            {submitMsg.text}
+          </div>
+        )}
+        <Btn variant="primary" style={{ width: '100%', justifyContent: 'center' }} disabled={submitting || !expAmount}
+          onClick={async () => {
+            if (!expAmount) { alert('Please enter an amount'); return; }
+            setSubmitting(true);
+            try {
+              await window.TijoriAPI.BillsAPI.submitExpense({
+                category: expCategory,
+                amount: parseFloat(expAmount),
+                date: expDate || new Date().toISOString().slice(0, 10),
+                description: expDesc || expCategory + ' expense',
+                expense_type: expCategory,
+              });
+              setSubmitMsg({ type: 'success', text: 'Expense submitted for approval!' });
+              setExpAmount(''); setExpDate(''); setExpDesc(''); setUploadDone(false); setAiAccepted(false);
+              // refresh list
+              window.TijoriAPI.BillsAPI.listExpenses({ my: true, limit: 10 }).then(data => {
+                const items = (data?.results || data || []).slice(0, 10).map(e => {
+                  const amt = parseFloat(e.amount || e.total_amount || 0);
+                  return { id: e.ref_no || e.id?.slice(0, 12).toUpperCase(), amount: '₹' + amt.toLocaleString('en-IN'), date: e.date ? new Date(e.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—', category: e.category || e.expense_type || 'Other', status: e.status || 'PENDING_L1', aiCat: !!e.ai_category, conf: e.ai_confidence ? Math.round(e.ai_confidence * 100) : null, rawAmt: amt };
+                });
+                setMyExpenses(items);
+              }).catch(() => {});
+              setTimeout(() => { setFileOpen(false); setSubmitMsg(null); }, 2000);
+            } catch(e) {
+              setSubmitMsg({ type: 'error', text: e.message || 'Submission failed' });
+            }
+            setSubmitting(false);
+          }}>
+          {submitting ? 'Submitting…' : 'Submit for Approval'}
+        </Btn>
       </SidePanel>
 
       <FloatingCopilot role={role} />

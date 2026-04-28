@@ -218,8 +218,34 @@ const APHubScreen = ({ role: propRole, onNavigate }) => {
         <div style={{ background: 'linear-gradient(135deg, #E8783B, #FF6B35)', borderRadius: '12px', padding: '12px 20px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '16px', color: 'white', animation: 'slideUp 200ms ease' }}>
           <span style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600, fontSize: '13px' }}>{selected.length} invoice{selected.length > 1 ? 's' : ''} selected</span>
           <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
-            <button style={{ padding: '6px 14px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '8px', color: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Bulk Approve</button>
-            <button style={{ padding: '6px 14px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '8px', color: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Bulk Reject</button>
+            <button style={{ padding: '6px 14px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '8px', color: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }} onClick={async () => {
+              const { BillsAPI } = window.TijoriAPI;
+              setActionLoading(true); setActionError('');
+              const selectedRawIds = filtered.filter(inv => selected.includes(inv.id)).map(inv => inv.rawId);
+              let errors = [];
+              for (const rawId of selectedRawIds) {
+                try { await BillsAPI.approve(rawId, 'Bulk approved', ''); }
+                catch(e) { errors.push(rawId); }
+              }
+              setActionLoading(false);
+              setSelected([]);
+              loadBills();
+              if (errors.length) setActionError(`${errors.length} invoice(s) could not be approved.`);
+            }} disabled={actionLoading}>Bulk Approve</button>
+            <button style={{ padding: '6px 14px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '8px', color: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }} onClick={async () => {
+              const { BillsAPI } = window.TijoriAPI;
+              setActionLoading(true); setActionError('');
+              const selectedRawIds = filtered.filter(inv => selected.includes(inv.id)).map(inv => inv.rawId);
+              let errors = [];
+              for (const rawId of selectedRawIds) {
+                try { await BillsAPI.reject(rawId, 'Bulk rejected'); }
+                catch(e) { errors.push(rawId); }
+              }
+              setActionLoading(false);
+              setSelected([]);
+              loadBills();
+              if (errors.length) setActionError(`${errors.length} invoice(s) could not be rejected.`);
+            }} disabled={actionLoading}>Bulk Reject</button>
             <button onClick={() => setSelected([])} style={{ padding: '6px 14px', background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '12px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Clear</button>
           </div>
         </div>

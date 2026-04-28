@@ -114,6 +114,16 @@ const StatusBadge = ({
   status
 }) => {
   const cfgs = {
+    DRAFT: {
+      bg: '#F1F5F9',
+      color: '#475569',
+      label: 'Draft'
+    },
+    SUBMITTED: {
+      bg: '#DBEAFE',
+      color: '#1D4ED8',
+      label: 'Submitted'
+    },
     PENDING: {
       bg: '#FEF3C7',
       color: '#92400E',
@@ -134,9 +144,24 @@ const StatusBadge = ({
       color: '#92400E',
       label: 'Pending HOD'
     },
+    PENDING_FIN_L1: {
+      bg: '#FFF7ED',
+      color: '#C2410C',
+      label: 'Fin Review L1'
+    },
+    PENDING_FIN_L2: {
+      bg: '#FFF7ED',
+      color: '#C2410C',
+      label: 'Fin Review L2'
+    },
+    PENDING_FIN_HEAD: {
+      bg: '#FFF7ED',
+      color: '#C2410C',
+      label: 'Fin Head'
+    },
     PENDING_CFO: {
-      bg: '#FEF3C7',
-      color: '#92400E',
+      bg: '#EDE9FE',
+      color: '#5B21B6',
       label: 'Pending CFO'
     },
     APPROVED: {
@@ -144,10 +169,10 @@ const StatusBadge = ({
       color: '#065F46',
       label: 'Approved'
     },
-    PAID: {
-      bg: '#D1FAE5',
-      color: '#065F46',
-      label: 'Paid'
+    AUTO_REJECT: {
+      bg: '#FEE2E2',
+      color: '#991B1B',
+      label: 'Auto Rejected'
     },
     REJECTED: {
       bg: '#FEE2E2',
@@ -158,6 +183,36 @@ const StatusBadge = ({
       bg: '#EDE9FE',
       color: '#5B21B6',
       label: 'Query Raised'
+    },
+    PENDING_D365: {
+      bg: '#DBEAFE',
+      color: '#1D4ED8',
+      label: 'Pending D365'
+    },
+    BOOKED_D365: {
+      bg: '#DBEAFE',
+      color: '#1D4ED8',
+      label: 'Booked D365'
+    },
+    POSTED_D365: {
+      bg: '#DBEAFE',
+      color: '#1D4ED8',
+      label: 'Posted D365'
+    },
+    PAID: {
+      bg: '#D1FAE5',
+      color: '#065F46',
+      label: 'Paid'
+    },
+    WITHDRAWN: {
+      bg: '#F1F5F9',
+      color: '#475569',
+      label: 'Withdrawn'
+    },
+    EXPIRED: {
+      bg: '#F1F5F9',
+      color: '#475569',
+      label: 'Expired'
     },
     ANOMALY: {
       bg: '#FEE2E2',
@@ -770,15 +825,28 @@ const FloatingCopilot = ({
       setLoading(false);
     }
   };
+
+  // Listen for prefill events from other screens (e.g. Anomaly "Explain in Copilot")
+  React.useEffect(() => {
+    const handler = e => {
+      if (e.detail?.query) {
+        setOpen(true);
+        setTimeout(() => send(e.detail.query), 200);
+      }
+    };
+    window.addEventListener('copilot:prefill', handler);
+    return () => window.removeEventListener('copilot:prefill', handler);
+  }, []);
   return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
     onClick: () => setOpen(true),
+    title: "AI Copilot",
     style: {
       position: 'fixed',
-      bottom: 28,
-      right: 28,
+      bottom: 32,
+      right: 32,
       width: 52,
       height: 52,
-      borderRadius: '50%',
+      borderRadius: '16px',
       background: 'linear-gradient(135deg, #E8783B, #FF6B35)',
       border: 'none',
       cursor: 'pointer',
@@ -788,8 +856,16 @@ const FloatingCopilot = ({
       fontSize: '20px',
       color: 'white',
       zIndex: 100,
-      boxShadow: '0 4px 20px rgba(232,120,59,0.5)',
+      boxShadow: '0 6px 24px rgba(232,120,59,0.5)',
       transition: 'all 200ms'
+    },
+    onMouseEnter: e => {
+      e.currentTarget.style.transform = 'scale(1.1)';
+      e.currentTarget.style.boxShadow = '0 8px 32px rgba(232,120,59,0.7)';
+    },
+    onMouseLeave: e => {
+      e.currentTarget.style.transform = 'scale(1)';
+      e.currentTarget.style.boxShadow = '0 6px 24px rgba(232,120,59,0.5)';
     }
   }, "\u2726"), /*#__PURE__*/React.createElement(SidePanel, {
     open: open,
@@ -799,17 +875,9 @@ const FloatingCopilot = ({
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
-      flexDirection: 'column',
-      height: '100%',
-      overflow: 'hidden'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
       alignItems: 'center',
       gap: '8px',
-      marginBottom: '16px',
-      flexShrink: 0
+      marginBottom: '16px'
     }
   }, /*#__PURE__*/React.createElement(AIBadge, null), /*#__PURE__*/React.createElement(LiveDot, {
     color: "#E8783B"
@@ -821,14 +889,13 @@ const FloatingCopilot = ({
     }
   }, "Powered by Tijori Intelligence")), /*#__PURE__*/React.createElement("div", {
     style: {
-      flex: 1,
-      minHeight: 200,
-      maxHeight: 320,
-      overflowY: 'auto',
+      height: 'calc(100vh - 280px)',
+      minHeight: 300,
+      overflow: 'auto',
       display: 'flex',
       flexDirection: 'column',
       gap: '12px',
-      marginBottom: '12px',
+      marginBottom: '16px',
       paddingRight: 4
     }
   }, chat.map((m, i) => /*#__PURE__*/React.createElement("div", {
@@ -888,30 +955,11 @@ const FloatingCopilot = ({
   })))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
-      flexWrap: 'wrap',
-      gap: '6px',
-      marginBottom: '10px'
-    }
-  }, queries.map(s => /*#__PURE__*/React.createElement("button", {
-    key: s,
-    onClick: () => send(s),
-    disabled: loading,
-    style: {
-      padding: '5px 10px',
-      background: '#F8F7F5',
-      border: '1px solid #E2E8F0',
-      borderRadius: '999px',
-      fontSize: '11px',
-      color: '#475569',
-      cursor: 'pointer',
-      fontFamily: "'Plus Jakarta Sans', sans-serif",
-      fontWeight: 500
-    }
-  }, s))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
       gap: '8px',
-      alignItems: 'center'
+      position: 'sticky',
+      bottom: 0,
+      background: 'white',
+      paddingTop: 10
     }
   }, /*#__PURE__*/React.createElement("input", {
     value: msg,
@@ -933,7 +981,29 @@ const FloatingCopilot = ({
     onClick: () => send(),
     small: true,
     disabled: loading
-  }, "Send")))));
+  }, "Send")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: '12px',
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: '6px'
+    }
+  }, queries.map(s => /*#__PURE__*/React.createElement("button", {
+    key: s,
+    onClick: () => send(s),
+    disabled: loading,
+    style: {
+      padding: '5px 10px',
+      background: '#F8F7F5',
+      border: '1px solid #E2E8F0',
+      borderRadius: '999px',
+      fontSize: '11px',
+      color: '#475569',
+      cursor: 'pointer',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontWeight: 500
+    }
+  }, s)))));
 };
 Object.assign(window, {
   DS_COLORS,

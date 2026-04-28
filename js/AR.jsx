@@ -53,8 +53,12 @@ const ARScreen = ({ onNavigate }) => {
   const [filter, setFilter] = React.useState('All');
   const [customerDetail, setCustomerDetail] = React.useState(null);
   const [recordPaymentModal, setRecordPaymentModal] = React.useState(null);
+  const [paymentForm, setPaymentForm] = React.useState({ amount: '', date: '', utr: '' });
+  const [paymentMsg, setPaymentMsg] = React.useState('');
+  const [invoiceList, setInvoiceList] = React.useState(AR_INVOICES);
+  const [remindMsg, setRemindMsg] = React.useState('');
 
-  const filtered = AR_INVOICES.filter(inv => filter === 'All' || inv.status === filter.toUpperCase().replace(' ', '_'));
+  const filtered = invoiceList.filter(inv => filter === 'All' || inv.status === filter.toUpperCase().replace(' ', '_'));
 
   // Aging chart data
   const customers = ['Global Tech', 'Meridian Ind.', 'Acme Corp', 'SkyBridge', 'NovaTech'];
@@ -78,7 +82,13 @@ const ARScreen = ({ onNavigate }) => {
           <div style={{ fontSize: '13px', color: '#64748B', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Track outgoing invoices, customer payments, and collections.</div>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <Btn variant="secondary">AR Aging Report ↓</Btn>
+          <Btn variant="secondary" onClick={() => {
+          // Export AR aging as CSV
+          const rows = [['Invoice #','Customer','Amount','Issued','Due','Age','Status']];
+          invoiceList.forEach(inv => rows.push([inv.id, inv.customer, inv.amount, inv.issued, inv.due, inv.age + 'd', inv.status]));
+          const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+          const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv); a.download = 'ar_aging_report.csv'; a.click();
+        }}>AR Aging Report ↓</Btn>
           <Btn variant="primary" icon={<span>+</span>} onClick={() => onNavigate && onNavigate('ar-raise')}>Raise Invoice</Btn>
         </div>
       </div>
@@ -165,8 +175,12 @@ const ARScreen = ({ onNavigate }) => {
                   <td style={{ padding: '0 14px' }}><ARStatusBadge status={inv.status} /></td>
                   <td style={{ padding: '0 14px' }}>
                     <div style={{ display: 'flex', gap: '5px' }}>
-                      {inv.status !== 'PAID' && <Btn variant="green" small onClick={() => setRecordPaymentModal(inv)}>Record Payment</Btn>}
-                      {inv.status === 'OVERDUE' && <Btn variant="secondary" small>Remind</Btn>}
+                      {inv.status !== 'PAID' && <Btn variant="green" small onClick={() => { setRecordPaymentModal(inv); setPaymentForm({ amount: '', date: new Date().toISOString().slice(0,10), utr: '' }); setPaymentMsg(''); }}>Record Payment</Btn>}
+                      {inv.status === 'OVERDUE' && <Btn variant="secondary" small onClick={() => {
+                        // Simulate sending a payment reminder
+                        setRemindMsg(`Reminder sent to ${inv.customer} for ${inv.id}`);
+                        setTimeout(() => setRemindMsg(''), 3000);
+                      }}>Remind</Btn>}
                     </div>
                   </td>
                 </tr>
@@ -194,6 +208,11 @@ const ARScreen = ({ onNavigate }) => {
       </div>
 
       {/* Record Payment Modal */}
+      {remindMsg && (
+        <div style={{ position: 'fixed', bottom: 24, right: 24, background: '#0F172A', color: 'white', padding: '12px 20px', borderRadius: '12px', fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600, zIndex: 9999, boxShadow: '0 4px 16px rgba(0,0,0,0.2)' }}>
+          ✓ {remindMsg}
+        </div>
+      )}
       {recordPaymentModal && (
         <TjModal open onClose={() => setRecordPaymentModal(null)} title="Record Payment" accentColor="#065F46" width={440}>
           <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '10px', padding: '14px', marginBottom: '16px' }}>
@@ -201,12 +220,23 @@ const ARScreen = ({ onNavigate }) => {
             <div style={{ fontWeight: 700, fontSize: '14px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>{recordPaymentModal.customer}</div>
             <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '22px', color: '#10B981', letterSpacing: '-1px', marginTop: '4px' }}>{recordPaymentModal.amount}</div>
           </div>
-          <TjInput label="Amount Received (₹)" placeholder="Full or partial amount" />
-          <TjInput label="Payment Date" type="date" />
-          <TjInput label="UTR / Reference Number" placeholder="Bank transfer reference" />
+          <TjInput label="Amount Received (₹)" placeholder="Full or partial amount" value={paymentForm.amount} onChange={e => setPaymentForm(f => ({...f, amount: e.target.value}))} />
+          <TjInput label="Payment Date" type="date" value={paymentForm.date} onChange={e => setPaymentForm(f => ({...f, date: e.target.value}))} />
+          <TjInput label="UTR / Reference Number" placeholder="Bank transfer reference" value={paymentForm.utr} onChange={e => setPaymentForm(f => ({...f, utr: e.target.value}))} />
+          {paymentMsg && <div style={{ fontSize: '12px', color: paymentMsg.includes('Failed') ? '#EF4444' : '#10B981', marginBottom: '8px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{paymentMsg}</div>}
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
             <Btn variant="secondary" onClick={() => setRecordPaymentModal(null)}>Cancel</Btn>
-            <Btn variant="green" onClick={() => setRecordPaymentModal(null)}>Confirm Payment</Btn>
+            <Btn variant="green" onClick={() => {
+              if (!paymentForm.amount) { setPaymentMsg('Please enter an amount.'); return; }
+              // Update invoice status to partially/fully paid
+              const inv = recordPaymentModal;
+              const paidAmt = parseFloat(paymentForm.amount.replace(/[^\d.]/g,'')) || 0;
+              const totalAmt = parseFloat(inv.amount.replace(/[^\d,]/g,'').replace(',','')) || 0;
+              const newStatus = paidAmt >= totalAmt ? 'PAID' : 'PARTIALLY_PAID';
+              setInvoiceList(list => list.map(i => i.id === inv.id ? {...i, status: newStatus} : i));
+              setPaymentMsg('Payment recorded successfully.');
+              setTimeout(() => { setRecordPaymentModal(null); setPaymentMsg(''); }, 1000);
+            }}>Confirm Payment</Btn>
           </div>
         </TjModal>
       )}
@@ -222,6 +252,12 @@ const ARRaiseScreen = ({ onNavigate }) => {
   const [lines, setLines] = React.useState([
     { desc: '', qty: 1, price: '', tax: 18 }
   ]);
+  const [terms, setTerms] = React.useState('Net 30');
+  const [issueDate, setIssueDate] = React.useState(new Date().toISOString().slice(0,10));
+  const [dueDate, setDueDate] = React.useState('');
+  const [poRef, setPoRef] = React.useState('');
+  const [saveMsg, setSaveMsg] = React.useState('');
+  const [issueLoading, setIssueLoading] = React.useState(false);
 
   const addLine = () => setLines(l => [...l, { desc: '', qty: 1, price: '', tax: 18 }]);
   const updateLine = (i, k, v) => setLines(l => l.map((r, idx) => idx === i ? { ...r, [k]: v } : r));
@@ -243,8 +279,24 @@ const ARRaiseScreen = ({ onNavigate }) => {
           <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '32px', color: '#0F172A', letterSpacing: '-1.5px' }}>New Customer Invoice</h1>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <Btn variant="secondary">Save Draft</Btn>
-          <Btn variant="primary">Issue Invoice →</Btn>
+          <Btn variant="secondary" onClick={() => {
+            const draft = { invoiceNo, customer, lines, terms, issueDate, dueDate, poRef, total };
+            localStorage.setItem('ar_draft_' + invoiceNo, JSON.stringify(draft));
+            setSaveMsg('Draft saved!');
+            setTimeout(() => setSaveMsg(''), 2000);
+          }}>Save Draft</Btn>
+          {saveMsg && <span style={{ fontSize: '12px', color: '#10B981', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>{saveMsg}</span>}
+          <Btn variant="primary" disabled={!customer || issueLoading} onClick={async () => {
+            if (!customer) { alert('Please select a customer.'); return; }
+            setIssueLoading(true);
+            try {
+              // Mock issue — in production, call an AR invoice creation API
+              await new Promise(r => setTimeout(r, 600));
+              alert(`Invoice ${invoiceNo} issued to ${customer} for ${fmt(total)}`);
+              onNavigate && onNavigate('ar');
+            } catch(e) { alert('Failed to issue invoice.'); }
+            finally { setIssueLoading(false); }
+          }}>{issueLoading ? 'Issuing…' : 'Issue Invoice →'}</Btn>
         </div>
       </div>
 
@@ -384,8 +436,8 @@ const ARCustomerScreen = ({ onNavigate }) => {
           </h1>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <Btn variant="secondary">Edit Customer</Btn>
-          <Btn variant="primary" icon={<span>+</span>}>Raise Invoice</Btn>
+          <Btn variant="secondary" onClick={() => alert('Customer edit form — coming soon in full AR module.')}>Edit Customer</Btn>
+          <Btn variant="primary" icon={<span>+</span>} onClick={() => onNavigate && onNavigate('ar-raise')}>Raise Invoice</Btn>
         </div>
       </div>
 

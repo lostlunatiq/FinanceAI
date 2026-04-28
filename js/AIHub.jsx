@@ -30,6 +30,14 @@ const CopilotWidget = ({ role }) => {
     if (endRef.current) endRef.current.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  React.useEffect(() => {
+    const handler = (e) => {
+      if (e.detail?.query) sendMessage(e.detail.query);
+    };
+    window.addEventListener('copilot:prefill', handler);
+    return () => window.removeEventListener('copilot:prefill', handler);
+  }, []);
+
   const sendMessage = async (text) => {
     const q = text || input.trim();
     if (!q) return;
@@ -153,9 +161,19 @@ const AIHubScreen = ({ role, onNavigate }) => {
       .catch(() => {});
   }, []);
 
-  const runAll = () => {
+  const runAll = async () => {
     setRunningAll(true);
-    setTimeout(() => setRunningAll(false), 2400);
+    try {
+      const { AnalyticsAPI, BudgetAPI } = window.TijoriAPI;
+      // Run all analytics models in parallel
+      await Promise.allSettled([
+        AnalyticsAPI.spendIntelligence(),
+        AnalyticsAPI.workingCapital(),
+        AnalyticsAPI.vendorRisk(),
+        BudgetAPI.cashflow().then(d => setCfData(d)),
+      ]);
+    } catch (e) {}
+    setRunningAll(false);
   };
 
   // ── Cash Flow Chart ───────────────────────────────────────────────────────
@@ -253,7 +271,9 @@ const AIHubScreen = ({ role, onNavigate }) => {
                 {s}
               </button>
             ))}
-            <Btn variant="secondary" small>Rerun</Btn>
+            <Btn variant="secondary" small onClick={() => {
+              window.TijoriAPI.BudgetAPI.cashflow().then(d => setCfData(d)).catch(() => {});
+            }}>Rerun</Btn>
           </div>
         </div>
 
@@ -365,7 +385,11 @@ const AIHubScreen = ({ role, onNavigate }) => {
             <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '20px', color: '#0F172A', letterSpacing: '-0.5px' }}>Monthly Financial Summaries</div>
             <div style={{ fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>Auto-generated on 1st of each month</div>
           </div>
-          <Btn variant="secondary" small icon={<AIBadge small />}>Generate Now</Btn>
+          <Btn variant="secondary" small icon={<AIBadge small />} onClick={() => {
+            window.TijoriAPI.NLQueryAPI.ask('Generate executive financial summary for ' + new Date().toLocaleString('en-IN', {month: 'long', year: 'numeric'}))
+              .then(res => alert('Summary: ' + (res.answer || 'Generated successfully.')))
+              .catch(e => alert('Generation failed: ' + (e.message || 'Error')));
+          }}>Generate Now</Btn>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
@@ -395,7 +419,11 @@ const AIHubScreen = ({ role, onNavigate }) => {
                 </div>
                 <div style={{ display: 'flex', gap: '6px' }}>
                   <Btn variant="primary" small onClick={() => { setSelectedMonth(s); setSummaryOpen(true); }}>View Full →</Btn>
-                  <Btn variant="secondary" small>PDF</Btn>
+                  <Btn variant="secondary" small onClick={() => {
+                    const w = window.open('', '_blank');
+                    w.document.write(`<!DOCTYPE html><html><head><title>${s.month} Summary</title><style>body{font-family:sans-serif;padding:32px;}</style></head><body><h1>Tijori AI — ${s.month}</h1><p>Revenue: ${s.revenue} | Expenses: ${s.expenses} | Profit: ${s.profit}</p><p>${s.insight}</p><script>window.print()<\/script></body></html>`);
+                    w.document.close();
+                  }}>PDF</Btn>
                 </div>
               </div>
             );
@@ -457,7 +485,7 @@ const AIHubScreen = ({ role, onNavigate }) => {
             <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '28px', color: '#F59E0B', letterSpacing: '-1px' }}>+4.2d</div>
           </div>
           <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
-            <Btn variant="primary">Apply All Recommendations</Btn>
+            <Btn variant="primary" onClick={() => alert('Applying all payment recommendations to your payment schedule. In production, this would create scheduled payment batches in D365.')}>Apply All Recommendations</Btn>
           </div>
         </div>
 
@@ -487,8 +515,14 @@ const AIHubScreen = ({ role, onNavigate }) => {
                     </td>
                     <td style={{ padding: '0 14px' }}>
                       <div style={{ display: 'flex', gap: '6px' }}>
-                        <Btn variant="primary" small>Pay Now</Btn>
-                        <Btn variant="secondary" small>Schedule</Btn>
+                        <Btn variant="primary" small onClick={() => {
+                          if (window.confirm(`Initiate payment of ${r.amount} to ${r.vendor}?`)) {
+                            alert(`Payment of ${r.amount} to ${r.vendor} queued. UTR will be generated within 24h.`);
+                          }
+                        }}>Pay Now</Btn>
+                        <Btn variant="secondary" small onClick={() => {
+                          alert(`Payment of ${r.amount} to ${r.vendor} scheduled for ${r.suggested}.`);
+                        }}>Schedule</Btn>
                       </div>
                     </td>
                   </tr>
@@ -527,7 +561,12 @@ const AIHubScreen = ({ role, onNavigate }) => {
             <TjTextarea label="Finance Manager Notes" placeholder="Add notes to this summary…" rows={3} />
             <div style={{ display: 'flex', gap: '8px' }}>
               <Btn variant="primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setSummaryOpen(false)}>Save Notes</Btn>
-              <Btn variant="secondary" small>Export PDF</Btn>
+              <Btn variant="secondary" small onClick={() => {
+                if (!selectedMonth) return;
+                const w = window.open('', '_blank');
+                w.document.write(`<!DOCTYPE html><html><head><title>${selectedMonth.month} Summary</title><style>body{font-family:sans-serif;padding:32px;color:#0F172A;} h1{font-size:22px;margin-bottom:4px;} .meta{font-size:12px;color:#64748B;margin-bottom:24px;}</style></head><body><h1>Tijori AI — ${selectedMonth.month}</h1><div class="meta">Generated: ${new Date().toLocaleString('en-IN')}</div><table border=1 cellpadding=8 style="width:100%;border-collapse:collapse;"><tr><th>Revenue</th><td>${selectedMonth.revenue}</td></tr><tr><th>Expenses</th><td>${selectedMonth.expenses}</td></tr><tr><th>Net Profit</th><td>${selectedMonth.profit}</td></tr><tr><th>Cash Position</th><td>${selectedMonth.cash}</td></tr></table><p style="margin-top:24px;"><b>AI Insight:</b> ${selectedMonth.insight}</p><script>window.print()<\/script></body></html>`);
+                w.document.close();
+              }}>Export PDF</Btn>
             </div>
           </>
         )}

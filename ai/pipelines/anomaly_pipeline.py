@@ -35,8 +35,12 @@ def _get_presidio():
     if not PRESIDIO_AVAILABLE:
         return None, None
     if _analyzer is None:
-        _analyzer = AnalyzerEngine()
-        _anonymizer = AnonymizerEngine()
+        try:
+            _analyzer = AnalyzerEngine()
+            _anonymizer = AnonymizerEngine()
+        except (Exception, SystemExit) as e:
+            logger.warning(f"Presidio init failed (spaCy model missing?): {e}")
+            return None, None
     return _analyzer, _anonymizer
 
 def _mask_pii(text: str) -> str:

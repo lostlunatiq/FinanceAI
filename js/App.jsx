@@ -139,28 +139,44 @@ const useLiveBadges = () => {
 
 // ─── APP SHELL ────────────────────────────────────────────────────────────────
 
-const AppShell = ({ roleKey, screen, onNavigate, onLogout, user, children }) => {
+const AppShell = ({ roleKey, screen, onNavigate, onBack, canGoBack, onLogout, user, children }) => {
   const [notifOpen, setNotifOpen]     = React.useState(false);
   const [notifs, setNotifs]           = React.useState([]);
   const navBadges                     = useLiveBadges();
   const config                        = ROLE_CONFIG[roleKey] || ROLE_CONFIG['AP Clerk'];
   const navItems                      = config.nav;
 
-  // Live notifications from audit log
-  React.useEffect(() => {
-    window.TijoriAPI.AuditAPI.list({ limit: 4 })
+  const loadNotifs = () => {
+    window.TijoriAPI.AuditAPI.list({ limit: 8 })
       .then(data => {
-        const items = (data?.results || []).map(e => ({
-          text: `${e.action.replace(/\./g, ' ')} — ${e.entity_type} ${e.entity_id?.slice(0,8) || ''}`,
-          time: new Date(e.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-          dot:  e.action.includes('reject') ? '#EF4444'
-              : e.action.includes('approv') ? '#10B981'
-              : '#F59E0B',
-        }));
+        const items = (data?.results || []).map(e => {
+          const actionParts = (e.action || '').split('.');
+          const entity = actionParts[0] || '';
+          const verb   = (actionParts[1] || e.action || '').replace(/_/g, ' ');
+          const who    = e.actor || 'System';
+          const ref    = e.details?.ref_no || (e.entity_id ? e.entity_id.slice(0,8).toUpperCase() : '');
+          const navTarget = entity === 'expense' ? 'ap-hub'
+                          : entity === 'vendor'  ? 'vendors'
+                          : entity === 'user'    ? 'iam'
+                          : 'audit';
+          return {
+            text: `${who} ${verb}${ref ? ' · ' + ref : ''}`,
+            sub:  e.entity_type || '',
+            time: e.timestamp ? new Date(e.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '',
+            dot:  e.action.includes('reject') ? '#EF4444'
+                : e.action.includes('approv') ? '#10B981'
+                : e.action.includes('paid')   ? '#8B5CF6'
+                : '#F59E0B',
+            navTarget,
+            entityId: e.entity_id,
+          };
+        });
         setNotifs(items);
       })
       .catch(() => {});
-  }, []);
+  };
+
+  React.useEffect(() => { loadNotifs(); }, []);
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#F8FAFC' }}>
@@ -252,7 +268,17 @@ const AppShell = ({ roleKey, screen, onNavigate, onLogout, user, children }) => 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
 
         {/* Top bar */}
-        <div style={{ height: 64, background: 'white', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', padding: '0 28px', gap: '16px', flexShrink: 0, zIndex: 5 }}>
+        <div style={{ height: 64, background: 'white', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', padding: '0 28px', gap: '12px', flexShrink: 0, zIndex: 5 }}>
+          {/* Back button */}
+          {canGoBack && (
+            <button onClick={onBack}
+              style={{ width: 32, height: 32, borderRadius: '8px', background: '#F8F7F5', border: '1.5px solid #E2E8F0', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: '#475569', transition: 'all 150ms', flexShrink: 0 }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#E8783B'; e.currentTarget.style.color = 'white'; e.currentTarget.style.borderColor = '#E8783B'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#F8F7F5'; e.currentTarget.style.color = '#475569'; e.currentTarget.style.borderColor = '#E2E8F0'; }}
+              title="Go back">
+              ←
+            </button>
+          )}
           {/* Breadcrumb */}
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '12px' }}>
             <span style={{ color: '#94A3B8' }}>Tijori AI</span>
@@ -266,7 +292,7 @@ const AppShell = ({ roleKey, screen, onNavigate, onLogout, user, children }) => 
 
           {/* Notification bell */}
           <div style={{ position: 'relative' }}>
-            <button onClick={() => setNotifOpen(!notifOpen)}
+            <button onClick={() => { setNotifOpen(!notifOpen); if (!notifOpen) loadNotifs(); }}
               style={{ width: 36, height: 36, borderRadius: '10px', background: notifOpen ? '#FFF8F5' : '#F8F7F5', border: '1.5px solid #E2E8F0', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px', position: 'relative' }}>
               🔔
               {notifs.length > 0 && (
@@ -276,24 +302,39 @@ const AppShell = ({ roleKey, screen, onNavigate, onLogout, user, children }) => 
               )}
             </button>
             {notifOpen && (
-              <div style={{ position: 'absolute', top: 44, right: 0, width: 300, background: 'white', borderRadius: '14px', boxShadow: '0 16px 48px rgba(0,0,0,0.14)', border: '1px solid #F1F0EE', zIndex: 100 }}>
-                <div style={{ padding: '14px 16px', borderBottom: '1px solid #F1F0EE', fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '14px', color: '#0F172A', display: 'flex', justifyContent: 'space-between' }}>
-                  Recent Activity
-                  <span style={{ fontSize: '11px', color: '#E8783B', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }} onClick={() => setNotifOpen(false)}>Dismiss</span>
+              <div style={{ position: 'absolute', top: 44, right: 0, width: 320, background: 'white', borderRadius: '14px', boxShadow: '0 16px 48px rgba(0,0,0,0.14)', border: '1px solid #F1F0EE', zIndex: 100 }}>
+                <div style={{ padding: '14px 16px', borderBottom: '1px solid #F1F0EE', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '14px', color: '#0F172A' }}>Live Activity</div>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', color: '#E8783B', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }} onClick={() => { setNotifOpen(false); onNavigate('audit'); }}>View All →</span>
+                    <span style={{ fontSize: '11px', color: '#94A3B8', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }} onClick={() => setNotifOpen(false)}>✕</span>
+                  </div>
                 </div>
                 {notifs.length === 0 ? (
                   <div style={{ padding: '20px 16px', textAlign: 'center', color: '#94A3B8', fontSize: '12px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>No recent activity</div>
                 ) : notifs.map((n, i) => (
                   <div key={i} style={{ padding: '11px 16px', borderBottom: '1px solid #F8F7F5', display: 'flex', gap: '10px', cursor: 'pointer', transition: 'background 150ms' }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#FAFAF8'}
+                    onClick={() => { setNotifOpen(false); onNavigate(n.navTarget); }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#FFF8F5'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: n.dot, marginTop: 5, flexShrink: 0 }} />
-                    <div>
-                      <div style={{ fontSize: '12px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 500, lineHeight: 1.4 }}>{n.text}</div>
-                      <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: 2, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{n.time}</div>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: n.dot, marginTop: 4, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '12px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.text}</div>
+                      <div style={{ fontSize: '10px', color: '#94A3B8', marginTop: 2, fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'flex', gap: '6px' }}>
+                        <span>{n.sub}</span>
+                        {n.sub && n.time && <span>·</span>}
+                        <span>{n.time}</span>
+                      </div>
                     </div>
+                    <span style={{ fontSize: '10px', color: '#CBD5E1', alignSelf: 'center' }}>›</span>
                   </div>
                 ))}
+                <div style={{ padding: '10px 16px', borderTop: '1px solid #F1F0EE' }}>
+                  <button onClick={() => { setNotifOpen(false); onNavigate('audit'); }}
+                    style={{ width: '100%', padding: '8px', background: '#F8F7F5', border: 'none', borderRadius: '8px', fontSize: '12px', color: '#475569', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>
+                    View Full Audit Log →
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -326,12 +367,12 @@ const SCREEN_MAP = {
   'anomaly':            (nav, roleKey, ctx) => React.createElement(AnomalyScreen,           { role: roleKey, onNavigate: nav }),
   'ai-hub':             (nav, roleKey, ctx) => React.createElement(AIHubScreen,             { role: roleKey, onNavigate: nav }),
   'vendors':            (nav, roleKey, ctx) => React.createElement(VendorsScreen,           { role: roleKey, onNavigate: nav }),
-  'audit':              (nav, roleKey, ctx) => React.createElement(AuditScreen,             { role: roleKey, onNavigate: nav }),
+  'audit':              (nav, roleKey, ctx) => React.createElement(AuditScreen,             { role: roleKey, onNavigate: nav, initialFilter: ctx?.filter }),
   'settings':           (nav, roleKey, ctx) => React.createElement(SettingsScreen,          { role: roleKey, onNavigate: nav }),
   'vendor-portal':      (nav, roleKey, ctx) => React.createElement(VendorPortalScreen,      { role: roleKey, onNavigate: nav }),
-  'fm-home':            (nav, roleKey, ctx) => React.createElement(FinanceManagerDashboard, { role: roleKey, onNavigate: nav }),
-  'clerk-home':         (nav, roleKey, ctx) => React.createElement(APClerkDashboard,        { role: roleKey, onNavigate: nav }),
-  'emp-home':           (nav, roleKey, ctx) => React.createElement(EmployeeDashboard,       { role: roleKey, onNavigate: nav }),
+  'fm-home':            (nav, roleKey, ctx, usr) => React.createElement(FinanceManagerDashboard, { role: roleKey, onNavigate: nav, user: usr }),
+  'clerk-home':         (nav, roleKey, ctx, usr) => React.createElement(APClerkDashboard,        { role: roleKey, onNavigate: nav, user: usr }),
+  'emp-home':           (nav, roleKey, ctx, usr) => React.createElement(EmployeeDashboard,       { role: roleKey, onNavigate: nav, user: usr }),
   'iam':                (nav, roleKey, ctx) => React.createElement(IAMScreen,               { role: roleKey, onNavigate: nav }),
   'ar':                 (nav, roleKey, ctx) => React.createElement(ARScreen,                { role: roleKey, onNavigate: nav }),
   'ar-raise':           (nav, roleKey, ctx) => React.createElement(ARRaiseScreen,           { role: roleKey, onNavigate: nav }),
@@ -351,11 +392,12 @@ const SCREEN_MAP = {
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
 
 const App = () => {
-  const [authed,    setAuthed]    = React.useState(null);   // null=loading, false=logged out, true=in
-  const [roleKey,   setRoleKey]   = React.useState(null);   // ✅ derived from backend grade
-  const [user,      setUser]      = React.useState(null);   // ✅ real user object from /me/
-  const [screen,    setScreen]    = React.useState('dashboard');
-  const [screenCtx, setScreenCtx] = React.useState(null);
+  const [authed,      setAuthed]      = React.useState(null);
+  const [roleKey,     setRoleKey]     = React.useState(null);
+  const [user,        setUser]        = React.useState(null);
+  const [screen,      setScreen]      = React.useState('dashboard');
+  const [screenCtx,   setScreenCtx]   = React.useState(null);
+  const [navHistory,  setNavHistory]  = React.useState([]);  // back-button stack
 
   // ── helpers ────────────────────────────────────────────────────
   const buildUser = (userData) => ({
@@ -419,9 +461,19 @@ const App = () => {
   }, []);
 
   const navigate = (s, ctx) => {
+    setNavHistory(prev => [...prev.slice(-19), screen]);  // keep last 20
     setScreen(s);
     setScreenCtx(ctx || null);
     localStorage.setItem('tj_screen', s);
+  };
+
+  const back = () => {
+    if (navHistory.length === 0) return;
+    const prev = navHistory[navHistory.length - 1];
+    setNavHistory(h => h.slice(0, -1));
+    setScreen(prev);
+    setScreenCtx(null);
+    localStorage.setItem('tj_screen', prev);
   };
 
   const handleLogout = () => {
@@ -467,9 +519,9 @@ const App = () => {
   const screenFn = SCREEN_MAP[screen] || SCREEN_MAP['dashboard'];
 
   return (
-    <AppShell roleKey={roleKey} screen={screen} onNavigate={navigate} onLogout={handleLogout} user={user}>
+    <AppShell roleKey={roleKey} screen={screen} onNavigate={navigate} onBack={back} canGoBack={navHistory.length > 0} onLogout={handleLogout} user={user}>
       <div key={`${roleKey}-${screen}`} style={{ animation: 'fadeIn 220ms ease' }}>
-        {screenFn(navigate, roleKey, screenCtx)}
+        {screenFn(navigate, roleKey, screenCtx, user)}
       </div>
     </AppShell>
   );

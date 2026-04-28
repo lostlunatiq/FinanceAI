@@ -969,6 +969,17 @@ const ExpensesScreen = ({
   const budgetInfo = EXP_BUDGET_MAP[expCategory];
   const budgetPct = budgetInfo ? Math.round(budgetInfo.rem / budgetInfo.total * 100) : null;
   const budgetColor = budgetPct === null ? '#94A3B8' : budgetPct > 50 ? '#10B981' : budgetPct > 20 ? '#F59E0B' : '#EF4444';
+  const [statusFilter, setStatusFilter] = React.useState('ALL');
+  const [searchExp, setSearchExp] = React.useState('');
+  const expFiltered = expenses.filter(e => {
+    const mStatus = statusFilter === 'ALL' || (e.status || '').includes(statusFilter);
+    const mSearch = !searchExp || (e.vendor_name || '').toLowerCase().includes(searchExp.toLowerCase()) || (e.ref_no || '').toLowerCase().includes(searchExp.toLowerCase()) || (e.invoice_number || '').toLowerCase().includes(searchExp.toLowerCase());
+    return mStatus && mSearch;
+  });
+  const totalSpend = expenses.reduce((s, e) => s + parseFloat(e.total_amount || 0), 0);
+  const pendingSpend = expenses.filter(e => e.status?.startsWith('PENDING')).reduce((s, e) => s + parseFloat(e.total_amount || 0), 0);
+  const paidSpend = expenses.filter(e => e.status === 'PAID').reduce((s, e) => s + parseFloat(e.total_amount || 0), 0);
+  const fmtS = n => n >= 100000 ? `₹${(n / 100000).toFixed(1)}L` : `₹${Math.round(n).toLocaleString('en-IN')}`;
   return /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '32px'
@@ -988,26 +999,79 @@ const ExpensesScreen = ({
     }, "File Expense")
   }), /*#__PURE__*/React.createElement(StatsRow, {
     cards: [{
-      label: 'Unapproved Spend',
-      value: '₹12,450',
-      delta: '↑ ₹3.2K',
+      label: 'Pending Approval',
+      value: loadingExp ? '…' : fmtS(pendingSpend),
+      delta: `${expenses.filter(e => e.status?.startsWith('PENDING')).length} items`,
       deltaType: 'negative',
       color: '#EF4444',
       pulse: true
     }, {
-      label: 'Approved This Month',
-      value: '₹48,200',
-      delta: '↑ 12%',
-      deltaType: 'positive',
-      color: '#10B981'
+      label: 'Total in System',
+      value: loadingExp ? '…' : fmtS(totalSpend),
+      delta: `${expenses.length} expenses`,
+      deltaType: 'neutral',
+      color: '#E8783B'
     }, {
-      label: 'Reimbursed',
-      value: '₹31,100',
-      delta: 'Settled',
+      label: 'Paid / Reimbursed',
+      value: loadingExp ? '…' : fmtS(paidSpend),
+      delta: `${expenses.filter(e => e.status === 'PAID').length} settled`,
       deltaType: 'positive',
       color: '#10B981'
     }]
   }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: '10px',
+      marginBottom: '14px',
+      alignItems: 'center',
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'relative',
+      flex: 1,
+      minWidth: 200,
+      maxWidth: 300
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    value: searchExp,
+    onChange: e => setSearchExp(e.target.value),
+    placeholder: "Search by vendor, ref no\u2026",
+    style: {
+      width: '100%',
+      padding: '8px 12px 8px 32px',
+      border: '1.5px solid #E2E8F0',
+      borderRadius: '10px',
+      fontSize: '12px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      outline: 'none',
+      background: '#FAFAF8'
+    }
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      position: 'absolute',
+      left: 10,
+      top: '50%',
+      transform: 'translateY(-50%)',
+      color: '#94A3B8',
+      fontSize: '12px'
+    }
+  }, "\uD83D\uDD0D")), [['ALL', 'All'], ['PENDING', 'Pending'], ['APPROVED', 'Approved'], ['REJECTED', 'Rejected'], ['PAID', 'Paid']].map(([v, l]) => /*#__PURE__*/React.createElement("button", {
+    key: v,
+    onClick: () => setStatusFilter(v),
+    style: {
+      padding: '6px 14px',
+      borderRadius: '999px',
+      border: 'none',
+      cursor: 'pointer',
+      fontSize: '11px',
+      fontWeight: 700,
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      background: statusFilter === v ? '#E8783B' : '#F8F7F5',
+      color: statusFilter === v ? 'white' : '#64748B',
+      transition: 'all 150ms'
+    }
+  }, l))), /*#__PURE__*/React.createElement("div", {
     style: {
       background: 'white',
       borderRadius: '16px',
@@ -1044,7 +1108,7 @@ const ExpensesScreen = ({
       fontFamily: "'Plus Jakarta Sans', sans-serif",
       fontSize: '13px'
     }
-  }, "Loading expenses\u2026")) : expenses.length === 0 ? /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+  }, "Loading expenses\u2026")) : expFiltered.length === 0 ? /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
     colSpan: !isVendor ? 8 : 7,
     style: {
       padding: '32px',
@@ -1053,7 +1117,7 @@ const ExpensesScreen = ({
       fontFamily: "'Plus Jakarta Sans', sans-serif",
       fontSize: '13px'
     }
-  }, "No expenses found.")) : null, expenses.map(e => {
+  }, "No expenses found", statusFilter !== 'ALL' ? ` with status ${statusFilter}` : '', ".")) : null, expFiltered.map(e => {
     const rowId = e.invoice_number || e.ref_no || (e.id ? String(e.id).slice(0, 8).toUpperCase() : '—');
     const refNo = e.ref_no;
     const employee = e.vendor_name || e.submitted_by_name || '—';
@@ -1987,15 +2051,32 @@ const BudgetDetailDrawer = ({
       ...f,
       critical_threshold: e.target.value
     }))
-  })), /*#__PURE__*/React.createElement(Btn, {
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      marginTop: 4
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
     variant: "primary",
     onClick: handleSave,
     style: {
-      width: '100%',
-      justifyContent: 'center',
-      marginTop: 4
+      flex: 1,
+      justifyContent: 'center'
     }
-  }, "Save Changes")), loading ? /*#__PURE__*/React.createElement("div", {
+  }, "Save Changes"), /*#__PURE__*/React.createElement(Btn, {
+    variant: "destructive",
+    small: true,
+    onClick: async () => {
+      if (!window.confirm('Close/delete this budget?')) return;
+      try {
+        await window.TijoriAPI.BudgetAPI.deleteBudget(budget.id);
+        onUpdated();
+      } catch (e) {
+        alert(e.message || 'Delete failed');
+      }
+    }
+  }, "Delete"))), loading ? /*#__PURE__*/React.createElement("div", {
     style: {
       padding: 32,
       textAlign: 'center'
@@ -2678,18 +2759,6 @@ const BudgetScreen = ({
 const GuardrailsScreen = ({
   onNavigate
 }) => {
-  const [resolveModal, setResolveModal] = React.useState(false);
-  const [resolveNote, setResolveNote] = React.useState('');
-  const [resolved, setResolved] = React.useState(false);
-  const [resolving, setResolving] = React.useState(false);
-  const handleResolve = async () => {
-    setResolving(true);
-    await new Promise(r => setTimeout(r, 900));
-    setResolving(false);
-    setResolved(true);
-    setResolveModal(false);
-    setResolveNote('');
-  };
   const depts = [{
     name: 'Engineering',
     spent: 2.4,
@@ -2809,11 +2878,10 @@ const GuardrailsScreen = ({
       fontFamily: "'Plus Jakarta Sans', sans-serif",
       marginTop: '2px'
     }
-  }, resolved ? "Engineering budget cap has been released by CFO." : "All new invoices for Engineering are automatically blocked until CFO releases the cap.")), !resolved && /*#__PURE__*/React.createElement(Btn, {
+  }, "All new invoices for Engineering are automatically blocked until CFO releases the cap.")), /*#__PURE__*/React.createElement(Btn, {
     variant: "primary",
-    small: true,
-    onClick: () => setResolveModal(true)
-  }, "Resolve"), resolved && /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: '#059669', fontFamily: "'Plus Jakarta Sans', sans-serif", padding: '4px 10px', background: '#D1FAE5', borderRadius: 999 } }, "✓ Resolved")), /*#__PURE__*/React.createElement("div", {
+    small: true
+  }, "Resolve")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'grid',
       gridTemplateColumns: '1fr 1fr',
@@ -2930,26 +2998,7 @@ const GuardrailsScreen = ({
       fontFamily: "'JetBrains Mono', monospace",
       color: '#E8783B'
     }
-  }, l.entity))))))), /*#__PURE__*/React.createElement(TjModal, {
-    open: resolveModal,
-    onClose: () => setResolveModal(false),
-    title: "Release Budget Cap — Engineering"
-  }, /*#__PURE__*/React.createElement("div", null,
-    /*#__PURE__*/React.createElement("div", { style: { background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '12px 16px', marginBottom: 14, fontSize: 13, color: '#92400E', fontFamily: "'Plus Jakarta Sans', sans-serif" } },
-      "This will release the Engineering budget suspension and allow new invoices to be processed. A CFO override note is required."
-    ),
-    /*#__PURE__*/React.createElement(TjTextarea, {
-      label: "CFO Override Note *",
-      placeholder: "State the reason for releasing the Engineering budget cap…",
-      value: resolveNote,
-      onChange: e => setResolveNote(e.target.value),
-      rows: 3
-    }),
-    /*#__PURE__*/React.createElement("div", { style: { display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 12 } },
-      /*#__PURE__*/React.createElement(Btn, { variant: "secondary", onClick: () => setResolveModal(false) }, "Cancel"),
-      /*#__PURE__*/React.createElement(Btn, { variant: "primary", onClick: handleResolve, disabled: resolveNote.length < 10 || resolving }, resolving ? 'Releasing…' : 'Release Cap & Resolve')
-    )
-  )));
+  }, l.entity))))))));
 };
 
 // ─── AUDIT LOG ────────────────────────────────────────────────────────────────
@@ -2996,82 +3045,146 @@ const AUDIT_ENTRIES = [{
   detail: '{ "expense_id": "EXP-2024-441", "amount": 4200, "category": "Travel" }'
 }];
 const AuditScreen = ({
-  onNavigate
+  role,
+  onNavigate,
+  initialFilter
 }) => {
   const [view, setView] = React.useState('timeline');
   const [expanded, setExpanded] = React.useState(null);
-  const [filterChip, setFilterChip] = React.useState('All');
+  const [filterChip, setFilterChip] = React.useState(initialFilter || 'All');
+  const [search, setSearch] = React.useState('');
+  const [dateFrom, setDateFrom] = React.useState('');
+  const [dateTo, setDateTo] = React.useState('');
   const [auditEntries, setAuditEntries] = React.useState([]);
   const [loadingAudit, setLoadingAudit] = React.useState(true);
+  const [total, setTotal] = React.useState(0);
   const typeColor = {
     APPROVAL: '#10B981',
     INVOICE: '#E8783B',
     VENDOR: '#8B5CF6',
     SYSTEM: '#94A3B8',
-    USER: '#3B82F6'
+    USER: '#3B82F6',
+    EXPENSE: '#E8783B'
   };
-  const chips = ['All', 'Invoice', 'Approval', 'Vendor', 'System'];
-  React.useEffect(() => {
+  const chips = ['All', 'Invoice', 'Approval', 'Vendor', 'User', 'System'];
+  const parseEntries = data => {
+    const entries = Array.isArray(data) ? data : data?.results || [];
+    return entries.map((entry, i) => {
+      const actionStr = entry.action || '';
+      const parts = actionStr.split('.');
+      const domain = parts[0] ? parts[0].toUpperCase() : 'SYSTEM';
+      const verb = parts[1] ? parts[1].replace(/_/g, ' ') : actionStr;
+      const typeMap = {
+        EXPENSE: 'INVOICE',
+        VENDOR: 'VENDOR',
+        USER: 'USER',
+        SYSTEM: 'SYSTEM'
+      };
+      const type = typeMap[domain] || (actionStr.includes('approv') ? 'APPROVAL' : 'SYSTEM');
+      const details = entry.details || {};
+      let entityName = entry.entity_type || '—';
+      if (entry.entity_id) {
+        const shortId = String(entry.entity_id).slice(0, 8).toUpperCase();
+        entityName = details.ref_no || details.invoice_number || `${entry.entity_type || ''}:${shortId}`;
+      }
+      const reason = details.reason || details.decision_reason || '';
+      const amount = details.total_amount ? `₹${Number(details.total_amount).toLocaleString('en-IN')}` : '';
+      return {
+        id: entry.id || i,
+        user: entry.actor || 'System',
+        action: verb || actionStr,
+        entity: entityName,
+        type,
+        time: entry.timestamp ? new Date(entry.timestamp).toLocaleString('en-IN', {
+          day: 'numeric',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit'
+        }) : '—',
+        reason,
+        amount,
+        detail: Object.keys(details).length > 0 ? JSON.stringify(details, null, 2) : null,
+        raw: entry
+      };
+    });
+  };
+  const loadAudit = () => {
     const {
       AuditAPI
     } = window.TijoriAPI;
-    AuditAPI.list().then(data => {
-      const entries = Array.isArray(data) ? data : data && data.results ? data.results : [];
-      const rows = entries.map((entry, i) => {
-        const actionStr = entry.action || 'action';
-        const parts = actionStr.split('.');
-        const typeKey = parts[0] ? parts[0].toUpperCase() : 'SYSTEM';
-        const actionVerb = parts[1] ? parts[1].replace(/_/g, ' ') : actionStr;
-        const typeMap = {
-          USER: 'USER',
-          EXPENSE: 'INVOICE',
-          VENDOR: 'VENDOR',
-          SYSTEM: 'SYSTEM',
-          INVOICE: 'INVOICE'
-        };
-
-        // Intelligent entity naming
-        let entityName = entry.entity_type || '—';
-        if (entry.entity_id) {
-          const shortId = String(entry.entity_id).slice(0, 8).toUpperCase();
-          // If it was an expense, use ref_no if available in after state
-          const after = entry.masked_after || {};
-          entityName = after.ref_no || after.invoice_number || `${entityName}:${shortId}`;
-        }
-        return {
-          id: entry.id || i,
-          user: entry.actor_name || entry.actor || 'System',
-          action: actionVerb,
-          entity: entityName,
-          type: typeMap[typeKey] || 'SYSTEM',
-          time: entry.timestamp ? new Date(entry.timestamp).toLocaleString('en-IN', {
-            day: 'numeric',
-            month: 'short',
-            hour: '2-digit',
-            minute: '2-digit'
-          }) : '—',
-          detail: entry.masked_after || entry.masked_before ? JSON.stringify({
-            before: entry.masked_before,
-            after: entry.masked_after
-          }, null, 2) : JSON.stringify(entry.details || {}, null, 2),
-          raw: entry
-        };
-      });
-      setAuditEntries(rows);
+    setLoadingAudit(true);
+    const params = {
+      limit: 100
+    };
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+    AuditAPI.list(params).then(data => {
+      setAuditEntries(parseEntries(data));
+      setTotal(data?.total || (Array.isArray(data) ? data.length : 0));
     }).catch(() => {}).finally(() => setLoadingAudit(false));
+  };
+  React.useEffect(() => {
+    loadAudit();
   }, []);
-  const filtered = auditEntries.filter(e => filterChip === 'All' || e.type.startsWith(filterChip.toUpperCase()));
+  const exportCSV = () => {
+    const rows = filtered.map(e => [e.time, e.user, e.action, e.entity, e.type, e.reason, e.amount].join(','));
+    const csv = ['Timestamp,User,Action,Entity,Type,Reason,Amount', ...rows].join('\n');
+    const a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+    a.download = `audit_log_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+  };
+  const filtered = auditEntries.filter(e => {
+    const matchType = filterChip === 'All' || e.type === filterChip.toUpperCase() || filterChip === 'Invoice' && e.type === 'EXPENSE';
+    const matchSearch = !search || e.user.toLowerCase().includes(search.toLowerCase()) || e.entity.toLowerCase().includes(search.toLowerCase()) || e.action.toLowerCase().includes(search.toLowerCase());
+    return matchType && matchSearch;
+  });
+
+  // Dynamic stats from live data
+  const stats = React.useMemo(() => ({
+    invoice: auditEntries.filter(e => e.type === 'INVOICE' || e.type === 'EXPENSE').length,
+    approval: auditEntries.filter(e => e.type === 'APPROVAL' || e.action.includes('approv') || e.action.includes('reject')).length,
+    vendor: auditEntries.filter(e => e.type === 'VENDOR').length,
+    user: auditEntries.filter(e => e.type === 'USER').length,
+    system: auditEntries.filter(e => e.type === 'SYSTEM').length
+  }), [auditEntries]);
   return /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '32px'
     }
   }, /*#__PURE__*/React.createElement(SectionHeader, {
     title: "Audit Registry",
-    subtitle: "A permanent, immutable record of every transaction and system event.",
-    right: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("input", {
-      type: "date",
+    subtitle: "Permanent, immutable record of every transaction and system event. Role-filtered view.",
+    right: /*#__PURE__*/React.createElement("div", {
       style: {
-        padding: '8px 12px',
+        display: 'flex',
+        gap: '8px',
+        alignItems: 'center'
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "date",
+      value: dateFrom,
+      onChange: e => setDateFrom(e.target.value),
+      style: {
+        padding: '8px 10px',
+        border: '1.5px solid #E2E8F0',
+        borderRadius: '10px',
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        fontSize: '12px',
+        outline: 'none',
+        background: '#FAFAF8'
+      }
+    }), /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: '#94A3B8',
+        fontSize: '12px'
+      }
+    }, "\u2192"), /*#__PURE__*/React.createElement("input", {
+      type: "date",
+      value: dateTo,
+      onChange: e => setDateTo(e.target.value),
+      style: {
+        padding: '8px 10px',
         border: '1.5px solid #E2E8F0',
         borderRadius: '10px',
         fontFamily: "'Plus Jakarta Sans', sans-serif",
@@ -3081,7 +3194,12 @@ const AuditScreen = ({
       }
     }), /*#__PURE__*/React.createElement(Btn, {
       variant: "secondary",
-      small: true
+      small: true,
+      onClick: loadAudit
+    }, "Apply"), /*#__PURE__*/React.createElement(Btn, {
+      variant: "secondary",
+      small: true,
+      onClick: exportCSV
     }, "Export CSV \u2193"))
   }), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -3090,7 +3208,7 @@ const AuditScreen = ({
       marginBottom: '20px',
       flexWrap: 'wrap'
     }
-  }, [['Invoice Actions', 12, '#E8783B'], ['Approvals', 8, '#10B981'], ['Vendor Changes', 3, '#8B5CF6'], ['Login Events', 24, '#3B82F6'], ['System Actions', 7, '#94A3B8']].map(([l, v, c]) => /*#__PURE__*/React.createElement("div", {
+  }, [['Invoice Actions', stats.invoice, '#E8783B'], ['Approvals', stats.approval, '#10B981'], ['Vendor Changes', stats.vendor, '#8B5CF6'], ['User Events', stats.user, '#3B82F6'], ['System Actions', stats.system, '#94A3B8']].map(([l, v, c]) => /*#__PURE__*/React.createElement("div", {
     key: l,
     style: {
       background: 'white',
@@ -3108,20 +3226,73 @@ const AuditScreen = ({
       fontSize: '18px',
       color: c
     }
-  }, v), /*#__PURE__*/React.createElement("span", {
+  }, loadingAudit ? '…' : v), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: '11px',
       color: '#64748B',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, l)))), /*#__PURE__*/React.createElement("div", {
+  }, l))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'white',
+      borderRadius: '10px',
+      padding: '10px 16px',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+      display: 'flex',
+      gap: '8px',
+      alignItems: 'center',
+      marginLeft: 'auto'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 800,
+      fontSize: '18px',
+      color: '#0F172A'
+    }
+  }, total), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '11px',
+      color: '#64748B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Total Entries"))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       gap: '8px',
-      marginBottom: '20px',
-      alignItems: 'center'
+      marginBottom: '16px',
+      alignItems: 'center',
+      flexWrap: 'wrap'
     }
-  }, chips.map(c => /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'relative',
+      minWidth: 200
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    value: search,
+    onChange: e => setSearch(e.target.value),
+    placeholder: "Search user, entity, action\u2026",
+    style: {
+      width: '100%',
+      padding: '8px 12px 8px 32px',
+      border: '1.5px solid #E2E8F0',
+      borderRadius: '10px',
+      fontSize: '12px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      outline: 'none',
+      background: '#FAFAF8'
+    }
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      position: 'absolute',
+      left: 10,
+      top: '50%',
+      transform: 'translateY(-50%)',
+      color: '#94A3B8',
+      fontSize: '12px'
+    }
+  }, "\uD83D\uDD0D")), chips.map(c => /*#__PURE__*/React.createElement("button", {
     key: c,
     onClick: () => setFilterChip(c),
     style: {
@@ -3216,21 +3387,23 @@ const AuditScreen = ({
       padding: '14px 16px',
       boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
       cursor: 'pointer',
-      border: '1px solid #F1F0EE'
+      border: `1px solid ${expanded === e.id ? '#E8783B44' : '#F1F0EE'}`,
+      transition: 'border-color 150ms'
     },
     onClick: () => setExpanded(expanded === e.id ? null : e.id)
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       justifyContent: 'space-between',
-      alignItems: 'center',
+      alignItems: 'flex-start',
       marginBottom: '4px'
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       alignItems: 'center',
-      gap: '8px'
+      gap: '8px',
+      flexWrap: 'wrap'
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
@@ -3256,13 +3429,31 @@ const AuditScreen = ({
       fontFamily: "'JetBrains Mono', monospace",
       fontSize: '12px'
     }
-  }, e.entity))), /*#__PURE__*/React.createElement("span", {
+  }, e.entity)), e.amount && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '13px',
+      color: '#10B981',
+      letterSpacing: '-0.3px'
+    }
+  }, e.amount)), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: '11px',
       color: '#94A3B8',
-      fontFamily: "'Plus Jakarta Sans', sans-serif"
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      flexShrink: 0,
+      marginLeft: 8
     }
-  }, e.time)), expanded === e.id && /*#__PURE__*/React.createElement("div", {
+  }, e.time)), e.reason && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#475569',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginTop: '4px',
+      fontStyle: 'italic'
+    }
+  }, "Reason: ", e.reason), expanded === e.id && e.detail && /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: '10px',
       background: '#F8F7F5',
@@ -3271,7 +3462,10 @@ const AuditScreen = ({
       fontFamily: "'JetBrains Mono', monospace",
       fontSize: '11px',
       color: '#475569',
-      lineHeight: 1.6
+      lineHeight: 1.6,
+      whiteSpace: 'pre-wrap',
+      overflow: 'auto',
+      maxHeight: 200
     }
   }, e.detail))))) : !loadingAudit && filtered.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
@@ -3289,7 +3483,7 @@ const AuditScreen = ({
     style: {
       background: '#F8F7F5'
     }
-  }, ['Type', 'User', 'Action', 'Entity', 'Timestamp'].map(h => /*#__PURE__*/React.createElement("th", {
+  }, ['Type', 'User', 'Action', 'Entity', 'Amount', 'Reason', 'Timestamp'].map(h => /*#__PURE__*/React.createElement("th", {
     key: h,
     style: {
       padding: '12px 16px',
@@ -3306,10 +3500,12 @@ const AuditScreen = ({
     style: {
       borderTop: '1px solid #F1F0EE',
       height: 52,
-      transition: 'background 150ms'
+      transition: 'background 150ms',
+      cursor: 'pointer'
     },
     onMouseEnter: ev => ev.currentTarget.style.background = '#FFF8F5',
-    onMouseLeave: ev => ev.currentTarget.style.background = 'white'
+    onMouseLeave: ev => ev.currentTarget.style.background = 'white',
+    onClick: () => setExpanded(expanded === e.id ? null : e.id)
   }, /*#__PURE__*/React.createElement("td", {
     style: {
       padding: '0 16px'
@@ -3335,7 +3531,7 @@ const AuditScreen = ({
   }, e.user), /*#__PURE__*/React.createElement("td", {
     style: {
       padding: '0 16px',
-      fontSize: '13px',
+      fontSize: '12px',
       color: '#475569',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
@@ -3343,10 +3539,29 @@ const AuditScreen = ({
     style: {
       padding: '0 16px',
       fontFamily: "'JetBrains Mono', monospace",
-      fontSize: '12px',
+      fontSize: '11px',
       color: '#E8783B'
     }
   }, e.entity), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 16px',
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '13px',
+      color: '#10B981'
+    }
+  }, e.amount || '—'), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 16px',
+      fontSize: '12px',
+      color: '#64748B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      maxWidth: '200px',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap'
+    }
+  }, e.reason || '—'), /*#__PURE__*/React.createElement("td", {
     style: {
       padding: '0 16px',
       fontSize: '12px',
@@ -3409,7 +3624,11 @@ const SettingsScreen = ({
       const {
         AuthAPI
       } = window.TijoriAPI;
-      const updated = await AuthAPI.updateProfile(profileForm);
+      const updated = await AuthAPI.updateProfile({
+        first_name: profileForm.first_name,
+        last_name: profileForm.last_name,
+        email: profileForm.email
+      });
       setProfile(p => ({
         ...p,
         ...updated
@@ -3429,16 +3648,21 @@ const SettingsScreen = ({
     const {
       AuthAPI
     } = window.TijoriAPI;
+    if (!pwForm.current || !pwForm.new_password) {
+      setPwMsg('Both fields required.');
+      return;
+    }
     AuthAPI.changePassword({
       old_password: pwForm.current,
-      new_password: pwForm.new_password
+      new_password: pwForm.new_password,
+      confirm_password: pwForm.new_password
     }).then(() => {
-      setPwMsg('Password updated.');
+      setPwMsg('Password updated successfully.');
       setPwForm({
         current: '',
         new_password: ''
       });
-    }).catch(() => setPwMsg('Failed to update password.'));
+    }).catch(e => setPwMsg('Failed: ' + (e.message || 'Error')));
   };
   const displayName = profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.username : JSON.parse(localStorage.getItem('tj_user') || '{}').name || 'User';
   const displayInitials = displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'U';

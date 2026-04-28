@@ -200,7 +200,15 @@ const ARScreen = ({
   const [filter, setFilter] = React.useState('All');
   const [customerDetail, setCustomerDetail] = React.useState(null);
   const [recordPaymentModal, setRecordPaymentModal] = React.useState(null);
-  const filtered = AR_INVOICES.filter(inv => filter === 'All' || inv.status === filter.toUpperCase().replace(' ', '_'));
+  const [paymentForm, setPaymentForm] = React.useState({
+    amount: '',
+    date: '',
+    utr: ''
+  });
+  const [paymentMsg, setPaymentMsg] = React.useState('');
+  const [invoiceList, setInvoiceList] = React.useState(AR_INVOICES);
+  const [remindMsg, setRemindMsg] = React.useState('');
+  const filtered = invoiceList.filter(inv => filter === 'All' || inv.status === filter.toUpperCase().replace(' ', '_'));
 
   // Aging chart data
   const customers = ['Global Tech', 'Meridian Ind.', 'Acme Corp', 'SkyBridge', 'NovaTech'];
@@ -281,7 +289,17 @@ const ARScreen = ({
       gap: '10px'
     }
   }, /*#__PURE__*/React.createElement(Btn, {
-    variant: "secondary"
+    variant: "secondary",
+    onClick: () => {
+      // Export AR aging as CSV
+      const rows = [['Invoice #', 'Customer', 'Amount', 'Issued', 'Due', 'Age', 'Status']];
+      invoiceList.forEach(inv => rows.push([inv.id, inv.customer, inv.amount, inv.issued, inv.due, inv.age + 'd', inv.status]));
+      const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+      const a = document.createElement('a');
+      a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+      a.download = 'ar_aging_report.csv';
+      a.click();
+    }
   }, "AR Aging Report \u2193"), /*#__PURE__*/React.createElement(Btn, {
     variant: "primary",
     icon: /*#__PURE__*/React.createElement("span", null, "+"),
@@ -565,10 +583,23 @@ const ARScreen = ({
   }, inv.status !== 'PAID' && /*#__PURE__*/React.createElement(Btn, {
     variant: "green",
     small: true,
-    onClick: () => setRecordPaymentModal(inv)
+    onClick: () => {
+      setRecordPaymentModal(inv);
+      setPaymentForm({
+        amount: '',
+        date: new Date().toISOString().slice(0, 10),
+        utr: ''
+      });
+      setPaymentMsg('');
+    }
   }, "Record Payment"), inv.status === 'OVERDUE' && /*#__PURE__*/React.createElement(Btn, {
     variant: "secondary",
-    small: true
+    small: true,
+    onClick: () => {
+      // Simulate sending a payment reminder
+      setRemindMsg(`Reminder sent to ${inv.customer} for ${inv.id}`);
+      setTimeout(() => setRemindMsg(''), 3000);
+    }
   }, "Remind")))))))), /*#__PURE__*/React.createElement(Card, {
     style: {
       padding: '22px'
@@ -633,7 +664,22 @@ const ARScreen = ({
       fontWeight: 600,
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "View All Activity \u2192"))), recordPaymentModal && /*#__PURE__*/React.createElement(TjModal, {
+  }, "View All Activity \u2192"))), remindMsg && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'fixed',
+      bottom: 24,
+      right: 24,
+      background: '#0F172A',
+      color: 'white',
+      padding: '12px 20px',
+      borderRadius: '12px',
+      fontSize: '13px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontWeight: 600,
+      zIndex: 9999,
+      boxShadow: '0 4px 16px rgba(0,0,0,0.2)'
+    }
+  }, "\u2713 ", remindMsg), recordPaymentModal && /*#__PURE__*/React.createElement(TjModal, {
     open: true,
     onClose: () => setRecordPaymentModal(null),
     title: "Record Payment",
@@ -672,14 +718,36 @@ const ARScreen = ({
     }
   }, recordPaymentModal.amount)), /*#__PURE__*/React.createElement(TjInput, {
     label: "Amount Received (\u20B9)",
-    placeholder: "Full or partial amount"
+    placeholder: "Full or partial amount",
+    value: paymentForm.amount,
+    onChange: e => setPaymentForm(f => ({
+      ...f,
+      amount: e.target.value
+    }))
   }), /*#__PURE__*/React.createElement(TjInput, {
     label: "Payment Date",
-    type: "date"
+    type: "date",
+    value: paymentForm.date,
+    onChange: e => setPaymentForm(f => ({
+      ...f,
+      date: e.target.value
+    }))
   }), /*#__PURE__*/React.createElement(TjInput, {
     label: "UTR / Reference Number",
-    placeholder: "Bank transfer reference"
-  }), /*#__PURE__*/React.createElement("div", {
+    placeholder: "Bank transfer reference",
+    value: paymentForm.utr,
+    onChange: e => setPaymentForm(f => ({
+      ...f,
+      utr: e.target.value
+    }))
+  }), paymentMsg && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: paymentMsg.includes('Failed') ? '#EF4444' : '#10B981',
+      marginBottom: '8px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, paymentMsg), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       gap: '10px',
@@ -690,7 +758,26 @@ const ARScreen = ({
     onClick: () => setRecordPaymentModal(null)
   }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
     variant: "green",
-    onClick: () => setRecordPaymentModal(null)
+    onClick: () => {
+      if (!paymentForm.amount) {
+        setPaymentMsg('Please enter an amount.');
+        return;
+      }
+      // Update invoice status to partially/fully paid
+      const inv = recordPaymentModal;
+      const paidAmt = parseFloat(paymentForm.amount.replace(/[^\d.]/g, '')) || 0;
+      const totalAmt = parseFloat(inv.amount.replace(/[^\d,]/g, '').replace(',', '')) || 0;
+      const newStatus = paidAmt >= totalAmt ? 'PAID' : 'PARTIALLY_PAID';
+      setInvoiceList(list => list.map(i => i.id === inv.id ? {
+        ...i,
+        status: newStatus
+      } : i));
+      setPaymentMsg('Payment recorded successfully.');
+      setTimeout(() => {
+        setRecordPaymentModal(null);
+        setPaymentMsg('');
+      }, 1000);
+    }
   }, "Confirm Payment"))));
 };
 
@@ -707,6 +794,12 @@ const ARRaiseScreen = ({
     price: '',
     tax: 18
   }]);
+  const [terms, setTerms] = React.useState('Net 30');
+  const [issueDate, setIssueDate] = React.useState(new Date().toISOString().slice(0, 10));
+  const [dueDate, setDueDate] = React.useState('');
+  const [poRef, setPoRef] = React.useState('');
+  const [saveMsg, setSaveMsg] = React.useState('');
+  const [issueLoading, setIssueLoading] = React.useState(false);
   const addLine = () => setLines(l => [...l, {
     desc: '',
     qty: 1,
@@ -760,10 +853,50 @@ const ARRaiseScreen = ({
       gap: '10px'
     }
   }, /*#__PURE__*/React.createElement(Btn, {
-    variant: "secondary"
-  }, "Save Draft"), /*#__PURE__*/React.createElement(Btn, {
-    variant: "primary"
-  }, "Issue Invoice \u2192"))), /*#__PURE__*/React.createElement("div", {
+    variant: "secondary",
+    onClick: () => {
+      const draft = {
+        invoiceNo,
+        customer,
+        lines,
+        terms,
+        issueDate,
+        dueDate,
+        poRef,
+        total
+      };
+      localStorage.setItem('ar_draft_' + invoiceNo, JSON.stringify(draft));
+      setSaveMsg('Draft saved!');
+      setTimeout(() => setSaveMsg(''), 2000);
+    }
+  }, "Save Draft"), saveMsg && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '12px',
+      color: '#10B981',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontWeight: 600
+    }
+  }, saveMsg), /*#__PURE__*/React.createElement(Btn, {
+    variant: "primary",
+    disabled: !customer || issueLoading,
+    onClick: async () => {
+      if (!customer) {
+        alert('Please select a customer.');
+        return;
+      }
+      setIssueLoading(true);
+      try {
+        // Mock issue — in production, call an AR invoice creation API
+        await new Promise(r => setTimeout(r, 600));
+        alert(`Invoice ${invoiceNo} issued to ${customer} for ${fmt(total)}`);
+        onNavigate && onNavigate('ar');
+      } catch (e) {
+        alert('Failed to issue invoice.');
+      } finally {
+        setIssueLoading(false);
+      }
+    }
+  }, issueLoading ? 'Issuing…' : 'Issue Invoice →'))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'grid',
       gridTemplateColumns: '7fr 5fr',
@@ -1284,10 +1417,12 @@ const ARCustomerScreen = ({
       gap: '10px'
     }
   }, /*#__PURE__*/React.createElement(Btn, {
-    variant: "secondary"
+    variant: "secondary",
+    onClick: () => alert('Customer edit form — coming soon in full AR module.')
   }, "Edit Customer"), /*#__PURE__*/React.createElement(Btn, {
     variant: "primary",
-    icon: /*#__PURE__*/React.createElement("span", null, "+")
+    icon: /*#__PURE__*/React.createElement("span", null, "+"),
+    onClick: () => onNavigate && onNavigate('ar-raise')
   }, "Raise Invoice"))), /*#__PURE__*/React.createElement(StatsRow, {
     cards: [{
       label: 'Total Invoiced',

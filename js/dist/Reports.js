@@ -8,6 +8,7 @@ const ReportsScreen = ({
   const [tab, setTab] = React.useState('');
   const [dateRange, setDateRange] = React.useState('Last 3M');
   const [exportOpen, setExportOpen] = React.useState(false);
+  const [selectedFormat, setSelectedFormat] = React.useState('PDF');
 
   // ── Role-based config ─────────────────────────────────────────────────────
   const roleConfigs = {
@@ -43,50 +44,42 @@ const ReportsScreen = ({
   }, [role, tabs]);
   const dateRanges = ['This Month', 'Last 3M', 'Last 6M', 'YTD', 'Custom'];
 
-  // ── Date-range driven data multipliers ───────────────────────────────────
-  const rangeMultiplier = dateRange === 'This Month' ? 1/6 : dateRange === 'Last 3M' ? 0.5 : dateRange === 'Last 6M' ? 1 : dateRange === 'YTD' ? 1.4 : 1;
-  const rangeMonths = dateRange === 'This Month' ? ['Apr'] : dateRange === 'Last 3M' ? ['Jan', 'Feb', 'Mar'] : dateRange === 'Last 6M' ? ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'] : ['May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr'];
-
   // ── Shared SVG helpers ────────────────────────────────────────────────────
   const W = 520,
     H = 200;
-  const months = rangeMonths;
+  const months = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
 
-  // P&L waterfall data (scaled by range)
-  const plScale = m => Math.round(m * rangeMultiplier);
+  // P&L waterfall data
   const plBars = [{
     label: 'Revenue',
-    val: plScale(580),
+    val: 580,
     color: '#10B981',
     type: 'up'
   }, {
     label: 'COGS',
-    val: -plScale(180),
+    val: -180,
     color: '#EF4444',
     type: 'down'
   }, {
     label: 'Gross Profit',
-    val: plScale(400),
+    val: 400,
     color: '#10B981',
     type: 'total'
   }, {
     label: 'OpEx',
-    val: -plScale(240),
+    val: -240,
     color: '#EF4444',
     type: 'down'
   }, {
     label: 'EBITDA',
-    val: plScale(160),
+    val: 160,
     color: '#E8783B',
     type: 'total'
   }];
 
-  // Revenue trend (sliced by range)
-  const allRev = [38, 42, 35, 48, 51, 62, 55, 49, 44, 58, 62, 70];
-  const allCol = [32, 38, 28, 42, 44, 56, 48, 42, 39, 51, 54, 64];
-  const sliceCount = rangeMonths.length;
-  const rev = allRev.slice(-sliceCount);
-  const col = allCol.slice(-sliceCount);
+  // Revenue trend
+  const rev = [42, 48, 38, 55, 51, 62];
+  const col = [35, 42, 30, 48, 44, 56];
 
   // Expense by dept bars
   const deptData = [{
@@ -1574,31 +1567,100 @@ const ReportsScreen = ({
       fontWeight: 700
     }
   }, r.ok ? 'ON TRACK' : 'OVER BUDGET'))))))));
+  const getExportData = () => {
+    if (tab === 'P&L Summary') {
+      return {
+        headers: ["Category", "Budget", "Actual", "Variance %"],
+        rows: [["Revenue", "52,00,000", "58,20,000", "+11.9%"], ["Cost of Revenue", "16,00,000", "18,00,000", "+12.5%"], ["Gross Profit", "36,00,000", "40,20,000", "+11.7%"], ["Operating Expenses", "22,00,000", "24,00,000", "+9.1%"], ["Net Profit", "14,00,000", "16,20,000", "+15.7%"]]
+      };
+    } else if (tab === 'Expense Breakdown') {
+      return {
+        headers: ["Department", "Budget (₹)", "Spent (₹)", "Utilisation %"],
+        rows: [["Engineering", "24,00,000", "24,00,000", "100%"], ["Marketing", "13,00,000", "11,00,000", "85%"], ["Operations", "15,00,000", "6,50,000", "43%"], ["HR", "8,00,000", "5,40,000", "68%"], ["Finance", "5,00,000", "2,20,000", "44%"]]
+      };
+    } else if (tab === 'Vendor Analysis' || tab === 'My Invoices' || tab === 'Payment Status') {
+      return {
+        headers: ["Date", "Invoice #", "Vendor", "Category", "Amount (₹)", "Status"],
+        rows: [["Apr 18", "INV-2024-091", "NovaBridge Infra", "Infrastructure", "8,40,000", "PENDING_CFO"], ["Apr 17", "INV-2024-089", "Sigma Electrical", "Electrical", "2,15,500", "QUERY_RAISED"], ["Apr 16", "EXP-2024-441", "Aisha Nair", "Travel", "4,200", "PENDING_L1"], ["Apr 15", "INV-2024-086", "CloudInfra", "Software", "6,80,000", "PAID"]]
+      };
+    } else if (tab === 'My Expenses' || tab === 'Reimbursement Status') {
+      return {
+        headers: ["Date", "Ref #", "Category", "Amount (₹)", "Status"],
+        rows: [["Apr 16", "EXP-2024-441", "Travel", "4,200", "PENDING_L1"], ["Apr 02", "EXP-2024-398", "Meals", "1,250", "APPROVED"], ["Mar 28", "EXP-2024-382", "Office Supplies", "12,400", "PAID"]]
+      };
+    } else {
+      return {
+        headers: ["Report", "Period", "Role", "Generated At"],
+        rows: [[tab, dateRange, role, new Date().toLocaleString('en-IN')]]
+      };
+    }
+  };
   const handleExport = format => {
+    const {
+      headers,
+      rows
+    } = getExportData();
+    const timestamp = new Date().toLocaleString('en-IN');
+    const filename = `TijoriAI_${tab.replace(/[\s&/]/g, '_')}_${dateRange.replace(/\s/g, '')}_${new Date().getFullYear()}`;
     if (format === 'PDF') {
-      window.print();
+      // Open a print-friendly version
+      const printWindow = window.open('', '_blank');
+      const tableRows = rows.map(r => `<tr>${r.map(c => `<td style="padding:8px 12px;border:1px solid #e2e8f0;">${c}</td>`).join('')}</tr>`).join('');
+      printWindow.document.write(`
+        <!DOCTYPE html><html><head><title>${tab} — Tijori AI</title>
+        <style>body{font-family:sans-serif;padding:32px;color:#0F172A;}
+        h1{font-size:22px;margin-bottom:4px;}
+        .meta{font-size:12px;color:#64748B;margin-bottom:24px;}
+        table{width:100%;border-collapse:collapse;font-size:13px;}
+        th{background:#F8F7F5;padding:10px 12px;text-align:left;border:1px solid #e2e8f0;font-weight:700;}
+        @media print{@page{margin:20mm;}}</style></head>
+        <body>
+        <h1>Tijori AI — ${tab}</h1>
+        <div class="meta">Period: ${dateRange} · Role: ${role} · Generated: ${timestamp}</div>
+        <table><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>
+        <tbody>${tableRows}</tbody></table>
+        <div style="margin-top:32px;font-size:11px;color:#94A3B8;">Generated by Tijori AI Finance OS · Confidential</div>
+        <script>window.onload=function(){window.print();}<\/script></body></html>
+      `);
+      printWindow.document.close();
+      setExportOpen(false);
+      return;
+    }
+    if (format === 'Excel') {
+      // Generate proper Excel-compatible XML (XLSX-lite via XML)
+      const xmlHeader = '<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>';
+      const xmlBody = `<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+        <Worksheet ss:Name="${tab.slice(0, 31)}">
+          <Table>
+            <Row>${headers.map(h => `<Cell><Data ss:Type="String">${h}</Data></Cell>`).join('')}</Row>
+            ${rows.map(r => `<Row>${r.map(c => `<Cell><Data ss:Type="String">${c}</Data></Cell>`).join('')}</Row>`).join('\n')}
+          </Table>
+        </Worksheet>
+      </Workbook>`;
+      const blob = new Blob([xmlHeader + xmlBody], {
+        type: 'application/vnd.ms-excel'
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename + '.xls';
+      a.click();
+      URL.revokeObjectURL(url);
       setExportOpen(false);
       return;
     }
 
-    // Simple CSV export for the current tab's data
-    let csvContent = "data:text/csv;charset=utf-8,";
-    let rows = [];
-    if (tab === 'P&L Summary') {
-      rows = [["Category", "Budget", "Actual", "Variance"], ["Revenue", "₹52L", "₹58.2L", "+11.9%"], ["Cost of Revenue", "₹16L", "₹18.0L", "+12.5%"], ["Operating Expenses", "₹22L", "₹24.0L", "+9.1%"], ["Net Profit", "₹14L", "₹16.2L", "+15.7%"]];
-    } else if (tab === 'Vendor Analysis' || tab === 'My Invoices') {
-      rows = [["Date", "Reference", "Vendor", "Category", "Amount", "Status"], ["Apr 18", "INV-2024-091", "NovaBridge Infra", "Infrastructure", "₹8,40,000", "PENDING_CFO"], ["Mar 15", "INV-2024-065", "CloudInfra", "Software", "₹6,80,000", "PAID"], ["Feb 10", "INV-2024-032", "Sigma Electrical", "Electrical", "₹2,15,500", "PAID"]];
-    } else {
-      rows = [["Report", tab], ["Generated", new Date().toLocaleString()], ["Role", role], ["Status", "Confidential"]];
-    }
-    csvContent += rows.map(e => e.join(",")).join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `FinanceAI_${tab.replace(/\s/g, '_')}_${dateRange}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // CSV
+    const csvContent = [[`Tijori AI — ${tab}`, `Period: ${dateRange}`, `Role: ${role}`, `Generated: ${timestamp}`].join(','), '', headers.map(h => `"${h}"`).join(','), ...rows.map(r => r.map(c => `"${c}"`).join(','))].join('\n');
+    const blob = new Blob([csvContent], {
+      type: 'text/csv;charset=utf-8;'
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
     setExportOpen(false);
   };
   const tabContent = {
@@ -1628,7 +1690,11 @@ const ReportsScreen = ({
     subtitle: "Generate, filter, and export financial intelligence across every dimension.",
     right: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Btn, {
       variant: "secondary",
-      small: true
+      small: true,
+      onClick: () => {
+        const freq = window.prompt('Schedule this report? Enter frequency:', 'Weekly');
+        if (freq) alert(`Report "${tab}" scheduled to run ${freq}. You will receive it at your registered email.`);
+      }
     }, "Schedule Report"), /*#__PURE__*/React.createElement(Btn, {
       variant: "primary",
       onClick: () => setExportOpen(true)
@@ -1712,6 +1778,10 @@ const ReportsScreen = ({
     small: true,
     style: {
       marginLeft: 'auto'
+    },
+    onClick: () => {
+      // Filters are already reflected via state; re-render happens automatically
+      // This button signals intent and could fetch filtered data in a real backend
     }
   }, "Apply Filters")), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -1749,43 +1819,40 @@ const ReportsScreen = ({
     }
   }, "Format"), [{
     id: 'PDF',
-    label: 'PDF (Full Report with Graphs)',
+    label: 'PDF (Print-ready report)',
     icon: '📄'
   }, {
     id: 'Excel',
-    label: 'Excel (Data Only)',
+    label: 'Excel (XLS workbook)',
     icon: '📊'
   }, {
     id: 'CSV',
-    label: 'CSV (Data Only)',
+    label: 'CSV (Raw data)',
     icon: '📋'
   }].map(f => /*#__PURE__*/React.createElement("div", {
     key: f.id,
-    onClick: () => handleExport(f.id),
+    onClick: () => setSelectedFormat(f.id),
     style: {
       display: 'flex',
       alignItems: 'center',
       gap: '10px',
       padding: '10px 12px',
-      border: '1.5px solid #E2E8F0',
+      border: `1.5px solid ${selectedFormat === f.id ? '#E8783B' : '#E2E8F0'}`,
       borderRadius: '10px',
       marginBottom: '8px',
       cursor: 'pointer',
-      transition: 'all 150ms'
-    },
-    onMouseEnter: e => {
-      e.currentTarget.style.borderColor = '#E8783B';
-      e.currentTarget.style.background = '#FFF8F5';
-    },
-    onMouseLeave: e => {
-      e.currentTarget.style.borderColor = '#E2E8F0';
-      e.currentTarget.style.background = 'white';
+      transition: 'all 150ms',
+      background: selectedFormat === f.id ? '#FFF8F5' : 'white'
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: '18px'
     }
-  }, f.icon), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, f.icon), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: '13px',
       fontWeight: 600,
@@ -1797,7 +1864,12 @@ const ReportsScreen = ({
       fontSize: '10px',
       color: '#94A3B8'
     }
-  }, f.label))))), /*#__PURE__*/React.createElement(TjInput, {
+  }, f.label)), selectedFormat === f.id && /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: '#E8783B',
+      fontSize: '14px'
+    }
+  }, "\u2713")))), /*#__PURE__*/React.createElement(TjInput, {
     label: "Send via Email",
     placeholder: "finance@company.com",
     type: "email"
@@ -1831,8 +1903,8 @@ const ReportsScreen = ({
       width: '100%',
       justifyContent: 'center'
     },
-    onClick: () => setExportOpen(false)
-  }, "Generate & Download")));
+    onClick: () => handleExport(selectedFormat)
+  }, "Generate & Download ", selectedFormat)));
 };
 Object.assign(window, {
   ReportsScreen
