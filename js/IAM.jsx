@@ -133,8 +133,8 @@ const AuditLogView = () => {
     const params = {};
     if (filter.action) params.action = filter.action;
     if (filter.entity_type) params.entity_type = filter.entity_type;
-    window.TijoriAPI.AuthAPI.getAuditLog(params)
-      .then(data => setLogs(data.results || []))
+    window.TijoriAPI.AuditAPI.list(params)
+      .then(data => setLogs(Array.isArray(data) ? data : (data.results || [])))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [filter]);
@@ -187,17 +187,55 @@ const AuditLogView = () => {
 const UserDetailDrawer = ({ user, departments, groups, open, onClose, onUpdated }) => {
   const [editing, setEditing] = React.useState(false);
   const [form, setEditForm] = React.useState({});
-  
+  const [resetPwOpen, setResetPwOpen] = React.useState(false);
+  const [newPassword, setNewPassword] = React.useState('');
+  const [actionMsg, setActionMsg] = React.useState('');
+
   React.useEffect(() => {
-    if (user) setEditForm({ ...user });
+    if (user) { setEditForm({ ...user }); setEditing(false); setActionMsg(''); }
   }, [user]);
 
   const handleSave = async () => {
     try {
-      await window.TijoriAPI.AuthAPI.updateUser(user.id, form);
+      await window.TijoriAPI.AuthAPI.updateUser(user.id, {
+        first_name: form.first_name,
+        last_name: form.last_name,
+        email: form.email,
+        employee_grade: form.employee_grade,
+        groups: form.groups,
+        is_active: form.is_active,
+      });
+      setActionMsg('User updated successfully.');
       onUpdated();
       setEditing(false);
-    } catch (e) { alert(e.message || 'Update failed'); }
+    } catch (e) { setActionMsg('Update failed: ' + (e.message || 'Error')); }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm(`Delete user ${user.username}? This cannot be undone.`)) return;
+    try {
+      await window.TijoriAPI.AuthAPI.deleteUser(user.id);
+      onClose();
+      onUpdated();
+    } catch (e) { setActionMsg('Delete failed: ' + (e.message || 'Error')); }
+  };
+
+  const handleToggleActive = async () => {
+    try {
+      await window.TijoriAPI.AuthAPI.updateUser(user.id, { is_active: !user.is_active });
+      setActionMsg(user.is_active ? 'User suspended.' : 'User activated.');
+      onUpdated();
+    } catch (e) { setActionMsg('Action failed: ' + (e.message || 'Error')); }
+  };
+
+  const handleResetPassword = async () => {
+    if (!newPassword || newPassword.length < 8) { setActionMsg('Password must be at least 8 characters.'); return; }
+    try {
+      await window.TijoriAPI.AuthAPI.resetPassword(user.id, newPassword);
+      setActionMsg('Password reset successfully.');
+      setResetPwOpen(false);
+      setNewPassword('');
+    } catch (e) { setActionMsg('Reset failed: ' + (e.message || 'Error')); }
   };
 
   if (!user) return null;
@@ -208,14 +246,14 @@ const UserDetailDrawer = ({ user, departments, groups, open, onClose, onUpdated 
         <div style={{ width: 80, height: 80, borderRadius: 20, background: 'linear-gradient(135deg, #E8783B, #FF6B35)', margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, color: 'white', fontWeight: 800 }}>
           {((user.first_name?.[0] || '') + (user.last_name?.[0] || '')).toUpperCase() || user.username[0].toUpperCase()}
         </div>
-        <div style={{ fontSize: 20, fontWeight: 800, color: '#0F172A', fontFamily: "'Bricolage Grotesque', sans-serif" }}>{user.full_name}</div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: '#0F172A', fontFamily: "'Bricolage Grotesque', sans-serif" }}>{user.full_name || user.username}</div>
         <div style={{ fontSize: 13, color: '#94A3B8', marginTop: 4 }}>{user.email || 'No email provided'}</div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 }}>
         <div style={{ padding: '14px', background: '#F8FAFC', borderRadius: 12, border: '1px solid #E2E8F0' }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 4 }}>Employee Grade</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: GRADE_COLORS[user.employee_grade] }}>G{user.employee_grade} — {GRADE_LABELS[user.employee_grade]}</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: GRADE_COLORS[user.employee_grade] }}>G{user.employee_grade} — {GRADE_LABELS[user.employee_grade] || 'Custom'}</div>
         </div>
         <div style={{ padding: '14px', background: '#F8FAFC', borderRadius: 12, border: '1px solid #E2E8F0' }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 4 }}>Department</div>
@@ -230,17 +268,28 @@ const UserDetailDrawer = ({ user, departments, groups, open, onClose, onUpdated 
 
       {editing ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <TjInput label="First Name" value={form.first_name} onChange={e => setEditForm(f => ({ ...f, first_name: e.target.value }))} />
-          <TjInput label="Last Name" value={form.last_name} onChange={e => setEditForm(f => ({ ...f, last_name: e.target.value }))} />
-          <TjInput label="Email" value={form.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
-          <div style={{ marginBottom: 16 }}>
+          <TjInput label="First Name" value={form.first_name || ''} onChange={e => setEditForm(f => ({ ...f, first_name: e.target.value }))} />
+          <TjInput label="Last Name" value={form.last_name || ''} onChange={e => setEditForm(f => ({ ...f, last_name: e.target.value }))} />
+          <TjInput label="Email" value={form.email || ''} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
+          <div style={{ marginBottom: 8 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>Grade</div>
             <select value={form.employee_grade} onChange={e => setEditForm(f => ({ ...f, employee_grade: Number(e.target.value) }))}
               style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #E2E8F0', borderRadius: 10, background: '#FAFAF8' }}>
               {Object.entries(GRADE_LABELS).map(([v, l]) => <option key={v} value={v}>G{v} - {l}</option>)}
             </select>
           </div>
-          <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>Account Status</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {[true, false].map(active => (
+                <button key={String(active)} onClick={() => setEditForm(f => ({ ...f, is_active: active }))}
+                  style={{ flex: 1, padding: '8px', borderRadius: 8, border: '1.5px solid', borderColor: form.is_active === active ? (active ? '#10B981' : '#EF4444') : '#E2E8F0', background: form.is_active === active ? (active ? '#F0FDF4' : '#FEF2F2') : 'white', color: form.is_active === active ? (active ? '#065F46' : '#991B1B') : '#64748B', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  {active ? 'Active' : 'Suspended'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ marginBottom: 8 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>Groups</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {groups.map(g => {
@@ -273,6 +322,44 @@ const UserDetailDrawer = ({ user, departments, groups, open, onClose, onUpdated 
           </div>
         </div>
       )}
+
+      {/* Quick Actions */}
+      {!editing && (
+        <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: 4 }}>Quick Actions</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Btn variant="secondary" small style={{ flex: 1, justifyContent: 'center' }} onClick={handleToggleActive}>
+              {user.is_active ? 'Suspend User' : 'Activate User'}
+            </Btn>
+            <Btn variant="secondary" small style={{ flex: 1, justifyContent: 'center' }} onClick={() => setResetPwOpen(!resetPwOpen)}>
+              Reset Password
+            </Btn>
+          </div>
+          {!user.is_superuser && (
+            <Btn variant="destructive" small style={{ justifyContent: 'center' }} onClick={handleDelete}>
+              Delete User
+            </Btn>
+          )}
+        </div>
+      )}
+
+      {/* Reset Password inline form */}
+      {resetPwOpen && (
+        <div style={{ marginTop: 16, padding: '14px 16px', background: '#F8F7F5', borderRadius: 12, border: '1px solid #E2E8F0' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 10, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Set New Password</div>
+          <TjInput label="New Password" type="password" placeholder="Minimum 8 characters" value={newPassword} onChange={e => setNewPassword(e.target.value)} />
+          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+            <Btn variant="secondary" small onClick={() => { setResetPwOpen(false); setNewPassword(''); }}>Cancel</Btn>
+            <Btn variant="primary" small onClick={handleResetPassword}>Confirm Reset</Btn>
+          </div>
+        </div>
+      )}
+
+      {actionMsg && (
+        <div style={{ marginTop: 12, padding: '10px 14px', background: actionMsg.includes('failed') || actionMsg.includes('Failed') ? '#FEE2E2' : '#F0FDF4', border: `1px solid ${actionMsg.includes('failed') || actionMsg.includes('Failed') ? '#FECACA' : '#BBF7D0'}`, borderRadius: 8, fontSize: 12, color: actionMsg.includes('failed') || actionMsg.includes('Failed') ? '#991B1B' : '#065F46', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          {actionMsg}
+        </div>
+      )}
     </SidePanel>
   );
 };
@@ -288,6 +375,9 @@ const IAMScreen = ({ onNavigate }) => {
   const [selectedUser, setSelectedUser] = React.useState(null);
   const [createOpen, setCreateOpen] = React.useState(false);
   const [createGroupOpen, setCreateGroupOpen] = React.useState(false);
+  const [newUser, setNewUser] = React.useState({ username: '', email: '', first_name: '', last_name: '', employee_grade: 1, password: '', department_id: '' });
+  const [createUserLoading, setCreateUserLoading] = React.useState(false);
+  const [createUserError, setCreateUserError] = React.useState('');
   const [newGroupName, setNewGroupName] = React.useState('');
   const [search, setSearch] = React.useState('');
   const [gradeFilter, setGradeFilter] = React.useState(0);
@@ -477,13 +567,80 @@ const IAMScreen = ({ onNavigate }) => {
 
       {tab === 'Audit Log' && <AuditLogView />}
 
+      <TjModal open={createOpen} onClose={() => { setCreateOpen(false); setCreateUserError(''); }} title="Create New User" width={500}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <TjInput label="First Name *" placeholder="Rahul" value={newUser.first_name} onChange={e => setNewUser(u => ({...u, first_name: e.target.value}))} />
+          <TjInput label="Last Name *" placeholder="Mehta" value={newUser.last_name} onChange={e => setNewUser(u => ({...u, last_name: e.target.value}))} />
+        </div>
+        <TjInput label="Username *" placeholder="rahul.mehta" value={newUser.username} onChange={e => setNewUser(u => ({...u, username: e.target.value}))} />
+        <TjInput label="Email *" type="email" placeholder="rahul.mehta@company.com" value={newUser.email} onChange={e => setNewUser(u => ({...u, email: e.target.value}))} />
+        <TjInput label="Password *" type="password" placeholder="Minimum 8 characters" value={newUser.password} onChange={e => setNewUser(u => ({...u, password: e.target.value}))} />
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Employee Grade *</div>
+          <select value={newUser.employee_grade} onChange={e => setNewUser(u => ({...u, employee_grade: Number(e.target.value)}))}
+            style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #E2E8F0', borderRadius: 10, fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 13, color: '#0F172A', background: '#FAFAF8', outline: 'none' }}>
+            {Object.entries(GRADE_LABELS).map(([g, label]) => <option key={g} value={Number(g)}>G{g} — {label}</option>)}
+          </select>
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Department</div>
+          <select value={newUser.department_id} onChange={e => setNewUser(u => ({...u, department_id: e.target.value}))}
+            style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #E2E8F0', borderRadius: 10, fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 13, color: '#0F172A', background: '#FAFAF8', outline: 'none' }}>
+            <option value="">— No Department —</option>
+            {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+        </div>
+        {createUserError && (
+          <div style={{ background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 12, color: '#991B1B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            {createUserError}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <Btn variant="secondary" onClick={() => { setCreateOpen(false); setCreateUserError(''); }}>Cancel</Btn>
+          <Btn variant="primary" disabled={createUserLoading} onClick={async () => {
+            if (!newUser.username || !newUser.email || !newUser.password || !newUser.first_name || !newUser.last_name) {
+              setCreateUserError('All required fields must be filled.'); return;
+            }
+            setCreateUserLoading(true); setCreateUserError('');
+            try {
+              const payload = {
+                username: newUser.username,
+                email: newUser.email,
+                first_name: newUser.first_name,
+                last_name: newUser.last_name,
+                employee_grade: newUser.employee_grade,
+                password: newUser.password,
+              };
+              if (newUser.department_id) payload.department = newUser.department_id;
+              await window.TijoriAPI.AuthAPI.createUser(payload);
+              setCreateOpen(false);
+              setNewUser({ username: '', email: '', first_name: '', last_name: '', employee_grade: 1, password: '', department_id: '' });
+              load();
+            } catch(e) {
+              setCreateUserError(e.message || 'Failed to create user.');
+            } finally {
+              setCreateUserLoading(false);
+            }
+          }}>{createUserLoading ? 'Creating…' : 'Create User'}</Btn>
+        </div>
+      </TjModal>
+
       <TjModal open={createGroupOpen} onClose={() => setCreateGroupOpen(false)} title="Create Security Group">
         <TjInput label="Group Name" placeholder="e.g. Finance Approvers" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} />
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 10 }}>
           <Btn variant="secondary" onClick={() => setCreateGroupOpen(false)}>Cancel</Btn>
           <Btn variant="primary" onClick={async () => {
             if(!newGroupName) return;
-            await window.TijoriAPI.AuthAPI.createGroup(newGroupName);
+            try {
+              // POST to groups endpoint
+              const token = window.TijoriAPI.Auth.getAccess();
+              const res = await fetch('/api/v1/auth/groups/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                body: JSON.stringify({ name: newGroupName }),
+              });
+              if (!res.ok) throw new Error('Failed to create group');
+            } catch(e) { alert(e.message || 'Group creation failed'); return; }
             setCreateGroupOpen(false);
             setNewGroupName('');
             load();

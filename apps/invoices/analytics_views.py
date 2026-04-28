@@ -595,7 +595,6 @@ class SpendVelocityView(APIView):
         this_week = float(
             Expense.objects.filter(
                 created_at__date__gte=week_start,
-                _status__not_in=["REJECTED", "WITHDRAWN", "AUTO_REJECT"] if False else [],
             ).exclude(_status__in=["REJECTED", "WITHDRAWN", "AUTO_REJECT"])
             .aggregate(t=Sum("total_amount"))["t"] or 0
         )

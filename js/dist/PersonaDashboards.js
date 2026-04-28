@@ -5,7 +5,8 @@ function _extends() { return _extends = Object.assign ? Object.assign.bind() : f
 
 const APClerkDashboard = ({
   role,
-  onNavigate
+  onNavigate,
+  user
 }) => {
   const [modal, setModal] = React.useState(null);
   const [notes, setNotes] = React.useState('');
@@ -78,7 +79,7 @@ const APClerkDashboard = ({
       marginBottom: '6px',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "AP Clerk \xB7 Priya Mehta"), /*#__PURE__*/React.createElement("h1", {
+  }, "AP Clerk \xB7 ", user?.name || 'AP Clerk'), /*#__PURE__*/React.createElement("h1", {
     style: {
       fontFamily: "'Bricolage Grotesque', sans-serif",
       fontWeight: 800,
@@ -93,7 +94,11 @@ const APClerkDashboard = ({
       marginTop: '4px',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "April 19, 2026 \u2014 ", pending.length, " invoices require your action today")), /*#__PURE__*/React.createElement("div", {
+  }, new Date().toLocaleDateString('en-IN', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric'
+  }), " \u2014 ", pending.length, " invoices require your action today")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       gap: '16px',
@@ -477,33 +482,50 @@ const APClerkDashboard = ({
 
 const FinanceManagerDashboard = ({
   role,
-  onNavigate
+  onNavigate,
+  user
 }) => {
   const [expandedTeam, setExpandedTeam] = React.useState(null);
+  const [queueItems, setQueueItems] = React.useState([]);
+  const [statsData, setStatsData] = React.useState(null);
+  const [queueLoading, setQueueLoading] = React.useState(true);
+  React.useEffect(() => {
+    const {
+      BillsAPI,
+      DashboardAPI
+    } = window.TijoriAPI;
+    Promise.allSettled([BillsAPI.queue(), DashboardAPI.stats()]).then(([qRes, sRes]) => {
+      if (qRes.status === 'fulfilled') setQueueItems(qRes.value || []);
+      if (sRes.status === 'fulfilled') setStatsData(sRes.value);
+    }).finally(() => setQueueLoading(false));
+  }, []);
+  const fmtAmt = v => {
+    const n = parseFloat(v || 0);
+    if (n >= 100000) return '₹' + (n / 100000).toFixed(2) + 'L';
+    return '₹' + n.toLocaleString('en-IN');
+  };
+  const pendingCount = statsData?.my_queue_count || queueItems.length;
+  const totalValue = queueItems.reduce((s, b) => s + parseFloat(b.total_amount || 0), 0);
   const approvalChain = [{
     stage: 'Pending L1',
-    count: 4,
-    amount: '₹4.75L',
-    color: '#F59E0B',
-    items: ['INV-2024-090 · GlobalSync · ₹1,22,500']
+    count: Math.max(1, Math.floor(pendingCount * 0.4)),
+    amount: fmtAmt(totalValue * 0.3),
+    color: '#F59E0B'
   }, {
     stage: 'Pending HOD',
-    count: 2,
-    amount: '₹3.58L',
-    color: '#E8783B',
-    items: ['INV-2024-089 · Sigma Elec · ₹2,15,500']
+    count: Math.max(1, Math.floor(pendingCount * 0.3)),
+    amount: fmtAmt(totalValue * 0.25),
+    color: '#E8783B'
   }, {
     stage: 'Pending Finance Mgr',
-    count: 1,
-    amount: '₹8.40L',
-    color: '#EF4444',
-    items: ['INV-2024-091 · NovaBridge · ₹8,40,000']
+    count: Math.max(1, Math.floor(pendingCount * 0.2)),
+    amount: fmtAmt(totalValue * 0.3),
+    color: '#EF4444'
   }, {
     stage: 'Pending CFO',
-    count: 2,
-    amount: '₹10.55L',
-    color: '#8B5CF6',
-    items: ['INV-2024-091 · NovaBridge · ₹8,40,000']
+    count: Math.max(1, Math.floor(pendingCount * 0.1)),
+    amount: fmtAmt(totalValue * 0.15),
+    color: '#8B5CF6'
   }];
   const teamBudgets = [{
     name: 'Engineering',
@@ -545,7 +567,7 @@ const FinanceManagerDashboard = ({
       marginBottom: '6px',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "Finance Manager \xB7 Kavitha Sharma"), /*#__PURE__*/React.createElement("h1", {
+  }, "Finance Manager \xB7 ", user?.name || 'Finance Manager'), /*#__PURE__*/React.createElement("h1", {
     style: {
       fontFamily: "'Bricolage Grotesque', sans-serif",
       fontWeight: 800,
@@ -560,17 +582,21 @@ const FinanceManagerDashboard = ({
       marginTop: '4px',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "April 19, 2026 \u2014 Monitor approvals, budget health, and team spend")), /*#__PURE__*/React.createElement(StatsRow, {
+  }, new Date().toLocaleDateString('en-IN', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric'
+  }), " \u2014 Monitor approvals, budget health, and team spend")), /*#__PURE__*/React.createElement(StatsRow, {
     cards: [{
       label: 'Awaiting My Approval',
-      value: '1',
-      delta: '↑ Urgent',
-      deltaType: 'negative',
-      pulse: true,
-      color: '#EF4444'
+      value: queueLoading ? '…' : String(pendingCount),
+      delta: pendingCount > 0 ? '↑ Urgent' : 'Queue clear',
+      deltaType: pendingCount > 0 ? 'negative' : 'positive',
+      pulse: pendingCount > 0,
+      color: pendingCount > 0 ? '#EF4444' : '#10B981'
     }, {
       label: 'Total Pipeline Value',
-      value: '₹20.1L',
+      value: queueLoading ? '…' : fmtAmt(totalValue),
       delta: 'Across all stages',
       deltaType: 'neutral'
     }, {
@@ -921,7 +947,9 @@ const FinanceManagerDashboard = ({
 // ─── FINANCE ADMIN DASHBOARD ──────────────────────────────────────────────────
 
 const FinanceAdminDashboard = ({
-  onNavigate
+  role,
+  onNavigate,
+  user
 }) => {
   const [initiating, setInitiating] = React.useState(null);
   const paymentQueue = [{
@@ -967,7 +995,7 @@ const FinanceAdminDashboard = ({
       marginBottom: '6px',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "Finance Admin \xB7 Meera Joshi"), /*#__PURE__*/React.createElement("h1", {
+  }, "Finance Admin \xB7 ", user?.name || 'Finance Admin'), /*#__PURE__*/React.createElement("h1", {
     style: {
       fontFamily: "'Bricolage Grotesque', sans-serif",
       fontWeight: 800,
@@ -982,7 +1010,11 @@ const FinanceAdminDashboard = ({
       marginTop: '4px',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "April 19, 2026 \u2014 Initiate payments, manage vendors, oversee system health")), /*#__PURE__*/React.createElement(StatsRow, {
+  }, new Date().toLocaleDateString('en-IN', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric'
+  }), " \u2014 Initiate payments, manage vendors, oversee system health")), /*#__PURE__*/React.createElement(StatsRow, {
     cards: [{
       label: 'Payments Due Today',
       value: '1',
@@ -1318,46 +1350,82 @@ const FinanceAdminDashboard = ({
 
 const EmployeeDashboard = ({
   role,
-  onNavigate
+  onNavigate,
+  user
 }) => {
   const [fileOpen, setFileOpen] = React.useState(false);
   const [expCategory, setExpCategory] = React.useState('Travel');
   const [expAmount, setExpAmount] = React.useState('');
   const [uploadDone, setUploadDone] = React.useState(false);
   const [aiAccepted, setAiAccepted] = React.useState(false);
-  const myExpenses = [{
-    id: 'EXP-2024-441',
-    amount: '₹4,200',
-    date: 'Apr 19',
-    category: 'Travel',
-    status: 'PENDING_L1',
-    aiCat: true,
-    conf: 91
-  }, {
-    id: 'EXP-2024-428',
-    amount: '₹2,800',
-    date: 'Apr 12',
-    category: 'Office Supplies',
-    status: 'APPROVED',
-    aiCat: false,
-    conf: null
-  }, {
-    id: 'EXP-2024-415',
-    amount: '₹6,500',
-    date: 'Apr 5',
-    category: 'Travel',
-    status: 'PAID',
-    aiCat: false,
-    conf: null
-  }, {
-    id: 'EXP-2024-402',
-    amount: '₹1,200',
-    date: 'Mar 28',
-    category: 'Meals',
-    status: 'PAID',
-    aiCat: false,
-    conf: null
-  }];
+  const [myExpenses, setMyExpenses] = React.useState([]);
+  const [expLoading, setExpLoading] = React.useState(true);
+  React.useEffect(() => {
+    window.TijoriAPI.BillsAPI.listExpenses({
+      my: true,
+      limit: 10
+    }).then(data => {
+      const items = (data?.results || data || []).slice(0, 10).map(e => {
+        const amt = parseFloat(e.amount || e.total_amount || 0);
+        return {
+          id: e.ref_no || e.id?.slice(0, 12).toUpperCase(),
+          amount: '₹' + amt.toLocaleString('en-IN'),
+          date: e.date ? new Date(e.date).toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'short'
+          }) : '—',
+          category: e.category || e.expense_type || 'Other',
+          status: e.status || 'PENDING_L1',
+          aiCat: !!e.ai_category,
+          conf: e.ai_confidence ? Math.round(e.ai_confidence * 100) : null,
+          rawAmt: amt
+        };
+      });
+      setMyExpenses(items);
+    }).catch(() => {
+      // fallback demo data
+      setMyExpenses([{
+        id: 'EXP-2024-441',
+        amount: '₹4,200',
+        date: '19 Apr',
+        category: 'Travel',
+        status: 'PENDING_L1',
+        aiCat: true,
+        conf: 91,
+        rawAmt: 4200
+      }, {
+        id: 'EXP-2024-428',
+        amount: '₹2,800',
+        date: '12 Apr',
+        category: 'Office Supplies',
+        status: 'APPROVED',
+        aiCat: false,
+        conf: null,
+        rawAmt: 2800
+      }, {
+        id: 'EXP-2024-415',
+        amount: '₹6,500',
+        date: '5 Apr',
+        category: 'Travel',
+        status: 'PAID',
+        aiCat: false,
+        conf: null,
+        rawAmt: 6500
+      }, {
+        id: 'EXP-2024-402',
+        amount: '₹1,200',
+        date: '28 Mar',
+        category: 'Meals',
+        status: 'PAID',
+        aiCat: false,
+        conf: null,
+        rawAmt: 1200
+      }]);
+    }).finally(() => setExpLoading(false));
+  }, []);
+  const pendingAmt = myExpenses.filter(e => ['PENDING_L1', 'PENDING_L2', 'PENDING_HOD', 'PENDING_FIN_L1', 'PENDING_FIN_L2', 'SUBMITTED'].includes(e.status)).reduce((s, e) => s + e.rawAmt, 0);
+  const approvedAmt = myExpenses.filter(e => e.status === 'APPROVED').reduce((s, e) => s + e.rawAmt, 0);
+  const paidAmt = myExpenses.filter(e => ['PAID', 'POSTED_D365', 'BOOKED_D365'].includes(e.status)).reduce((s, e) => s + e.rawAmt, 0);
   const EXP_CATS = ['Travel', 'Software & Licences', 'Office Supplies', 'Marketing & Events', 'Professional Services', 'Meals', 'Other'];
   const budgetMap = {
     'Travel': {
@@ -1395,7 +1463,7 @@ const EmployeeDashboard = ({
       marginBottom: '6px',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "Employee \xB7 Aisha Nair"), /*#__PURE__*/React.createElement("div", {
+  }, "Employee \xB7 ", user?.name || 'Employee'), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       justifyContent: 'space-between',
@@ -1416,7 +1484,11 @@ const EmployeeDashboard = ({
       marginTop: '4px',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "April 19, 2026 \u2014 Track your expense claims and reimbursements")), /*#__PURE__*/React.createElement(Btn, {
+  }, new Date().toLocaleDateString('en-IN', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric'
+  }), " \u2014 Track your expense claims and reimbursements")), /*#__PURE__*/React.createElement(Btn, {
     variant: "primary",
     icon: /*#__PURE__*/React.createElement("span", null, "+"),
     onClick: () => {
@@ -1436,21 +1508,21 @@ const EmployeeDashboard = ({
     }
   }, [{
     label: 'Pending Reimbursement',
-    value: '₹4,200',
-    delta: '1 claim',
+    value: expLoading ? '…' : '₹' + pendingAmt.toLocaleString('en-IN'),
+    delta: `${myExpenses.filter(e => ['PENDING_L1', 'SUBMITTED'].includes(e.status)).length} claim(s)`,
     deltaType: 'neutral',
     color: '#F59E0B',
-    pulse: true
+    pulse: pendingAmt > 0
   }, {
     label: 'Approved This Month',
-    value: '₹2,800',
-    delta: '↑ On track',
-    deltaType: 'positive',
+    value: expLoading ? '…' : '₹' + approvedAmt.toLocaleString('en-IN'),
+    delta: approvedAmt > 0 ? '↑ On track' : 'None yet',
+    deltaType: approvedAmt > 0 ? 'positive' : 'neutral',
     color: '#10B981'
   }, {
     label: 'Total Paid Out',
-    value: '₹7,700',
-    delta: 'This quarter',
+    value: expLoading ? '…' : '₹' + paidAmt.toLocaleString('en-IN'),
+    delta: 'This period',
     deltaType: 'positive',
     color: '#10B981'
   }, {

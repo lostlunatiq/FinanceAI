@@ -218,6 +218,8 @@ const AppShell = ({
   roleKey,
   screen,
   onNavigate,
+  onBack,
+  canGoBack,
   onLogout,
   user,
   children
@@ -227,22 +229,34 @@ const AppShell = ({
   const navBadges = useLiveBadges();
   const config = ROLE_CONFIG[roleKey] || ROLE_CONFIG['AP Clerk'];
   const navItems = config.nav;
-
-  // Live notifications from audit log
-  React.useEffect(() => {
+  const loadNotifs = () => {
     window.TijoriAPI.AuditAPI.list({
-      limit: 4
+      limit: 8
     }).then(data => {
-      const items = (data?.results || []).map(e => ({
-        text: `${e.action.replace(/\./g, ' ')} — ${e.entity_type} ${e.entity_id?.slice(0, 8) || ''}`,
-        time: new Date(e.timestamp).toLocaleTimeString('en-IN', {
-          hour: '2-digit',
-          minute: '2-digit'
-        }),
-        dot: e.action.includes('reject') ? '#EF4444' : e.action.includes('approv') ? '#10B981' : '#F59E0B'
-      }));
+      const items = (data?.results || []).map(e => {
+        const actionParts = (e.action || '').split('.');
+        const entity = actionParts[0] || '';
+        const verb = (actionParts[1] || e.action || '').replace(/_/g, ' ');
+        const who = e.actor || 'System';
+        const ref = e.details?.ref_no || (e.entity_id ? e.entity_id.slice(0, 8).toUpperCase() : '');
+        const navTarget = entity === 'expense' ? 'ap-hub' : entity === 'vendor' ? 'vendors' : entity === 'user' ? 'iam' : 'audit';
+        return {
+          text: `${who} ${verb}${ref ? ' · ' + ref : ''}`,
+          sub: e.entity_type || '',
+          time: e.timestamp ? new Date(e.timestamp).toLocaleTimeString('en-IN', {
+            hour: '2-digit',
+            minute: '2-digit'
+          }) : '',
+          dot: e.action.includes('reject') ? '#EF4444' : e.action.includes('approv') ? '#10B981' : e.action.includes('paid') ? '#8B5CF6' : '#F59E0B',
+          navTarget,
+          entityId: e.entity_id
+        };
+      });
       setNotifs(items);
     }).catch(() => {});
+  };
+  React.useEffect(() => {
+    loadNotifs();
   }, []);
   return /*#__PURE__*/React.createElement("div", {
     style: {
@@ -521,11 +535,39 @@ const AppShell = ({
       display: 'flex',
       alignItems: 'center',
       padding: '0 28px',
-      gap: '16px',
+      gap: '12px',
       flexShrink: 0,
       zIndex: 5
     }
-  }, /*#__PURE__*/React.createElement("div", {
+  }, canGoBack && /*#__PURE__*/React.createElement("button", {
+    onClick: onBack,
+    style: {
+      width: 32,
+      height: 32,
+      borderRadius: '8px',
+      background: '#F8F7F5',
+      border: '1.5px solid #E2E8F0',
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: '14px',
+      color: '#475569',
+      transition: 'all 150ms',
+      flexShrink: 0
+    },
+    onMouseEnter: e => {
+      e.currentTarget.style.background = '#E8783B';
+      e.currentTarget.style.color = 'white';
+      e.currentTarget.style.borderColor = '#E8783B';
+    },
+    onMouseLeave: e => {
+      e.currentTarget.style.background = '#F8F7F5';
+      e.currentTarget.style.color = '#475569';
+      e.currentTarget.style.borderColor = '#E2E8F0';
+    },
+    title: "Go back"
+  }, "\u2190"), /*#__PURE__*/React.createElement("div", {
     style: {
       flex: 1,
       display: 'flex',
@@ -554,7 +596,10 @@ const AppShell = ({
       position: 'relative'
     }
   }, /*#__PURE__*/React.createElement("button", {
-    onClick: () => setNotifOpen(!notifOpen),
+    onClick: () => {
+      setNotifOpen(!notifOpen);
+      if (!notifOpen) loadNotifs();
+    },
     style: {
       width: 36,
       height: 36,
@@ -590,7 +635,7 @@ const AppShell = ({
       position: 'absolute',
       top: 44,
       right: 0,
-      width: 300,
+      width: 320,
       background: 'white',
       borderRadius: '14px',
       boxShadow: '0 16px 48px rgba(0,0,0,0.14)',
@@ -601,14 +646,24 @@ const AppShell = ({
     style: {
       padding: '14px 16px',
       borderBottom: '1px solid #F1F0EE',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
       fontFamily: "'Bricolage Grotesque', sans-serif",
       fontWeight: 700,
       fontSize: '14px',
-      color: '#0F172A',
-      display: 'flex',
-      justifyContent: 'space-between'
+      color: '#0F172A'
     }
-  }, "Recent Activity", /*#__PURE__*/React.createElement("span", {
+  }, "Live Activity"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: '12px',
+      alignItems: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: '11px',
       color: '#E8783B',
@@ -616,8 +671,19 @@ const AppShell = ({
       fontFamily: "'Plus Jakarta Sans', sans-serif",
       fontWeight: 600
     },
+    onClick: () => {
+      setNotifOpen(false);
+      onNavigate('audit');
+    }
+  }, "View All \u2192"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '11px',
+      color: '#94A3B8',
+      cursor: 'pointer',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    },
     onClick: () => setNotifOpen(false)
-  }, "Dismiss")), notifs.length === 0 ? /*#__PURE__*/React.createElement("div", {
+  }, "\u2715"))), notifs.length === 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '20px 16px',
       textAlign: 'center',
@@ -635,33 +701,75 @@ const AppShell = ({
       cursor: 'pointer',
       transition: 'background 150ms'
     },
-    onMouseEnter: e => e.currentTarget.style.background = '#FAFAF8',
+    onClick: () => {
+      setNotifOpen(false);
+      onNavigate(n.navTarget);
+    },
+    onMouseEnter: e => e.currentTarget.style.background = '#FFF8F5',
     onMouseLeave: e => e.currentTarget.style.background = 'transparent'
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      width: 7,
-      height: 7,
+      width: 8,
+      height: 8,
       borderRadius: '50%',
       background: n.dot,
-      marginTop: 5,
+      marginTop: 4,
       flexShrink: 0
     }
-  }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      minWidth: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: '12px',
       color: '#0F172A',
       fontFamily: "'Plus Jakarta Sans', sans-serif",
-      fontWeight: 500,
-      lineHeight: 1.4
+      fontWeight: 600,
+      lineHeight: 1.4,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap'
     }
   }, n.text), /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: '11px',
+      fontSize: '10px',
       color: '#94A3B8',
       marginTop: 2,
-      fontFamily: "'Plus Jakarta Sans', sans-serif"
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      display: 'flex',
+      gap: '6px'
     }
-  }, n.time)))))), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("span", null, n.sub), n.sub && n.time && /*#__PURE__*/React.createElement("span", null, "\xB7"), /*#__PURE__*/React.createElement("span", null, n.time))), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '10px',
+      color: '#CBD5E1',
+      alignSelf: 'center'
+    }
+  }, "\u203A"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '10px 16px',
+      borderTop: '1px solid #F1F0EE'
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setNotifOpen(false);
+      onNavigate('audit');
+    },
+    style: {
+      width: '100%',
+      padding: '8px',
+      background: '#F8F7F5',
+      border: 'none',
+      borderRadius: '8px',
+      fontSize: '12px',
+      color: '#475569',
+      cursor: 'pointer',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontWeight: 600
+    }
+  }, "View Full Audit Log \u2192")))), /*#__PURE__*/React.createElement("div", {
     style: {
       width: 36,
       height: 36,
@@ -729,7 +837,8 @@ const SCREEN_MAP = {
   }),
   'audit': (nav, roleKey, ctx) => React.createElement(AuditScreen, {
     role: roleKey,
-    onNavigate: nav
+    onNavigate: nav,
+    initialFilter: ctx?.filter
   }),
   'settings': (nav, roleKey, ctx) => React.createElement(SettingsScreen, {
     role: roleKey,
@@ -739,17 +848,20 @@ const SCREEN_MAP = {
     role: roleKey,
     onNavigate: nav
   }),
-  'fm-home': (nav, roleKey, ctx) => React.createElement(FinanceManagerDashboard, {
+  'fm-home': (nav, roleKey, ctx, usr) => React.createElement(FinanceManagerDashboard, {
     role: roleKey,
-    onNavigate: nav
+    onNavigate: nav,
+    user: usr
   }),
-  'clerk-home': (nav, roleKey, ctx) => React.createElement(APClerkDashboard, {
+  'clerk-home': (nav, roleKey, ctx, usr) => React.createElement(APClerkDashboard, {
     role: roleKey,
-    onNavigate: nav
+    onNavigate: nav,
+    user: usr
   }),
-  'emp-home': (nav, roleKey, ctx) => React.createElement(EmployeeDashboard, {
+  'emp-home': (nav, roleKey, ctx, usr) => React.createElement(EmployeeDashboard, {
     role: roleKey,
-    onNavigate: nav
+    onNavigate: nav,
+    user: usr
   }),
   'iam': (nav, roleKey, ctx) => React.createElement(IAMScreen, {
     role: roleKey,
@@ -809,11 +921,12 @@ const SCREEN_MAP = {
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
 
 const App = () => {
-  const [authed, setAuthed] = React.useState(null); // null=loading, false=logged out, true=in
-  const [roleKey, setRoleKey] = React.useState(null); // ✅ derived from backend grade
-  const [user, setUser] = React.useState(null); // ✅ real user object from /me/
+  const [authed, setAuthed] = React.useState(null);
+  const [roleKey, setRoleKey] = React.useState(null);
+  const [user, setUser] = React.useState(null);
   const [screen, setScreen] = React.useState('dashboard');
   const [screenCtx, setScreenCtx] = React.useState(null);
+  const [navHistory, setNavHistory] = React.useState([]); // back-button stack
 
   // ── helpers ────────────────────────────────────────────────────
   const buildUser = userData => ({
@@ -870,9 +983,18 @@ const App = () => {
     return () => window.removeEventListener('navigate', handler);
   }, []);
   const navigate = (s, ctx) => {
+    setNavHistory(prev => [...prev.slice(-19), screen]); // keep last 20
     setScreen(s);
     setScreenCtx(ctx || null);
     localStorage.setItem('tj_screen', s);
+  };
+  const back = () => {
+    if (navHistory.length === 0) return;
+    const prev = navHistory[navHistory.length - 1];
+    setNavHistory(h => h.slice(0, -1));
+    setScreen(prev);
+    setScreenCtx(null);
+    localStorage.setItem('tj_screen', prev);
   };
   const handleLogout = () => {
     window.TijoriAPI.Auth.clear();
@@ -955,6 +1077,8 @@ const App = () => {
     roleKey: roleKey,
     screen: screen,
     onNavigate: navigate,
+    onBack: back,
+    canGoBack: navHistory.length > 0,
     onLogout: handleLogout,
     user: user
   }, /*#__PURE__*/React.createElement("div", {
@@ -962,7 +1086,7 @@ const App = () => {
     style: {
       animation: 'fadeIn 220ms ease'
     }
-  }, screenFn(navigate, roleKey, screenCtx)));
+  }, screenFn(navigate, roleKey, screenCtx, user)));
 };
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(/*#__PURE__*/React.createElement(App, null));

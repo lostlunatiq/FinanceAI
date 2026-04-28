@@ -20,27 +20,20 @@ const AIActionCard = ({ ac }) => {
 };
 
 const DashboardScreen = ({ role, onNavigate }) => {
-  const [copilotOpen, setCopilotOpen] = React.useState(false);
-  const [copilotMsg, setCopilotMsg] = React.useState('');
-  
   const roleKey = role || 'CFO';
-  const SUGGESTED_QUERIES = {
-    'CFO': ['Cash flow this month', 'Anomaly summary', 'Top vendors by spend', 'Which department is over budget?'],
-    'Finance Admin': ['Pending vendor approvals', 'Anomaly summary', 'Audit log today', 'System status'],
-    'Finance Manager': ['Team budget status', 'My pending approvals', 'Top spenders', 'Variance summary'],
-    'AP Clerk': ['My queue summary', 'High risk invoices', 'Average processing time', 'Near SLA limit'],
-  };
-  const queries = SUGGESTED_QUERIES[roleKey] || SUGGESTED_QUERIES['CFO'];
+  const isCFO        = roleKey === 'CFO';
+  const isFinAdmin   = roleKey === 'Finance Admin';
+  const isFinManager = roleKey === 'Finance Manager';
 
-  const [chat, setChat] = React.useState([
-    { role: 'ai', text: `Good morning. ${roleKey === 'CFO' ? 'Outstanding payables and anomaly flags' : 'Your pending tasks'} are loaded. Ask me anything about ${roleKey === 'CFO' ? 'your AP pipeline' : 'the financial data'}.` }
-  ]);
-  const [dismissed, setDismissed] = React.useState([]);
-  const [stats, setStats] = React.useState(null);
-  const [queueBills, setQueueBills] = React.useState([]);
-  const [loading, setLoading] = React.useState(true);
-  const [intel, setIntel] = React.useState(null);
-  const [runLoading, setRunLoading] = React.useState({ q: false, sweep: false });
+  const [dismissed,   setDismissed]   = React.useState([]);
+  const [stats,       setStats]       = React.useState(null);
+  const [queueBills,  setQueueBills]  = React.useState([]);
+  const [loading,     setLoading]     = React.useState(true);
+  const [intel,       setIntel]       = React.useState(null);
+  const [runLoading,  setRunLoading]  = React.useState({ q: false, sweep: false });
+  const [modal10Q,    setModal10Q]    = React.useState(null);   // { title, content, sections }
+  const [sweepResult, setSweepResult] = React.useState(null);
+  const [approveLoading, setApproveLoading] = React.useState({});
 
   const loadData = React.useCallback(async () => {
     setLoading(true);
@@ -64,9 +57,8 @@ const DashboardScreen = ({ role, onNavigate }) => {
     setRunLoading(prev => ({ ...prev, sweep: true }));
     try {
       const res = await window.TijoriAPI.AnalyticsAPI.auditSweep();
-      alert(res.message || "Audit sweep completed.");
-      loadData();
-    } catch (e) { alert("Sweep failed: " + e.message); }
+      setSweepResult(res);
+    } catch (e) { setSweepResult({ message: 'Sweep failed: ' + e.message, error: true }); }
     setRunLoading(prev => ({ ...prev, sweep: false }));
   };
 
@@ -74,10 +66,29 @@ const DashboardScreen = ({ role, onNavigate }) => {
     setRunLoading(prev => ({ ...prev, q: true }));
     try {
       const res = await window.TijoriAPI.AnalyticsAPI.generate10Q();
-      setChat(prev => [...prev, { role: 'user', text: 'Generate 10-Q draft' }, { role: 'ai', text: `Draft Generated: ${res.title}\n\n${res.content}` }]);
-      setCopilotOpen(true);
-    } catch (e) { alert("Generation failed: " + e.message); }
+      setModal10Q(res);
+    } catch (e) {
+      setModal10Q({ title: 'Generation Error', content: 'Failed to generate 10-Q: ' + e.message, error: true });
+    }
     setRunLoading(prev => ({ ...prev, q: false }));
+  };
+
+  const handleQuickApprove = async (billId, refNo) => {
+    setApproveLoading(prev => ({ ...prev, [billId]: true }));
+    try {
+      await window.TijoriAPI.BillsAPI.approve(billId, 'Approved from Command Center');
+      setQueueBills(prev => prev.filter(b => b.id !== billId));
+    } catch (e) { alert('Approval failed: ' + e.message); }
+    setApproveLoading(prev => ({ ...prev, [billId]: false }));
+  };
+
+  const handleQuickReject = async (billId) => {
+    const reason = prompt('Reason for rejection:');
+    if (!reason) return;
+    try {
+      await window.TijoriAPI.BillsAPI.reject(billId, reason);
+      setQueueBills(prev => prev.filter(b => b.id !== billId));
+    } catch (e) { alert('Rejection failed: ' + e.message); }
   };
 
   const fmtAmt = (v) => {
@@ -87,23 +98,6 @@ const DashboardScreen = ({ role, onNavigate }) => {
     if (n >= 100000) return `₹${(n/100000).toFixed(2)}L`;
     if (n >= 1000) return `₹${(n/1000).toFixed(1)}K`;
     return `₹${n.toFixed(0)}`;
-  };
-
-  const sendMsg = async () => {
-    if (!copilotMsg.trim()) return;
-    const q = copilotMsg;
-    setChat(c => [...c, { role: 'user', text: q }]);
-    setCopilotMsg('');
-    setChat(c => [...c, { role: 'ai', text: '…', loading: true }]);
-    try {
-      const { NLQueryAPI } = window.TijoriAPI;
-      const res = await NLQueryAPI.ask(q);
-      const answer = res.answer || 'Here is what I found in the financial data.';
-      const insight = res.insight ? `\n\n💡 Insight: ${res.insight}` : '';
-      setChat(c => c.map((m, i) => i === c.length - 1 ? { role: 'ai', text: answer + insight } : m));
-    } catch {
-      setChat(c => c.map((m, i) => i === c.length - 1 ? { role: 'ai', text: 'Unable to fetch live data. Please check API connectivity.' } : m));
-    }
   };
 
   const riskItems = intel?.risk_watch || [
@@ -139,45 +133,111 @@ const DashboardScreen = ({ role, onNavigate }) => {
     rawId: b.id,
   }));
 
+  const ROLE_TITLES = {
+    'CFO':            'Intelligence Command',
+    'Finance Admin':  'Finance Operations Hub',
+    'Finance Manager':'Approval Pipeline',
+    'AP Clerk':       'My Processing Queue',
+  };
+  const ROLE_SUBTITLES = {
+    'CFO':            'Global financial overview — real-time anomalies, payables, and treasury health.',
+    'Finance Admin':  'Full operational access — vendors, expenses, audit, and compliance.',
+    'Finance Manager':'Your team\'s pending approvals, budget status, and variance summary.',
+    'AP Clerk':       'Your invoice queue, SLA alerts, and processing metrics.',
+  };
+
   return (
     <div style={{ padding: '32px 32px 100px', position: 'relative' }}>
+      {/* 10-Q Modal */}
+      {modal10Q && (
+        <TjModal open={!!modal10Q} onClose={() => setModal10Q(null)} title="10-Q Report Draft" width={720}>
+          {modal10Q.error ? (
+            <div style={{ padding: '16px', background: '#FEE2E2', borderRadius: '8px', color: '#991B1B', fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{modal10Q.content}</div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <div>
+                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '18px', color: '#0F172A' }}>{modal10Q.title || 'Quarterly Report'}</div>
+                  <div style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>AI-Generated Draft · Not for official filing</div>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <Btn variant="secondary" small onClick={() => {
+                    const blob = new Blob([modal10Q.content || ''], { type: 'text/plain' });
+                    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = '10Q_Draft.txt'; a.click();
+                  }}>↓ Download</Btn>
+                </div>
+              </div>
+              <div style={{ maxHeight: '60vh', overflow: 'auto', background: '#FAFAF8', borderRadius: '10px', padding: '20px', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '13px', color: '#0F172A', lineHeight: 1.7, whiteSpace: 'pre-wrap', border: '1px solid #F1F0EE' }}>
+                {modal10Q.content || JSON.stringify(modal10Q, null, 2)}
+              </div>
+            </>
+          )}
+        </TjModal>
+      )}
+
+      {/* Audit Sweep Result Modal */}
+      {sweepResult && (
+        <TjModal open={!!sweepResult} onClose={() => setSweepResult(null)} title="Audit Sweep Results" width={480}>
+          <div style={{ padding: '16px', background: sweepResult.error ? '#FEE2E2' : '#F0FDF4', borderRadius: '10px', fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif", color: sweepResult.error ? '#991B1B' : '#065F46', lineHeight: 1.6 }}>
+            {sweepResult.message || JSON.stringify(sweepResult)}
+          </div>
+          {!sweepResult.error && sweepResult.flagged_count > 0 && (
+            <div style={{ marginTop: '12px' }}>
+              <Btn variant="primary" onClick={() => { setSweepResult(null); onNavigate && onNavigate('anomaly'); }}>View Flagged Items →</Btn>
+            </div>
+          )}
+        </TjModal>
+      )}
+
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px', animation: 'fadeUp 300ms ease both' }}>
         <div>
-          <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '32px', color: '#0F172A', letterSpacing: '-1.5px', marginBottom: '4px' }}>Intelligence Command</h1>
-          <div style={{ fontSize: '13px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{new Date().toLocaleDateString('en-IN', { month: 'long', day: 'numeric', year: 'numeric' })} — Operational Overview</div>
+          <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '32px', color: '#0F172A', letterSpacing: '-1.5px', marginBottom: '4px' }}>{ROLE_TITLES[roleKey] || 'Intelligence Command'}</h1>
+          <div style={{ fontSize: '13px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{new Date().toLocaleDateString('en-IN', { month: 'long', day: 'numeric', year: 'numeric' })} — {ROLE_SUBTITLES[roleKey] || 'Operational Overview'}</div>
         </div>
-        <Btn variant="primary" pill icon={<span>✦</span>}>Ask Your Data</Btn>
+        <Btn variant="primary" pill icon={<span>✦</span>} onClick={() => onNavigate && onNavigate('ai-hub')}>Ask Your Data</Btn>
       </div>
 
-      {/* CFO Approval Queue */}
-      <div style={{ marginBottom: '24px', animation: 'fadeUp 300ms 80ms ease both', opacity: 0, animationFillMode: 'forwards' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-          <span style={{ fontSize: '16px' }}>⚖</span>
-          <span style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '16px', color: '#0F172A' }}>Pending CFO Approvals</span>
-          <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#E8783B', cursor: 'pointer', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>View All →</span>
-        </div>
-        <div style={{ display: 'flex', gap: '14px' }}>
-          {approvalQueue.map(inv => (
-            <div key={inv.id} 
-                 onClick={() => onNavigate && onNavigate('ap-match', { invoice: inv })}
-                 style={{ background: 'white', borderRadius: '14px', padding: '18px 20px', border: '1px solid #F1F0EE', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', flex: 1, display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer', transition: 'box-shadow 150ms' }}
-                 onMouseEnter={e => e.currentTarget.style.boxShadow = '0 6px 12px rgba(0,0,0,0.08)'}
-                 onMouseLeave={e => e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.05)'}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#E8783B', fontWeight: 500, marginBottom: '4px' }}>{inv.id}</div>
-                <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '16px', color: '#0F172A' }}>{inv.vendor}</div>
-                <div style={{ fontSize: '12px', color: '#94A3B8', marginTop: '2px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{inv.date}</div>
+      {/* Approval Queue — title differs by role */}
+      {approvalQueue.length > 0 && (
+        <div style={{ marginBottom: '24px', animation: 'fadeUp 300ms 80ms ease both', opacity: 0, animationFillMode: 'forwards' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+            <span style={{ fontSize: '16px' }}>⚖</span>
+            <span style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '16px', color: '#0F172A' }}>
+              {isCFO ? 'Pending CFO Approvals' : isFinAdmin ? 'Pending Finance Approvals' : 'My Pending Approvals'}
+            </span>
+            <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#E8783B', cursor: 'pointer', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+              onClick={() => onNavigate && onNavigate('ap-hub')}>View All →</span>
+          </div>
+          <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
+            {approvalQueue.map(inv => (
+              <div key={inv.id}
+                   style={{ background: 'white', borderRadius: '14px', padding: '18px 20px', border: '1px solid #F1F0EE', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', flex: '1 1 260px', display: 'flex', alignItems: 'center', gap: '14px', transition: 'box-shadow 150ms' }}
+                   onMouseEnter={e => e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.1)'}
+                   onMouseLeave={e => e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.05)'}>
+                <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => onNavigate && onNavigate('ap-match', { invoice: inv })}>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#E8783B', fontWeight: 500, marginBottom: '3px' }}>{inv.id}</div>
+                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '15px', color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inv.vendor}</div>
+                  <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: '2px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{inv.date}</div>
+                </div>
+                <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '20px', color: '#E8783B', letterSpacing: '-1px', flexShrink: 0 }}>{inv.amount}</div>
+                <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                  <Btn variant="primary" small disabled={approveLoading[inv.rawId]}
+                    onClick={(e) => { e.stopPropagation(); handleQuickApprove(inv.rawId, inv.id); }}>
+                    {approveLoading[inv.rawId] ? '…' : '✓'}
+                  </Btn>
+                  <Btn variant="destructive" small onClick={(e) => { e.stopPropagation(); handleQuickReject(inv.rawId); }}>✕</Btn>
+                </div>
               </div>
-              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '22px', color: '#E8783B', letterSpacing: '-1px' }}>{inv.amount}</div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <Btn variant="primary" small>Approve</Btn>
-                <Btn variant="destructive" small>Reject</Btn>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+      {loading && approvalQueue.length === 0 && (
+        <div style={{ marginBottom: '24px', background: 'white', borderRadius: '14px', padding: '24px', border: '1px solid #F1F0EE', color: '#94A3B8', fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif", textAlign: 'center' }}>
+          Loading approval queue…
+        </div>
+      )}
 
       {/* KPI Row */}
       <div style={{ display: 'flex', gap: '16px', marginBottom: '24px', animation: 'fadeUp 300ms 160ms ease both', opacity: 0, animationFillMode: 'forwards' }}>
@@ -241,10 +301,14 @@ const DashboardScreen = ({ role, onNavigate }) => {
         <Card style={{ padding: '0', overflow: 'hidden' }}>
           <div style={{ padding: '18px 20px', borderBottom: '1px solid #F1F0EE', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A' }}>Risk Watch</div>
-            <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.1em', color: '#94A3B8', background: '#F8F7F5', padding: '3px 8px', borderRadius: '6px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>PRIORITISED FEED</span>
+            <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.1em', color: '#94A3B8', background: '#F8F7F5', padding: '3px 8px', borderRadius: '6px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>LIVE</span>
           </div>
-          <div style={{ overflow: 'auto', maxHeight: 340 }}>
-            {riskItems.filter(r => !dismissed.includes(r.id)).map(r => (
+          <div style={{ overflow: 'auto', maxHeight: 300 }}>
+            {riskItems.filter(r => !dismissed.includes(r.id)).length === 0 ? (
+              <div style={{ padding: '24px', textAlign: 'center', color: '#10B981', fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>
+                ✓ No active risk flags
+              </div>
+            ) : riskItems.filter(r => !dismissed.includes(r.id)).map(r => (
               <div key={r.id} style={{ padding: '14px 18px', borderLeft: `4px solid ${r.color}`, borderBottom: '1px solid #F8F7F5', animation: r.score > 80 ? 'borderPulse 2s ease infinite' : 'none', background: r.score > 80 ? 'rgba(239,68,68,0.02)' : 'white', transition: 'background 150ms' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
                   <span style={{ background: r.color, color: 'white', padding: '2px 8px', borderRadius: '999px', fontSize: '10px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{r.score}% Risk</span>
@@ -253,14 +317,17 @@ const DashboardScreen = ({ role, onNavigate }) => {
                 <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: '13px', color: '#0F172A', marginBottom: '4px' }}>{r.title}</div>
                 <div style={{ fontSize: '12px', color: '#64748B', lineHeight: 1.5, fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '10px' }}>{r.desc}</div>
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  <button style={{ fontSize: '12px', color: '#E8783B', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif", padding: 0 }}>Explain →</button>
+                  <button onClick={() => onNavigate && onNavigate('anomaly')} style={{ fontSize: '12px', color: '#E8783B', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif", padding: 0 }}>Investigate →</button>
                   <button onClick={() => setDismissed(d => [...d, r.id])} style={{ fontSize: '12px', color: '#94A3B8', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", padding: 0 }}>Dismiss</button>
                 </div>
               </div>
             ))}
           </div>
-          <div style={{ padding: '14px 18px' }}>
-            <button style={{ width: '100%', padding: '9px', border: '1.5px dashed #E2E8F0', borderRadius: '10px', background: 'none', cursor: 'pointer', fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>View Full Audit Log →</button>
+          <div style={{ padding: '12px 18px', borderTop: '1px solid #F1F0EE', display: 'flex', gap: '8px' }}>
+            <button onClick={() => onNavigate && onNavigate('audit')}
+              style={{ flex: 1, padding: '8px', border: '1.5px dashed #E2E8F0', borderRadius: '10px', background: 'none', cursor: 'pointer', fontSize: '12px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>Audit Log →</button>
+            <button onClick={() => onNavigate && onNavigate('anomaly')}
+              style={{ flex: 1, padding: '8px', border: '1.5px solid #EF4444', borderRadius: '10px', background: 'rgba(239,68,68,0.05)', cursor: 'pointer', fontSize: '12px', color: '#EF4444', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>Risk Engine →</button>
           </div>
         </Card>
       </div>

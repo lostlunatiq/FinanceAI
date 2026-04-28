@@ -1,7 +1,51 @@
 // Tijori AI — Bill / Invoice Detail (Screen 4A)
 // Full-page detail — never a drawer
 
-const BILL_DATA = {
+const APPROVAL_STAGES_DATA = [
+  { stage: 'Submitted', actor: 'TechLogistics', date: 'Apr 11, 2026 09:15', state: 'done', dept: null, category: null, notes: 'Invoice submitted with all attachments.' },
+  { stage: 'L1 Review', actor: 'Priya Mehta', date: 'Apr 11, 2026 14:32', state: 'done', dept: 'Engineering — CC-001', category: 'Infrastructure', notes: 'Approved — charged to Engineering. AI category accepted.' },
+  { stage: 'Dept Head Review', actor: 'Dev Kapoor', date: 'Apr 12, 2026 10:20', state: 'done', dept: null, category: null, notes: 'Approved within departmental budget.' },
+  { stage: 'Finance L1', actor: 'Kavitha Sharma', date: 'Apr 13, 2026 11:00', state: 'done', dept: null, category: null, notes: 'Finance L1 approved.' },
+  { stage: 'Finance L2', actor: null, date: null, state: 'skipped', dept: null, category: null, notes: 'Skipped — amount below Finance L2 threshold.' },
+  { stage: 'CFO Approval', actor: 'Rohan Kapoor', date: null, state: 'current', dept: null, category: null, notes: '' },
+  { stage: 'Finance Review', actor: null, date: null, state: 'pending', dept: null, category: null, notes: '' },
+  { stage: 'ERP Booking', actor: null, date: null, state: 'pending', dept: null, category: null, notes: '' },
+  { stage: 'Payment', actor: null, date: null, state: 'pending', dept: null, category: null, notes: '' },
+];
+
+const COMMENTS_DATA = [
+  { id: 1, user: 'Priya Mehta', role: 'AP Clerk', time: 'Apr 11, 14:35', text: 'Please confirm the PO reference for this invoice. Could not locate matching PO in system.', internal: false, initials: 'PM' },
+  { id: 2, user: 'TechLogistics', role: 'Vendor', time: 'Apr 11, 16:20', text: 'The service was rendered under a blanket agreement — PO reference: BLA-2026-004. Please check with procurement.', internal: false, initials: 'TL' },
+  { id: 3, user: 'Kavitha Sharma', role: 'Finance Manager', time: 'Apr 12, 09:10', text: 'Blanket agreement verified with procurement. Proceeding to approval.', internal: true, initials: 'KS' },
+];
+
+const ATTACHMENTS_DATA = [
+  { name: 'Invoice_TL_0842.pdf', size: '342 KB', type: 'pdf', uploader: 'TechLogistics', date: 'Apr 11' },
+  { name: 'GST_Certificate.pdf', size: '128 KB', type: 'pdf', uploader: 'TechLogistics', date: 'Apr 11' },
+  { name: 'Service_Completion.pdf', size: '512 KB', type: 'pdf', uploader: 'Priya Mehta', date: 'Apr 11' },
+];
+
+const GST_CHECKS = [
+  { label: 'GSTIN Format Valid', result: true, note: '27AABCT3518Q1ZL — 15-char format ✓' },
+  { label: 'GSTIN Active (GSTN portal)', result: true, note: 'Last verified Apr 11, 2026' },
+  { label: 'TDS Section Applicable', result: true, note: '194C — Contractors' },
+  { label: 'HSN/SAC Code Valid', result: true, note: '998319 — IT infrastructure services' },
+  { label: 'GST % matches HSN', result: true, note: '18% confirmed for 998319' },
+  { label: 'Reverse Charge Applicable', result: false, note: 'Not applicable' },
+  { label: 'Budget Code Matched', result: true, note: 'Engineering Q3 FY26 — CC-001' },
+  { label: 'PO Reference', result: 'warn', note: 'No PO linked — blanket agreement BLA-2026-004 used' },
+];
+
+const FINANCE_CHECKLIST = [
+  { label: 'GST compliance verified', done: false },
+  { label: 'TDS section confirmed', done: false },
+  { label: 'Budget code assigned and headroom confirmed', done: false },
+  { label: 'PO match verified (or manual override approved)', done: false },
+  { label: 'Duplicate invoice check passed', done: false },
+  { label: 'Vendor bank details verified', done: false },
+];
+
+const BILL_DATA_FALLBACK = {
   id: 'BILL-2026-00042',
   vendorCode: 'VND-001',
   vendorName: 'TechLogistics Solutions Global',
@@ -48,50 +92,6 @@ const BILL_DATA = {
   utr: null,
 };
 
-const APPROVAL_STAGES_DATA = [
-  { stage: 'Submitted', actor: 'TechLogistics', date: 'Apr 11, 2026 09:15', state: 'done', dept: null, category: null, notes: 'Invoice submitted with all attachments.' },
-  { stage: 'L1 Review', actor: 'Priya Mehta', date: 'Apr 11, 2026 14:32', state: 'done', dept: 'Engineering — CC-001', category: 'Infrastructure', notes: 'Approved — charged to Engineering. AI category accepted.' },
-  { stage: 'Dept Head Review', actor: 'Dev Kapoor', date: 'Apr 12, 2026 10:20', state: 'done', dept: null, category: null, notes: 'Approved within departmental budget.' },
-  { stage: 'Finance L1', actor: 'Kavitha Sharma', date: 'Apr 13, 2026 11:00', state: 'done', dept: null, category: null, notes: 'Finance L1 approved.' },
-  { stage: 'Finance L2', actor: null, date: null, state: 'skipped', dept: null, category: null, notes: 'Skipped — amount below Finance L2 threshold.' },
-  { stage: 'CFO Approval', actor: 'Rohan Kapoor', date: null, state: 'current', dept: null, category: null, notes: '' },
-  { stage: 'Finance Review', actor: null, date: null, state: 'pending', dept: null, category: null, notes: '' },
-  { stage: 'ERP Booking', actor: null, date: null, state: 'pending', dept: null, category: null, notes: '' },
-  { stage: 'Payment', actor: null, date: null, state: 'pending', dept: null, category: null, notes: '' },
-];
-
-const COMMENTS_DATA = [
-  { id: 1, user: 'Priya Mehta', role: 'AP Clerk', time: 'Apr 11, 14:35', text: 'Please confirm the PO reference for this invoice. Could not locate matching PO in system.', internal: false, initials: 'PM' },
-  { id: 2, user: 'TechLogistics', role: 'Vendor', time: 'Apr 11, 16:20', text: 'The service was rendered under a blanket agreement — PO reference: BLA-2026-004. Please check with procurement.', internal: false, initials: 'TL' },
-  { id: 3, user: 'Kavitha Sharma', role: 'Finance Manager', time: 'Apr 12, 09:10', text: 'Blanket agreement verified with procurement. Proceeding to approval.', internal: true, initials: 'KS' },
-];
-
-const ATTACHMENTS_DATA = [
-  { name: 'Invoice_TL_0842.pdf', size: '342 KB', type: 'pdf', uploader: 'TechLogistics', date: 'Apr 11' },
-  { name: 'GST_Certificate.pdf', size: '128 KB', type: 'pdf', uploader: 'TechLogistics', date: 'Apr 11' },
-  { name: 'Service_Completion.pdf', size: '512 KB', type: 'pdf', uploader: 'Priya Mehta', date: 'Apr 11' },
-];
-
-const GST_CHECKS = [
-  { label: 'GSTIN Format Valid', result: true, note: '27AABCT3518Q1ZL — 15-char format ✓' },
-  { label: 'GSTIN Active (GSTN portal)', result: true, note: 'Last verified Apr 11, 2026' },
-  { label: 'TDS Section Applicable', result: true, note: '194C — Contractors' },
-  { label: 'HSN/SAC Code Valid', result: true, note: '998319 — IT infrastructure services' },
-  { label: 'GST % matches HSN', result: true, note: '18% confirmed for 998319' },
-  { label: 'Reverse Charge Applicable', result: false, note: 'Not applicable' },
-  { label: 'Budget Code Matched', result: true, note: 'Engineering Q3 FY26 — CC-001' },
-  { label: 'PO Reference', result: 'warn', note: 'No PO linked — blanket agreement BLA-2026-004 used' },
-];
-
-const FINANCE_CHECKLIST = [
-  { label: 'GST compliance verified', done: false },
-  { label: 'TDS section confirmed', done: false },
-  { label: 'Budget code assigned and headroom confirmed', done: false },
-  { label: 'PO match verified (or manual override approved)', done: false },
-  { label: 'Duplicate invoice check passed', done: false },
-  { label: 'Vendor bank details verified', done: false },
-];
-
 const BillDetailScreen = ({ onNavigate, role: propRole, billId }) => {
   const [approveOpen, setApproveOpen] = React.useState(false);
   const [rejectOpen, setRejectOpen] = React.useState(false);
@@ -104,14 +104,190 @@ const BillDetailScreen = ({ onNavigate, role: propRole, billId }) => {
   const [finChecklist, setFinChecklist] = React.useState(FINANCE_CHECKLIST);
   const [rejectReason, setRejectReason] = React.useState('');
   const [queryText, setQueryText] = React.useState('');
+  const [approveNotes, setApproveNotes] = React.useState('');
+
+  // Bill data state
+  const [bill, setBill] = React.useState(BILL_DATA_FALLBACK);
+  const [billLoading, setBillLoading] = React.useState(false);
+  const [billError, setBillError] = React.useState('');
+
+  // Action states
+  const [actionLoading, setActionLoading] = React.useState(false);
+  const [actionError, setActionError] = React.useState('');
+  const [actionSuccess, setActionSuccess] = React.useState('');
+
+  // Payment form state
+  const [utrNo, setUtrNo] = React.useState('');
+  const [paymentDate, setPaymentDate] = React.useState('');
+  const [paymentAmount, setPaymentAmount] = React.useState('');
 
   const currentRole = propRole || localStorage.getItem('tj_role') || 'CFO';
   const isVendor = currentRole === 'Vendor';
   const isFinanceAdmin = currentRole === 'Finance Admin';
   const isInternal2 = !isVendor;
 
-  const bill = BILL_DATA;
-  const fmtINR = (n) => '₹' + n.toLocaleString('en-IN');
+  const fmtINR = (n) => '₹' + Number(n || 0).toLocaleString('en-IN');
+
+  // Load bill from API if billId provided
+  React.useEffect(() => {
+    if (!billId) return;
+    const { BillsAPI } = window.TijoriAPI || {};
+    if (!BillsAPI) return;
+    setBillLoading(true);
+    setBillError('');
+    BillsAPI.detail(billId)
+      .then(data => {
+        // Map API response fields to our display fields
+        const mapped = {
+          ...BILL_DATA_FALLBACK,
+          id: data.document_number || data.id || billId,
+          vendorName: data.vendor_name || data.vendor || BILL_DATA_FALLBACK.vendorName,
+          total: data.total_amount || data.amount || BILL_DATA_FALLBACK.total,
+          netPayable: data.net_payable || data.total_amount || BILL_DATA_FALLBACK.netPayable,
+          basicAmount: data.basic_amount || data.subtotal || BILL_DATA_FALLBACK.basicAmount,
+          status: data.status || BILL_DATA_FALLBACK.status,
+          dueDate: data.due_date || BILL_DATA_FALLBACK.dueDate,
+          vendorInvoiceNo: data.vendor_invoice_number || BILL_DATA_FALLBACK.vendorInvoiceNo,
+          vendorInvoiceDate: data.invoice_date || BILL_DATA_FALLBACK.vendorInvoiceDate,
+          submitDate: data.submitted_date || BILL_DATA_FALLBACK.submitDate,
+          gstin: data.gstin || BILL_DATA_FALLBACK.gstin,
+          tdsSection: data.tds_section || BILL_DATA_FALLBACK.tdsSection,
+          tdsAmount: data.tds_amount || BILL_DATA_FALLBACK.tdsAmount,
+          cgst: data.cgst || BILL_DATA_FALLBACK.cgst,
+          sgst: data.sgst || BILL_DATA_FALLBACK.sgst,
+          igst: data.igst || 0,
+          anomalySeverity: data.anomaly_severity || data.risk_level || null,
+          d365DocNo: data.d365_doc_no || data.erp_reference || null,
+          utr: data.utr || data.payment_reference || null,
+          paymentDate: data.payment_date || null,
+          _rawId: data.id,
+        };
+        setBill(mapped);
+        setBillLoading(false);
+      })
+      .catch(err => {
+        setBillError('Could not load bill details. Showing cached data.');
+        setBillLoading(false);
+      });
+  }, [billId]);
+
+  const rawId = bill._rawId || billId;
+
+  const showSuccess = (msg) => {
+    setActionSuccess(msg);
+    setTimeout(() => setActionSuccess(''), 4000);
+  };
+
+  const handleApprove = async () => {
+    const { BillsAPI } = window.TijoriAPI;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      await BillsAPI.approve(rawId, approveNotes, '');
+      setBill(b => ({ ...b, status: 'APPROVED' }));
+      setApproveOpen(false);
+      setApproveNotes('');
+      showSuccess('Bill approved successfully.');
+    } catch (e) {
+      setActionError('Approval failed: ' + (e.message || 'Unknown error'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleReject = async () => {
+    const { BillsAPI } = window.TijoriAPI;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      await BillsAPI.reject(rawId, rejectReason);
+      setBill(b => ({ ...b, status: 'REJECTED' }));
+      setRejectOpen(false);
+      setRejectReason('');
+      showSuccess('Bill rejected.');
+    } catch (e) {
+      setActionError('Rejection failed: ' + (e.message || 'Unknown error'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleQuery = async () => {
+    const { BillsAPI } = window.TijoriAPI;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      await BillsAPI.query(rawId, queryText);
+      setBill(b => ({ ...b, status: 'QUERIED' }));
+      setQueryOpen(false);
+      setQueryText('');
+      showSuccess('Query sent to vendor.');
+    } catch (e) {
+      setActionError('Query failed: ' + (e.message || 'Unknown error'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRecordPayment = async () => {
+    if (!utrNo.trim()) { setActionError('UTR number is required.'); return; }
+    if (!paymentDate) { setActionError('Payment date is required.'); return; }
+    const { BillsAPI } = window.TijoriAPI;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      await BillsAPI.settle(rawId, {
+        utr: utrNo,
+        payment_date: paymentDate,
+        amount: paymentAmount || bill.netPayable,
+      });
+      setBill(b => ({ ...b, status: 'PAID', utr: utrNo, paymentDate: paymentDate }));
+      setPaymentOpen(false);
+      setUtrNo('');
+      setPaymentDate('');
+      setPaymentAmount('');
+      showSuccess('Payment recorded. UTR: ' + utrNo);
+    } catch (e) {
+      setActionError('Payment recording failed: ' + (e.message || 'Unknown error'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleClearForERP = async () => {
+    const { BillsAPI } = window.TijoriAPI;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      await BillsAPI.approve(rawId, 'Finance review checklist completed. Cleared for ERP booking.', 'FINANCE_REVIEW');
+      setBill(b => ({ ...b, status: 'CLEARED_FOR_ERP' }));
+      showSuccess('Bill cleared for ERP booking.');
+    } catch (e) {
+      setActionError('ERP clearance failed: ' + (e.message || 'Unknown error'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleBookInERP = async () => {
+    setActionLoading(true);
+    setActionError('');
+    try {
+      const token = window.TijoriAPI.Auth.getAccess();
+      const res = await fetch(`/api/v1/bills/${rawId}/book-erp/`, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) throw new Error('ERP booking failed');
+      const data = await res.json();
+      setBill(b => ({ ...b, d365DocNo: data.d365_doc_no || data.erp_reference || 'ERP-' + rawId, status: 'ERP_BOOKED' }));
+      showSuccess('Successfully booked in ERP.');
+    } catch (e) {
+      setActionError('ERP booking failed: ' + (e.message || 'Unknown error'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const stageIcon = (state) => {
     if (state === 'done') return { bg: '#10B981', color: 'white', icon: '✓' };
@@ -147,24 +323,49 @@ const BillDetailScreen = ({ onNavigate, role: propRole, billId }) => {
         </button>
 
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '18px', color: '#E8783B', fontWeight: 500 }}>{bill.id}</span>
-          <StatusBadge status={bill.status} />
-          {bill.anomalySeverity && (
-            <span style={{ background: '#FEE2E2', color: '#991B1B', padding: '3px 10px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'flex', alignItems: 'center', gap: '5px', animation: 'dotPulse 2s ease infinite' }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#EF4444', display: 'inline-block' }} />
-              {bill.anomalySeverity} RISK
-            </span>
+          {billLoading ? (
+            <span style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '13px', color: '#94A3B8' }}>Loading…</span>
+          ) : (
+            <>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '18px', color: '#E8783B', fontWeight: 500 }}>{bill.id}</span>
+              <StatusBadge status={bill.status} />
+              {bill.anomalySeverity && (
+                <span style={{ background: '#FEE2E2', color: '#991B1B', padding: '3px 10px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'flex', alignItems: 'center', gap: '5px', animation: 'dotPulse 2s ease infinite' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#EF4444', display: 'inline-block' }} />
+                  {bill.anomalySeverity} RISK
+                </span>
+              )}
+            </>
           )}
         </div>
 
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {!isVendor && <Btn variant="green" small onClick={() => setApproveOpen(true)}>Approve</Btn>}
-          {!isVendor && <Btn variant="destructive" small onClick={() => setRejectOpen(true)}>Reject</Btn>}
-          {!isVendor && <Btn variant="purple" small onClick={() => setQueryOpen(true)}>Raise Query</Btn>}
-          {isFinanceAdmin && <Btn variant="primary" small onClick={() => setPaymentOpen(true)}>Record Payment</Btn>}
+          {!isVendor && <Btn variant="green" small onClick={() => { setActionError(''); setApproveOpen(true); }} disabled={actionLoading}>Approve</Btn>}
+          {!isVendor && <Btn variant="destructive" small onClick={() => { setActionError(''); setRejectOpen(true); }} disabled={actionLoading}>Reject</Btn>}
+          {!isVendor && <Btn variant="purple" small onClick={() => { setActionError(''); setQueryOpen(true); }} disabled={actionLoading}>Raise Query</Btn>}
+          {isFinanceAdmin && <Btn variant="primary" small onClick={() => { setActionError(''); setPaymentOpen(true); }} disabled={actionLoading}>Record Payment</Btn>}
           <button style={{ width: 32, height: 32, border: '1.5px solid #E2E8F0', borderRadius: '8px', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', color: '#64748B' }}>⋮</button>
         </div>
       </div>
+
+      {/* Action error / success banners */}
+      {actionError && (
+        <div style={{ background: '#FEF2F2', borderBottom: '1px solid #FECACA', padding: '10px 28px', fontSize: '13px', color: '#991B1B', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {actionError}
+          <button onClick={() => setActionError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#991B1B', fontWeight: 700 }}>✕</button>
+        </div>
+      )}
+      {actionSuccess && (
+        <div style={{ background: '#F0FDF4', borderBottom: '1px solid #BBF7D0', padding: '10px 28px', fontSize: '13px', color: '#065F46', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          ✓ {actionSuccess}
+          <button onClick={() => setActionSuccess('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#065F46', fontWeight: 700 }}>✕</button>
+        </div>
+      )}
+      {billError && (
+        <div style={{ background: '#FFF7ED', borderBottom: '1px solid #FED7AA', padding: '8px 28px', fontSize: '12px', color: '#92400E', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          ⚠ {billError}
+        </div>
+      )}
 
       {/* Main content */}
       <div style={{ display: 'grid', gridTemplateColumns: '7fr 5fr', gap: '0', minHeight: 'calc(100vh - 130px)' }}>
@@ -205,8 +406,8 @@ const BillDetailScreen = ({ onNavigate, role: propRole, billId }) => {
                 <tbody>
                   {[
                     { l: 'Basic Amount (Pre-GST)', v: fmtINR(bill.basicAmount), color: '#0F172A' },
-                    { l: `CGST (${bill.gstPct / 2}%)`, v: fmtINR(bill.cgst), color: '#64748B' },
-                    { l: `SGST (${bill.gstPct / 2}%)`, v: fmtINR(bill.sgst), color: '#64748B' },
+                    { l: `CGST (${(bill.gstPct || 18) / 2}%)`, v: fmtINR(bill.cgst), color: '#64748B' },
+                    { l: `SGST (${(bill.gstPct || 18) / 2}%)`, v: fmtINR(bill.sgst), color: '#64748B' },
                     { l: 'IGST (0%)', v: '₹0', color: '#94A3B8' },
                   ].map(r => (
                     <tr key={r.l} style={{ borderBottom: '1px solid #F1F0EE' }}>
@@ -235,13 +436,15 @@ const BillDetailScreen = ({ onNavigate, role: propRole, billId }) => {
           <Card style={{ padding: '22px', borderLeft: '4px solid #E8783B' }}>
             <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A', marginBottom: '14px' }}>Vendor</div>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', marginBottom: '16px' }}>
-              <div style={{ width: 48, height: 48, borderRadius: '12px', background: 'linear-gradient(135deg, #E8783B, #FF6B35)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '16px', color: 'white', flexShrink: 0 }}>TL</div>
+              <div style={{ width: 48, height: 48, borderRadius: '12px', background: 'linear-gradient(135deg, #E8783B, #FF6B35)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '16px', color: 'white', flexShrink: 0 }}>
+                {(bill.vendorName || 'V').substring(0, 2).toUpperCase()}
+              </div>
               <div>
                 <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '18px', color: '#0F172A', letterSpacing: '-0.5px' }}>{bill.vendorName}</div>
                 <div style={{ fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{bill.vendorName2}</div>
                 <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
                   <span style={{ background: '#F1F5F9', color: '#475569', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>{bill.gstin}</span>
-                  <span style={{ background: '#F1F5F9', color: '#475569', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>PAN: {bill.pan.substring(0, 5)}****{bill.pan.slice(-1)}</span>
+                  {bill.pan && <span style={{ background: '#F1F5F9', color: '#475569', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>PAN: {bill.pan.substring(0, 5)}****{bill.pan.slice(-1)}</span>}
                   <StatusBadge status="ACTIVE" />
                 </div>
               </div>
@@ -396,8 +599,8 @@ const BillDetailScreen = ({ onNavigate, role: propRole, billId }) => {
               ))}
               {isFinanceAdmin && (
                 <div style={{ marginTop: '14px' }}>
-                  <Btn variant="primary" disabled={!allChecked} style={{ width: '100%', justifyContent: 'center', opacity: allChecked ? 1 : 0.4 }}>
-                    Clear for ERP →
+                  <Btn variant="primary" disabled={!allChecked || actionLoading} onClick={handleClearForERP} style={{ width: '100%', justifyContent: 'center', opacity: allChecked ? 1 : 0.4 }}>
+                    {actionLoading ? 'Processing…' : 'Clear for ERP →'}
                   </Btn>
                   {!allChecked && <div style={{ fontSize: '11px', color: '#94A3B8', textAlign: 'center', marginTop: '6px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Complete all checks to enable</div>}
                 </div>
@@ -422,7 +625,9 @@ const BillDetailScreen = ({ onNavigate, role: propRole, billId }) => {
                 )}
                 {isFinanceAdmin && !bill.d365DocNo && (
                   <div style={{ marginTop: '10px' }}>
-                    <Btn variant="secondary" small>Book in ERP</Btn>
+                    <Btn variant="secondary" small disabled={actionLoading} onClick={handleBookInERP}>
+                      {actionLoading ? 'Processing…' : 'Book in ERP'}
+                    </Btn>
                   </div>
                 )}
               </div>
@@ -440,7 +645,7 @@ const BillDetailScreen = ({ onNavigate, role: propRole, billId }) => {
                 )}
                 {isFinanceAdmin && !bill.utr && (
                   <div style={{ marginTop: '10px' }}>
-                    <Btn variant="green" small onClick={() => setPaymentOpen(true)}>Record Payment</Btn>
+                    <Btn variant="green" small disabled={actionLoading} onClick={() => { setActionError(''); setPaymentOpen(true); }}>Record Payment</Btn>
                   </div>
                 )}
               </div>
@@ -498,10 +703,12 @@ const BillDetailScreen = ({ onNavigate, role: propRole, billId }) => {
           <div style={{ fontWeight: 600, fontSize: '14px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>{bill.vendorName}</div>
           <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '22px', color: '#10B981', letterSpacing: '-1px', marginTop: '4px' }}>{fmtINR(bill.total)}</div>
         </div>
-        <TjTextarea label="Approval Notes (optional)" placeholder="Add notes for the approval record…" rows={3} />
+        <TjTextarea label="Approval Notes (optional)" placeholder="Add notes for the approval record…" rows={3}
+          value={approveNotes} onChange={e => setApproveNotes(e.target.value)} />
+        {actionError && <div style={{ color: '#EF4444', fontSize: '12px', marginBottom: '8px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{actionError}</div>}
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-          <Btn variant="secondary" onClick={() => setApproveOpen(false)}>Cancel</Btn>
-          <Btn variant="green" onClick={() => setApproveOpen(false)}>Confirm Approval</Btn>
+          <Btn variant="secondary" onClick={() => setApproveOpen(false)} disabled={actionLoading}>Cancel</Btn>
+          <Btn variant="green" onClick={handleApprove} disabled={actionLoading}>{actionLoading ? 'Approving…' : 'Confirm Approval'}</Btn>
         </div>
       </TjModal>
 
@@ -512,9 +719,10 @@ const BillDetailScreen = ({ onNavigate, role: propRole, billId }) => {
           <div style={{ fontWeight: 600, fontSize: '14px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>{bill.vendorName}</div>
         </div>
         <TjTextarea label="Reason for Rejection *" placeholder="Minimum 10 characters required…" value={rejectReason} onChange={e => setRejectReason(e.target.value)} required rows={4} />
+        {actionError && <div style={{ color: '#EF4444', fontSize: '12px', marginBottom: '8px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{actionError}</div>}
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-          <Btn variant="secondary" onClick={() => setRejectOpen(false)}>Cancel</Btn>
-          <Btn variant="destructive" onClick={() => setRejectOpen(false)} disabled={rejectReason.length < 10}>Confirm Rejection</Btn>
+          <Btn variant="secondary" onClick={() => setRejectOpen(false)} disabled={actionLoading}>Cancel</Btn>
+          <Btn variant="destructive" onClick={handleReject} disabled={actionLoading || rejectReason.length < 10}>{actionLoading ? 'Rejecting…' : 'Confirm Rejection'}</Btn>
         </div>
       </TjModal>
 
@@ -524,20 +732,22 @@ const BillDetailScreen = ({ onNavigate, role: propRole, billId }) => {
           Query will be sent to the vendor. Internal dept/category details are NOT included.
         </div>
         <TjTextarea label="Query for Vendor" placeholder="What clarification do you need?" value={queryText} onChange={e => setQueryText(e.target.value)} rows={4} />
+        {actionError && <div style={{ color: '#EF4444', fontSize: '12px', marginBottom: '8px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{actionError}</div>}
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-          <Btn variant="secondary" onClick={() => setQueryOpen(false)}>Cancel</Btn>
-          <Btn variant="purple" onClick={() => setQueryOpen(false)}>Send Query to Vendor</Btn>
+          <Btn variant="secondary" onClick={() => setQueryOpen(false)} disabled={actionLoading}>Cancel</Btn>
+          <Btn variant="purple" onClick={handleQuery} disabled={actionLoading || !queryText.trim()}>{actionLoading ? 'Sending…' : 'Send Query to Vendor'}</Btn>
         </div>
       </TjModal>
 
       {/* Record Payment Modal */}
       <TjModal open={paymentOpen} onClose={() => setPaymentOpen(false)} title="Record Payment" accentColor="#065F46" width={440}>
-        <TjInput label="UTR No. *" placeholder="Bank transfer reference number" />
-        <TjInput label="Payment Date" type="date" />
-        <TjInput label="Payment Amount (₹)" placeholder={String(bill.netPayable)} type="number" />
+        <TjInput label="UTR No. *" placeholder="Bank transfer reference number" value={utrNo} onChange={e => setUtrNo(e.target.value)} />
+        <TjInput label="Payment Date *" type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} />
+        <TjInput label="Payment Amount (₹)" placeholder={String(bill.netPayable)} type="number" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} />
+        {actionError && <div style={{ color: '#EF4444', fontSize: '12px', marginBottom: '8px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{actionError}</div>}
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-          <Btn variant="secondary" onClick={() => setPaymentOpen(false)}>Cancel</Btn>
-          <Btn variant="green" onClick={() => setPaymentOpen(false)}>Confirm Payment</Btn>
+          <Btn variant="secondary" onClick={() => setPaymentOpen(false)} disabled={actionLoading}>Cancel</Btn>
+          <Btn variant="green" onClick={handleRecordPayment} disabled={actionLoading}>{actionLoading ? 'Recording…' : 'Confirm Payment'}</Btn>
         </div>
       </TjModal>
     </div>

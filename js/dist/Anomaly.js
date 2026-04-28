@@ -1,6 +1,7 @@
 // Tijori AI — Anomaly Detection (AI Fraud Engine)
 
 const AnomalyScreen = ({
+  role,
   onNavigate
 }) => {
   const [activePanel, setActivePanel] = React.useState(null);
@@ -144,11 +145,7 @@ const AnomalyScreen = ({
     }
   }, "3 invoices match known structural signatures of double-billing logic. 1 expense matches off-shift pattern.")), /*#__PURE__*/React.createElement(Btn, {
     variant: "destructive",
-    small: true,
-    onClick: () => {
-      const first = anomalies.find(a => a.score > 80) || anomalies[0];
-      if (first) setActivePanel(first);
-    }
+    small: true
   }, "Review All")), /*#__PURE__*/React.createElement(StatsRow, {
     cards: [{
       label: 'Total Flagged',
@@ -525,6 +522,17 @@ const AnomalyScreen = ({
     },
     onClick: () => handleMarkSafe(activePanel.rawId)
   }, "Mark as Safe")), /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setActivePanel(null);
+      if (onNavigate) onNavigate('ai-hub');
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('copilot:prefill', {
+          detail: {
+            query: `Explain anomaly for ${activePanel.entity}: ${activePanel.type} — ${activePanel.details}`
+          }
+        }));
+      }, 300);
+    },
     style: {
       width: '100%',
       marginTop: '10px',

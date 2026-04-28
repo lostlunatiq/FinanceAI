@@ -1,52 +1,6 @@
 // Tijori AI — Bill / Invoice Detail (Screen 4A)
 // Full-page detail — never a drawer
 
-const BILL_DATA = {
-  id: 'BILL-2026-00042',
-  vendorCode: 'VND-001',
-  vendorName: 'TechLogistics Solutions Global',
-  vendorName2: 'TechLogistics India',
-  gstin: '27AABCT3518Q1ZL',
-  pan: 'AABCT3518Q',
-  msme: false,
-  address: '42, Industrial Area, Phase II',
-  address2: 'Near MIDC Gate',
-  city: 'Mumbai',
-  state: 'Maharashtra',
-  pin: '400093',
-  phone: '+91 22 4567 8900',
-  mobile: '+91 98765 43210',
-  email: 'accounts@techlogistics.in',
-  website: 'www.techlogistics.in',
-  vendorInvoiceNo: 'TL/2026/INV/0842',
-  vendorInvoiceDate: 'Apr 10, 2026',
-  submitDate: 'Apr 11, 2026',
-  dueDate: 'May 10, 2026',
-  serviceMonth: 'March 2026',
-  orderAddress: 'ADDR-MUM-01',
-  locationCode: 'LOC-HQ',
-  projectCode: 'PROJ-INFRA-Q1',
-  currency: 'INR',
-  paymentTerms: 'Net 30',
-  hsnCode: '998319',
-  expenseCategory: 'Infrastructure',
-  basicAmount: 288136,
-  gstPct: 18,
-  cgst: 25932,
-  sgst: 25932,
-  igst: 0,
-  total: 340000,
-  tdsSection: '194C',
-  tdsAmount: 5763,
-  netPayable: 334237,
-  status: 'PENDING_CFO',
-  anomalySeverity: 'HIGH',
-  department: 'Engineering — CC-001',
-  category: 'Infrastructure',
-  d365DocNo: null,
-  paymentDate: null,
-  utr: null
-};
 const APPROVAL_STAGES_DATA = [{
   stage: 'Submitted',
   actor: 'TechLogistics',
@@ -216,6 +170,52 @@ const FINANCE_CHECKLIST = [{
   label: 'Vendor bank details verified',
   done: false
 }];
+const BILL_DATA_FALLBACK = {
+  id: 'BILL-2026-00042',
+  vendorCode: 'VND-001',
+  vendorName: 'TechLogistics Solutions Global',
+  vendorName2: 'TechLogistics India',
+  gstin: '27AABCT3518Q1ZL',
+  pan: 'AABCT3518Q',
+  msme: false,
+  address: '42, Industrial Area, Phase II',
+  address2: 'Near MIDC Gate',
+  city: 'Mumbai',
+  state: 'Maharashtra',
+  pin: '400093',
+  phone: '+91 22 4567 8900',
+  mobile: '+91 98765 43210',
+  email: 'accounts@techlogistics.in',
+  website: 'www.techlogistics.in',
+  vendorInvoiceNo: 'TL/2026/INV/0842',
+  vendorInvoiceDate: 'Apr 10, 2026',
+  submitDate: 'Apr 11, 2026',
+  dueDate: 'May 10, 2026',
+  serviceMonth: 'March 2026',
+  orderAddress: 'ADDR-MUM-01',
+  locationCode: 'LOC-HQ',
+  projectCode: 'PROJ-INFRA-Q1',
+  currency: 'INR',
+  paymentTerms: 'Net 30',
+  hsnCode: '998319',
+  expenseCategory: 'Infrastructure',
+  basicAmount: 288136,
+  gstPct: 18,
+  cgst: 25932,
+  sgst: 25932,
+  igst: 0,
+  total: 340000,
+  tdsSection: '194C',
+  tdsAmount: 5763,
+  netPayable: 334237,
+  status: 'PENDING_CFO',
+  anomalySeverity: 'HIGH',
+  department: 'Engineering — CC-001',
+  category: 'Infrastructure',
+  d365DocNo: null,
+  paymentDate: null,
+  utr: null
+};
 const BillDetailScreen = ({
   onNavigate,
   role: propRole,
@@ -232,12 +232,220 @@ const BillDetailScreen = ({
   const [finChecklist, setFinChecklist] = React.useState(FINANCE_CHECKLIST);
   const [rejectReason, setRejectReason] = React.useState('');
   const [queryText, setQueryText] = React.useState('');
+  const [approveNotes, setApproveNotes] = React.useState('');
+
+  // Bill data state
+  const [bill, setBill] = React.useState(BILL_DATA_FALLBACK);
+  const [billLoading, setBillLoading] = React.useState(false);
+  const [billError, setBillError] = React.useState('');
+
+  // Action states
+  const [actionLoading, setActionLoading] = React.useState(false);
+  const [actionError, setActionError] = React.useState('');
+  const [actionSuccess, setActionSuccess] = React.useState('');
+
+  // Payment form state
+  const [utrNo, setUtrNo] = React.useState('');
+  const [paymentDate, setPaymentDate] = React.useState('');
+  const [paymentAmount, setPaymentAmount] = React.useState('');
   const currentRole = propRole || localStorage.getItem('tj_role') || 'CFO';
   const isVendor = currentRole === 'Vendor';
   const isFinanceAdmin = currentRole === 'Finance Admin';
   const isInternal2 = !isVendor;
-  const bill = BILL_DATA;
-  const fmtINR = n => '₹' + n.toLocaleString('en-IN');
+  const fmtINR = n => '₹' + Number(n || 0).toLocaleString('en-IN');
+
+  // Load bill from API if billId provided
+  React.useEffect(() => {
+    if (!billId) return;
+    const {
+      BillsAPI
+    } = window.TijoriAPI || {};
+    if (!BillsAPI) return;
+    setBillLoading(true);
+    setBillError('');
+    BillsAPI.detail(billId).then(data => {
+      // Map API response fields to our display fields
+      const mapped = {
+        ...BILL_DATA_FALLBACK,
+        id: data.document_number || data.id || billId,
+        vendorName: data.vendor_name || data.vendor || BILL_DATA_FALLBACK.vendorName,
+        total: data.total_amount || data.amount || BILL_DATA_FALLBACK.total,
+        netPayable: data.net_payable || data.total_amount || BILL_DATA_FALLBACK.netPayable,
+        basicAmount: data.basic_amount || data.subtotal || BILL_DATA_FALLBACK.basicAmount,
+        status: data.status || BILL_DATA_FALLBACK.status,
+        dueDate: data.due_date || BILL_DATA_FALLBACK.dueDate,
+        vendorInvoiceNo: data.vendor_invoice_number || BILL_DATA_FALLBACK.vendorInvoiceNo,
+        vendorInvoiceDate: data.invoice_date || BILL_DATA_FALLBACK.vendorInvoiceDate,
+        submitDate: data.submitted_date || BILL_DATA_FALLBACK.submitDate,
+        gstin: data.gstin || BILL_DATA_FALLBACK.gstin,
+        tdsSection: data.tds_section || BILL_DATA_FALLBACK.tdsSection,
+        tdsAmount: data.tds_amount || BILL_DATA_FALLBACK.tdsAmount,
+        cgst: data.cgst || BILL_DATA_FALLBACK.cgst,
+        sgst: data.sgst || BILL_DATA_FALLBACK.sgst,
+        igst: data.igst || 0,
+        anomalySeverity: data.anomaly_severity || data.risk_level || null,
+        d365DocNo: data.d365_doc_no || data.erp_reference || null,
+        utr: data.utr || data.payment_reference || null,
+        paymentDate: data.payment_date || null,
+        _rawId: data.id
+      };
+      setBill(mapped);
+      setBillLoading(false);
+    }).catch(err => {
+      setBillError('Could not load bill details. Showing cached data.');
+      setBillLoading(false);
+    });
+  }, [billId]);
+  const rawId = bill._rawId || billId;
+  const showSuccess = msg => {
+    setActionSuccess(msg);
+    setTimeout(() => setActionSuccess(''), 4000);
+  };
+  const handleApprove = async () => {
+    const {
+      BillsAPI
+    } = window.TijoriAPI;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      await BillsAPI.approve(rawId, approveNotes, '');
+      setBill(b => ({
+        ...b,
+        status: 'APPROVED'
+      }));
+      setApproveOpen(false);
+      setApproveNotes('');
+      showSuccess('Bill approved successfully.');
+    } catch (e) {
+      setActionError('Approval failed: ' + (e.message || 'Unknown error'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+  const handleReject = async () => {
+    const {
+      BillsAPI
+    } = window.TijoriAPI;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      await BillsAPI.reject(rawId, rejectReason);
+      setBill(b => ({
+        ...b,
+        status: 'REJECTED'
+      }));
+      setRejectOpen(false);
+      setRejectReason('');
+      showSuccess('Bill rejected.');
+    } catch (e) {
+      setActionError('Rejection failed: ' + (e.message || 'Unknown error'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+  const handleQuery = async () => {
+    const {
+      BillsAPI
+    } = window.TijoriAPI;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      await BillsAPI.query(rawId, queryText);
+      setBill(b => ({
+        ...b,
+        status: 'QUERIED'
+      }));
+      setQueryOpen(false);
+      setQueryText('');
+      showSuccess('Query sent to vendor.');
+    } catch (e) {
+      setActionError('Query failed: ' + (e.message || 'Unknown error'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+  const handleRecordPayment = async () => {
+    if (!utrNo.trim()) {
+      setActionError('UTR number is required.');
+      return;
+    }
+    if (!paymentDate) {
+      setActionError('Payment date is required.');
+      return;
+    }
+    const {
+      BillsAPI
+    } = window.TijoriAPI;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      await BillsAPI.settle(rawId, {
+        utr: utrNo,
+        payment_date: paymentDate,
+        amount: paymentAmount || bill.netPayable
+      });
+      setBill(b => ({
+        ...b,
+        status: 'PAID',
+        utr: utrNo,
+        paymentDate: paymentDate
+      }));
+      setPaymentOpen(false);
+      setUtrNo('');
+      setPaymentDate('');
+      setPaymentAmount('');
+      showSuccess('Payment recorded. UTR: ' + utrNo);
+    } catch (e) {
+      setActionError('Payment recording failed: ' + (e.message || 'Unknown error'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+  const handleClearForERP = async () => {
+    const {
+      BillsAPI
+    } = window.TijoriAPI;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      await BillsAPI.approve(rawId, 'Finance review checklist completed. Cleared for ERP booking.', 'FINANCE_REVIEW');
+      setBill(b => ({
+        ...b,
+        status: 'CLEARED_FOR_ERP'
+      }));
+      showSuccess('Bill cleared for ERP booking.');
+    } catch (e) {
+      setActionError('ERP clearance failed: ' + (e.message || 'Unknown error'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+  const handleBookInERP = async () => {
+    setActionLoading(true);
+    setActionError('');
+    try {
+      const token = window.TijoriAPI.Auth.getAccess();
+      const res = await fetch(`/api/v1/bills/${rawId}/book-erp/`, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!res.ok) throw new Error('ERP booking failed');
+      const data = await res.json();
+      setBill(b => ({
+        ...b,
+        d365DocNo: data.d365_doc_no || data.erp_reference || 'ERP-' + rawId,
+        status: 'ERP_BOOKED'
+      }));
+      showSuccess('Successfully booked in ERP.');
+    } catch (e) {
+      setActionError('ERP booking failed: ' + (e.message || 'Unknown error'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
   const stageIcon = state => {
     if (state === 'done') return {
       bg: '#10B981',
@@ -320,7 +528,13 @@ const BillDetailScreen = ({
       alignItems: 'center',
       gap: '12px'
     }
-  }, /*#__PURE__*/React.createElement("span", {
+  }, billLoading ? /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontSize: '13px',
+      color: '#94A3B8'
+    }
+  }, "Loading\u2026") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
     style: {
       fontFamily: "'JetBrains Mono', monospace",
       fontSize: '18px',
@@ -351,7 +565,7 @@ const BillDetailScreen = ({
       background: '#EF4444',
       display: 'inline-block'
     }
-  }), bill.anomalySeverity, " RISK")), /*#__PURE__*/React.createElement("div", {
+  }), bill.anomalySeverity, " RISK"))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       gap: '8px',
@@ -360,19 +574,35 @@ const BillDetailScreen = ({
   }, !isVendor && /*#__PURE__*/React.createElement(Btn, {
     variant: "green",
     small: true,
-    onClick: () => setApproveOpen(true)
+    onClick: () => {
+      setActionError('');
+      setApproveOpen(true);
+    },
+    disabled: actionLoading
   }, "Approve"), !isVendor && /*#__PURE__*/React.createElement(Btn, {
     variant: "destructive",
     small: true,
-    onClick: () => setRejectOpen(true)
+    onClick: () => {
+      setActionError('');
+      setRejectOpen(true);
+    },
+    disabled: actionLoading
   }, "Reject"), !isVendor && /*#__PURE__*/React.createElement(Btn, {
     variant: "purple",
     small: true,
-    onClick: () => setQueryOpen(true)
+    onClick: () => {
+      setActionError('');
+      setQueryOpen(true);
+    },
+    disabled: actionLoading
   }, "Raise Query"), isFinanceAdmin && /*#__PURE__*/React.createElement(Btn, {
     variant: "primary",
     small: true,
-    onClick: () => setPaymentOpen(true)
+    onClick: () => {
+      setActionError('');
+      setPaymentOpen(true);
+    },
+    disabled: actionLoading
   }, "Record Payment"), /*#__PURE__*/React.createElement("button", {
     style: {
       width: 32,
@@ -387,7 +617,58 @@ const BillDetailScreen = ({
       fontSize: '16px',
       color: '#64748B'
     }
-  }, "\u22EE"))), /*#__PURE__*/React.createElement("div", {
+  }, "\u22EE"))), actionError && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: '#FEF2F2',
+      borderBottom: '1px solid #FECACA',
+      padding: '10px 28px',
+      fontSize: '13px',
+      color: '#991B1B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center'
+    }
+  }, actionError, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setActionError(''),
+    style: {
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      color: '#991B1B',
+      fontWeight: 700
+    }
+  }, "\u2715")), actionSuccess && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: '#F0FDF4',
+      borderBottom: '1px solid #BBF7D0',
+      padding: '10px 28px',
+      fontSize: '13px',
+      color: '#065F46',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center'
+    }
+  }, "\u2713 ", actionSuccess, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setActionSuccess(''),
+    style: {
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      color: '#065F46',
+      fontWeight: 700
+    }
+  }, "\u2715")), billError && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: '#FFF7ED',
+      borderBottom: '1px solid #FED7AA',
+      padding: '8px 28px',
+      fontSize: '12px',
+      color: '#92400E',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "\u26A0 ", billError), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'grid',
       gridTemplateColumns: '7fr 5fr',
@@ -504,11 +785,11 @@ const BillDetailScreen = ({
     v: fmtINR(bill.basicAmount),
     color: '#0F172A'
   }, {
-    l: `CGST (${bill.gstPct / 2}%)`,
+    l: `CGST (${(bill.gstPct || 18) / 2}%)`,
     v: fmtINR(bill.cgst),
     color: '#64748B'
   }, {
-    l: `SGST (${bill.gstPct / 2}%)`,
+    l: `SGST (${(bill.gstPct || 18) / 2}%)`,
     v: fmtINR(bill.sgst),
     color: '#64748B'
   }, {
@@ -637,7 +918,7 @@ const BillDetailScreen = ({
       color: 'white',
       flexShrink: 0
     }
-  }, "TL"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, (bill.vendorName || 'V').substring(0, 2).toUpperCase()), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       fontFamily: "'Bricolage Grotesque', sans-serif",
       fontWeight: 700,
@@ -668,7 +949,7 @@ const BillDetailScreen = ({
       fontWeight: 600,
       fontFamily: "'JetBrains Mono', monospace"
     }
-  }, bill.gstin), /*#__PURE__*/React.createElement("span", {
+  }, bill.gstin), bill.pan && /*#__PURE__*/React.createElement("span", {
     style: {
       background: '#F1F5F9',
       color: '#475569',
@@ -1191,13 +1472,14 @@ const BillDetailScreen = ({
     }
   }, /*#__PURE__*/React.createElement(Btn, {
     variant: "primary",
-    disabled: !allChecked,
+    disabled: !allChecked || actionLoading,
+    onClick: handleClearForERP,
     style: {
       width: '100%',
       justifyContent: 'center',
       opacity: allChecked ? 1 : 0.4
     }
-  }, "Clear for ERP \u2192"), !allChecked && /*#__PURE__*/React.createElement("div", {
+  }, actionLoading ? 'Processing…' : 'Clear for ERP →'), !allChecked && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: '11px',
       color: '#94A3B8',
@@ -1253,8 +1535,10 @@ const BillDetailScreen = ({
     }
   }, /*#__PURE__*/React.createElement(Btn, {
     variant: "secondary",
-    small: true
-  }, "Book in ERP"))), /*#__PURE__*/React.createElement("div", {
+    small: true,
+    disabled: actionLoading,
+    onClick: handleBookInERP
+  }, actionLoading ? 'Processing…' : 'Book in ERP'))), /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '14px',
       background: '#F8F7F5',
@@ -1296,7 +1580,11 @@ const BillDetailScreen = ({
   }, /*#__PURE__*/React.createElement(Btn, {
     variant: "green",
     small: true,
-    onClick: () => setPaymentOpen(true)
+    disabled: actionLoading,
+    onClick: () => {
+      setActionError('');
+      setPaymentOpen(true);
+    }
   }, "Record Payment")))), /*#__PURE__*/React.createElement(Card, {
     style: {
       padding: '22px'
@@ -1507,8 +1795,17 @@ const BillDetailScreen = ({
   }, fmtINR(bill.total))), /*#__PURE__*/React.createElement(TjTextarea, {
     label: "Approval Notes (optional)",
     placeholder: "Add notes for the approval record\u2026",
-    rows: 3
-  }), /*#__PURE__*/React.createElement("div", {
+    rows: 3,
+    value: approveNotes,
+    onChange: e => setApproveNotes(e.target.value)
+  }), actionError && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: '#EF4444',
+      fontSize: '12px',
+      marginBottom: '8px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, actionError), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       gap: '10px',
@@ -1516,11 +1813,13 @@ const BillDetailScreen = ({
     }
   }, /*#__PURE__*/React.createElement(Btn, {
     variant: "secondary",
-    onClick: () => setApproveOpen(false)
+    onClick: () => setApproveOpen(false),
+    disabled: actionLoading
   }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
     variant: "green",
-    onClick: () => setApproveOpen(false)
-  }, "Confirm Approval"))), /*#__PURE__*/React.createElement(TjModal, {
+    onClick: handleApprove,
+    disabled: actionLoading
+  }, actionLoading ? 'Approving…' : 'Confirm Approval'))), /*#__PURE__*/React.createElement(TjModal, {
     open: rejectOpen,
     onClose: () => setRejectOpen(false),
     title: "\u2715 Reject Bill",
@@ -1554,7 +1853,14 @@ const BillDetailScreen = ({
     onChange: e => setRejectReason(e.target.value),
     required: true,
     rows: 4
-  }), /*#__PURE__*/React.createElement("div", {
+  }), actionError && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: '#EF4444',
+      fontSize: '12px',
+      marginBottom: '8px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, actionError), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       gap: '10px',
@@ -1562,12 +1868,13 @@ const BillDetailScreen = ({
     }
   }, /*#__PURE__*/React.createElement(Btn, {
     variant: "secondary",
-    onClick: () => setRejectOpen(false)
+    onClick: () => setRejectOpen(false),
+    disabled: actionLoading
   }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
     variant: "destructive",
-    onClick: () => setRejectOpen(false),
-    disabled: rejectReason.length < 10
-  }, "Confirm Rejection"))), /*#__PURE__*/React.createElement(TjModal, {
+    onClick: handleReject,
+    disabled: actionLoading || rejectReason.length < 10
+  }, actionLoading ? 'Rejecting…' : 'Confirm Rejection'))), /*#__PURE__*/React.createElement(TjModal, {
     open: queryOpen,
     onClose: () => setQueryOpen(false),
     title: "? Raise Query to Vendor",
@@ -1590,7 +1897,14 @@ const BillDetailScreen = ({
     value: queryText,
     onChange: e => setQueryText(e.target.value),
     rows: 4
-  }), /*#__PURE__*/React.createElement("div", {
+  }), actionError && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: '#EF4444',
+      fontSize: '12px',
+      marginBottom: '8px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, actionError), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       gap: '10px',
@@ -1598,11 +1912,13 @@ const BillDetailScreen = ({
     }
   }, /*#__PURE__*/React.createElement(Btn, {
     variant: "secondary",
-    onClick: () => setQueryOpen(false)
+    onClick: () => setQueryOpen(false),
+    disabled: actionLoading
   }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
     variant: "purple",
-    onClick: () => setQueryOpen(false)
-  }, "Send Query to Vendor"))), /*#__PURE__*/React.createElement(TjModal, {
+    onClick: handleQuery,
+    disabled: actionLoading || !queryText.trim()
+  }, actionLoading ? 'Sending…' : 'Send Query to Vendor'))), /*#__PURE__*/React.createElement(TjModal, {
     open: paymentOpen,
     onClose: () => setPaymentOpen(false),
     title: "Record Payment",
@@ -1610,15 +1926,28 @@ const BillDetailScreen = ({
     width: 440
   }, /*#__PURE__*/React.createElement(TjInput, {
     label: "UTR No. *",
-    placeholder: "Bank transfer reference number"
+    placeholder: "Bank transfer reference number",
+    value: utrNo,
+    onChange: e => setUtrNo(e.target.value)
   }), /*#__PURE__*/React.createElement(TjInput, {
-    label: "Payment Date",
-    type: "date"
+    label: "Payment Date *",
+    type: "date",
+    value: paymentDate,
+    onChange: e => setPaymentDate(e.target.value)
   }), /*#__PURE__*/React.createElement(TjInput, {
     label: "Payment Amount (\u20B9)",
     placeholder: String(bill.netPayable),
-    type: "number"
-  }), /*#__PURE__*/React.createElement("div", {
+    type: "number",
+    value: paymentAmount,
+    onChange: e => setPaymentAmount(e.target.value)
+  }), actionError && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: '#EF4444',
+      fontSize: '12px',
+      marginBottom: '8px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, actionError), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       gap: '10px',
@@ -1626,11 +1955,13 @@ const BillDetailScreen = ({
     }
   }, /*#__PURE__*/React.createElement(Btn, {
     variant: "secondary",
-    onClick: () => setPaymentOpen(false)
+    onClick: () => setPaymentOpen(false),
+    disabled: actionLoading
   }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
     variant: "green",
-    onClick: () => setPaymentOpen(false)
-  }, "Confirm Payment"))));
+    onClick: handleRecordPayment,
+    disabled: actionLoading
+  }, actionLoading ? 'Recording…' : 'Confirm Payment'))));
 };
 Object.assign(window, {
   BillDetailScreen

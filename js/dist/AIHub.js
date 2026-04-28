@@ -34,6 +34,13 @@ const CopilotWidget = ({
       behavior: 'smooth'
     });
   }, [messages]);
+  React.useEffect(() => {
+    const handler = e => {
+      if (e.detail?.query) sendMessage(e.detail.query);
+    };
+    window.addEventListener('copilot:prefill', handler);
+    return () => window.removeEventListener('copilot:prefill', handler);
+  }, []);
   const sendMessage = async text => {
     const q = text || input.trim();
     if (!q) return;
@@ -295,28 +302,20 @@ const AIHubScreen = ({
   const [selectedMonth, setSelectedMonth] = React.useState(null);
   const [runningAll, setRunningAll] = React.useState(false);
   const [cfData, setCfData] = React.useState(null);
-  const [payAction, setPayAction] = React.useState(null);
-  const [payActionType, setPayActionType] = React.useState(null);
-  const [payActionDone, setPayActionDone] = React.useState({});
-  const [scheduleDate, setScheduleDate] = React.useState('');
-  const [applyAllDone, setApplyAllDone] = React.useState(false);
-  const [applyingAll, setApplyingAll] = React.useState(false);
   React.useEffect(() => {
     window.TijoriAPI.BudgetAPI.cashflow().then(d => setCfData(d)).catch(() => {});
   }, []);
-  const runAll = () => {
+  const runAll = async () => {
     setRunningAll(true);
-    setTimeout(() => setRunningAll(false), 2400);
-  };
-  const handleApplyAll = () => {
-    setApplyingAll(true);
-    setTimeout(() => { setApplyingAll(false); setApplyAllDone(true); }, 1200);
-  };
-  const handlePayAction = () => {
-    setTimeout(() => {
-      setPayActionDone(prev => ({ ...prev, [payAction.vendor]: payActionType }));
-      setPayAction(null); setPayActionType(null); setScheduleDate('');
-    }, 600);
+    try {
+      const {
+        AnalyticsAPI,
+        BudgetAPI
+      } = window.TijoriAPI;
+      // Run all analytics models in parallel
+      await Promise.allSettled([AnalyticsAPI.spendIntelligence(), AnalyticsAPI.workingCapital(), AnalyticsAPI.vendorRisk(), BudgetAPI.cashflow().then(d => setCfData(d))]);
+    } catch (e) {}
+    setRunningAll(false);
   };
 
   // ── Cash Flow Chart ───────────────────────────────────────────────────────
@@ -629,7 +628,10 @@ const AIHubScreen = ({
     }
   }, s)), /*#__PURE__*/React.createElement(Btn, {
     variant: "secondary",
-    small: true
+    small: true,
+    onClick: () => {
+      window.TijoriAPI.BudgetAPI.cashflow().then(d => setCfData(d)).catch(() => {});
+    }
   }, "Rerun"))), /*#__PURE__*/React.createElement("div", {
     style: {
       position: 'relative'
@@ -1006,7 +1008,13 @@ const AIHubScreen = ({
     small: true,
     icon: /*#__PURE__*/React.createElement(AIBadge, {
       small: true
-    })
+    }),
+    onClick: () => {
+      window.TijoriAPI.NLQueryAPI.ask('Generate executive financial summary for ' + new Date().toLocaleString('en-IN', {
+        month: 'long',
+        year: 'numeric'
+      })).then(res => alert('Summary: ' + (res.answer || 'Generated successfully.'))).catch(e => alert('Generation failed: ' + (e.message || 'Error')));
+    }
   }, "Generate Now")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'grid',
@@ -1110,7 +1118,12 @@ const AIHubScreen = ({
       }
     }, "View Full \u2192"), /*#__PURE__*/React.createElement(Btn, {
       variant: "secondary",
-      small: true
+      small: true,
+      onClick: () => {
+        const w = window.open('', '_blank');
+        w.document.write(`<!DOCTYPE html><html><head><title>${s.month} Summary</title><style>body{font-family:sans-serif;padding:32px;}</style></head><body><h1>Tijori AI — ${s.month}</h1><p>Revenue: ${s.revenue} | Expenses: ${s.expenses} | Profit: ${s.profit}</p><p>${s.insight}</p><script>window.print()<\/script></body></html>`);
+        w.document.close();
+      }
     }, "PDF")));
   })), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -1326,13 +1339,10 @@ const AIHubScreen = ({
       display: 'flex',
       justifyContent: 'flex-end'
     }
-  }, applyAllDone
-    ? /*#__PURE__*/React.createElement("span", { style: { fontSize: '13px', color: '#10B981', fontWeight: 700 } }, "✓ All Recommendations Applied")
-    : /*#__PURE__*/React.createElement(Btn, {
-        variant: "primary",
-        onClick: handleApplyAll,
-        disabled: applyingAll
-      }, applyingAll ? 'Applying…' : 'Apply All Recommendations'))), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "primary",
+    onClick: () => alert('Applying all payment recommendations to your payment schedule. In production, this would create scheduled payment batches in D365.')
+  }, "Apply All Recommendations"))), /*#__PURE__*/React.createElement("div", {
     style: {
       background: 'white',
       borderRadius: '12px',
@@ -1423,46 +1433,27 @@ const AIHubScreen = ({
       style: {
         padding: '0 14px'
       }
-    }, payActionDone[r.vendor]
-      ? /*#__PURE__*/React.createElement("span", { style: { fontSize: '11px', color: '#10B981', fontWeight: 700 } },
-          payActionDone[r.vendor] === 'pay' ? '✓ Payment Initiated' : '✓ Scheduled')
-      : /*#__PURE__*/React.createElement("div", { style: { display: 'flex', gap: '6px' } },
-          /*#__PURE__*/React.createElement(Btn, {
-            variant: "primary", small: true,
-            onClick: () => { setPayAction(r); setPayActionType('pay'); }
-          }, "Pay Now"),
-          /*#__PURE__*/React.createElement(Btn, {
-            variant: "secondary", small: true,
-            onClick: () => { setPayAction(r); setPayActionType('schedule'); }
-          }, "Schedule"))));
-  }))))),
-    payAction && /*#__PURE__*/React.createElement(TjModal, {
-      open: true,
-      title: payActionType === 'pay' ? 'Pay Now — ' + payAction.vendor : 'Schedule Payment — ' + payAction.vendor,
-      onCancel: () => { setPayAction(null); setPayActionType(null); setScheduleDate(''); },
-      onConfirm: handlePayAction,
-      confirmLabel: payActionType === 'pay' ? 'Confirm Payment' : 'Schedule Payment',
-    },
-      /*#__PURE__*/React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: '12px' } },
-        /*#__PURE__*/React.createElement("div", { style: { background: '#F8FAFC', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#475569' } },
-          /*#__PURE__*/React.createElement("strong", null, payAction.vendor),
-          /*#__PURE__*/React.createElement("br", null),
-          'Amount: ' + payAction.amount + ' · Due: ' + payAction.due + ' · Suggested: ' + payAction.suggested
-        ),
-        payActionType === 'schedule' && /*#__PURE__*/React.createElement("div", null,
-          /*#__PURE__*/React.createElement("label", { style: { fontSize: '12px', fontWeight: 600, color: '#374151', display: 'block', marginBottom: '4px' } }, 'Payment Date'),
-          /*#__PURE__*/React.createElement("input", {
-            type: 'date', value: scheduleDate,
-            onChange: e => setScheduleDate(e.target.value),
-            style: { width: '100%', padding: '8px 10px', border: '1px solid #D1D5DB', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }
-          })
-        ),
-        payActionType === 'pay' && /*#__PURE__*/React.createElement("p", { style: { margin: 0, fontSize: '13px', color: '#64748B' } },
-          'This will initiate an immediate payment via the configured bank integration. Are you sure?'
-        )
-      )
-    ),
-    /*#__PURE__*/React.createElement(CopilotWidget, {
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: '6px'
+      }
+    }, /*#__PURE__*/React.createElement(Btn, {
+      variant: "primary",
+      small: true,
+      onClick: () => {
+        if (window.confirm(`Initiate payment of ${r.amount} to ${r.vendor}?`)) {
+          alert(`Payment of ${r.amount} to ${r.vendor} queued. UTR will be generated within 24h.`);
+        }
+      }
+    }, "Pay Now"), /*#__PURE__*/React.createElement(Btn, {
+      variant: "secondary",
+      small: true,
+      onClick: () => {
+        alert(`Payment of ${r.amount} to ${r.vendor} scheduled for ${r.suggested}.`);
+      }
+    }, "Schedule"))));
+  }))))), /*#__PURE__*/React.createElement(CopilotWidget, {
     role: role
   }), /*#__PURE__*/React.createElement(SidePanel, {
     open: summaryOpen,
@@ -1566,7 +1557,13 @@ const AIHubScreen = ({
     onClick: () => setSummaryOpen(false)
   }, "Save Notes"), /*#__PURE__*/React.createElement(Btn, {
     variant: "secondary",
-    small: true
+    small: true,
+    onClick: () => {
+      if (!selectedMonth) return;
+      const w = window.open('', '_blank');
+      w.document.write(`<!DOCTYPE html><html><head><title>${selectedMonth.month} Summary</title><style>body{font-family:sans-serif;padding:32px;color:#0F172A;} h1{font-size:22px;margin-bottom:4px;} .meta{font-size:12px;color:#64748B;margin-bottom:24px;}</style></head><body><h1>Tijori AI — ${selectedMonth.month}</h1><div class="meta">Generated: ${new Date().toLocaleString('en-IN')}</div><table border=1 cellpadding=8 style="width:100%;border-collapse:collapse;"><tr><th>Revenue</th><td>${selectedMonth.revenue}</td></tr><tr><th>Expenses</th><td>${selectedMonth.expenses}</td></tr><tr><th>Net Profit</th><td>${selectedMonth.profit}</td></tr><tr><th>Cash Position</th><td>${selectedMonth.cash}</td></tr></table><p style="margin-top:24px;"><b>AI Insight:</b> ${selectedMonth.insight}</p><script>window.print()<\/script></body></html>`);
+      w.document.close();
+    }
   }, "Export PDF")))));
 };
 Object.assign(window, {

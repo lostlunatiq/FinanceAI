@@ -45,15 +45,26 @@ const Btn = ({ variant = 'primary', children, onClick, icon, small, pill, style:
 
 const StatusBadge = ({ status }) => {
   const cfgs = {
+    DRAFT: { bg: '#F1F5F9', color: '#475569', label: 'Draft' },
+    SUBMITTED: { bg: '#DBEAFE', color: '#1D4ED8', label: 'Submitted' },
     PENDING: { bg: '#FEF3C7', color: '#92400E', label: 'Pending' },
     PENDING_L1: { bg: '#FEF3C7', color: '#92400E', label: 'Pending L1' },
     PENDING_L2: { bg: '#FEF3C7', color: '#92400E', label: 'Pending L2' },
     PENDING_HOD: { bg: '#FEF3C7', color: '#92400E', label: 'Pending HOD' },
-    PENDING_CFO: { bg: '#FEF3C7', color: '#92400E', label: 'Pending CFO' },
+    PENDING_FIN_L1: { bg: '#FFF7ED', color: '#C2410C', label: 'Fin Review L1' },
+    PENDING_FIN_L2: { bg: '#FFF7ED', color: '#C2410C', label: 'Fin Review L2' },
+    PENDING_FIN_HEAD: { bg: '#FFF7ED', color: '#C2410C', label: 'Fin Head' },
+    PENDING_CFO: { bg: '#EDE9FE', color: '#5B21B6', label: 'Pending CFO' },
     APPROVED: { bg: '#D1FAE5', color: '#065F46', label: 'Approved' },
-    PAID: { bg: '#D1FAE5', color: '#065F46', label: 'Paid' },
+    AUTO_REJECT: { bg: '#FEE2E2', color: '#991B1B', label: 'Auto Rejected' },
     REJECTED: { bg: '#FEE2E2', color: '#991B1B', label: 'Rejected' },
     QUERY_RAISED: { bg: '#EDE9FE', color: '#5B21B6', label: 'Query Raised' },
+    PENDING_D365: { bg: '#DBEAFE', color: '#1D4ED8', label: 'Pending D365' },
+    BOOKED_D365: { bg: '#DBEAFE', color: '#1D4ED8', label: 'Booked D365' },
+    POSTED_D365: { bg: '#DBEAFE', color: '#1D4ED8', label: 'Posted D365' },
+    PAID: { bg: '#D1FAE5', color: '#065F46', label: 'Paid' },
+    WITHDRAWN: { bg: '#F1F5F9', color: '#475569', label: 'Withdrawn' },
+    EXPIRED: { bg: '#F1F5F9', color: '#475569', label: 'Expired' },
     ANOMALY: { bg: '#FEE2E2', color: '#991B1B', label: 'Anomaly' },
     FRAUD: { bg: '#FEE2E2', color: '#991B1B', label: 'Fraud' },
     ACTIVE: { bg: '#D1FAE5', color: '#065F46', label: 'Active' },
@@ -244,10 +255,25 @@ const FloatingCopilot = ({ role }) => {
     }
   };
 
+  // Listen for prefill events from other screens (e.g. Anomaly "Explain in Copilot")
+  React.useEffect(() => {
+    const handler = (e) => {
+      if (e.detail?.query) {
+        setOpen(true);
+        setTimeout(() => send(e.detail.query), 200);
+      }
+    };
+    window.addEventListener('copilot:prefill', handler);
+    return () => window.removeEventListener('copilot:prefill', handler);
+  }, []);
+
   return (
     <>
       <button onClick={() => setOpen(true)}
-        style={{ position: 'fixed', bottom: 28, right: 28, width: 52, height: 52, borderRadius: '50%', background: 'linear-gradient(135deg, #E8783B, #FF6B35)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', color: 'white', zIndex: 100, boxShadow: '0 4px 20px rgba(232,120,59,0.5)', transition: 'all 200ms' }}>
+        title="AI Copilot"
+        style={{ position: 'fixed', bottom: 32, right: 32, width: 52, height: 52, borderRadius: '16px', background: 'linear-gradient(135deg, #E8783B, #FF6B35)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', color: 'white', zIndex: 100, boxShadow: '0 6px 24px rgba(232,120,59,0.5)', transition: 'all 200ms' }}
+        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(232,120,59,0.7)'; }}
+        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 6px 24px rgba(232,120,59,0.5)'; }}>
         ✦
       </button>
 

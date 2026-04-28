@@ -350,7 +350,7 @@ const AuditLogView = () => {
     const params = {};
     if (filter.action) params.action = filter.action;
     if (filter.entity_type) params.entity_type = filter.entity_type;
-    window.TijoriAPI.AuthAPI.getAuditLog(params).then(data => setLogs(data.results || [])).catch(() => {}).finally(() => setLoading(false));
+    window.TijoriAPI.AuditAPI.list(params).then(data => setLogs(Array.isArray(data) ? data : data.results || [])).catch(() => {}).finally(() => setLoading(false));
   }, [filter]);
   React.useEffect(() => {
     load();
@@ -488,18 +488,68 @@ const UserDetailDrawer = ({
 }) => {
   const [editing, setEditing] = React.useState(false);
   const [form, setEditForm] = React.useState({});
+  const [resetPwOpen, setResetPwOpen] = React.useState(false);
+  const [newPassword, setNewPassword] = React.useState('');
+  const [actionMsg, setActionMsg] = React.useState('');
   React.useEffect(() => {
-    if (user) setEditForm({
-      ...user
-    });
+    if (user) {
+      setEditForm({
+        ...user
+      });
+      setEditing(false);
+      setActionMsg('');
+    }
   }, [user]);
   const handleSave = async () => {
     try {
-      await window.TijoriAPI.AuthAPI.updateUser(user.id, form);
+      await window.TijoriAPI.AuthAPI.updateUser(user.id, {
+        first_name: form.first_name,
+        last_name: form.last_name,
+        email: form.email,
+        employee_grade: form.employee_grade,
+        groups: form.groups,
+        is_active: form.is_active
+      });
+      setActionMsg('User updated successfully.');
       onUpdated();
       setEditing(false);
     } catch (e) {
-      alert(e.message || 'Update failed');
+      setActionMsg('Update failed: ' + (e.message || 'Error'));
+    }
+  };
+  const handleDelete = async () => {
+    if (!window.confirm(`Delete user ${user.username}? This cannot be undone.`)) return;
+    try {
+      await window.TijoriAPI.AuthAPI.deleteUser(user.id);
+      onClose();
+      onUpdated();
+    } catch (e) {
+      setActionMsg('Delete failed: ' + (e.message || 'Error'));
+    }
+  };
+  const handleToggleActive = async () => {
+    try {
+      await window.TijoriAPI.AuthAPI.updateUser(user.id, {
+        is_active: !user.is_active
+      });
+      setActionMsg(user.is_active ? 'User suspended.' : 'User activated.');
+      onUpdated();
+    } catch (e) {
+      setActionMsg('Action failed: ' + (e.message || 'Error'));
+    }
+  };
+  const handleResetPassword = async () => {
+    if (!newPassword || newPassword.length < 8) {
+      setActionMsg('Password must be at least 8 characters.');
+      return;
+    }
+    try {
+      await window.TijoriAPI.AuthAPI.resetPassword(user.id, newPassword);
+      setActionMsg('Password reset successfully.');
+      setResetPwOpen(false);
+      setNewPassword('');
+    } catch (e) {
+      setActionMsg('Reset failed: ' + (e.message || 'Error'));
     }
   };
   if (!user) return null;
@@ -534,7 +584,7 @@ const UserDetailDrawer = ({
       color: '#0F172A',
       fontFamily: "'Bricolage Grotesque', sans-serif"
     }
-  }, user.full_name), /*#__PURE__*/React.createElement("div", {
+  }, user.full_name || user.username), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       color: '#94A3B8',
@@ -568,7 +618,7 @@ const UserDetailDrawer = ({
       fontWeight: 700,
       color: GRADE_COLORS[user.employee_grade]
     }
-  }, "G", user.employee_grade, " \u2014 ", GRADE_LABELS[user.employee_grade])), /*#__PURE__*/React.createElement("div", {
+  }, "G", user.employee_grade, " \u2014 ", GRADE_LABELS[user.employee_grade] || 'Custom')), /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '14px',
       background: '#F8FAFC',
@@ -614,28 +664,28 @@ const UserDetailDrawer = ({
     }
   }, /*#__PURE__*/React.createElement(TjInput, {
     label: "First Name",
-    value: form.first_name,
+    value: form.first_name || '',
     onChange: e => setEditForm(f => ({
       ...f,
       first_name: e.target.value
     }))
   }), /*#__PURE__*/React.createElement(TjInput, {
     label: "Last Name",
-    value: form.last_name,
+    value: form.last_name || '',
     onChange: e => setEditForm(f => ({
       ...f,
       last_name: e.target.value
     }))
   }), /*#__PURE__*/React.createElement(TjInput, {
     label: "Email",
-    value: form.email,
+    value: form.email || '',
     onChange: e => setEditForm(f => ({
       ...f,
       email: e.target.value
     }))
   }), /*#__PURE__*/React.createElement("div", {
     style: {
-      marginBottom: 16
+      marginBottom: 8
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -662,7 +712,41 @@ const UserDetailDrawer = ({
     value: v
   }, "G", v, " - ", l)))), /*#__PURE__*/React.createElement("div", {
     style: {
-      marginBottom: 16
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 600,
+      color: '#475569',
+      marginBottom: 6
+    }
+  }, "Account Status"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8
+    }
+  }, [true, false].map(active => /*#__PURE__*/React.createElement("button", {
+    key: String(active),
+    onClick: () => setEditForm(f => ({
+      ...f,
+      is_active: active
+    })),
+    style: {
+      flex: 1,
+      padding: '8px',
+      borderRadius: 8,
+      border: '1.5px solid',
+      borderColor: form.is_active === active ? active ? '#10B981' : '#EF4444' : '#E2E8F0',
+      background: form.is_active === active ? active ? '#F0FDF4' : '#FEF2F2' : 'white',
+      color: form.is_active === active ? active ? '#065F46' : '#991B1B' : '#64748B',
+      fontSize: 12,
+      fontWeight: 600,
+      cursor: 'pointer'
+    }
+  }, active ? 'Active' : 'Suspended')))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 8
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -758,102 +842,103 @@ const UserDetailDrawer = ({
       color: '#CBD5E1',
       fontSize: 12
     }
-  }, "None")))));
+  }, "None")))), !editing && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 20,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 700,
+      color: '#475569',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginBottom: 4
+    }
+  }, "Quick Actions"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    small: true,
+    style: {
+      flex: 1,
+      justifyContent: 'center'
+    },
+    onClick: handleToggleActive
+  }, user.is_active ? 'Suspend User' : 'Activate User'), /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    small: true,
+    style: {
+      flex: 1,
+      justifyContent: 'center'
+    },
+    onClick: () => setResetPwOpen(!resetPwOpen)
+  }, "Reset Password")), !user.is_superuser && /*#__PURE__*/React.createElement(Btn, {
+    variant: "destructive",
+    small: true,
+    style: {
+      justifyContent: 'center'
+    },
+    onClick: handleDelete
+  }, "Delete User")), resetPwOpen && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 16,
+      padding: '14px 16px',
+      background: '#F8F7F5',
+      borderRadius: 12,
+      border: '1px solid #E2E8F0'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 700,
+      color: '#0F172A',
+      marginBottom: 10,
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Set New Password"), /*#__PURE__*/React.createElement(TjInput, {
+    label: "New Password",
+    type: "password",
+    placeholder: "Minimum 8 characters",
+    value: newPassword,
+    onChange: e => setNewPassword(e.target.value)
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      marginTop: 4
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    small: true,
+    onClick: () => {
+      setResetPwOpen(false);
+      setNewPassword('');
+    }
+  }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
+    variant: "primary",
+    small: true,
+    onClick: handleResetPassword
+  }, "Confirm Reset"))), actionMsg && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 12,
+      padding: '10px 14px',
+      background: actionMsg.includes('failed') || actionMsg.includes('Failed') ? '#FEE2E2' : '#F0FDF4',
+      border: `1px solid ${actionMsg.includes('failed') || actionMsg.includes('Failed') ? '#FECACA' : '#BBF7D0'}`,
+      borderRadius: 8,
+      fontSize: 12,
+      color: actionMsg.includes('failed') || actionMsg.includes('Failed') ? '#991B1B' : '#065F46',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, actionMsg));
 };
 
 // ─── MAIN IAM SCREEN ─────────────────────────────────────────────────────────
-
-const CreateUserModal = ({
-  open,
-  onClose,
-  departments,
-  groups,
-  onCreated
-}) => {
-  const [form, setForm] = React.useState({
-    username: '',
-    first_name: '',
-    last_name: '',
-    email: '',
-    employee_grade: 1,
-    department: '',
-    password: '',
-    groups: []
-  });
-  const [saving, setSaving] = React.useState(false);
-  const [error, setError] = React.useState('');
-  const handleCreate = async () => {
-    if (!form.username || !form.password) {
-      setError('Username and password are required.');
-      return;
-    }
-    setSaving(true);
-    setError('');
-    try {
-      await window.TijoriAPI.AuthAPI.createUser(form);
-      onCreated();
-      onClose();
-      setForm({ username: '', first_name: '', last_name: '', email: '', employee_grade: 1, department: '', password: '', groups: [] });
-    } catch (e) {
-      setError(e.message || 'Failed to create user');
-    } finally {
-      setSaving(false);
-    }
-  };
-  return /*#__PURE__*/React.createElement(TjModal, {
-    open: open,
-    onClose: onClose,
-    title: "Create New User",
-    width: 480
-  }, /*#__PURE__*/React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 12 } },
-    /*#__PURE__*/React.createElement("div", { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 } },
-      /*#__PURE__*/React.createElement(TjInput, { label: "First Name", value: form.first_name, onChange: e => setForm(f => ({ ...f, first_name: e.target.value })) }),
-      /*#__PURE__*/React.createElement(TjInput, { label: "Last Name", value: form.last_name, onChange: e => setForm(f => ({ ...f, last_name: e.target.value })) })
-    ),
-    /*#__PURE__*/React.createElement(TjInput, { label: "Username *", value: form.username, onChange: e => setForm(f => ({ ...f, username: e.target.value })) }),
-    /*#__PURE__*/React.createElement(TjInput, { label: "Email", value: form.email, onChange: e => setForm(f => ({ ...f, email: e.target.value })) }),
-    /*#__PURE__*/React.createElement(TjInput, { label: "Password *", type: "password", value: form.password, onChange: e => setForm(f => ({ ...f, password: e.target.value })) }),
-    /*#__PURE__*/React.createElement("div", { style: { marginBottom: 4 } },
-      /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6, fontFamily: "'Plus Jakarta Sans', sans-serif" } }, "Employee Grade"),
-      /*#__PURE__*/React.createElement("select", {
-        value: form.employee_grade,
-        onChange: e => setForm(f => ({ ...f, employee_grade: Number(e.target.value) })),
-        style: { width: '100%', padding: '10px 12px', border: '1.5px solid #E2E8F0', borderRadius: 10, background: '#FAFAF8', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 13 }
-      },
-        Object.entries(GRADE_LABELS).map(([v, l]) => /*#__PURE__*/React.createElement("option", { key: v, value: v }, "G", v, " - ", l))
-      )
-    ),
-    /*#__PURE__*/React.createElement("div", { style: { marginBottom: 4 } },
-      /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6, fontFamily: "'Plus Jakarta Sans', sans-serif" } }, "Department"),
-      /*#__PURE__*/React.createElement("select", {
-        value: form.department,
-        onChange: e => setForm(f => ({ ...f, department: e.target.value })),
-        style: { width: '100%', padding: '10px 12px', border: '1.5px solid #E2E8F0', borderRadius: 10, background: '#FAFAF8', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 13 }
-      },
-        /*#__PURE__*/React.createElement("option", { value: '' }, "No Department"),
-        departments.map(d => /*#__PURE__*/React.createElement("option", { key: d.id, value: d.id }, d.name))
-      )
-    ),
-    /*#__PURE__*/React.createElement("div", { style: { marginBottom: 4 } },
-      /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6, fontFamily: "'Plus Jakarta Sans', sans-serif" } }, "Groups"),
-      /*#__PURE__*/React.createElement("div", { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
-        groups.map(g => {
-          const has = form.groups.includes(g.id);
-          return /*#__PURE__*/React.createElement("button", {
-            key: g.id,
-            onClick: () => setForm(f => ({ ...f, groups: has ? f.groups.filter(id => id !== g.id) : [...f.groups, g.id] })),
-            style: { padding: '4px 10px', borderRadius: 6, border: '1px solid', borderColor: has ? '#E8783B' : '#E2E8F0', background: has ? '#FFF8F5' : 'white', color: has ? '#E8783B' : '#64748B', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }
-          }, g.name);
-        })
-      )
-    ),
-    error && /*#__PURE__*/React.createElement("div", { style: { background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#991B1B', fontFamily: "'Plus Jakarta Sans', sans-serif" } }, error),
-    /*#__PURE__*/React.createElement("div", { style: { display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 6 } },
-      /*#__PURE__*/React.createElement(Btn, { variant: "secondary", onClick: onClose }, "Cancel"),
-      /*#__PURE__*/React.createElement(Btn, { variant: "primary", onClick: handleCreate, disabled: saving }, saving ? 'Creating…' : 'Create User')
-    )
-  ));
-};
 
 const IAMScreen = ({
   onNavigate
@@ -866,11 +951,21 @@ const IAMScreen = ({
   const [selectedUser, setSelectedUser] = React.useState(null);
   const [createOpen, setCreateOpen] = React.useState(false);
   const [createGroupOpen, setCreateGroupOpen] = React.useState(false);
+  const [newUser, setNewUser] = React.useState({
+    username: '',
+    email: '',
+    first_name: '',
+    last_name: '',
+    employee_grade: 1,
+    password: '',
+    department_id: ''
+  });
+  const [createUserLoading, setCreateUserLoading] = React.useState(false);
+  const [createUserError, setCreateUserError] = React.useState('');
   const [newGroupName, setNewGroupName] = React.useState('');
   const [search, setSearch] = React.useState('');
   const [gradeFilter, setGradeFilter] = React.useState(0);
   const [statusFilter, setStatusFilter] = React.useState('ALL');
-  const [deleteConfirm, setDeleteConfirm] = React.useState(null);
   const load = React.useCallback(() => {
     setLoading(true);
     Promise.allSettled([window.TijoriAPI.AuthAPI.listUsers(), window.TijoriAPI.AuthAPI.listDepartments(), window.TijoriAPI.AuthAPI.listGroups()]).then(([uRes, dRes, gRes]) => {
@@ -880,23 +975,6 @@ const IAMScreen = ({
       setLoading(false);
     });
   }, []);
-  const handleDeleteUser = async (uid) => {
-    try {
-      await window.TijoriAPI.AuthAPI.deleteUser(uid);
-      setDeleteConfirm(null);
-      load();
-    } catch (e) {
-      alert(e.message || 'Delete failed');
-    }
-  };
-  const handleSuspendUser = async (uid, isActive) => {
-    try {
-      await window.TijoriAPI.AuthAPI.updateUser(uid, { is_active: !isActive });
-      load();
-    } catch (e) {
-      alert(e.message || 'Update failed');
-    }
-  };
   React.useEffect(() => {
     load();
   }, [load]);
@@ -1251,24 +1329,14 @@ const IAMScreen = ({
       style: {
         padding: '0 16px'
       }
-    }, /*#__PURE__*/React.createElement("div", { style: { display: 'flex', gap: 4 } },
-      /*#__PURE__*/React.createElement(Btn, {
-        variant: "secondary",
-        small: true,
-        onClick: e => { e.stopPropagation(); setSelectedUser(u); }
-      }, "Edit"),
-      /*#__PURE__*/React.createElement(Btn, {
-        variant: "ghost",
-        small: true,
-        onClick: e => { e.stopPropagation(); handleSuspendUser(u.id, u.is_active); },
-        style: { background: u.is_active ? '#FFF7ED' : '#F0FDF4', color: u.is_active ? '#C2410C' : '#059669', border: '1px solid', borderColor: u.is_active ? '#FED7AA' : '#BBF7D0', borderRadius: 8, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }
-      }, u.is_active ? 'Suspend' : 'Activate'),
-      /*#__PURE__*/React.createElement(Btn, {
-        variant: "destructive",
-        small: true,
-        onClick: e => { e.stopPropagation(); setDeleteConfirm(u); }
-      }, "Remove")
-    )));
+    }, /*#__PURE__*/React.createElement(Btn, {
+      variant: "secondary",
+      small: true,
+      onClick: e => {
+        e.stopPropagation();
+        setSelectedUser(u);
+      }
+    }, "Edit")));
   }))))), tab === 'Groups' && /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'grid',
@@ -1367,6 +1435,189 @@ const IAMScreen = ({
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
   }, "Create New Group"))), tab === 'Roles & Permissions' && /*#__PURE__*/React.createElement(RBACMatrixView, null), tab === 'Audit Log' && /*#__PURE__*/React.createElement(AuditLogView, null), /*#__PURE__*/React.createElement(TjModal, {
+    open: createOpen,
+    onClose: () => {
+      setCreateOpen(false);
+      setCreateUserError('');
+    },
+    title: "Create New User",
+    width: 500
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: 12
+    }
+  }, /*#__PURE__*/React.createElement(TjInput, {
+    label: "First Name *",
+    placeholder: "Rahul",
+    value: newUser.first_name,
+    onChange: e => setNewUser(u => ({
+      ...u,
+      first_name: e.target.value
+    }))
+  }), /*#__PURE__*/React.createElement(TjInput, {
+    label: "Last Name *",
+    placeholder: "Mehta",
+    value: newUser.last_name,
+    onChange: e => setNewUser(u => ({
+      ...u,
+      last_name: e.target.value
+    }))
+  })), /*#__PURE__*/React.createElement(TjInput, {
+    label: "Username *",
+    placeholder: "rahul.mehta",
+    value: newUser.username,
+    onChange: e => setNewUser(u => ({
+      ...u,
+      username: e.target.value
+    }))
+  }), /*#__PURE__*/React.createElement(TjInput, {
+    label: "Email *",
+    type: "email",
+    placeholder: "rahul.mehta@company.com",
+    value: newUser.email,
+    onChange: e => setNewUser(u => ({
+      ...u,
+      email: e.target.value
+    }))
+  }), /*#__PURE__*/React.createElement(TjInput, {
+    label: "Password *",
+    type: "password",
+    placeholder: "Minimum 8 characters",
+    value: newUser.password,
+    onChange: e => setNewUser(u => ({
+      ...u,
+      password: e.target.value
+    }))
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 600,
+      color: '#475569',
+      marginBottom: 6,
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Employee Grade *"), /*#__PURE__*/React.createElement("select", {
+    value: newUser.employee_grade,
+    onChange: e => setNewUser(u => ({
+      ...u,
+      employee_grade: Number(e.target.value)
+    })),
+    style: {
+      width: '100%',
+      padding: '10px 12px',
+      border: '1.5px solid #E2E8F0',
+      borderRadius: 10,
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontSize: 13,
+      color: '#0F172A',
+      background: '#FAFAF8',
+      outline: 'none'
+    }
+  }, Object.entries(GRADE_LABELS).map(([g, label]) => /*#__PURE__*/React.createElement("option", {
+    key: g,
+    value: Number(g)
+  }, "G", g, " \u2014 ", label)))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 600,
+      color: '#475569',
+      marginBottom: 6,
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Department"), /*#__PURE__*/React.createElement("select", {
+    value: newUser.department_id,
+    onChange: e => setNewUser(u => ({
+      ...u,
+      department_id: e.target.value
+    })),
+    style: {
+      width: '100%',
+      padding: '10px 12px',
+      border: '1.5px solid #E2E8F0',
+      borderRadius: 10,
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontSize: 13,
+      color: '#0F172A',
+      background: '#FAFAF8',
+      outline: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "\u2014 No Department \u2014"), departments.map(d => /*#__PURE__*/React.createElement("option", {
+    key: d.id,
+    value: d.id
+  }, d.name)))), createUserError && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: '#FEE2E2',
+      border: '1px solid #FECACA',
+      borderRadius: 8,
+      padding: '10px 14px',
+      marginBottom: 12,
+      fontSize: 12,
+      color: '#991B1B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, createUserError), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 10,
+      justifyContent: 'flex-end'
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    onClick: () => {
+      setCreateOpen(false);
+      setCreateUserError('');
+    }
+  }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
+    variant: "primary",
+    disabled: createUserLoading,
+    onClick: async () => {
+      if (!newUser.username || !newUser.email || !newUser.password || !newUser.first_name || !newUser.last_name) {
+        setCreateUserError('All required fields must be filled.');
+        return;
+      }
+      setCreateUserLoading(true);
+      setCreateUserError('');
+      try {
+        const payload = {
+          username: newUser.username,
+          email: newUser.email,
+          first_name: newUser.first_name,
+          last_name: newUser.last_name,
+          employee_grade: newUser.employee_grade,
+          password: newUser.password
+        };
+        if (newUser.department_id) payload.department = newUser.department_id;
+        await window.TijoriAPI.AuthAPI.createUser(payload);
+        setCreateOpen(false);
+        setNewUser({
+          username: '',
+          email: '',
+          first_name: '',
+          last_name: '',
+          employee_grade: 1,
+          password: '',
+          department_id: ''
+        });
+        load();
+      } catch (e) {
+        setCreateUserError(e.message || 'Failed to create user.');
+      } finally {
+        setCreateUserLoading(false);
+      }
+    }
+  }, createUserLoading ? 'Creating…' : 'Create User'))), /*#__PURE__*/React.createElement(TjModal, {
     open: createGroupOpen,
     onClose: () => setCreateGroupOpen(false),
     title: "Create Security Group"
@@ -1389,32 +1640,29 @@ const IAMScreen = ({
     variant: "primary",
     onClick: async () => {
       if (!newGroupName) return;
-      await window.TijoriAPI.AuthAPI.createGroup(newGroupName);
+      try {
+        // POST to groups endpoint
+        const token = window.TijoriAPI.Auth.getAccess();
+        const res = await fetch('/api/v1/auth/groups/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({
+            name: newGroupName
+          })
+        });
+        if (!res.ok) throw new Error('Failed to create group');
+      } catch (e) {
+        alert(e.message || 'Group creation failed');
+        return;
+      }
       setCreateGroupOpen(false);
       setNewGroupName('');
       load();
     }
-  }, "Create Group"))), /*#__PURE__*/React.createElement(CreateUserModal, {
-    open: createOpen,
-    onClose: () => setCreateOpen(false),
-    departments: departments,
-    groups: groups,
-    onCreated: () => { load(); }
-  }), /*#__PURE__*/React.createElement(TjModal, {
-    open: !!deleteConfirm,
-    onClose: () => setDeleteConfirm(null),
-    title: "Remove User"
-  }, deleteConfirm && /*#__PURE__*/React.createElement("div", null,
-    /*#__PURE__*/React.createElement("div", { style: { background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 10, padding: '14px 16px', marginBottom: 16, fontSize: 13, color: '#991B1B', fontFamily: "'Plus Jakarta Sans', sans-serif" } },
-      "Are you sure you want to permanently remove ",
-      /*#__PURE__*/React.createElement("strong", null, deleteConfirm.full_name || deleteConfirm.username),
-      "? This action cannot be undone."
-    ),
-    /*#__PURE__*/React.createElement("div", { style: { display: 'flex', gap: 10, justifyContent: 'flex-end' } },
-      /*#__PURE__*/React.createElement(Btn, { variant: "secondary", onClick: () => setDeleteConfirm(null) }, "Cancel"),
-      /*#__PURE__*/React.createElement(Btn, { variant: "destructive", onClick: () => handleDeleteUser(deleteConfirm.id) }, "Remove User")
-    )
-  )), /*#__PURE__*/React.createElement(UserDetailDrawer, {
+  }, "Create Group"))), /*#__PURE__*/React.createElement(UserDetailDrawer, {
     user: selectedUser,
     departments: departments,
     groups: groups,

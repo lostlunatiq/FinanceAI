@@ -61,20 +61,10 @@ const DashboardScreen = ({
   role,
   onNavigate
 }) => {
-  const [copilotOpen, setCopilotOpen] = React.useState(false);
-  const [copilotMsg, setCopilotMsg] = React.useState('');
   const roleKey = role || 'CFO';
-  const SUGGESTED_QUERIES = {
-    'CFO': ['Cash flow this month', 'Anomaly summary', 'Top vendors by spend', 'Which department is over budget?'],
-    'Finance Admin': ['Pending vendor approvals', 'Anomaly summary', 'Audit log today', 'System status'],
-    'Finance Manager': ['Team budget status', 'My pending approvals', 'Top spenders', 'Variance summary'],
-    'AP Clerk': ['My queue summary', 'High risk invoices', 'Average processing time', 'Near SLA limit']
-  };
-  const queries = SUGGESTED_QUERIES[roleKey] || SUGGESTED_QUERIES['CFO'];
-  const [chat, setChat] = React.useState([{
-    role: 'ai',
-    text: `Good morning. ${roleKey === 'CFO' ? 'Outstanding payables and anomaly flags' : 'Your pending tasks'} are loaded. Ask me anything about ${roleKey === 'CFO' ? 'your AP pipeline' : 'the financial data'}.`
-  }]);
+  const isCFO = roleKey === 'CFO';
+  const isFinAdmin = roleKey === 'Finance Admin';
+  const isFinManager = roleKey === 'Finance Manager';
   const [dismissed, setDismissed] = React.useState([]);
   const [stats, setStats] = React.useState(null);
   const [queueBills, setQueueBills] = React.useState([]);
@@ -84,6 +74,9 @@ const DashboardScreen = ({
     q: false,
     sweep: false
   });
+  const [modal10Q, setModal10Q] = React.useState(null); // { title, content, sections }
+  const [sweepResult, setSweepResult] = React.useState(null);
+  const [approveLoading, setApproveLoading] = React.useState({});
   const loadData = React.useCallback(async () => {
     setLoading(true);
     try {
@@ -109,10 +102,12 @@ const DashboardScreen = ({
     }));
     try {
       const res = await window.TijoriAPI.AnalyticsAPI.auditSweep();
-      alert(res.message || "Audit sweep completed.");
-      loadData();
+      setSweepResult(res);
     } catch (e) {
-      alert("Sweep failed: " + e.message);
+      setSweepResult({
+        message: 'Sweep failed: ' + e.message,
+        error: true
+      });
     }
     setRunLoading(prev => ({
       ...prev,
@@ -126,21 +121,44 @@ const DashboardScreen = ({
     }));
     try {
       const res = await window.TijoriAPI.AnalyticsAPI.generate10Q();
-      setChat(prev => [...prev, {
-        role: 'user',
-        text: 'Generate 10-Q draft'
-      }, {
-        role: 'ai',
-        text: `Draft Generated: ${res.title}\n\n${res.content}`
-      }]);
-      setCopilotOpen(true);
+      setModal10Q(res);
     } catch (e) {
-      alert("Generation failed: " + e.message);
+      setModal10Q({
+        title: 'Generation Error',
+        content: 'Failed to generate 10-Q: ' + e.message,
+        error: true
+      });
     }
     setRunLoading(prev => ({
       ...prev,
       q: false
     }));
+  };
+  const handleQuickApprove = async (billId, refNo) => {
+    setApproveLoading(prev => ({
+      ...prev,
+      [billId]: true
+    }));
+    try {
+      await window.TijoriAPI.BillsAPI.approve(billId, 'Approved from Command Center');
+      setQueueBills(prev => prev.filter(b => b.id !== billId));
+    } catch (e) {
+      alert('Approval failed: ' + e.message);
+    }
+    setApproveLoading(prev => ({
+      ...prev,
+      [billId]: false
+    }));
+  };
+  const handleQuickReject = async billId => {
+    const reason = prompt('Reason for rejection:');
+    if (!reason) return;
+    try {
+      await window.TijoriAPI.BillsAPI.reject(billId, reason);
+      setQueueBills(prev => prev.filter(b => b.id !== billId));
+    } catch (e) {
+      alert('Rejection failed: ' + e.message);
+    }
   };
   const fmtAmt = v => {
     if (!v) return '₹0';
@@ -149,37 +167,6 @@ const DashboardScreen = ({
     if (n >= 100000) return `₹${(n / 100000).toFixed(2)}L`;
     if (n >= 1000) return `₹${(n / 1000).toFixed(1)}K`;
     return `₹${n.toFixed(0)}`;
-  };
-  const sendMsg = async () => {
-    if (!copilotMsg.trim()) return;
-    const q = copilotMsg;
-    setChat(c => [...c, {
-      role: 'user',
-      text: q
-    }]);
-    setCopilotMsg('');
-    setChat(c => [...c, {
-      role: 'ai',
-      text: '…',
-      loading: true
-    }]);
-    try {
-      const {
-        NLQueryAPI
-      } = window.TijoriAPI;
-      const res = await NLQueryAPI.ask(q);
-      const answer = res.answer || 'Here is what I found in the financial data.';
-      const insight = res.insight ? `\n\n💡 Insight: ${res.insight}` : '';
-      setChat(c => c.map((m, i) => i === c.length - 1 ? {
-        role: 'ai',
-        text: answer + insight
-      } : m));
-    } catch {
-      setChat(c => c.map((m, i) => i === c.length - 1 ? {
-        role: 'ai',
-        text: 'Unable to fetch live data. Please check API connectivity.'
-      } : m));
-    }
   };
   const riskItems = intel?.risk_watch || [{
     id: 1,
@@ -221,12 +208,115 @@ const DashboardScreen = ({
     date: b.invoice_date || b.created_at?.slice(0, 10) || '',
     rawId: b.id
   }));
+  const ROLE_TITLES = {
+    'CFO': 'Intelligence Command',
+    'Finance Admin': 'Finance Operations Hub',
+    'Finance Manager': 'Approval Pipeline',
+    'AP Clerk': 'My Processing Queue'
+  };
+  const ROLE_SUBTITLES = {
+    'CFO': 'Global financial overview — real-time anomalies, payables, and treasury health.',
+    'Finance Admin': 'Full operational access — vendors, expenses, audit, and compliance.',
+    'Finance Manager': 'Your team\'s pending approvals, budget status, and variance summary.',
+    'AP Clerk': 'Your invoice queue, SLA alerts, and processing metrics.'
+  };
   return /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '32px 32px 100px',
       position: 'relative'
     }
+  }, modal10Q && /*#__PURE__*/React.createElement(TjModal, {
+    open: !!modal10Q,
+    onClose: () => setModal10Q(null),
+    title: "10-Q Report Draft",
+    width: 720
+  }, modal10Q.error ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '16px',
+      background: '#FEE2E2',
+      borderRadius: '8px',
+      color: '#991B1B',
+      fontSize: '13px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, modal10Q.content) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '16px'
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '18px',
+      color: '#0F172A'
+    }
+  }, modal10Q.title || 'Quarterly Report'), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginTop: '2px'
+    }
+  }, "AI-Generated Draft \xB7 Not for official filing")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: '8px'
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    small: true,
+    onClick: () => {
+      const blob = new Blob([modal10Q.content || ''], {
+        type: 'text/plain'
+      });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = '10Q_Draft.txt';
+      a.click();
+    }
+  }, "\u2193 Download"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      maxHeight: '60vh',
+      overflow: 'auto',
+      background: '#FAFAF8',
+      borderRadius: '10px',
+      padding: '20px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontSize: '13px',
+      color: '#0F172A',
+      lineHeight: 1.7,
+      whiteSpace: 'pre-wrap',
+      border: '1px solid #F1F0EE'
+    }
+  }, modal10Q.content || JSON.stringify(modal10Q, null, 2)))), sweepResult && /*#__PURE__*/React.createElement(TjModal, {
+    open: !!sweepResult,
+    onClose: () => setSweepResult(null),
+    title: "Audit Sweep Results",
+    width: 480
   }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '16px',
+      background: sweepResult.error ? '#FEE2E2' : '#F0FDF4',
+      borderRadius: '10px',
+      fontSize: '13px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      color: sweepResult.error ? '#991B1B' : '#065F46',
+      lineHeight: 1.6
+    }
+  }, sweepResult.message || JSON.stringify(sweepResult)), !sweepResult.error && sweepResult.flagged_count > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: '12px'
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "primary",
+    onClick: () => {
+      setSweepResult(null);
+      onNavigate && onNavigate('anomaly');
+    }
+  }, "View Flagged Items \u2192"))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       justifyContent: 'space-between',
@@ -243,7 +333,7 @@ const DashboardScreen = ({
       letterSpacing: '-1.5px',
       marginBottom: '4px'
     }
-  }, "Intelligence Command"), /*#__PURE__*/React.createElement("div", {
+  }, ROLE_TITLES[roleKey] || 'Intelligence Command'), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: '13px',
       color: '#64748B',
@@ -253,11 +343,12 @@ const DashboardScreen = ({
     month: 'long',
     day: 'numeric',
     year: 'numeric'
-  }), " \u2014 Operational Overview")), /*#__PURE__*/React.createElement(Btn, {
+  }), " \u2014 ", ROLE_SUBTITLES[roleKey] || 'Operational Overview')), /*#__PURE__*/React.createElement(Btn, {
     variant: "primary",
     pill: true,
-    icon: /*#__PURE__*/React.createElement("span", null, "\u2726")
-  }, "Ask Your Data")), /*#__PURE__*/React.createElement("div", {
+    icon: /*#__PURE__*/React.createElement("span", null, "\u2726"),
+    onClick: () => onNavigate && onNavigate('ai-hub')
+  }, "Ask Your Data")), approvalQueue.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: '24px',
       animation: 'fadeUp 300ms 80ms ease both',
@@ -282,7 +373,7 @@ const DashboardScreen = ({
       fontSize: '16px',
       color: '#0F172A'
     }
-  }, "Pending CFO Approvals"), /*#__PURE__*/React.createElement("span", {
+  }, isCFO ? 'Pending CFO Approvals' : isFinAdmin ? 'Pending Finance Approvals' : 'My Pending Approvals'), /*#__PURE__*/React.createElement("span", {
     style: {
       marginLeft: 'auto',
       fontSize: '12px',
@@ -290,54 +381,60 @@ const DashboardScreen = ({
       cursor: 'pointer',
       fontWeight: 600,
       fontFamily: "'Plus Jakarta Sans', sans-serif"
-    }
+    },
+    onClick: () => onNavigate && onNavigate('ap-hub')
   }, "View All \u2192")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
-      gap: '14px'
+      gap: '14px',
+      flexWrap: 'wrap'
     }
   }, approvalQueue.map(inv => /*#__PURE__*/React.createElement("div", {
     key: inv.id,
-    onClick: () => onNavigate && onNavigate('ap-match', {
-      invoice: inv
-    }),
     style: {
       background: 'white',
       borderRadius: '14px',
       padding: '18px 20px',
       border: '1px solid #F1F0EE',
       boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-      flex: 1,
+      flex: '1 1 260px',
       display: 'flex',
       alignItems: 'center',
-      gap: '16px',
-      cursor: 'pointer',
+      gap: '14px',
       transition: 'box-shadow 150ms'
     },
-    onMouseEnter: e => e.currentTarget.style.boxShadow = '0 6px 12px rgba(0,0,0,0.08)',
+    onMouseEnter: e => e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.1)',
     onMouseLeave: e => e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.05)'
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      flex: 1
-    }
+      flex: 1,
+      minWidth: 0,
+      cursor: 'pointer'
+    },
+    onClick: () => onNavigate && onNavigate('ap-match', {
+      invoice: inv
+    })
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       fontFamily: "'JetBrains Mono', monospace",
-      fontSize: '12px',
+      fontSize: '11px',
       color: '#E8783B',
       fontWeight: 500,
-      marginBottom: '4px'
+      marginBottom: '3px'
     }
   }, inv.id), /*#__PURE__*/React.createElement("div", {
     style: {
       fontFamily: "'Bricolage Grotesque', sans-serif",
       fontWeight: 700,
-      fontSize: '16px',
-      color: '#0F172A'
+      fontSize: '15px',
+      color: '#0F172A',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap'
     }
   }, inv.vendor), /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: '12px',
+      fontSize: '11px',
       color: '#94A3B8',
       marginTop: '2px',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
@@ -346,22 +443,45 @@ const DashboardScreen = ({
     style: {
       fontFamily: "'Bricolage Grotesque', sans-serif",
       fontWeight: 800,
-      fontSize: '22px',
+      fontSize: '20px',
       color: '#E8783B',
-      letterSpacing: '-1px'
+      letterSpacing: '-1px',
+      flexShrink: 0
     }
   }, inv.amount), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
-      gap: '8px'
+      gap: '6px',
+      flexShrink: 0
     }
   }, /*#__PURE__*/React.createElement(Btn, {
     variant: "primary",
-    small: true
-  }, "Approve"), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    disabled: approveLoading[inv.rawId],
+    onClick: e => {
+      e.stopPropagation();
+      handleQuickApprove(inv.rawId, inv.id);
+    }
+  }, approveLoading[inv.rawId] ? '…' : '✓'), /*#__PURE__*/React.createElement(Btn, {
     variant: "destructive",
-    small: true
-  }, "Reject")))))), /*#__PURE__*/React.createElement("div", {
+    small: true,
+    onClick: e => {
+      e.stopPropagation();
+      handleQuickReject(inv.rawId);
+    }
+  }, "\u2715")))))), loading && approvalQueue.length === 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: '24px',
+      background: 'white',
+      borderRadius: '14px',
+      padding: '24px',
+      border: '1px solid #F1F0EE',
+      color: '#94A3B8',
+      fontSize: '13px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      textAlign: 'center'
+    }
+  }, "Loading approval queue\u2026"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       gap: '16px',
@@ -586,12 +706,21 @@ const DashboardScreen = ({
       borderRadius: '6px',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "PRIORITISED FEED")), /*#__PURE__*/React.createElement("div", {
+  }, "LIVE")), /*#__PURE__*/React.createElement("div", {
     style: {
       overflow: 'auto',
-      maxHeight: 340
+      maxHeight: 300
     }
-  }, riskItems.filter(r => !dismissed.includes(r.id)).map(r => /*#__PURE__*/React.createElement("div", {
+  }, riskItems.filter(r => !dismissed.includes(r.id)).length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '24px',
+      textAlign: 'center',
+      color: '#10B981',
+      fontSize: '13px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontWeight: 600
+    }
+  }, "\u2713 No active risk flags") : riskItems.filter(r => !dismissed.includes(r.id)).map(r => /*#__PURE__*/React.createElement("div", {
     key: r.id,
     style: {
       padding: '14px 18px',
@@ -646,6 +775,7 @@ const DashboardScreen = ({
       gap: '10px'
     }
   }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => onNavigate && onNavigate('anomaly'),
     style: {
       fontSize: '12px',
       color: '#E8783B',
@@ -656,7 +786,7 @@ const DashboardScreen = ({
       fontFamily: "'Plus Jakarta Sans', sans-serif",
       padding: 0
     }
-  }, "Explain \u2192"), /*#__PURE__*/React.createElement("button", {
+  }, "Investigate \u2192"), /*#__PURE__*/React.createElement("button", {
     onClick: () => setDismissed(d => [...d, r.id]),
     style: {
       fontSize: '12px',
@@ -669,22 +799,40 @@ const DashboardScreen = ({
     }
   }, "Dismiss"))))), /*#__PURE__*/React.createElement("div", {
     style: {
-      padding: '14px 18px'
+      padding: '12px 18px',
+      borderTop: '1px solid #F1F0EE',
+      display: 'flex',
+      gap: '8px'
     }
   }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => onNavigate && onNavigate('audit'),
     style: {
-      width: '100%',
-      padding: '9px',
+      flex: 1,
+      padding: '8px',
       border: '1.5px dashed #E2E8F0',
       borderRadius: '10px',
       background: 'none',
       cursor: 'pointer',
       fontSize: '12px',
-      color: '#64748B',
+      color: '#475569',
       fontFamily: "'Plus Jakarta Sans', sans-serif",
       fontWeight: 600
     }
-  }, "View Full Audit Log \u2192")))), /*#__PURE__*/React.createElement("div", {
+  }, "Audit Log \u2192"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => onNavigate && onNavigate('anomaly'),
+    style: {
+      flex: 1,
+      padding: '8px',
+      border: '1.5px solid #EF4444',
+      borderRadius: '10px',
+      background: 'rgba(239,68,68,0.05)',
+      cursor: 'pointer',
+      fontSize: '12px',
+      color: '#EF4444',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontWeight: 600
+    }
+  }, "Risk Engine \u2192")))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'grid',
       gridTemplateColumns: '1fr 1fr 180px 180px',
