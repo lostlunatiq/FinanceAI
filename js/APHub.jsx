@@ -1,5 +1,3 @@
-// Tijori AI — Accounts Payable Hub
-
 // Converts a backend Expense record to the AP table row format
 function expenseToRow(exp) {
   const fmtAmt = (v) => {
@@ -10,20 +8,30 @@ function expenseToRow(exp) {
     if (n >= 1000) return `₹${(n/1000).toFixed(1)}K`;
     return `₹${n.toFixed(0)}`;
   };
+  // For internal expenses, show the employee name rather than "Internal Expense"
+  const rawVendor = exp.vendor_name || (exp.vendor && exp.vendor.name) || '';
+  const isInternal = rawVendor === 'Internal Expense' || !rawVendor;
+  const submitterName = exp.submitted_by_name || exp.submitted_by_display || exp.submitted_by_username || '';
+  const displayName = isInternal && submitterName
+    ? submitterName
+    : rawVendor || submitterName || 'Unknown';
   return {
     id: exp.invoice_number || exp.ref_no || exp.id.slice(0, 8),
     refNo: exp.ref_no,
     rawId: exp.id,
-    vendor: exp.vendor_name || 'Unknown Vendor',
+    vendor: displayName,
+    isInternal,
+    submitter: submitterName,
     amount: fmtAmt(exp.total_amount),
     date: exp.invoice_date || (exp.created_at ? exp.created_at.slice(0, 10) : ''),
-    status: exp.status || 'SUBMITTED',
+    status: exp.status || exp._status || 'SUBMITTED',
     assigned: exp.current_step ? `Step ${exp.current_step}` : '—',
     anomaly: !!(exp.anomaly_severity && exp.anomaly_severity !== 'NONE'),
     anomalySeverity: exp.anomaly_severity,
     _raw: exp,
   };
 }
+
 
 const DEPARTMENTS = ['Engineering — CC-001', 'Marketing — CC-002', 'Operations — CC-003', 'Human Resources — CC-004', 'Finance — CC-005', 'Legal — CC-006'];
 const CATEGORIES = ['Travel', 'Software & Licences', 'Infrastructure', 'Marketing & Events', 'HR & Recruitment', 'Legal & Compliance', 'Office Supplies', 'Professional Services', 'Utilities', 'Other'];
@@ -35,6 +43,7 @@ const APHubScreen = ({ role: propRole, onNavigate }) => {
   const [search, setSearch] = React.useState('');
   const [notes, setNotes] = React.useState('');
   const [invoices, setInvoices] = React.useState([]);
+  const [historyInvoices, setHistoryInvoices] = React.useState([]);
   const [loadingBills, setLoadingBills] = React.useState(true);
   const [actionLoading, setActionLoading] = React.useState(false);
   const [actionError, setActionError] = React.useState('');
@@ -46,13 +55,21 @@ const APHubScreen = ({ role: propRole, onNavigate }) => {
   const [aiAccepted, setAiAccepted] = React.useState(false);
   const [stats, setStats] = React.useState(null);
 
+  // Load queue (pending bills) + historical expenses
   const loadBills = () => {
     const { BillsAPI, DashboardAPI } = window.TijoriAPI;
     setLoadingBills(true);
-    Promise.all([BillsAPI.queue(), DashboardAPI.stats({ type: 'vendor' })])
-      .then(([bills, s]) => {
+    Promise.all([
+      BillsAPI.queue(),
+      DashboardAPI.stats({ type: 'vendor' }),
+      BillsAPI.listExpenses({ limit: 200 }),
+    ])
+      .then(([bills, s, allExp]) => {
         setInvoices((bills || []).map(expenseToRow));
         setStats(s);
+        // Build historical list from all expenses (includes APPROVED, PAID, REJECTED)
+        const allRows = (Array.isArray(allExp) ? allExp : (allExp?.results || [])).map(expenseToRow);
+        setHistoryInvoices(allRows);
       })
       .catch(() => {})
       .finally(() => setLoadingBills(false));
@@ -70,10 +87,30 @@ const APHubScreen = ({ role: propRole, onNavigate }) => {
   const isL1 = currentRole === 'AP Clerk';
   const canManageAuthority = currentRole === 'Finance Admin' || currentRole === 'CFO';
 
-  const filters = ['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'QUERY_RAISED', 'ANOMALY'];
-  const filtered = invoices.filter(inv => {
-    const matchF = filter === 'ALL'
-      || (filter === 'ANOMALY' ? inv.anomaly : (inv.status.startsWith(filter) || inv.status === filter));
+  const filters = ['ALL', 'PENDING', 'APPROVED', 'PAID', 'REJECTED', 'QUERY_RAISED', 'ANOMALY'];
+
+  // Source: for ALL/APPROVED/PAID/REJECTED use the full history; otherwise use queue
+  const HISTORY_FILTERS = ['ALL', 'APPROVED', 'PAID', 'REJECTED'];
+  const sourceList = HISTORY_FILTERS.includes(filter) ? historyInvoices : invoices;
+
+  const PAID_STATUSES = ['PAID', 'BOOKED_D365', 'POSTED_D365'];
+  const APPROVED_STATUSES = ['APPROVED', 'PENDING_D365'];
+
+  const filtered = sourceList.filter(inv => {
+    let matchF = false;
+    if (filter === 'ALL') {
+      matchF = true;
+    } else if (filter === 'ANOMALY') {
+      matchF = inv.anomaly;
+    } else if (filter === 'PAID') {
+      matchF = PAID_STATUSES.includes(inv.status);
+    } else if (filter === 'APPROVED') {
+      matchF = APPROVED_STATUSES.includes(inv.status);
+    } else if (filter === 'PENDING') {
+      matchF = inv.status.startsWith('PENDING') || inv.status === 'SUBMITTED';
+    } else {
+      matchF = inv.status.startsWith(filter) || inv.status === filter;
+    }
     const matchS = !search || inv.id.toLowerCase().includes(search.toLowerCase()) || inv.vendor.toLowerCase().includes(search.toLowerCase());
     return matchF && matchS;
   });

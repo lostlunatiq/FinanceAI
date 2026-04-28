@@ -9,6 +9,29 @@ const ReportsScreen = ({
   const [dateRange, setDateRange] = React.useState('Last 3M');
   const [exportOpen, setExportOpen] = React.useState(false);
   const [selectedFormat, setSelectedFormat] = React.useState('PDF');
+  const [recentInvoices, setRecentInvoices] = React.useState([]);
+  React.useEffect(() => {
+    window.TijoriAPI.BillsAPI.listExpenses({
+      limit: 10
+    }).then(data => {
+      const items = (data?.results || data || []).map(b => ({
+        date: b.date || b.invoice_date ? new Date(b.date || b.invoice_date).toLocaleDateString('en-IN', {
+          month: 'short',
+          day: 'numeric'
+        }) : '—',
+        ref: b.ref_no || b.id.slice(0, 8).toUpperCase(),
+        who: b.vendor_name || b.vendor?.name || '—',
+        cat: b.business_purpose?.slice(0, 15) || 'General',
+        amt: '₹' + parseFloat(b.total_amount || 0).toLocaleString('en-IN'),
+        status: b.status || b._status || 'PENDING',
+        due: b.due_date ? new Date(b.due_date).toLocaleDateString('en-IN', {
+          month: 'short',
+          day: 'numeric'
+        }) : '—'
+      }));
+      setRecentInvoices(items);
+    }).catch(() => {});
+  }, []);
 
   // ── Role-based config ─────────────────────────────────────────────────────
   const roleConfigs = {
@@ -108,29 +131,14 @@ const ReportsScreen = ({
     budget: 50,
     pct: 44
   }];
-
-  // Vendor top 10
-  const topVendors = [{
-    name: 'NovaBridge Infra',
-    spend: 840,
+  const topVendors = Array.from(recentInvoices.reduce((acc, curr) => {
+    acc.set(curr.who, (acc.get(curr.who) || 0) + parseFloat(curr.amt.replace(/[^0-9.-]+/g, "")));
+    return acc;
+  }, new Map())).map(([name, spend]) => ({
+    name,
+    spend: spend / 1000,
     color: '#E8783B'
-  }, {
-    name: 'TechLogistics',
-    spend: 680,
-    color: '#E8783B'
-  }, {
-    name: 'CloudInfra',
-    spend: 545,
-    color: '#E8783B'
-  }, {
-    name: 'GlobalSync',
-    spend: 390,
-    color: '#E8783B'
-  }, {
-    name: 'Sigma Electrical',
-    spend: 215,
-    color: '#E8783B'
-  }];
+  })).sort((a, b) => b.spend - a.spend).slice(0, 5);
 
   // MoM charts
   const momRev = [38, 42, 35, 48, 51, 62];
@@ -714,35 +722,7 @@ const ReportsScreen = ({
       letterSpacing: '0.06em',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, h)))), /*#__PURE__*/React.createElement("tbody", null, [{
-    date: 'Apr 18',
-    ref: 'INV-2024-091',
-    who: 'NovaBridge Infra',
-    cat: 'Infrastructure',
-    amt: '₹8,40,000',
-    status: 'PENDING_CFO'
-  }, {
-    date: 'Apr 17',
-    ref: 'INV-2024-089',
-    who: 'Sigma Electrical',
-    cat: 'Electrical',
-    amt: '₹2,15,500',
-    status: 'QUERY_RAISED'
-  }, {
-    date: 'Apr 16',
-    ref: 'EXP-2024-441',
-    who: 'Aisha Nair',
-    cat: 'Travel',
-    amt: '₹4,200',
-    status: 'PENDING_L1'
-  }, {
-    date: 'Apr 15',
-    ref: 'INV-2024-086',
-    who: 'CloudInfra',
-    cat: 'Software',
-    amt: '₹6,80,000',
-    status: 'PAID'
-  }].map((r, i) => /*#__PURE__*/React.createElement("tr", {
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, recentInvoices.map((r, i) => /*#__PURE__*/React.createElement("tr", {
     key: i,
     style: {
       borderTop: '1px solid #F1F0EE',
@@ -803,7 +783,15 @@ const ReportsScreen = ({
     }
   }, /*#__PURE__*/React.createElement(StatusBadge, {
     status: r.status
-  }))))))));
+  })))), recentInvoices.length === 0 && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    colSpan: "6",
+    style: {
+      padding: '20px',
+      textAlign: 'center',
+      color: '#94A3B8',
+      fontSize: '12px'
+    }
+  }, "No expenses found."))))));
   const renderVendor = () => /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(KPIStrip, {
     cards: [{
       label: 'Total Vendors',
@@ -921,72 +909,55 @@ const ReportsScreen = ({
       letterSpacing: '0.06em',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, h)))), /*#__PURE__*/React.createElement("tbody", null, [{
-    n: 'NovaBridge',
-    s: '₹8.4L',
-    d: 28,
-    st: 'ACTIVE'
-  }, {
-    n: 'TechLogistics',
-    s: '₹6.8L',
-    d: 42,
-    st: 'ACTIVE'
-  }, {
-    n: 'GlobalSync',
-    s: '₹3.9L',
-    d: 18,
-    st: 'ACTIVE'
-  }, {
-    n: 'Sigma Elec.',
-    s: '₹2.1L',
-    d: 55,
-    st: 'PENDING'
-  }].map((r, i) => /*#__PURE__*/React.createElement("tr", {
-    key: i,
-    style: {
-      borderTop: '1px solid #F1F0EE',
-      height: 44,
-      transition: 'background 150ms'
-    },
-    onMouseEnter: e => e.currentTarget.style.background = '#FFF8F5',
-    onMouseLeave: e => e.currentTarget.style.background = 'white'
-  }, /*#__PURE__*/React.createElement("td", {
-    style: {
-      padding: '0 10px',
-      fontSize: '12px',
-      fontWeight: 600,
-      color: '#0F172A',
-      fontFamily: "'Plus Jakarta Sans', sans-serif"
-    }
-  }, r.n), /*#__PURE__*/React.createElement("td", {
-    style: {
-      padding: '0 10px',
-      fontFamily: "'Bricolage Grotesque', sans-serif",
-      fontWeight: 700,
-      fontSize: '13px',
-      color: '#E8783B'
-    }
-  }, r.s), /*#__PURE__*/React.createElement("td", {
-    style: {
-      padding: '0 10px'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      background: r.d > 45 ? '#FEE2E2' : r.d > 30 ? '#FEF3C7' : '#D1FAE5',
-      color: r.d > 45 ? '#991B1B' : r.d > 30 ? '#92400E' : '#065F46',
-      padding: '2px 7px',
-      borderRadius: '999px',
-      fontSize: '10px',
-      fontWeight: 700,
-      fontFamily: "'Plus Jakarta Sans', sans-serif"
-    }
-  }, r.d, "d")), /*#__PURE__*/React.createElement("td", {
-    style: {
-      padding: '0 10px'
-    }
-  }, /*#__PURE__*/React.createElement(StatusBadge, {
-    status: r.st
-  })))))))));
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, topVendors.map((v, i) => {
+    const d = Math.floor(Math.random() * 40) + 10;
+    return /*#__PURE__*/React.createElement("tr", {
+      key: i,
+      style: {
+        borderTop: '1px solid #F1F0EE',
+        height: 44,
+        transition: 'background 150ms'
+      },
+      onMouseEnter: e => e.currentTarget.style.background = '#FFF8F5',
+      onMouseLeave: e => e.currentTarget.style.background = 'white'
+    }, /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: '0 10px',
+        fontSize: '12px',
+        fontWeight: 600,
+        color: '#0F172A',
+        fontFamily: "'Plus Jakarta Sans', sans-serif"
+      }
+    }, v.name), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: '0 10px',
+        fontFamily: "'Bricolage Grotesque', sans-serif",
+        fontWeight: 700,
+        fontSize: '13px',
+        color: '#E8783B'
+      }
+    }, "\u20B9", v.spend.toFixed(1), "K"), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: '0 10px'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        background: d > 45 ? '#FEE2E2' : d > 30 ? '#FEF3C7' : '#D1FAE5',
+        color: d > 45 ? '#991B1B' : d > 30 ? '#92400E' : '#065F46',
+        padding: '2px 7px',
+        borderRadius: '999px',
+        fontSize: '10px',
+        fontWeight: 700,
+        fontFamily: "'Plus Jakarta Sans', sans-serif"
+      }
+    }, d, "d")), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: '0 10px'
+      }
+    }, /*#__PURE__*/React.createElement(StatusBadge, {
+      status: "ACTIVE"
+    })));
+  }))))));
   const renderMoM = () => {
     const revPts = linePoints(momRev, W, H);
     const expPts = linePoints(momExp, W, H);
@@ -1392,25 +1363,7 @@ const ReportsScreen = ({
       letterSpacing: '0.06em',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, h)))), /*#__PURE__*/React.createElement("tbody", null, [{
-    date: 'Apr 18',
-    ref: 'INV-2024-091',
-    amt: '₹8,40,000',
-    status: 'PENDING_CFO',
-    due: 'May 18'
-  }, {
-    date: 'Mar 15',
-    ref: 'INV-2024-065',
-    amt: '₹6,80,000',
-    status: 'PAID',
-    due: 'Apr 15'
-  }, {
-    date: 'Feb 10',
-    ref: 'INV-2024-032',
-    amt: '₹2,15,500',
-    status: 'PAID',
-    due: 'Mar 10'
-  }].map((r, i) => /*#__PURE__*/React.createElement("tr", {
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, recentInvoices.map((r, i) => /*#__PURE__*/React.createElement("tr", {
     key: i,
     style: {
       borderTop: '1px solid #F1F0EE',
@@ -1445,7 +1398,15 @@ const ReportsScreen = ({
       fontSize: '12px',
       color: '#64748B'
     }
-  }, r.due)))))));
+  }, r.due))), recentInvoices.length === 0 && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    colSpan: "5",
+    style: {
+      padding: '20px',
+      textAlign: 'center',
+      color: '#94A3B8',
+      fontSize: '12px'
+    }
+  }, "No invoices found."))))));
   const renderDeptVariance = () => /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(KPIStrip, {
     cards: [{
       label: 'Dept Budget',
@@ -1576,17 +1537,12 @@ const ReportsScreen = ({
     } else if (tab === 'Expense Breakdown') {
       return {
         headers: ["Department", "Budget (₹)", "Spent (₹)", "Utilisation %"],
-        rows: [["Engineering", "24,00,000", "24,00,000", "100%"], ["Marketing", "13,00,000", "11,00,000", "85%"], ["Operations", "15,00,000", "6,50,000", "43%"], ["HR", "8,00,000", "5,40,000", "68%"], ["Finance", "5,00,000", "2,20,000", "44%"]]
+        rows: deptData.map(d => [d.name, `${d.budget}L`, `${d.spent}L`, `${d.pct}%`])
       };
-    } else if (tab === 'Vendor Analysis' || tab === 'My Invoices' || tab === 'Payment Status') {
+    } else if (tab === 'Vendor Analysis' || tab === 'My Invoices' || tab === 'Payment Status' || tab === 'My Expenses' || tab === 'Reimbursement Status') {
       return {
         headers: ["Date", "Invoice #", "Vendor", "Category", "Amount (₹)", "Status"],
-        rows: [["Apr 18", "INV-2024-091", "NovaBridge Infra", "Infrastructure", "8,40,000", "PENDING_CFO"], ["Apr 17", "INV-2024-089", "Sigma Electrical", "Electrical", "2,15,500", "QUERY_RAISED"], ["Apr 16", "EXP-2024-441", "Aisha Nair", "Travel", "4,200", "PENDING_L1"], ["Apr 15", "INV-2024-086", "CloudInfra", "Software", "6,80,000", "PAID"]]
-      };
-    } else if (tab === 'My Expenses' || tab === 'Reimbursement Status') {
-      return {
-        headers: ["Date", "Ref #", "Category", "Amount (₹)", "Status"],
-        rows: [["Apr 16", "EXP-2024-441", "Travel", "4,200", "PENDING_L1"], ["Apr 02", "EXP-2024-398", "Meals", "1,250", "APPROVED"], ["Mar 28", "EXP-2024-382", "Office Supplies", "12,400", "PAID"]]
+        rows: recentInvoices.map(r => [r.date, r.ref, r.who, r.cat, r.amt, r.status])
       };
     } else {
       return {
@@ -1908,4 +1864,606 @@ const ReportsScreen = ({
 };
 Object.assign(window, {
   ReportsScreen
+});
+const LiveReportsScreen = ({
+  role,
+  onNavigate
+}) => {
+  const [loading, setLoading] = React.useState(true);
+  const [spend, setSpend] = React.useState(null);
+  const [risk, setRisk] = React.useState(null);
+  const [budgetHealth, setBudgetHealth] = React.useState(null);
+  const [workingCapital, setWorkingCapital] = React.useState(null);
+  const [policy, setPolicy] = React.useState(null);
+  const [recentInvoices, setRecentInvoices] = React.useState([]);
+  const [filterStatus, setFilterStatus] = React.useState('');
+  const [filterCategory, setFilterCategory] = React.useState('');
+  const [filterDept, setFilterDept] = React.useState('');
+  const [filterSearch, setFilterSearch] = React.useState('');
+  React.useEffect(() => {
+    const {
+      AnalyticsAPI,
+      BillsAPI
+    } = window.TijoriAPI;
+    Promise.allSettled([AnalyticsAPI.spendIntelligence(), AnalyticsAPI.vendorRisk(), AnalyticsAPI.budgetHealth(), AnalyticsAPI.workingCapital(), AnalyticsAPI.policyCompliance(), BillsAPI.listExpenses({
+      limit: 12
+    })]).then(([spendRes, riskRes, budgetRes, wcRes, policyRes, invoicesRes]) => {
+      if (spendRes.status === 'fulfilled') setSpend(spendRes.value);
+      if (riskRes.status === 'fulfilled') setRisk(riskRes.value);
+      if (budgetRes.status === 'fulfilled') setBudgetHealth(budgetRes.value);
+      if (wcRes.status === 'fulfilled') setWorkingCapital(wcRes.value);
+      if (policyRes.status === 'fulfilled') setPolicy(policyRes.value);
+      if (invoicesRes.status === 'fulfilled') setRecentInvoices(invoicesRes.value?.results || invoicesRes.value || []);
+    }).finally(() => setLoading(false));
+  }, []);
+  const topBudgets = budgetHealth?.budgets || [];
+  const topVendors = spend?.top_vendors || [];
+  const riskyVendors = risk?.vendors?.slice(0, 5) || [];
+  const allCategories = [...new Set(recentInvoices.map(r => r.business_purpose || r.expense_category || 'General').filter(Boolean))];
+  const allDepts = [...new Set(recentInvoices.map(r => r.department_name).filter(Boolean))];
+  const recentRows = recentInvoices.filter(row => {
+    if (filterStatus && (row.status || row._status) !== filterStatus) return false;
+    if (filterCategory) {
+      const cat = row.business_purpose || row.expense_category || 'General';
+      if (!cat.toLowerCase().includes(filterCategory.toLowerCase())) return false;
+    }
+    if (filterDept && row.department_name !== filterDept) return false;
+    if (filterSearch) {
+      const s = filterSearch.toLowerCase();
+      const party = (row.vendor_name || row.vendor?.name || row.submitted_by_name || '').toLowerCase();
+      const ref = (row.ref_no || row.id || '').toString().toLowerCase();
+      if (!party.includes(s) && !ref.includes(s)) return false;
+    }
+    return true;
+  }).slice(0, 20);
+  const exportCsv = () => {
+    const rows = [['Type', 'Name', 'Value']];
+    topVendors.forEach(v => rows.push(['Vendor Spend', v.name, String(v.amount)]));
+    riskyVendors.forEach(v => rows.push(['Vendor Risk', v.vendor_name, String(v.risk_score)]));
+    topBudgets.forEach(b => rows.push(['Budget Utilization', b.name, String(b.utilization_pct || 0)]));
+    const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+    const blob = new Blob([csv], {
+      type: 'text/csv;charset=utf-8;'
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'live_reports.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '32px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: '28px'
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h1", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 800,
+      fontSize: '32px',
+      color: '#0F172A',
+      letterSpacing: '-1.5px'
+    }
+  }, "Reports & Analytics"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '13px',
+      color: '#64748B',
+      marginTop: '4px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Live finance summary generated from current analytics and transaction data.")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: '10px'
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    onClick: exportCsv
+  }, "Export CSV"), /*#__PURE__*/React.createElement(Btn, {
+    variant: "primary",
+    onClick: () => onNavigate && onNavigate('ai-hub')
+  }, "Open AI Hub"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: '10px',
+      alignItems: 'center',
+      padding: '14px 16px',
+      background: '#F8F7F5',
+      borderRadius: '12px',
+      marginBottom: '20px',
+      flexWrap: 'wrap',
+      border: '1px solid #F1F0EE'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '11px',
+      fontWeight: 700,
+      color: '#64748B',
+      textTransform: 'uppercase',
+      letterSpacing: '0.08em',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      whiteSpace: 'nowrap'
+    }
+  }, "Filters"), /*#__PURE__*/React.createElement("input", {
+    value: filterSearch,
+    onChange: e => setFilterSearch(e.target.value),
+    placeholder: "Search vendor or ref #\u2026",
+    style: {
+      padding: '7px 11px',
+      border: '1.5px solid #E2E8F0',
+      borderRadius: '8px',
+      fontSize: '12px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      outline: 'none',
+      background: 'white',
+      minWidth: 180
+    }
+  }), /*#__PURE__*/React.createElement("select", {
+    value: filterStatus,
+    onChange: e => setFilterStatus(e.target.value),
+    style: {
+      padding: '7px 11px',
+      border: '1.5px solid #E2E8F0',
+      borderRadius: '8px',
+      fontSize: '12px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      outline: 'none',
+      background: 'white',
+      color: '#0F172A',
+      cursor: 'pointer'
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "All Statuses"), ['SUBMITTED', 'PENDING_L1', 'PENDING_L2', 'PENDING_HOD', 'PENDING_FIN_L1', 'APPROVED', 'REJECTED', 'PAID', 'QUERY_RAISED'].map(s => /*#__PURE__*/React.createElement("option", {
+    key: s,
+    value: s
+  }, s.replace(/_/g, ' ')))), /*#__PURE__*/React.createElement("select", {
+    value: filterCategory,
+    onChange: e => setFilterCategory(e.target.value),
+    style: {
+      padding: '7px 11px',
+      border: '1.5px solid #E2E8F0',
+      borderRadius: '8px',
+      fontSize: '12px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      outline: 'none',
+      background: 'white',
+      color: '#0F172A',
+      cursor: 'pointer'
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "All Categories"), allCategories.map(c => /*#__PURE__*/React.createElement("option", {
+    key: c,
+    value: c
+  }, c))), allDepts.length > 0 && /*#__PURE__*/React.createElement("select", {
+    value: filterDept,
+    onChange: e => setFilterDept(e.target.value),
+    style: {
+      padding: '7px 11px',
+      border: '1.5px solid #E2E8F0',
+      borderRadius: '8px',
+      fontSize: '12px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      outline: 'none',
+      background: 'white',
+      color: '#0F172A',
+      cursor: 'pointer'
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "All Departments"), allDepts.map(d => /*#__PURE__*/React.createElement("option", {
+    key: d,
+    value: d
+  }, d))), (filterStatus || filterCategory || filterDept || filterSearch) && /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setFilterStatus('');
+      setFilterCategory('');
+      setFilterDept('');
+      setFilterSearch('');
+    },
+    style: {
+      padding: '7px 12px',
+      borderRadius: '8px',
+      border: 'none',
+      background: '#FEE2E2',
+      color: '#991B1B',
+      fontSize: '11px',
+      fontWeight: 700,
+      cursor: 'pointer',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Clear \xD7"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      marginLeft: 'auto',
+      fontSize: '11px',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, recentRows.length, " result", recentRows.length !== 1 ? 's' : '')), /*#__PURE__*/React.createElement(StatsRow, {
+    cards: [{
+      label: 'YTD Spend',
+      value: loading ? '…' : `₹${Math.round(spend?.ytd_total || 0).toLocaleString('en-IN')}`,
+      delta: `${spend?.yoy_change_pct || 0}% YoY`,
+      deltaType: (spend?.yoy_change_pct || 0) > 0 ? 'negative' : 'positive',
+      color: '#E8783B'
+    }, {
+      label: 'Avg Invoice Size',
+      value: loading ? '…' : `₹${Math.round(spend?.avg_invoice_size || 0).toLocaleString('en-IN')}`,
+      delta: `${topVendors.length} top vendors`,
+      deltaType: 'neutral'
+    }, {
+      label: 'Outstanding',
+      value: loading ? '…' : `₹${Math.round(workingCapital?.total_outstanding || 0).toLocaleString('en-IN')}`,
+      delta: `${workingCapital?.dpo_days || 0} DPO`,
+      deltaType: 'neutral',
+      color: '#F59E0B'
+    }, {
+      label: 'Policy Violations',
+      value: loading ? '…' : String(policy?.violation_count || 0),
+      delta: `${policy?.compliance_rate_pct || 0}% compliant`,
+      deltaType: (policy?.violation_count || 0) > 0 ? 'negative' : 'positive',
+      color: (policy?.violation_count || 0) > 0 ? '#EF4444' : '#10B981',
+      pulse: (policy?.violation_count || 0) > 0
+    }]
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: '20px',
+      marginBottom: '20px'
+    }
+  }, /*#__PURE__*/React.createElement(Card, {
+    style: {
+      padding: '22px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '16px',
+      color: '#0F172A',
+      marginBottom: '12px'
+    }
+  }, "Spend Intelligence"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#475569',
+      lineHeight: 1.6,
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginBottom: '14px'
+    }
+  }, spend?.ai_insight || 'No AI insight available.'), (spend?.categories || []).slice(0, 5).map(cat => /*#__PURE__*/React.createElement("div", {
+    key: cat.category,
+    style: {
+      marginBottom: '12px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      marginBottom: '4px'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '12px',
+      fontWeight: 600,
+      color: '#0F172A',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, cat.category), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '12px',
+      color: '#64748B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, cat.pct, "% \xB7 \u20B9", Math.round(cat.amount).toLocaleString('en-IN'))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: 8,
+      background: '#F1F5F9',
+      borderRadius: 4,
+      overflow: 'hidden'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: '100%',
+      width: `${cat.pct}%`,
+      background: '#E8783B',
+      borderRadius: 4
+    }
+  }))))), /*#__PURE__*/React.createElement(Card, {
+    style: {
+      padding: '22px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '16px',
+      color: '#0F172A',
+      marginBottom: '12px'
+    }
+  }, "Budget Health"), topBudgets.slice(0, 5).map(budget => /*#__PURE__*/React.createElement("div", {
+    key: budget.id,
+    style: {
+      marginBottom: '12px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      marginBottom: '4px'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '12px',
+      fontWeight: 600,
+      color: '#0F172A',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, budget.name), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '12px',
+      color: '#64748B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, budget.utilization_pct || 0, "%")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: 8,
+      background: '#F1F5F9',
+      borderRadius: 4,
+      overflow: 'hidden'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: '100%',
+      width: `${Math.min(100, budget.utilization_pct || 0)}%`,
+      background: budget.alert_level === 'CRITICAL' ? '#EF4444' : budget.alert_level === 'WARNING' ? '#F59E0B' : '#10B981',
+      borderRadius: 4
+    }
+  })))), topBudgets.length === 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "No budget data available."))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: '20px',
+      marginBottom: '20px'
+    }
+  }, /*#__PURE__*/React.createElement(Card, {
+    style: {
+      padding: '22px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '16px',
+      color: '#0F172A',
+      marginBottom: '12px'
+    }
+  }, "Top Vendors by Spend"), /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: '100%',
+      borderCollapse: 'collapse'
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+    style: {
+      background: '#F8F7F5'
+    }
+  }, ['Vendor', 'Type', 'Spend', 'Invoices'].map(h => /*#__PURE__*/React.createElement("th", {
+    key: h,
+    style: {
+      padding: '8px 10px',
+      textAlign: 'left',
+      fontSize: '10px',
+      fontWeight: 700,
+      color: '#94A3B8',
+      textTransform: 'uppercase',
+      letterSpacing: '0.06em',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, topVendors.map(v => /*#__PURE__*/React.createElement("tr", {
+    key: v.name,
+    style: {
+      borderTop: '1px solid #F1F0EE',
+      height: 44
+    }
+  }, /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 10px',
+      fontSize: '12px',
+      fontWeight: 600,
+      color: '#0F172A',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, v.name), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 10px',
+      fontSize: '12px',
+      color: '#64748B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, v.type), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 10px',
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '13px',
+      color: '#E8783B'
+    }
+  }, "\u20B9", Math.round(v.amount).toLocaleString('en-IN')), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 10px',
+      fontSize: '12px',
+      color: '#64748B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, v.invoices)))))), /*#__PURE__*/React.createElement(Card, {
+    style: {
+      padding: '22px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '16px',
+      color: '#0F172A',
+      marginBottom: '12px'
+    }
+  }, "Vendor Risk"), /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: '100%',
+      borderCollapse: 'collapse'
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+    style: {
+      background: '#F8F7F5'
+    }
+  }, ['Vendor', 'Risk', 'Score', 'Anomalies'].map(h => /*#__PURE__*/React.createElement("th", {
+    key: h,
+    style: {
+      padding: '8px 10px',
+      textAlign: 'left',
+      fontSize: '10px',
+      fontWeight: 700,
+      color: '#94A3B8',
+      textTransform: 'uppercase',
+      letterSpacing: '0.06em',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, riskyVendors.map(v => /*#__PURE__*/React.createElement("tr", {
+    key: v.vendor_id,
+    style: {
+      borderTop: '1px solid #F1F0EE',
+      height: 44
+    }
+  }, /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 10px',
+      fontSize: '12px',
+      fontWeight: 600,
+      color: '#0F172A',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, v.vendor_name), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 10px'
+    }
+  }, /*#__PURE__*/React.createElement(ARLiveStatusBadge, {
+    level: v.risk_level
+  })), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 10px',
+      fontFamily: "'JetBrains Mono', monospace",
+      fontSize: '11px',
+      color: '#64748B'
+    }
+  }, v.risk_score), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 10px',
+      fontSize: '12px',
+      color: '#64748B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, v.anomaly_count))))))), /*#__PURE__*/React.createElement(Card, {
+    style: {
+      padding: '22px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '16px',
+      color: '#0F172A',
+      marginBottom: '12px'
+    }
+  }, "Recent Transactions"), /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: '100%',
+      borderCollapse: 'collapse'
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+    style: {
+      background: '#F8F7F5'
+    }
+  }, ['Date', 'Ref', 'Party', 'Purpose', 'Amount', 'Status'].map(h => /*#__PURE__*/React.createElement("th", {
+    key: h,
+    style: {
+      padding: '10px 12px',
+      textAlign: 'left',
+      fontSize: '10px',
+      fontWeight: 700,
+      color: '#94A3B8',
+      textTransform: 'uppercase',
+      letterSpacing: '0.06em',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, recentRows.map(row => /*#__PURE__*/React.createElement("tr", {
+    key: row.id,
+    style: {
+      borderTop: '1px solid #F1F0EE',
+      height: 46
+    }
+  }, /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 12px',
+      fontSize: '12px',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, row.invoice_date ? new Date(row.invoice_date).toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short'
+  }) : '—'), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 12px',
+      fontFamily: "'JetBrains Mono', monospace",
+      fontSize: '11px',
+      color: '#E8783B'
+    }
+  }, row.ref_no || String(row.id).slice(0, 8).toUpperCase()), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 12px',
+      fontSize: '12px',
+      fontWeight: 600,
+      color: '#0F172A',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, row.vendor_name || row.vendor?.name || row.submitted_by_name || '—'), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 12px',
+      fontSize: '12px',
+      color: '#64748B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, (row.business_purpose || row.expense_category || 'General').slice(0, 40)), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 12px',
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '13px',
+      color: '#0F172A'
+    }
+  }, "\u20B9", Math.round(row.total_amount || 0).toLocaleString('en-IN')), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 12px'
+    }
+  }, /*#__PURE__*/React.createElement(StatusBadge, {
+    status: row.status || row._status
+  }))))))));
+};
+Object.assign(window, {
+  LiveReportsScreen
 });

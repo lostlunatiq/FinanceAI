@@ -206,7 +206,7 @@ const UserDetailDrawer = ({ user, departments, groups, open, onClose, onUpdated 
         is_active: form.is_active,
       });
       setActionMsg('User updated successfully.');
-      onUpdated();
+      onUpdated(user.id);
       setEditing(false);
     } catch (e) { setActionMsg('Update failed: ' + (e.message || 'Error')); }
   };
@@ -224,7 +224,7 @@ const UserDetailDrawer = ({ user, departments, groups, open, onClose, onUpdated 
     try {
       await window.TijoriAPI.AuthAPI.updateUser(user.id, { is_active: !user.is_active });
       setActionMsg(user.is_active ? 'User suspended.' : 'User activated.');
-      onUpdated();
+      onUpdated(user.id);
     } catch (e) { setActionMsg('Action failed: ' + (e.message || 'Error')); }
   };
 
@@ -379,25 +379,57 @@ const IAMScreen = ({ onNavigate }) => {
   const [createUserLoading, setCreateUserLoading] = React.useState(false);
   const [createUserError, setCreateUserError] = React.useState('');
   const [newGroupName, setNewGroupName] = React.useState('');
+  const [newGroupMembers, setNewGroupMembers] = React.useState([]);
+  const [addMembersGroup, setAddMembersGroup] = React.useState(null);
+  const [addMembersSelected, setAddMembersSelected] = React.useState([]);
+  const [addMembersLoading, setAddMembersLoading] = React.useState(false);
+  const [editGroupOpen, setEditGroupOpen] = React.useState(false);
+  const [editGroup, setEditGroup] = React.useState(null);
+  const [editGroupName, setEditGroupName] = React.useState('');
   const [search, setSearch] = React.useState('');
   const [gradeFilter, setGradeFilter] = React.useState(0);
   const [statusFilter, setStatusFilter] = React.useState('ALL');
 
-  const load = React.useCallback(() => {
+  const load = React.useCallback((refreshUserId = null) => {
     setLoading(true);
     Promise.allSettled([
       window.TijoriAPI.AuthAPI.listUsers(),
       window.TijoriAPI.AuthAPI.listDepartments(),
       window.TijoriAPI.AuthAPI.listGroups(),
     ]).then(([uRes, dRes, gRes]) => {
-      if (uRes.status === 'fulfilled') setUsers(uRes.value || []);
+      let latestUsers = users;
+      if (uRes.status === 'fulfilled') {
+        latestUsers = uRes.value || [];
+        setUsers(latestUsers);
+      }
       if (dRes.status === 'fulfilled') setDepartments(dRes.value || []);
       if (gRes.status === 'fulfilled') setGroups(gRes.value || []);
+      
+      setSelectedUser(prev => {
+        const targetId = refreshUserId || (prev ? prev.id : null);
+        if (!targetId) return prev;
+        return latestUsers.find(x => x.id === targetId) || prev;
+      });
+      
       setLoading(false);
     });
-  }, []);
+  }, [users]);
 
   React.useEffect(() => { load(); }, [load]);
+
+  const handleExportUsers = async () => {
+    try {
+      const blob = await window.TijoriAPI.AuthAPI.exportUsers();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `financeai_users_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Export failed: ' + e.message);
+    }
+  };
 
   const filtered = users.filter(u => {
     const mg = gradeFilter === 0 || u.employee_grade === gradeFilter;
@@ -423,6 +455,7 @@ const IAMScreen = ({ onNavigate }) => {
         right={
           <div style={{ display: 'flex', gap: 8 }}>
             <Btn variant="secondary" onClick={load}>↻ Refresh</Btn>
+            <Btn variant="secondary" onClick={handleExportUsers}>↓ Export Users</Btn>
             <Btn variant="primary" icon={<span>+</span>} onClick={() => setCreateOpen(true)}>Create User</Btn>
           </div>
         }
@@ -536,24 +569,40 @@ const IAMScreen = ({ onNavigate }) => {
 
       {tab === 'Groups' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16, animation: 'fadeUp 220ms ease both' }}>
-          {groups.map(g => (
-            <Card key={g.id} style={{ padding: 20 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: '#F5F3FF', color: '#7C3AED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>👥</div>
-                <Btn variant="ghost" small>Edit</Btn>
-              </div>
-              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: 17, color: '#0F172A' }}>{g.name}</div>
-              <div style={{ fontSize: 12, color: '#64748B', marginTop: 4, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                {users.filter(u => u.group_names?.includes(g.name)).length} members
-              </div>
-              <div style={{ marginTop: 16, borderTop: '1px solid #F1F0EE', paddingTop: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                   <span style={{ fontSize: 11, color: '#94A3B8', cursor: 'pointer' }}>View Members →</span>
+          {groups.map(g => {
+            const members = users.filter(u => u.group_names?.includes(g.name));
+            return (
+              <Card key={g.id} style={{ padding: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 10, background: '#F5F3FF', color: '#7C3AED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>👥</div>
+                  <Btn variant="ghost" small onClick={() => { setEditGroup(g); setEditGroupName(g.name); setEditGroupOpen(true); }}>Edit</Btn>
                 </div>
-              </div>
-            </Card>
-          ))}
-          <button onClick={() => setCreateGroupOpen(true)}
+                <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: 17, color: '#0F172A' }}>{g.name}</div>
+                <div style={{ fontSize: 12, color: '#64748B', marginTop: 4, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  {members.length} member{members.length !== 1 ? 's' : ''}
+                </div>
+                {members.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 10 }}>
+                    {members.slice(0, 4).map(u => (
+                      <span key={u.id} style={{ background: '#F1F5F9', color: '#475569', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600 }}>
+                        {u.first_name || u.username}
+                      </span>
+                    ))}
+                    {members.length > 4 && <span style={{ fontSize: 10, color: '#94A3B8' }}>+{members.length - 4} more</span>}
+                  </div>
+                )}
+                <div style={{ marginTop: 16, borderTop: '1px solid #F1F0EE', paddingTop: 12 }}>
+                  <button onClick={() => { setAddMembersGroup(g); setAddMembersSelected(members.map(u => u.id)); }}
+                    style={{ width: '100%', padding: '8px', borderRadius: 8, border: '1px solid #E8783B', background: '#FFF8F5', color: '#E8783B', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'all 150ms' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#E8783B'; e.currentTarget.style.color = 'white'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#FFF8F5'; e.currentTarget.style.color = '#E8783B'; }}>
+                    + Add / Manage Members
+                  </button>
+                </div>
+              </Card>
+            );
+          })}
+          <button onClick={() => { setCreateGroupOpen(true); setNewGroupMembers([]); }}
             style={{ background: 'none', border: '2px dashed #E2E8F0', borderRadius: 16, padding: 20, cursor: 'pointer', transition: 'all 200ms', minHeight: 140 }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = '#E8783B'; e.currentTarget.style.background = '#FFF8F5'; }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = '#E2E8F0'; e.currentTarget.style.background = 'none'; }}>
@@ -625,26 +674,109 @@ const IAMScreen = ({ onNavigate }) => {
         </div>
       </TjModal>
 
-      <TjModal open={createGroupOpen} onClose={() => setCreateGroupOpen(false)} title="Create Security Group">
-        <TjInput label="Group Name" placeholder="e.g. Finance Approvers" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} />
+      <TjModal open={createGroupOpen} onClose={() => setCreateGroupOpen(false)} title="Create Security Group" width={480}>
+        <TjInput label="Group Name *" placeholder="e.g. Finance Approvers" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} />
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Add Members (optional)</div>
+          <div style={{ maxHeight: 200, overflowY: 'auto', border: '1.5px solid #E2E8F0', borderRadius: 10, background: '#FAFAF8' }}>
+            {users.filter(u => u.is_active).map(u => {
+              const selected = newGroupMembers.includes(u.id);
+              return (
+                <div key={u.id} onClick={() => setNewGroupMembers(prev => selected ? prev.filter(id => id !== u.id) : [...prev, u.id])}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid #F1F0EE', background: selected ? '#FFF8F5' : 'transparent', transition: 'background 150ms' }}>
+                  <div style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${selected ? '#E8783B' : '#CBD5E1'}`, background: selected ? '#E8783B' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 150ms' }}>
+                    {selected && <span style={{ color: 'white', fontSize: 11, lineHeight: 1 }}>✓</span>}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#0F172A' }}>{u.first_name} {u.last_name}</div>
+                    <div style={{ fontSize: 11, color: '#94A3B8' }}>{u.username} · G{u.employee_grade} {GRADE_LABELS[u.employee_grade] || ''}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {newGroupMembers.length > 0 && (
+            <div style={{ fontSize: 11, color: '#E8783B', marginTop: 6, fontWeight: 600 }}>{newGroupMembers.length} user{newGroupMembers.length !== 1 ? 's' : ''} selected</div>
+          )}
+        </div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 10 }}>
-          <Btn variant="secondary" onClick={() => setCreateGroupOpen(false)}>Cancel</Btn>
+          <Btn variant="secondary" onClick={() => { setCreateGroupOpen(false); setNewGroupName(''); setNewGroupMembers([]); }}>Cancel</Btn>
           <Btn variant="primary" onClick={async () => {
             if(!newGroupName) return;
             try {
-              // POST to groups endpoint
-              const token = window.TijoriAPI.Auth.getAccess();
-              const res = await fetch('/api/v1/auth/groups/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-                body: JSON.stringify({ name: newGroupName }),
-              });
-              if (!res.ok) throw new Error('Failed to create group');
+              await window.TijoriAPI.AuthAPI.createGroup(newGroupName, newGroupMembers);
             } catch(e) { alert(e.message || 'Group creation failed'); return; }
             setCreateGroupOpen(false);
             setNewGroupName('');
+            setNewGroupMembers([]);
             load();
           }}>Create Group</Btn>
+        </div>
+      </TjModal>
+
+      {/* Add/Manage Members Modal */}
+      <TjModal open={!!addMembersGroup} onClose={() => setAddMembersGroup(null)} title={`Members — ${addMembersGroup?.name || ''}`} width={480}>
+        <div style={{ fontSize: 12, color: '#64748B', marginBottom: 10, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          Toggle active users to add or remove them from this group.
+        </div>
+        <div style={{ maxHeight: 320, overflowY: 'auto', border: '1.5px solid #E2E8F0', borderRadius: 10, background: '#FAFAF8' }}>
+          {users.filter(u => u.is_active).map(u => {
+            const selected = addMembersSelected.includes(u.id);
+            return (
+              <div key={u.id} onClick={() => setAddMembersSelected(prev => selected ? prev.filter(id => id !== u.id) : [...prev, u.id])}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid #F1F0EE', background: selected ? '#FFF8F5' : 'transparent', transition: 'background 150ms' }}>
+                <div style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${selected ? '#E8783B' : '#CBD5E1'}`, background: selected ? '#E8783B' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 150ms' }}>
+                  {selected && <span style={{ color: 'white', fontSize: 11, lineHeight: 1 }}>✓</span>}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#0F172A' }}>{u.first_name} {u.last_name}</div>
+                  <div style={{ fontSize: 11, color: '#94A3B8' }}>{u.username} · G{u.employee_grade} {GRADE_LABELS[u.employee_grade] || ''} · {u.department_name || 'No dept'}</div>
+                </div>
+                {selected && <span style={{ fontSize: 10, fontWeight: 700, color: '#E8783B', background: '#FFF8F5', padding: '2px 6px', borderRadius: 4 }}>MEMBER</span>}
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 8 }}>{addMembersSelected.length} member{addMembersSelected.length !== 1 ? 's' : ''} selected</div>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
+          <Btn variant="secondary" onClick={() => setAddMembersGroup(null)}>Cancel</Btn>
+          <Btn variant="primary" disabled={addMembersLoading} onClick={async () => {
+            if (!addMembersGroup) return;
+            setAddMembersLoading(true);
+            try {
+              // For each active user, update their groups to include/exclude this group
+              await Promise.all(users.filter(u => u.is_active).map(u => {
+                const shouldBeMember = addMembersSelected.includes(u.id);
+                const currentGroupIds = u.groups || [];
+                const hasGroup = currentGroupIds.includes(addMembersGroup.id);
+                if (shouldBeMember && !hasGroup) {
+                  return window.TijoriAPI.AuthAPI.updateUser(u.id, { groups: [...currentGroupIds, addMembersGroup.id] });
+                } else if (!shouldBeMember && hasGroup) {
+                  return window.TijoriAPI.AuthAPI.updateUser(u.id, { groups: currentGroupIds.filter(id => id !== addMembersGroup.id) });
+                }
+                return Promise.resolve();
+              }));
+              setAddMembersGroup(null);
+              load();
+            } catch(e) { alert(e.message || 'Failed to update members'); }
+            finally { setAddMembersLoading(false); }
+          }}>{addMembersLoading ? 'Saving…' : 'Save Members'}</Btn>
+        </div>
+      </TjModal>
+
+      {/* Edit Group Modal */}
+      <TjModal open={editGroupOpen} onClose={() => setEditGroupOpen(false)} title="Edit Group">
+        <TjInput label="Group Name" value={editGroupName} onChange={e => setEditGroupName(e.target.value)} />
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 10 }}>
+          <Btn variant="secondary" onClick={() => setEditGroupOpen(false)}>Cancel</Btn>
+          <Btn variant="primary" onClick={async () => {
+            if (!editGroup || !editGroupName) return;
+            try {
+              await window.TijoriAPI.AuthAPI.updateGroup(editGroup.id, { name: editGroupName });
+            } catch(e) { alert(e.message || 'Update failed'); return; }
+            setEditGroupOpen(false);
+            load();
+          }}>Save Changes</Btn>
         </div>
       </TjModal>
 
@@ -654,7 +786,7 @@ const IAMScreen = ({ onNavigate }) => {
         groups={groups}
         open={!!selectedUser}
         onClose={() => setSelectedUser(null)}
-        onUpdated={() => { load(); setSelectedUser(null); }}
+        onUpdated={(id) => { load(id); }}
       />
     </div>
   );
