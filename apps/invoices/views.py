@@ -27,6 +27,13 @@ class ExpenseSubmitView(APIView):
 
     def post(self, request):
         data = request.data.copy()
+        if (data.get("vendor_name") or "").strip().lower() == "internal expense":
+            return Response(
+                {
+                    "error": "Use /api/v1/invoices/finance/expenses/ for internal employee expenses."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         if not data.get("vendor"):
             vendor_name = data.get("vendor_name") or "Internal Expense"
             vendor, _ = Vendor.objects.get_or_create(

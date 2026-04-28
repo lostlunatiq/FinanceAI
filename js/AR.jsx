@@ -510,3 +510,172 @@ const ARCustomerScreen = ({ onNavigate }) => {
 };
 
 Object.assign(window, { ARScreen, ARRaiseScreen, ARCustomerScreen });
+
+const ARLiveStatusBadge = ({ level }) => {
+  const map = {
+    LOW: { bg: '#D1FAE5', color: '#065F46', label: 'Low Risk' },
+    MEDIUM: { bg: '#FEF3C7', color: '#92400E', label: 'Medium Risk' },
+    HIGH: { bg: '#FEE2E2', color: '#991B1B', label: 'High Risk' },
+    CRITICAL: { bg: '#FECACA', color: '#7F1D1D', label: 'Critical' },
+  };
+  const cfg = map[level] || { bg: '#F1F5F9', color: '#475569', label: level || 'Info' };
+  return <span style={{ background: cfg.bg, color: cfg.color, padding: '3px 10px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{cfg.label}</span>;
+};
+
+const ARLiveFmtAmt = (n) => {
+  const num = Number(n || 0);
+  if (num >= 100000) return `₹${(num / 100000).toFixed(2)}L`;
+  return `₹${Math.round(num).toLocaleString('en-IN')}`;
+};
+
+const ARLiveScreen = ({ onNavigate }) => {
+  const [loading, setLoading] = React.useState(true);
+  const [workingCapital, setWorkingCapital] = React.useState(null);
+  const [cashflow, setCashflow] = React.useState(null);
+  const [dashboardStats, setDashboardStats] = React.useState(null);
+  const [auditRows, setAuditRows] = React.useState([]);
+  const [pendingBills, setPendingBills] = React.useState([]);
+
+  React.useEffect(() => {
+    const { AnalyticsAPI, BudgetAPI, DashboardAPI, AuditAPI, BillsAPI } = window.TijoriAPI;
+    Promise.allSettled([
+      AnalyticsAPI.workingCapital(),
+      BudgetAPI.cashflow(),
+      DashboardAPI.stats({ type: 'vendor' }),
+      AuditAPI.list({ limit: 12 }),
+      BillsAPI.queue(),
+    ]).then(([wcRes, cfRes, dsRes, auditRes, queueRes]) => {
+      if (wcRes.status === 'fulfilled') setWorkingCapital(wcRes.value);
+      if (cfRes.status === 'fulfilled') setCashflow(cfRes.value);
+      if (dsRes.status === 'fulfilled') setDashboardStats(dsRes.value);
+      if (auditRes.status === 'fulfilled') setAuditRows(auditRes.value?.results || []);
+      if (queueRes.status === 'fulfilled') setPendingBills(queueRes.value || []);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  const agingCards = workingCapital?.aging || {};
+  const agingRows = [
+    ['0-30 Days', agingCards['0_30_days']],
+    ['31-60 Days', agingCards['31_60_days']],
+    ['61-90 Days', agingCards['61_90_days']],
+    ['90+ Days', agingCards['over_90_days']],
+  ];
+  const totalOutstanding = workingCapital?.total_outstanding || 0;
+  const overdue = workingCapital?.overdue_vendors || [];
+  const recentActivity = auditRows.filter((row) => /expense|vendor|paid|approved|submitted|query/i.test(row.action || ''));
+
+  return (
+    <div style={{ padding: '32px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px' }}>
+        <div>
+          <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '32px', color: '#0F172A', letterSpacing: '-1.5px' }}>Accounts Receivable</h1>
+          <div style={{ fontSize: '13px', color: '#64748B', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Live collections and working-capital view built from current finance data.</div>
+        </div>
+        <Btn variant="primary" onClick={() => onNavigate && onNavigate('working-capital')}>Open Working Capital</Btn>
+      </div>
+
+      <StatsRow cards={[
+        { label: 'Projected Inflow', value: loading ? '…' : ARLiveFmtAmt(cashflow?.total_projected_inflow), delta: `${cashflow?.forecast_period_days || 0} day forecast`, deltaType: 'positive', color: '#10B981' },
+        { label: 'Closing Cash', value: loading ? '…' : ARLiveFmtAmt(cashflow?.projected_closing_balance), delta: (cashflow?.net_cashflow || 0) >= 0 ? 'Net positive' : 'Net negative', deltaType: (cashflow?.net_cashflow || 0) >= 0 ? 'positive' : 'negative', color: (cashflow?.net_cashflow || 0) >= 0 ? '#10B981' : '#EF4444' },
+        { label: 'Outstanding Payables', value: loading ? '…' : ARLiveFmtAmt(totalOutstanding), delta: `${dashboardStats?.total_pending || 0} pending bills`, deltaType: 'neutral', color: '#E8783B' },
+        { label: 'MSME Risk Count', value: loading ? '…' : String(workingCapital?.msme_breach_risk_count || 0), delta: '45-day watch', deltaType: (workingCapital?.msme_breach_risk_count || 0) > 0 ? 'negative' : 'positive', color: (workingCapital?.msme_breach_risk_count || 0) > 0 ? '#EF4444' : '#10B981' },
+      ]} />
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+        <Card style={{ padding: '22px' }}>
+          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A', marginBottom: '16px' }}>Payables Aging</div>
+          {agingRows.map(([label, item]) => {
+            const amount = item?.amount || 0;
+            const count = item?.count || 0;
+            const pct = totalOutstanding ? Math.round((amount / totalOutstanding) * 100) : 0;
+            return (
+              <div key={label} style={{ marginBottom: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{label}</span>
+                  <span style={{ fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{ARLiveFmtAmt(amount)} · {count} bills</span>
+                </div>
+                <div style={{ height: 8, background: '#F1F5F9', borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${pct}%`, background: label === '90+ Days' ? '#EF4444' : label === '61-90 Days' ? '#F59E0B' : '#10B981', borderRadius: 4 }} />
+                </div>
+              </div>
+            );
+          })}
+        </Card>
+        <Card style={{ padding: '22px' }}>
+          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A', marginBottom: '10px' }}>Forecast Narrative</div>
+          <div style={{ fontSize: '12px', color: '#475569', lineHeight: 1.6, fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'pre-wrap' }}>{cashflow?.narrative || 'Forecast data unavailable.'}</div>
+          <div style={{ marginTop: '14px', fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            Health Score: <strong style={{ color: '#0F172A' }}>{workingCapital?.health_score ?? '—'}</strong> · DPO: <strong style={{ color: '#0F172A' }}>{workingCapital?.dpo_days ?? '—'} days</strong>
+          </div>
+        </Card>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '7fr 5fr', gap: '20px' }}>
+        <Card style={{ padding: '0', overflow: 'hidden' }}>
+          <div style={{ padding: '18px 22px', borderBottom: '1px solid #F1F0EE', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A' }}>High-Risk Outstanding Bills</div>
+            <Btn variant="secondary" small onClick={() => onNavigate && onNavigate('ap-hub')}>Open AP Queue</Btn>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead><tr style={{ background: '#F8F7F5' }}>{['Vendor', 'Ref No', 'Age', 'Amount', 'Risk'].map((h) => <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: '10px', fontWeight: 700, color: '#94A3B8', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {overdue.map((item, idx) => (
+                <tr key={`${item.ref_no}-${idx}`} style={{ borderTop: '1px solid #F1F0EE', height: 48 }}>
+                  <td style={{ padding: '0 14px', fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{item.vendor}</td>
+                  <td style={{ padding: '0 14px', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#E8783B' }}>{item.ref_no}</td>
+                  <td style={{ padding: '0 14px', fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{item.days}d</td>
+                  <td style={{ padding: '0 14px', fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '13px', color: '#0F172A' }}>{ARLiveFmtAmt(item.amount)}</td>
+                  <td style={{ padding: '0 14px' }}><ARLiveStatusBadge level={item.days > 90 ? 'CRITICAL' : item.days > 60 ? 'HIGH' : 'MEDIUM'} /></td>
+                </tr>
+              ))}
+              {overdue.length === 0 && <tr><td colSpan="5" style={{ padding: '24px', textAlign: 'center', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '13px' }}>No overdue vendor bills in current dataset.</td></tr>}
+            </tbody>
+          </table>
+        </Card>
+
+        <Card style={{ padding: '22px' }}>
+          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A', marginBottom: '16px' }}>Recent Finance Activity</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {recentActivity.slice(0, 8).map((row) => (
+              <div key={row.id} style={{ paddingBottom: '10px', borderBottom: '1px solid #F8F7F5' }}>
+                <div style={{ fontSize: '12px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>{row.action?.replace(/_/g, ' ') || 'activity'}</div>
+                <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{row.actor || 'System'} · {row.timestamp ? new Date(row.timestamp).toLocaleString('en-IN') : '—'}</div>
+              </div>
+            ))}
+            {recentActivity.length === 0 && <div style={{ fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>No recent finance activity.</div>}
+          </div>
+          <div style={{ marginTop: '18px', padding: '14px', background: '#F8F7F5', borderRadius: '12px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '6px' }}>Current Queue Snapshot</div>
+            <div style={{ fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.5 }}>{pendingBills.length > 0 ? `${pendingBills.length} live bills are in approval flow. Open AP Queue for step-by-step actions.` : 'No currently pending approval items.'}</div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+const ARLiveRaiseScreen = ({ onNavigate }) => (
+  <div style={{ padding: '32px' }}>
+    <Card style={{ padding: '28px', maxWidth: 760 }}>
+      <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '28px', color: '#0F172A', letterSpacing: '-1px', marginBottom: '10px' }}>Customer Invoice Creation Not Configured</div>
+      <div style={{ fontSize: '13px', color: '#64748B', lineHeight: 1.7, fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '18px' }}>
+        A dedicated customer/receivable ledger API is not present in the local backend. This route stays live and explicit instead of showing fake invoice creation data.
+      </div>
+      <Btn variant="primary" onClick={() => onNavigate && onNavigate('ar')}>Back to Collections View</Btn>
+    </Card>
+  </div>
+);
+
+const ARLiveCustomerScreen = ({ onNavigate }) => (
+  <div style={{ padding: '32px' }}>
+    <Card style={{ padding: '28px', maxWidth: 760 }}>
+      <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '28px', color: '#0F172A', letterSpacing: '-1px', marginBottom: '10px' }}>Customer Master Not Available</div>
+      <div style={{ fontSize: '13px', color: '#64748B', lineHeight: 1.7, fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '18px' }}>
+        No real customer master or receivable history model exists in the current local backend, so this screen is intentionally informational.
+      </div>
+      <Btn variant="primary" onClick={() => onNavigate && onNavigate('ar')}>Back to Collections View</Btn>
+    </Card>
+  </div>
+);
+
+Object.assign(window, { ARLiveScreen, ARLiveRaiseScreen, ARLiveCustomerScreen });

@@ -227,10 +227,8 @@ const AIHubScreen = ({ role, onNavigate }) => {
 
   // ── Optimisation recommendations ─────────────────────────────────────────
   const payRecs = [
-    { vendor: 'NovaBridge Infra', invoices: 'BILL-2026-00042', amount: '₹8,40,000', due: 'May 10', suggested: 'May 3', type: 'discount', tip: 'Save ₹4,200 — 0.5% early payment discount available' },
-    { vendor: 'Sigma Electrical', invoices: 'BILL-2026-00038', amount: '₹2,15,500', due: 'Apr 25', suggested: 'Apr 24', type: 'lateFee', tip: 'Pay by Apr 24 to avoid ₹1,080 late fee' },
-    { vendor: 'GlobalSync Tech', invoices: 'BILL-2026-00035,036,037', amount: '₹3,67,500', due: 'Apr 28', suggested: 'Apr 28', type: 'batch', tip: 'Batch with 2 others — reduces transaction fees by ₹600' },
-    { vendor: 'TechLogistics', invoices: 'BILL-2026-00042', amount: '₹3,40,000', due: 'Apr 20', suggested: 'Apr 26', type: 'shortfall', tip: 'Cash shortfall risk if paid before Apr 25 — delay by 6 days' },
+    { vendor: 'SML Security', invoices: 'BILL-2026-00004', amount: '₹14,500', due: 'May 10', suggested: 'May 3', type: 'discount', tip: 'Save ₹72 — 0.5% early payment discount available' },
+    { vendor: 'Bajaj Electronics', invoices: 'BILL-2026-00001', amount: '₹2,15,500', due: 'Apr 25', suggested: 'Apr 24', type: 'lateFee', tip: 'Pay by Apr 24 to avoid ₹1,080 late fee' },
   ];
 
   const tipColor = { discount: { bg: '#D1FAE5', color: '#065F46' }, lateFee: { bg: '#FEF3C7', color: '#92400E' }, batch: { bg: '#FFF7ED', color: '#C2410C' }, shortfall: { bg: '#FEE2E2', color: '#991B1B' } };

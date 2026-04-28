@@ -41,6 +41,20 @@ const APClerkDashboard = ({ role, onNavigate, user }) => {
   };
 
   const pending = items.filter(i => i.status === 'PENDING_L1');
+  const processedCount = items.filter(i => ['APPROVED', 'REJECTED'].includes(i.status)).length;
+  const avgAgeDays = pending.length
+    ? (pending.reduce((sum, item) => sum + (parseInt(item.age, 10) || 0), 0) / pending.length).toFixed(1) + 'd'
+    : '0d';
+  const queueValue = pending.reduce((sum, item) => {
+    const raw = Number(String(item.amount).replace(/[^\d.]/g, '')) || 0;
+    return sum + raw;
+  }, 0);
+  const highPriority = pending.filter(i => i.priority === 'high');
+  const insightText = highPriority.length > 0
+    ? `${highPriority.length} invoice(s) carry HIGH anomaly priority. Review ${highPriority[0].refNo || highPriority[0].id} first.`
+    : pending.length > 0
+      ? `${pending.length} invoice(s) are waiting in your queue. Oldest pending item is ${pending[0].age}.`
+      : 'Queue is clear. No pending AP clerk actions right now.';
   const priorityColor = { high: '#EF4444', medium: '#F59E0B', low: '#10B981' };
 
   return (
@@ -54,9 +68,9 @@ const APClerkDashboard = ({ role, onNavigate, user }) => {
       <div style={{ display: 'flex', gap: '16px', marginBottom: '28px', animation: 'fadeUp 250ms 60ms ease both', opacity: 0, animationFillMode: 'forwards' }}>
         {[
           { label: 'Awaiting My Review', value: String(pending.length), color: '#E8783B', delta: 'Act today', deltaType: 'neutral', pulse: true },
-          { label: 'Processed This Week', value: '12', color: '#10B981', delta: '↑ 4 vs last', deltaType: 'positive' },
-          { label: 'Avg. Processing Time', value: '1.4d', delta: 'Within SLA', deltaType: 'positive' },
-          { label: 'Total Value in Queue', value: '₹4.75L', delta: 'Pending L1', deltaType: 'neutral' },
+          { label: 'Processed Visible Queue', value: String(processedCount), color: '#10B981', delta: 'Approved or rejected', deltaType: 'positive' },
+          { label: 'Avg. Pending Age', value: avgAgeDays, delta: pending.length ? 'Based on current queue' : 'No pending invoices', deltaType: pending.length ? 'neutral' : 'positive' },
+          { label: 'Total Value in Queue', value: queueValue >= 100000 ? '₹' + (queueValue / 100000).toFixed(2) + 'L' : '₹' + queueValue.toLocaleString('en-IN'), delta: 'Pending L1', deltaType: 'neutral' },
         ].map((c, i) => <KPICard key={i} {...c} />)}
       </div>
 
@@ -104,7 +118,7 @@ const APClerkDashboard = ({ role, onNavigate, user }) => {
               <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '15px' }}>AI Copilot Insights</div>
             </div>
             <div style={{ fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.5 }}>
-              I've analyzed the current queue. <span style={{ color: '#E8783B', fontWeight: 600 }}>2 invoices</span> show high variance from historical patterns. I recommend reviewing <span style={{ color: 'white' }}>TS-INV-056</span> first as it's nearing MSME SLA limit.
+              {insightText}
             </div>
           </Card>
           <Card style={{ padding: '20px' }}>
@@ -163,13 +177,22 @@ const FinanceManagerDashboard = ({ role, onNavigate, user }) => {
   const [queueItems, setQueueItems] = React.useState([]);
   const [statsData, setStatsData] = React.useState(null);
   const [queueLoading, setQueueLoading] = React.useState(true);
+  const [budgetHealth, setBudgetHealth] = React.useState([]);
+  const [teamExpenses, setTeamExpenses] = React.useState([]);
 
   React.useEffect(() => {
-    const { BillsAPI, DashboardAPI } = window.TijoriAPI;
-    Promise.allSettled([BillsAPI.queue(), DashboardAPI.stats()])
-      .then(([qRes, sRes]) => {
+    const { BillsAPI, DashboardAPI, AnalyticsAPI } = window.TijoriAPI;
+    Promise.allSettled([
+      BillsAPI.queue(), 
+      DashboardAPI.stats(),
+      AnalyticsAPI.budgetHealth(),
+      BillsAPI.listExpenses({ limit: 3 })
+    ])
+      .then(([qRes, sRes, bRes, eRes]) => {
         if (qRes.status === 'fulfilled') setQueueItems(qRes.value || []);
         if (sRes.status === 'fulfilled') setStatsData(sRes.value);
+        if (bRes.status === 'fulfilled') setBudgetHealth(bRes.value.budgets || []);
+        if (eRes.status === 'fulfilled') setTeamExpenses(Array.isArray(eRes.value) ? eRes.value.slice(0, 3) : (eRes.value.results || []).slice(0, 3));
       })
       .finally(() => setQueueLoading(false));
   }, []);
@@ -189,11 +212,15 @@ const FinanceManagerDashboard = ({ role, onNavigate, user }) => {
     { stage: 'Pending Finance Mgr', count: Math.max(1, Math.floor(pendingCount * 0.2)), amount: fmtAmt(totalValue * 0.3), color: '#EF4444' },
     { stage: 'Pending CFO', count: Math.max(1, Math.floor(pendingCount * 0.1)), amount: fmtAmt(totalValue * 0.15), color: '#8B5CF6' },
   ];
-  const teamBudgets = [
-    { name: 'Engineering', manager: 'Dev Kapoor', util: 100, spent: '$2.4M', total: '$2.4M', color: '#EF4444' },
-    { name: 'Marketing', manager: 'Sunita Rao', util: 85, spent: '$1.1M', total: '$1.3M', color: '#F59E0B' },
-    { name: 'Operations', manager: 'Rahul Desai', util: 43, spent: '$0.65M', total: '$1.5M', color: '#10B981' },
-  ];
+  
+  const teamBudgets = budgetHealth.length > 0 ? budgetHealth.map(b => ({
+    name: b.name,
+    manager: b.department || 'General',
+    util: Math.min(100, Math.round(b.utilization_pct || 0)),
+    spent: fmtAmt(b.spent_amount),
+    total: fmtAmt(b.total_amount),
+    color: b.alert_level === 'CRITICAL' ? '#EF4444' : b.alert_level === 'WARNING' ? '#F59E0B' : '#10B981'
+  })) : [];
 
   return (
     <div style={{ padding: '32px' }}>
@@ -207,7 +234,7 @@ const FinanceManagerDashboard = ({ role, onNavigate, user }) => {
         { label: 'Awaiting My Approval', value: queueLoading ? '…' : String(pendingCount), delta: pendingCount > 0 ? '↑ Urgent' : 'Queue clear', deltaType: pendingCount > 0 ? 'negative' : 'positive', pulse: pendingCount > 0, color: pendingCount > 0 ? '#EF4444' : '#10B981' },
         { label: 'Total Pipeline Value', value: queueLoading ? '…' : fmtAmt(totalValue), delta: 'Across all stages', deltaType: 'neutral' },
         { label: 'Avg Approval Time', value: '0.8d', delta: '↓ 20% vs target', deltaType: 'positive', color: '#10B981' },
-        { label: 'Budget Alerts', value: '1', delta: 'Engineering 100%', deltaType: 'negative', pulse: true },
+        { label: 'Budget Alerts', value: String(budgetHealth.filter(b => b.alert_level === 'CRITICAL').length), delta: 'Require attention', deltaType: 'negative', pulse: true },
       ]} />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
@@ -230,16 +257,18 @@ const FinanceManagerDashboard = ({ role, onNavigate, user }) => {
               </div>
             </div>
           ))}
-          <div style={{ marginTop: '16px', padding: '14px', background: '#FEF3C7', borderRadius: '12px', border: '1px solid #FDE68A' }}>
-            <div style={{ fontSize: '12px', fontWeight: 700, color: '#92400E', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '4px' }}>⚡ Action Required</div>
-            <div style={{ fontSize: '12px', color: '#78350F', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>INV-2024-091 (NovaBridge · ₹8,40,000) is pending your Finance Manager approval.</div>
-            <div style={{ marginTop: '10px' }}><Btn variant="primary" small onClick={() => onNavigate && onNavigate('ap-match', { invoice: { id: 'INV-2024-091' } })}>Review Now →</Btn></div>
-          </div>
+          {queueItems.length > 0 && (
+            <div style={{ marginTop: '16px', padding: '14px', background: '#FEF3C7', borderRadius: '12px', border: '1px solid #FDE68A' }}>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#92400E', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '4px' }}>⚡ Action Required</div>
+              <div style={{ fontSize: '12px', color: '#78350F', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{queueItems[0].ref_no || queueItems[0].id} ({queueItems[0].vendor_name || queueItems[0].vendor?.name || 'Vendor'} · {fmtAmt(queueItems[0].total_amount)}) is pending your approval.</div>
+              <div style={{ marginTop: '10px' }}><Btn variant="primary" small onClick={() => onNavigate && onNavigate('ap-match', { invoice: queueItems[0] })}>Review Now →</Btn></div>
+            </div>
+          )}
         </Card>
 
         <Card style={{ padding: '22px' }}>
           <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A', marginBottom: '18px' }}>Team Budget Health</div>
-          {teamBudgets.map((t, i) => (
+          {teamBudgets.length === 0 ? <div style={{ fontSize: '13px', color: '#94A3B8' }}>No budgets active</div> : teamBudgets.map((t, i) => (
             <div key={i} style={{ marginBottom: '16px', cursor: 'pointer' }} onClick={() => setExpandedTeam(expandedTeam === i ? null : i)}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                 <div>
@@ -269,24 +298,20 @@ const FinanceManagerDashboard = ({ role, onNavigate, user }) => {
       <Card style={{ padding: '22px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A' }}>Team Expense Submissions</div>
-          <Btn variant="secondary" small>View All</Btn>
+          <Btn variant="secondary" small onClick={() => onNavigate && onNavigate('ap-hub')}>View All</Btn>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
-          {[
-            { name: 'Aisha Nair', exp: 'EXP-441', amt: '₹4,200', cat: 'Travel', status: 'PENDING_L1' },
-            { name: 'Rahul Desai', exp: 'EXP-440', amt: '₹12,500', cat: 'Software', status: 'APPROVED' },
-            { name: 'Dev Kapoor', exp: 'EXP-438', amt: '₹6,400', cat: 'Equipment', status: 'REJECTED' },
-          ].map((e, i) => (
+          {teamExpenses.length === 0 ? <div style={{ fontSize: '13px', color: '#94A3B8' }}>No recent team expenses</div> : teamExpenses.map((e, i) => (
             <div key={i} style={{ flex: 1, background: '#F8F7F5', borderRadius: '12px', padding: '14px 16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                <div style={{ width: 32, height: 32, borderRadius: '8px', background: 'linear-gradient(135deg, #E8783B, #FF6B35)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '12px', color: 'white' }}>{e.name[0]}</div>
-                <StatusBadge status={e.status} />
+                <div style={{ width: 32, height: 32, borderRadius: '8px', background: 'linear-gradient(135deg, #E8783B, #FF6B35)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '12px', color: 'white' }}>{(e.vendor_name || 'U')[0]}</div>
+                <StatusBadge status={e.status || e._status} />
               </div>
-              <div style={{ fontWeight: 700, fontSize: '13px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{e.name}</div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#94A3B8', marginTop: '2px' }}>{e.exp}</div>
+              <div style={{ fontWeight: 700, fontSize: '13px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{e.vendor_name || e.vendor?.name}</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#94A3B8', marginTop: '2px' }}>{e.ref_no || e.id}</div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
-                <span style={{ background: '#F1F5F9', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>{e.cat}</span>
-                <span style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '16px', color: '#E8783B', letterSpacing: '-0.5px' }}>{e.amt}</span>
+                <span style={{ background: '#F1F5F9', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>{e.business_purpose?.slice(0, 15) || 'General'}</span>
+                <span style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '16px', color: '#E8783B', letterSpacing: '-0.5px' }}>{fmtAmt(e.total_amount)}</span>
               </div>
             </div>
           ))}
@@ -319,7 +344,7 @@ const FinanceAdminDashboard = ({ role, onNavigate, user }) => {
     Promise.allSettled([
       BillsAPI.listExpenses({ status: 'APPROVED', limit: 20 }),
       DashboardAPI.stats(),
-      VendorAPI.listVendors(),
+      VendorAPI.listAll(),
     ]).then(([qRes, sRes, vRes]) => {
       if (qRes.status === 'fulfilled') {
         const bills = qRes.value?.results || qRes.value || [];
@@ -471,7 +496,7 @@ const FinanceAdminDashboard = ({ role, onNavigate, user }) => {
 
 const EmployeeDashboard = ({ role, onNavigate, user }) => {
   const [fileOpen, setFileOpen] = React.useState(false);
-  const [expCategory, setExpCategory] = React.useState('Travel');
+  const [expCategory, setExpCategory] = React.useState('');
   const [expAmount, setExpAmount] = React.useState('');
   const [expDate, setExpDate] = React.useState('');
   const [expDesc, setExpDesc] = React.useState('');
@@ -480,35 +505,38 @@ const EmployeeDashboard = ({ role, onNavigate, user }) => {
   const [submitting, setSubmitting] = React.useState(false);
   const [submitMsg, setSubmitMsg] = React.useState(null);
   const [myExpenses, setMyExpenses] = React.useState([]);
+  const [budgetHealth, setBudgetHealth] = React.useState([]);
   const [expLoading, setExpLoading] = React.useState(true);
 
   React.useEffect(() => {
-    window.TijoriAPI.BillsAPI.listExpenses({ my: true, limit: 10 })
-      .then(data => {
-        const items = (data?.results || data || []).slice(0, 10).map(e => {
-          const amt = parseFloat(e.amount || e.total_amount || 0);
-          return {
-            id: e.ref_no || e.id?.slice(0, 12).toUpperCase(),
-            amount: '₹' + amt.toLocaleString('en-IN'),
-            date: e.date ? new Date(e.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—',
-            category: e.category || e.expense_type || 'Other',
-            status: e.status || 'PENDING_L1',
-            aiCat: !!e.ai_category,
-            conf: e.ai_confidence ? Math.round(e.ai_confidence * 100) : null,
-            rawAmt: amt,
-          };
-        });
-        setMyExpenses(items);
+    Promise.allSettled([
+      window.TijoriAPI.BillsAPI.listExpenses({ my: true, limit: 10 }),
+      window.TijoriAPI.AnalyticsAPI.budgetHealth()
+    ])
+      .then(([expRes, bRes]) => {
+        if (expRes.status === 'fulfilled') {
+          const data = expRes.value;
+          const items = (data?.results || data || []).slice(0, 10).map(e => {
+            const amt = parseFloat(e.amount || e.total_amount || 0);
+            return {
+              id: e.ref_no || e.id?.slice(0, 12).toUpperCase(),
+              amount: '₹' + amt.toLocaleString('en-IN'),
+              date: (e.submitted_at || e.created_at || e.date || e.invoice_date) ? new Date(e.submitted_at || e.created_at || e.date || e.invoice_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—',
+              category: e.expense_category || e.category || e.business_purpose || e.expense_type || 'Other',
+              status: e.status || e._status || 'PENDING_L1',
+              aiCat: false,
+              conf: null,
+              rawAmt: amt,
+            };
+          });
+          setMyExpenses(items);
+        }
+        if (bRes.status === 'fulfilled') {
+          setBudgetHealth(bRes.value.budgets || []);
+          if (bRes.value.budgets?.length > 0) setExpCategory(bRes.value.budgets[0].name);
+        }
       })
-      .catch(() => {
-        // fallback demo data
-        setMyExpenses([
-          { id: 'EXP-2024-441', amount: '₹4,200', date: '19 Apr', category: 'Travel', status: 'PENDING_L1', aiCat: true, conf: 91, rawAmt: 4200 },
-          { id: 'EXP-2024-428', amount: '₹2,800', date: '12 Apr', category: 'Office Supplies', status: 'APPROVED', aiCat: false, conf: null, rawAmt: 2800 },
-          { id: 'EXP-2024-415', amount: '₹6,500', date: '5 Apr', category: 'Travel', status: 'PAID', aiCat: false, conf: null, rawAmt: 6500 },
-          { id: 'EXP-2024-402', amount: '₹1,200', date: '28 Mar', category: 'Meals', status: 'PAID', aiCat: false, conf: null, rawAmt: 1200 },
-        ]);
-      })
+      .catch(() => {})
       .finally(() => setExpLoading(false));
   }, []);
 
@@ -516,9 +544,15 @@ const EmployeeDashboard = ({ role, onNavigate, user }) => {
   const approvedAmt = myExpenses.filter(e => e.status === 'APPROVED').reduce((s, e) => s + e.rawAmt, 0);
   const paidAmt = myExpenses.filter(e => ['PAID', 'POSTED_D365', 'BOOKED_D365'].includes(e.status)).reduce((s, e) => s + e.rawAmt, 0);
 
-  const EXP_CATS = ['Travel', 'Software & Licences', 'Office Supplies', 'Marketing & Events', 'Professional Services', 'Meals', 'Other'];
-  const budgetMap = { 'Travel': { rem: 180000, total: 300000 }, 'Software & Licences': { rem: 420000, total: 600000 }, 'Office Supplies': { rem: 85000, total: 100000 } };
-  const budgetInfo = budgetMap[expCategory];
+  const budgetHealthMap = budgetHealth.reduce((acc, b) => {
+    acc[b.name] = { rem: b.remaining_amount, total: b.total_amount };
+    return acc;
+  }, {});
+
+  const EXP_CATS = budgetHealth.length > 0 ? budgetHealth.map(b => b.name) : ['General Operations', 'Travel', 'Software & Licences', 'Office Supplies', 'Marketing & Events', 'Professional Services'];
+  if (!expCategory && EXP_CATS.length > 0) setExpCategory(EXP_CATS[0]);
+  
+  const budgetInfo = budgetHealthMap[expCategory] || null;
   const budgetPct = budgetInfo ? Math.round((budgetInfo.rem / budgetInfo.total) * 100) : null;
   const budgetColor = budgetPct === null ? '#94A3B8' : budgetPct > 50 ? '#10B981' : budgetPct > 20 ? '#F59E0B' : '#EF4444';
 
@@ -540,7 +574,7 @@ const EmployeeDashboard = ({ role, onNavigate, user }) => {
           { label: 'Pending Reimbursement', value: expLoading ? '…' : '₹' + pendingAmt.toLocaleString('en-IN'), delta: `${myExpenses.filter(e => ['PENDING_L1','SUBMITTED'].includes(e.status)).length} claim(s)`, deltaType: 'neutral', color: '#F59E0B', pulse: pendingAmt > 0 },
           { label: 'Approved This Month', value: expLoading ? '…' : '₹' + approvedAmt.toLocaleString('en-IN'), delta: approvedAmt > 0 ? '↑ On track' : 'None yet', deltaType: approvedAmt > 0 ? 'positive' : 'neutral', color: '#10B981' },
           { label: 'Total Paid Out', value: expLoading ? '…' : '₹' + paidAmt.toLocaleString('en-IN'), delta: 'This period', deltaType: 'positive', color: '#10B981' },
-          { label: 'Avg. Processing Time', value: '1.8d', delta: 'From submit', deltaType: 'positive' },
+          { label: 'Open Claims', value: String(myExpenses.filter(e => !['PAID','REJECTED'].includes(e.status)).length), delta: 'Live from your submissions', deltaType: 'neutral' },
         ].map((c, i) => <KPICard key={i} {...c} />)}
       </div>
 
@@ -615,7 +649,7 @@ const EmployeeDashboard = ({ role, onNavigate, user }) => {
       </div>
 
       {/* File Expense Panel */}
-      <SidePanel open={fileOpen} onClose={() => setFileOpen(false)} title="File Expense / Bill">
+      <SidePanel open={fileOpen} onClose={() => setFileOpen(false)} title="File Internal Expense">
         <div style={{ border: `1.5px dashed ${uploadDone ? '#10B981' : '#E2E8F0'}`, borderRadius: '12px', padding: '24px', textAlign: 'center', marginBottom: '20px', background: uploadDone ? '#F0FDF4' : '#FAFAF8', cursor: 'pointer', transition: 'all 200ms' }}
           onMouseEnter={e => { if (!uploadDone) e.currentTarget.style.borderColor = '#E8783B'; }}
           onMouseLeave={e => { if (!uploadDone) e.currentTarget.style.borderColor = '#E2E8F0'; }}
@@ -674,11 +708,10 @@ const EmployeeDashboard = ({ role, onNavigate, user }) => {
             setSubmitting(true);
             try {
               await window.TijoriAPI.BillsAPI.submitExpense({
-                category: expCategory,
+                expense_category: expCategory,
                 amount: parseFloat(expAmount),
-                date: expDate || new Date().toISOString().slice(0, 10),
+                invoice_date: expDate || new Date().toISOString().slice(0, 10),
                 description: expDesc || expCategory + ' expense',
-                expense_type: expCategory,
               });
               setSubmitMsg({ type: 'success', text: 'Expense submitted for approval!' });
               setExpAmount(''); setExpDate(''); setExpDesc(''); setUploadDone(false); setAiAccepted(false);
@@ -686,7 +719,16 @@ const EmployeeDashboard = ({ role, onNavigate, user }) => {
               window.TijoriAPI.BillsAPI.listExpenses({ my: true, limit: 10 }).then(data => {
                 const items = (data?.results || data || []).slice(0, 10).map(e => {
                   const amt = parseFloat(e.amount || e.total_amount || 0);
-                  return { id: e.ref_no || e.id?.slice(0, 12).toUpperCase(), amount: '₹' + amt.toLocaleString('en-IN'), date: e.date ? new Date(e.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—', category: e.category || e.expense_type || 'Other', status: e.status || 'PENDING_L1', aiCat: !!e.ai_category, conf: e.ai_confidence ? Math.round(e.ai_confidence * 100) : null, rawAmt: amt };
+                  return {
+                    id: e.ref_no || e.id?.slice(0, 12).toUpperCase(),
+                    amount: '₹' + amt.toLocaleString('en-IN'),
+                    date: (e.submitted_at || e.created_at || e.date || e.invoice_date) ? new Date(e.submitted_at || e.created_at || e.date || e.invoice_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—',
+                    category: e.expense_category || e.category || e.expense_type || 'Other',
+                    status: e.status || 'PENDING_L1',
+                    aiCat: false,
+                    conf: null,
+                    rawAmt: amt
+                  };
                 });
                 setMyExpenses(items);
               }).catch(() => {});

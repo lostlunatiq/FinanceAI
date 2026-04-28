@@ -190,8 +190,9 @@ const AuthAPI = {
 // ── Dashboard API ─────────────────────────────────────────────────────────────
 
 const DashboardAPI = {
-  async stats() {
-    return apiFetch('/invoices/dashboard/stats/');
+  async stats(params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return apiFetch(`/invoices/dashboard/stats/${qs ? '?' + qs : ''}`);
   },
 };
 
@@ -270,7 +271,10 @@ const BillsAPI = {
   },
 
   async submitExpense(data) {
-    return apiFetch('/invoices/submit/', { method: 'POST', body: JSON.stringify(data) });
+    return apiFetch('/invoices/finance/expenses/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   },
 };
 
