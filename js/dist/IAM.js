@@ -341,16 +341,38 @@ const RBACMatrixView = () => {
 const AuditLogView = () => {
   const [logs, setLogs] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  const [filtersMeta, setFiltersMeta] = React.useState({
+    entity_types: [],
+    actions: []
+  });
   const [filter, setFilter] = React.useState({
+    scope: 'business',
+    state_change_only: 'true',
     action: '',
-    entity_type: ''
+    entity_type: '',
+    actor: '',
+    search: ''
   });
   const load = React.useCallback(() => {
     setLoading(true);
     const params = {};
+    if (filter.scope) params.scope = filter.scope;
+    if (filter.state_change_only) params.state_change_only = filter.state_change_only;
     if (filter.action) params.action = filter.action;
     if (filter.entity_type) params.entity_type = filter.entity_type;
-    window.TijoriAPI.AuditAPI.list(params).then(data => setLogs(Array.isArray(data) ? data : data.results || [])).catch(() => {}).finally(() => setLoading(false));
+    if (filter.actor) params.actor = filter.actor;
+    if (filter.search) params.search = filter.search;
+    window.TijoriAPI.AuditAPI.list(params).then(data => {
+      const payload = Array.isArray(data) ? {
+        results: data,
+        filters: {}
+      } : data || {};
+      setLogs(payload.results || []);
+      setFiltersMeta(payload.filters || {
+        entity_types: [],
+        actions: []
+      });
+    }).catch(() => {}).finally(() => setLoading(false));
   }, [filter]);
   React.useEffect(() => {
     load();
@@ -366,6 +388,32 @@ const AuditLogView = () => {
       marginBottom: 16
     }
   }, /*#__PURE__*/React.createElement("select", {
+    value: filter.scope,
+    onChange: e => setFilter(f => ({
+      ...f,
+      scope: e.target.value
+    })),
+    style: {
+      padding: '9px 12px',
+      border: '1.5px solid #E2E8F0',
+      borderRadius: 10,
+      fontSize: 13,
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      outline: 'none',
+      background: '#FAFAF8',
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "business"
+  }, "Business Trail"), /*#__PURE__*/React.createElement("option", {
+    value: "all"
+  }, "All Visible Events"), /*#__PURE__*/React.createElement("option", {
+    value: "admin"
+  }, "Admin Changes"), /*#__PURE__*/React.createElement("option", {
+    value: "auth"
+  }, "Auth Events"), /*#__PURE__*/React.createElement("option", {
+    value: "system"
+  }, "System Events")), /*#__PURE__*/React.createElement("select", {
     value: filter.entity_type,
     onChange: e => setFilter(f => ({
       ...f,
@@ -383,16 +431,45 @@ const AuditLogView = () => {
     }
   }, /*#__PURE__*/React.createElement("option", {
     value: ""
-  }, "All Entities"), /*#__PURE__*/React.createElement("option", {
-    value: "EXPENSE"
-  }, "Expense"), /*#__PURE__*/React.createElement("option", {
-    value: "VENDOR"
-  }, "Vendor"), /*#__PURE__*/React.createElement("option", {
-    value: "USER"
-  }, "User"), /*#__PURE__*/React.createElement("option", {
-    value: "BUDGET"
-  }, "Budget")), /*#__PURE__*/React.createElement(TjInput, {
-    placeholder: "Filter by action (e.g. LOGIN)",
+  }, "All Entities"), filtersMeta.entity_types.map(type => /*#__PURE__*/React.createElement("option", {
+    key: type,
+    value: type
+  }, type))), /*#__PURE__*/React.createElement(TjInput, {
+    placeholder: "Actor",
+    value: filter.actor,
+    onChange: e => setFilter(f => ({
+      ...f,
+      actor: e.target.value
+    }))
+  }), /*#__PURE__*/React.createElement(TjInput, {
+    placeholder: "Search summary or object",
+    value: filter.search,
+    onChange: e => setFilter(f => ({
+      ...f,
+      search: e.target.value
+    }))
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 10,
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: filter.state_change_only === 'true',
+    onChange: e => setFilter(f => ({
+      ...f,
+      state_change_only: e.target.checked ? 'true' : 'false'
+    }))
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: '#475569',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      alignSelf: 'center'
+    }
+  }, "State changes only"), /*#__PURE__*/React.createElement(TjInput, {
+    placeholder: "Filter by action (e.g. approved)",
     value: filter.action,
     onChange: e => setFilter(f => ({
       ...f,
@@ -418,7 +495,7 @@ const AuditLogView = () => {
     style: {
       background: '#F8F7F5'
     }
-  }, ['Timestamp', 'User', 'Action', 'Entity', 'Details'].map(h => /*#__PURE__*/React.createElement("th", {
+  }, ['Timestamp', 'Actor', 'Action', 'Entity', 'Summary', 'Details'].map(h => /*#__PURE__*/React.createElement("th", {
     key: h,
     style: {
       padding: '12px 14px',
@@ -447,7 +524,7 @@ const AuditLogView = () => {
       padding: '12px 14px',
       fontWeight: 600
     }
-  }, log.user_full_name || 'System'), /*#__PURE__*/React.createElement("td", {
+  }, log.actor || 'System'), /*#__PURE__*/React.createElement("td", {
     style: {
       padding: '12px 14px'
     }
@@ -464,7 +541,16 @@ const AuditLogView = () => {
       padding: '12px 14px',
       color: '#475569'
     }
-  }, log.entity_type), /*#__PURE__*/React.createElement("td", {
+  }, log.entity_display_name || log.entity_type), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '12px 14px',
+      color: '#334155',
+      maxWidth: 260,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap'
+    }
+  }, log.change_summary || '—'), /*#__PURE__*/React.createElement("td", {
     style: {
       padding: '12px 14px',
       color: '#94A3B8',

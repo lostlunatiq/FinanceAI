@@ -9,16 +9,24 @@ logger = logging.getLogger(__name__)
 def log_approval_action(
     self, *, function_name, module, args, kwargs, result, exception, status, duration_ms
 ):
+    """
+    Async helper for logging function-level approval actions.
+    Stores the data in AuditLog.metadata for traceability.
+    """
     try:
-        FunctionCallLog.objects.create(
-            function_name=function_name,
-            module=module,
-            args=args,
-            kwargs=kwargs,
-            result=result,
-            exception=exception,
-            status=status,
-            duration_ms=duration_ms,
+        AuditLog.objects.create(
+            action="system.function_call",
+            entity_type="System",
+            entity_display_name=function_name,
+            metadata={
+                "module": module,
+                "args": str(args)[:500],
+                "kwargs": str(kwargs)[:500],
+                "result": str(result)[:500],
+                "exception": str(exception)[:500],
+                "status": status,
+                "duration_ms": duration_ms,
+            },
         )
     except Exception as exc:
         logger.exception("Failed to write function log")

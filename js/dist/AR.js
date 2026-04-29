@@ -1751,6 +1751,7 @@ const ARLiveScreen = ({
   const [dashboardStats, setDashboardStats] = React.useState(null);
   const [auditRows, setAuditRows] = React.useState([]);
   const [pendingBills, setPendingBills] = React.useState([]);
+  const [showForecastFeedback, setShowForecastFeedback] = React.useState(false);
   React.useEffect(() => {
     const {
       AnalyticsAPI,
@@ -1899,13 +1900,32 @@ const ARLiveScreen = ({
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '10px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
       fontFamily: "'Bricolage Grotesque', sans-serif",
       fontWeight: 700,
       fontSize: '17px',
-      color: '#0F172A',
-      marginBottom: '10px'
+      color: '#0F172A'
     }
-  }, "Forecast Narrative"), /*#__PURE__*/React.createElement("div", {
+  }, "Forecast Narrative"), cashflow?.narrative && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowForecastFeedback(true),
+    style: {
+      fontSize: '11px',
+      padding: '4px 10px',
+      background: '#F8FAFC',
+      border: '1px solid #E2E8F0',
+      borderRadius: '8px',
+      cursor: 'pointer',
+      color: '#64748B',
+      fontWeight: 600,
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "\u21A9 Feedback")), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: '12px',
       color: '#475569',
@@ -1928,7 +1948,10 @@ const ARLiveScreen = ({
     style: {
       color: '#0F172A'
     }
-  }, workingCapital?.dpo_days ?? '—', " days")))), /*#__PURE__*/React.createElement("div", {
+  }, workingCapital?.dpo_days ?? '—', " days"))), showForecastFeedback && /*#__PURE__*/React.createElement(FeedbackModal, {
+    taskType: "FORECAST",
+    onClose: () => setShowForecastFeedback(false)
+  })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'grid',
       gridTemplateColumns: '7fr 5fr',

@@ -4,6 +4,7 @@ from django.db import transaction
 from django.db import OperationalError, ProgrammingError
 from django.db.models import Sum
 from apps.core.models import AuditLog
+from apps.core.utils import log_audit_event
 from .models import Expense, ExpenseApprovalStep, VendorL1Mapping, VALID_TRANSITIONS, STEP_TO_STATUS
 
 
@@ -419,11 +420,12 @@ def superior_override_approve(expense: Expense, actor, reason: str = "") -> Expe
         expense.approved_at = now
         expense.save()
 
-        AuditLog.objects.create(
+        log_audit_event(
             user=actor,
             action="expense.superior_override_approved",
             entity_type="Expense",
             entity_id=expense.id,
+            entity_display_name=expense.ref_no or str(expense.id)[:8],
             masked_before={"status": old_status},
             masked_after={
                 "status": "APPROVED",
@@ -432,6 +434,7 @@ def superior_override_approve(expense: Expense, actor, reason: str = "") -> Expe
                 "actor_grade": actor_grade,
                 "note": "All intermediate steps auto-cleared by superior authority",
             },
+            change_summary=f"Superior override: {old_status} → APPROVED",
         )
 
     return expense
@@ -477,13 +480,15 @@ def transition_expense(
         expense.save()
 
         # 6. Write audit log
-        AuditLog.objects.create(
+        log_audit_event(
             user=actor,
             action=f"expense.{new_status.lower()}",
             entity_type="Expense",
             entity_id=expense.id,
+            entity_display_name=expense.ref_no or str(expense.id)[:8],
             masked_before={"status": old_status},
             masked_after={"status": new_status, "reason": reason},
+            change_summary=f"Status changed from {old_status} to {new_status}",
         )
 
     return expense

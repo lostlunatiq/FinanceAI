@@ -145,10 +145,20 @@ class AuditLog(models.Model):
     action = models.CharField(max_length=100)  # e.g. "expense.approved"
     entity_type = models.CharField(max_length=50)  # e.g. "Expense", "Vendor", "User"
     entity_id = models.UUIDField(null=True, blank=True)
+    entity_display_name = models.CharField(max_length=255, blank=True, default="")
 
     # Snapshot of before/after state — masked of sensitive fields
     masked_before = models.JSONField(null=True, blank=True)
     masked_after = models.JSONField(null=True, blank=True)
+    change_summary = models.CharField(max_length=500, blank=True, default="")
+
+    # Request context for forensic tracing
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True, default="")
+    request_id = models.CharField(max_length=64, blank=True, default="")
+
+    # Flexible metadata for action-specific context (approval comments, export filters, etc.)
+    metadata = models.JSONField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -158,11 +168,27 @@ class AuditLog(models.Model):
             models.Index(fields=["entity_type", "entity_id"]),
             models.Index(fields=["user", "created_at"]),
             models.Index(fields=["action"]),
+            models.Index(fields=["request_id"]),
+            models.Index(fields=["ip_address", "created_at"]),
         ]
 
     def __str__(self):
         actor = self.user.get_full_name() if self.user else "System"
         return f"{actor} — {self.action} on {self.entity_type} [{self.created_at:%Y-%m-%d %H:%M}]"
+
+    @property
+    def diff(self) -> dict:
+        """Return a simple field-level diff between masked_before and masked_after."""
+        before = self.masked_before or {}
+        after = self.masked_after or {}
+        all_keys = set(before.keys()) | set(after.keys())
+        result = {}
+        for key in sorted(all_keys):
+            b, a = before.get(key), after.get(key)
+            if b != a:
+                result[key] = {"before": b, "after": a}
+        return result
+
 
 class AICopilotLog(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

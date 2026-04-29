@@ -9,6 +9,224 @@ from django.db.models import Q
 from .auth_serializers import LoginSerializer, UserProfileSerializer, RegisterUserSerializer
 from .permissions import HasMinimumGrade
 from .models import User, AuditLog
+from .utils import log_audit_event
+
+BUSINESS_ENTITY_TYPES = {"Expense", "Vendor", "Budget", "ExpenseQuery", "ApprovalAuthority"}
+ADMIN_ENTITY_TYPES = {"User", "Group", "Department"}
+
+
+def _classify_audit_entry(entry):
+    action = (entry.action or "").lower()
+    entity_type = entry.entity_type or ""
+
+    if action.startswith("auth."):
+        scope = "auth"
+    elif action.startswith("system."):
+        scope = "system"
+    elif entity_type in ADMIN_ENTITY_TYPES:
+        scope = "admin"
+    elif entity_type in BUSINESS_ENTITY_TYPES:
+        scope = "business"
+    else:
+        scope = "other"
+
+    is_state_change = False
+    if scope == "business":
+        before = entry.masked_before or {}
+        after = entry.masked_after or {}
+        is_state_change = (
+            "status" in before
+            or "status" in after
+            or action.startswith(("expense.", "vendor.", "budget.", "approval_authority."))
+        )
+
+    return {
+        "scope": scope,
+        "is_state_change": is_state_change,
+    }
+
+
+def _get_visible_audit_queryset(user):
+    grade = user.employee_grade or 1
+    is_vendor = hasattr(user, "vendor_profile") and user.vendor_profile is not None
+    is_cfo = user.is_superuser or grade >= 5
+
+    qs = AuditLog.objects.select_related("user").order_by("-created_at")
+
+    if is_vendor:
+        from apps.invoices.models import Expense
+
+        vendor_expense_ids = list(
+            Expense.objects.filter(vendor=user.vendor_profile).values_list("id", flat=True)
+        )
+        vendor_visible_actions = [
+            "expense.submitted",
+            "expense.approved",
+            "expense.rejected",
+            "expense.query_raised",
+            "expense.pending_l1",
+            "expense.pending_hod",
+            "expense.pending_fin_l1",
+            "expense.pending_fin_l2",
+            "expense.pending_fin_head",
+            "expense.paid",
+            "expense.withdrawn",
+        ]
+        return qs.filter(
+            entity_type="Expense",
+            entity_id__in=vendor_expense_ids,
+            action__in=vendor_visible_actions,
+        )
+
+    if not is_cfo and grade < 4:
+        visible_user_ids = list(
+            User.objects.filter(employee_grade__lte=grade, is_active=True).values_list("id", flat=True)
+        )
+        if user.id not in visible_user_ids:
+            visible_user_ids.append(user.id)
+
+        qs = qs.filter(user_id__in=visible_user_ids)
+        if grade < 3:
+            return qs.exclude(
+                action__in=[
+                    "expense.pending_fin_l1",
+                    "expense.pending_fin_l2",
+                    "expense.pending_fin_head",
+                    "expense.superior_override_approved",
+                ]
+            )
+        return qs.exclude(action="expense.superior_override_approved")
+
+    if not is_cfo and grade == 4:
+        cfo_user_ids = list(
+            User.objects.filter(Q(is_superuser=True) | Q(employee_grade__gte=5)).values_list(
+                "id", flat=True
+            )
+        )
+        return qs.exclude(user_id__in=cfo_user_ids).exclude(
+            action__in=["expense.superior_override_approved"]
+        )
+
+    return qs
+
+
+def _apply_audit_filters(qs, request):
+    scope = (request.query_params.get("scope") or "business").strip().lower()
+    entity_type = request.query_params.get("entity_type")
+    entity_id = request.query_params.get("entity_id")
+    action_filter = request.query_params.get("action")
+    actor = request.query_params.get("actor", "").strip()
+    search = request.query_params.get("search", "").strip()
+    date_from = request.query_params.get("date_from")
+    date_to = request.query_params.get("date_to")
+    state_change_only = (request.query_params.get("state_change_only") or "").strip().lower()
+
+    if scope == "business":
+        qs = qs.filter(entity_type__in=BUSINESS_ENTITY_TYPES).exclude(action__startswith="system.")
+    elif scope == "auth":
+        qs = qs.filter(action__startswith="auth.")
+    elif scope == "admin":
+        qs = qs.filter(entity_type__in=ADMIN_ENTITY_TYPES)
+    elif scope == "system":
+        qs = qs.filter(action__startswith="system.")
+    elif scope != "all":
+        qs = qs.filter(entity_type__in=BUSINESS_ENTITY_TYPES).exclude(action__startswith="system.")
+
+    if entity_type:
+        qs = qs.filter(entity_type=entity_type)
+    if entity_id:
+        qs = qs.filter(entity_id=entity_id)
+    if action_filter:
+        qs = qs.filter(action__icontains=action_filter)
+    if actor:
+        qs = qs.filter(
+            Q(user__username__icontains=actor)
+            | Q(user__first_name__icontains=actor)
+            | Q(user__last_name__icontains=actor)
+        )
+    if search:
+        qs = qs.filter(
+            Q(change_summary__icontains=search)
+            | Q(entity_display_name__icontains=search)
+            | Q(action__icontains=search)
+        )
+    if date_from:
+        qs = qs.filter(created_at__date__gte=date_from)
+    if date_to:
+        qs = qs.filter(created_at__date__lte=date_to)
+    if state_change_only in {"1", "true", "yes"}:
+        qs = qs.filter(
+            Q(action__startswith="expense.")
+            | Q(action__startswith="vendor.")
+            | Q(action__startswith="budget.")
+            | Q(action__startswith="approval_authority.")
+        )
+
+    user_id_param = request.query_params.get("user_id")
+    grade = request.user.employee_grade or 1
+    if user_id_param and (request.user.is_superuser or grade >= 4):
+        qs = qs.filter(user_id=user_id_param)
+
+    return qs
+
+
+def _serialize_audit_entry(entry, *, is_vendor, include_metadata):
+    classification = _classify_audit_entry(entry)
+    details = entry.masked_after or {}
+    if is_vendor:
+        details = {
+            k: v
+            for k, v in details.items()
+            if k not in ("reason", "override", "actor_grade", "note")
+        }
+
+    return {
+        "id": str(entry.id),
+        "action": entry.action,
+        "entity_type": entry.entity_type,
+        "entity_id": str(entry.entity_id) if entry.entity_id else None,
+        "entity_display_name": entry.entity_display_name,
+        "actor": entry.user.get_full_name() if entry.user else "System",
+        "actor_role": entry.user.employee_grade if entry.user else None,
+        "timestamp": entry.created_at.isoformat(),
+        "change_summary": entry.change_summary,
+        "details": details,
+        "diff": entry.diff,
+        "scope": classification["scope"],
+        "is_state_change": classification["is_state_change"],
+        "request_id": entry.request_id,
+        "ip_address": entry.ip_address,
+        "user_agent": entry.user_agent[:120] if entry.user_agent else "",
+        "metadata": entry.metadata if include_metadata else None,
+    }
+
+
+def _build_audit_filter_metadata(qs):
+    entity_types = sorted(
+        {
+            entity_type
+            for entity_type in qs.values_list("entity_type", flat=True).distinct()
+            if entity_type
+        }
+    )
+    actions = sorted(
+        {
+            action
+            for action in qs.values_list("action", flat=True).distinct()
+            if action
+        }
+    )
+    scopes = sorted(
+        {
+            _classify_audit_entry(entry)["scope"]
+            for entry in qs.only("action", "entity_type")[:200]
+        }
+    )
+    return {
+        "entity_types": entity_types,
+        "actions": actions,
+        "scopes": scopes,
+    }
 
 
 class LoginView(APIView):
@@ -21,6 +239,18 @@ class LoginView(APIView):
         refresh = RefreshToken.for_user(user)
         refresh["username"] = user.username
         refresh["employee_grade"] = user.employee_grade  # ← grade in token, not role
+
+        # Log successful login
+        log_audit_event(
+            user=user,
+            action="auth.login",
+            entity_type="User",
+            entity_id=user.id,
+            entity_display_name=user.get_full_name() or user.username,
+            change_summary=f"User {user.username} logged in",
+            request=request,
+        )
+
         return Response(
             {
                 "access": str(refresh.access_token),
@@ -79,6 +309,15 @@ class ChangePasswordView(APIView):
             )
         request.user.set_password(new_password)
         request.user.save(update_fields=["password"])
+        log_audit_event(
+            user=request.user,
+            action="auth.password_changed",
+            entity_type="User",
+            entity_id=request.user.id,
+            entity_display_name=request.user.get_full_name() or request.user.username,
+            change_summary="User changed their password",
+            request=request,
+        )
         return Response({"detail": "Password updated."})
 
 
@@ -89,6 +328,21 @@ class RegisterView(APIView):
         serializer = RegisterUserSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        log_audit_event(
+            user=request.user,
+            action="auth.user_created",
+            entity_type="User",
+            entity_id=user.id,
+            entity_display_name=user.get_full_name() or user.username,
+            masked_after={
+                "username": user.username,
+                "email": user.email,
+                "employee_grade": user.employee_grade,
+                "department_id": str(user.department_id) if user.department_id else None,
+            },
+            change_summary=f"Created user {user.username}",
+            request=request,
+        )
         return Response(UserProfileSerializer(user).data, status=status.HTTP_201_CREATED)
 
 
@@ -123,6 +377,16 @@ class UserDetailView(APIView):
 
     def patch(self, request, pk):
         user = get_object_or_404(User, pk=pk)
+        before = {
+            "is_active": user.is_active,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "email": user.email,
+            "employee_grade": user.employee_grade,
+            "department_id": str(user.department_id) if user.department_id else None,
+            "is_superuser": user.is_superuser,
+            "groups": sorted(user.groups.values_list("name", flat=True)),
+        }
         allowed_fields = {
             "is_active",
             "first_name",
@@ -143,6 +407,30 @@ class UserDetailView(APIView):
         serializer = UserProfileSerializer(user, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        user.refresh_from_db()
+        after = {
+            "is_active": user.is_active,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "email": user.email,
+            "employee_grade": user.employee_grade,
+            "department_id": str(user.department_id) if user.department_id else None,
+            "is_superuser": user.is_superuser,
+            "groups": sorted(user.groups.values_list("name", flat=True)),
+        }
+        if "password" in request.data and len(request.data["password"]) >= 6:
+            after["password"] = "<changed>"
+            before["password"] = "<hidden>"
+        log_audit_event(
+            user=request.user,
+            action="auth.user_updated",
+            entity_type="User",
+            entity_id=user.id,
+            entity_display_name=user.get_full_name() or user.username,
+            masked_before=before,
+            masked_after=after,
+            request=request,
+        )
         return Response(serializer.data)
 
     def delete(self, request, pk):
@@ -151,7 +439,26 @@ class UserDetailView(APIView):
             return Response({"detail": "Cannot delete your own account."}, status=400)
         if user.is_superuser and not request.user.is_superuser:
             return Response({"detail": "Only superusers can delete superuser accounts."}, status=403)
+        deleted_snapshot = {
+            "username": user.username,
+            "email": user.email,
+            "employee_grade": user.employee_grade,
+            "department_id": str(user.department_id) if user.department_id else None,
+            "is_superuser": user.is_superuser,
+            "groups": sorted(user.groups.values_list("name", flat=True)),
+        }
         user.delete()
+        log_audit_event(
+            user=request.user,
+            action="auth.user_deleted",
+            entity_type="User",
+            entity_id=pk,
+            entity_display_name=deleted_snapshot["username"],
+            masked_before=deleted_snapshot,
+            masked_after={"deleted": True},
+            change_summary=f"Deleted user {deleted_snapshot['username']}",
+            request=request,
+        )
         return Response({"detail": "User deleted."}, status=204)
 
 
@@ -176,6 +483,15 @@ class AuditLogListView(APIView):
       - G4 Finance Admin: full trail of everyone *below* CFO; sees who paused,
                           who uploaded, when documents arrived; no CFO-tier overrides
       - G5 / superuser  : full unrestricted access (CFO)
+
+    Query params:
+      - limit, offset   : pagination
+      - entity_type     : filter by entity type
+      - action          : substring filter on action
+      - user_id         : filter by user (admin only)
+      - search          : search in change_summary and entity_display_name
+      - date_from       : ISO date filter (inclusive)
+      - date_to         : ISO date filter (inclusive)
     """
 
     permission_classes = [IsAuthenticated]
@@ -184,120 +500,33 @@ class AuditLogListView(APIView):
         user = request.user
         grade = user.employee_grade or 1
         is_vendor = hasattr(user, "vendor_profile") and user.vendor_profile is not None
-        is_cfo = user.is_superuser or grade >= 5
 
         limit = min(int(request.query_params.get("limit", 50)), 200)
         offset = int(request.query_params.get("offset", 0))
-        entity_type = request.query_params.get("entity_type")
-        action_filter = request.query_params.get("action")
-
-        qs = AuditLog.objects.select_related("user").order_by("-created_at")
-
-        if is_vendor:
-            # Vendors see only their own invoice lifecycle events — no internal details
-            from apps.invoices.models import Expense
-
-            vendor_expense_ids = list(
-                Expense.objects.filter(vendor=user.vendor_profile).values_list("id", flat=True)
-            )
-            vendor_visible_actions = [
-                "expense.submitted",
-                "expense.approved",
-                "expense.rejected",
-                "expense.query_raised",
-                "expense.pending_l1",
-                "expense.pending_hod",
-                "expense.pending_fin_l1",
-                "expense.pending_fin_l2",
-                "expense.pending_fin_head",
-                "expense.paid",
-                "expense.withdrawn",
-            ]
-            qs = qs.filter(
-                entity_type="Expense",
-                entity_id__in=vendor_expense_ids,
-                action__in=vendor_visible_actions,
-            )
-
-        elif not is_cfo and grade < 4:
-            # Mid-level: restrict to logs from users at or below their grade
-            visible_user_ids = list(
-                User.objects.filter(
-                    employee_grade__lte=grade, is_active=True
-                ).values_list("id", flat=True)
-            )
-            if str(user.id) not in [str(uid) for uid in visible_user_ids]:
-                visible_user_ids.append(user.id)
-
-            qs = qs.filter(user_id__in=visible_user_ids)
-
-            # G2 HOD cannot see finance-level or CFO override actions
-            if grade < 3:
-                qs = qs.exclude(
-                    action__in=[
-                        "expense.pending_fin_l1",
-                        "expense.pending_fin_l2",
-                        "expense.pending_fin_head",
-                        "expense.superior_override_approved",
-                    ]
-                )
-            else:
-                # G3 cannot see CFO overrides
-                qs = qs.exclude(action="expense.superior_override_approved")
-
-        elif not is_cfo and grade == 4:
-            # G4 Finance Admin: full trail BELOW CFO. Excludes CFO actions and superuser overrides.
-            # This gives admins the document lifecycle (arrival, hold, upload, approval) while
-            # keeping CFO-tier strategic actions opaque.
-            cfo_user_ids = list(
-                User.objects.filter(
-                    Q(is_superuser=True) | Q(employee_grade__gte=5)
-                ).values_list("id", flat=True)
-            )
-            qs = qs.exclude(user_id__in=cfo_user_ids).exclude(
-                action__in=[
-                    "expense.superior_override_approved",
-                ]
-            )
-
-        # G5+ / superuser (CFO): full access — sees ALL juniors' approve/reject/comments,
-        # superior overrides, and every entity. No additional filtering.
-
-        if entity_type:
-            qs = qs.filter(entity_type=entity_type)
-        if action_filter:
-            qs = qs.filter(action__icontains=action_filter)
-        # user_id filter only available to admins
-        user_id_param = request.query_params.get("user_id")
-        if user_id_param and (user.is_superuser or grade >= 4):
-            qs = qs.filter(user_id=user_id_param)
+        qs = _apply_audit_filters(_get_visible_audit_queryset(user), request)
+        filter_metadata = _build_audit_filter_metadata(qs)
 
         total = qs.count()
         entries = qs[offset : offset + limit]
 
-        results = []
-        for entry in entries:
-            details = entry.masked_after or {}
-            # Strip internal fields from vendor-facing view
-            if is_vendor:
-                details = {
-                    k: v for k, v in details.items()
-                    if k not in ("reason", "override", "actor_grade", "note")
-                }
-            results.append(
-                {
-                    "id": str(entry.id),
-                    "action": entry.action,
-                    "entity_type": entry.entity_type,
-                    "entity_id": str(entry.entity_id) if entry.entity_id else None,
-                    "actor": entry.user.get_full_name() if entry.user else "System",
-                    "actor_role": entry.user.employee_grade if entry.user else None,
-                    "timestamp": entry.created_at.isoformat(),
-                    "details": details,
-                }
+        results = [
+            _serialize_audit_entry(
+                entry,
+                is_vendor=is_vendor,
+                include_metadata=user.is_superuser or grade >= 4,
             )
+            for entry in entries
+        ]
 
-        return Response({"total": total, "results": results, "limit": limit, "offset": offset})
+        return Response(
+            {
+                "total": total,
+                "results": results,
+                "limit": limit,
+                "offset": offset,
+                "filters": filter_metadata,
+            }
+        )
 
 
 class NLQueryView(APIView):
@@ -656,6 +885,19 @@ class GroupListView(APIView):
         if isinstance(user_ids, list) and user_ids:
             users = User.objects.filter(id__in=user_ids, is_active=True)
             group.user_set.set(users)
+        log_audit_event(
+            user=request.user,
+            action="auth.group_created" if created else "auth.group_updated",
+            entity_type="Group",
+            entity_display_name=group.name,
+            masked_after={
+                "name": group.name,
+                "user_ids": [str(user_id) for user_id in group.user_set.values_list("id", flat=True)],
+            },
+            metadata={"group_id": group.id},
+            change_summary=f"{'Created' if created else 'Updated'} group {group.name}",
+            request=request,
+        )
         return Response(GroupSerializer(group).data, status=201 if created else 200)
 
 
@@ -664,6 +906,10 @@ class GroupDetailView(APIView):
 
     def patch(self, request, pk):
         group = get_object_or_404(Group, pk=pk)
+        before = {
+            "name": group.name,
+            "user_ids": [str(user_id) for user_id in group.user_set.values_list("id", flat=True)],
+        }
         name = (request.data.get("name") or "").strip()
         user_ids = request.data.get("user_ids")
         if name:
@@ -672,12 +918,91 @@ class GroupDetailView(APIView):
         if isinstance(user_ids, list):
             users = User.objects.filter(id__in=user_ids, is_active=True)
             group.user_set.set(users)
+        log_audit_event(
+            user=request.user,
+            action="auth.group_updated",
+            entity_type="Group",
+            entity_display_name=group.name,
+            masked_before=before,
+            masked_after={
+                "name": group.name,
+                "user_ids": [str(user_id) for user_id in group.user_set.values_list("id", flat=True)],
+            },
+            metadata={"group_id": group.id},
+            request=request,
+        )
         return Response(GroupSerializer(group).data)
 
 
 from rest_framework.permissions import IsAdminUser
 from django.http import HttpResponse
 import csv
+
+class AuditLogExportView(APIView):
+    """
+    GET /api/v1/audit/export/
+    Export audit logs to CSV. Admin / Finance Admin only.
+    """
+    permission_classes = [IsAuthenticated, HasMinimumGrade.make(4)]
+
+    def get(self, request):
+        from django.utils import timezone
+
+        qs = _apply_audit_filters(_get_visible_audit_queryset(request.user), request)
+
+        # Cap at 10k rows to prevent memory issues
+        entries = list(qs[:10000])
+
+        log_audit_event(
+            user=request.user,
+            action="system.audit_export",
+            entity_type="AuditLog",
+            masked_after={
+                "count": len(entries),
+                "format": "CSV",
+                "filters": {
+                    "entity_type": request.query_params.get("entity_type", ""),
+                    "action": request.query_params.get("action", ""),
+                    "search": request.query_params.get("search", ""),
+                    "date_from": request.query_params.get("date_from", ""),
+                    "date_to": request.query_params.get("date_to", ""),
+                    "user_id": request.query_params.get("user_id", ""),
+                },
+            },
+            change_summary=f"Exported {len(entries)} audit records to CSV",
+            request=request,
+        )
+
+        response = HttpResponse(content_type="text/csv")
+        ts = timezone.now().strftime("%Y%m%d_%H%M%S")
+        response["Content-Disposition"] = f'attachment; filename="audit_export_{ts}.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow([
+            "Timestamp", "Actor", "Actor Grade", "Action", "Entity Type",
+            "Entity ID", "Entity Name", "Change Summary", "IP Address",
+            "Request ID", "Before", "After", "Metadata"
+        ])
+
+        for entry in entries:
+            writer.writerow([
+                entry.created_at.isoformat(),
+                entry.user.get_full_name() if entry.user else "System",
+                entry.user.employee_grade if entry.user else "",
+                entry.action,
+                entry.entity_type,
+                str(entry.entity_id) if entry.entity_id else "",
+                entry.entity_display_name,
+                entry.change_summary,
+                entry.ip_address or "",
+                entry.request_id,
+                str(entry.masked_before or ""),
+                str(entry.masked_after or ""),
+                str(entry.metadata or ""),
+            ])
+
+        return response
+
 
 class UserExportView(APIView):
     """
@@ -688,21 +1013,21 @@ class UserExportView(APIView):
 
     def get(self, request):
         users = User.objects.all().order_by("employee_grade", "username")
-        
-        # Log the export
-        AuditLog.objects.create(
+
+        log_audit_event(
             user=request.user,
             action="system.user_export",
             entity_type="User",
-            masked_after={"count": users.count(), "format": "CSV"}
+            masked_after={"count": users.count(), "format": "CSV"},
+            request=request,
         )
 
         response = HttpResponse(content_type="text/csv")
         response["Content-Disposition"] = 'attachment; filename="users_export.csv"'
-        
+
         writer = csv.writer(response)
         writer.writerow(["ID", "Username", "Email", "First Name", "Last Name", "Grade", "Department", "Is Active", "Is Vendor"])
-        
+
         for user in users:
             dept = user.department.name if user.department else ""
             is_vendor = hasattr(user, "vendor_profile") and user.vendor_profile is not None
@@ -710,9 +1035,7 @@ class UserExportView(APIView):
                 str(user.id), user.username, user.email, user.first_name, user.last_name,
                 user.employee_grade, dept, user.is_active, is_vendor
             ])
-            
         return response
-
 
 
 class NotificationsView(APIView):

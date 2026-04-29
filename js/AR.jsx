@@ -616,6 +616,7 @@ const ARLiveScreen = ({ onNavigate }) => {
   const [dashboardStats, setDashboardStats] = React.useState(null);
   const [auditRows, setAuditRows] = React.useState([]);
   const [pendingBills, setPendingBills] = React.useState([]);
+  const [showForecastFeedback, setShowForecastFeedback] = React.useState(false);
 
   React.useEffect(() => {
     const { AnalyticsAPI, BudgetAPI, DashboardAPI, AuditAPI, BillsAPI } = window.TijoriAPI;
@@ -683,12 +684,23 @@ const ARLiveScreen = ({ onNavigate }) => {
           })}
         </Card>
         <Card style={{ padding: '22px' }}>
-          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A', marginBottom: '10px' }}>Forecast Narrative</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A' }}>Forecast Narrative</div>
+            {cashflow?.narrative && (
+              <button onClick={() => setShowForecastFeedback(true)}
+                style={{ fontSize: '11px', padding: '4px 10px', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', cursor: 'pointer', color: '#64748B', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                ↩ Feedback
+              </button>
+            )}
+          </div>
           <div style={{ fontSize: '12px', color: '#475569', lineHeight: 1.6, fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'pre-wrap' }}>{cashflow?.narrative || 'Forecast data unavailable.'}</div>
           <div style={{ marginTop: '14px', fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
             Health Score: <strong style={{ color: '#0F172A' }}>{workingCapital?.health_score ?? '—'}</strong> · DPO: <strong style={{ color: '#0F172A' }}>{workingCapital?.dpo_days ?? '—'} days</strong>
           </div>
         </Card>
+        {showForecastFeedback && (
+          <FeedbackModal taskType="FORECAST" onClose={() => setShowForecastFeedback(false)} />
+        )}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '7fr 5fr', gap: '20px' }}>

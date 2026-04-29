@@ -606,18 +606,21 @@ class InternalExpenseListView(APIView):
         expense.save()
 
         # Write audit log
-        from apps.core.models import AuditLog
-        AuditLog.objects.create(
+        from apps.core.utils import log_audit_event
+        log_audit_event(
             user=user,
             action="expense.submitted",
             entity_type="Expense",
             entity_id=expense.id,
+            entity_display_name=expense.ref_no or str(expense.id)[:8],
             masked_after={
                 "category": category,
                 "amount": float(amount),
                 "over_limit": over_limit,
                 "submitted_by_grade": grade,
             },
+            change_summary=f"Expense submitted for ₹{amount}",
+            request=request,
         )
 
         return Response({

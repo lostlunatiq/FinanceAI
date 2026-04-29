@@ -1,6 +1,6 @@
 # apps/invoices/urls.py
 from django.urls import path
-from . import views, vendor_views, employee_views, budget_views, analytics_views
+from . import views, vendor_views, employee_views, budget_views, analytics_views, feedback_views
 
 urlpatterns = [
     # ─── Original expense endpoints ──────────────────────────────
@@ -139,4 +139,6 @@ urlpatterns = [
     path("analytics/command-center/",     analytics_views.CommandCenterIntelligenceView.as_view(), name="command-center"),
     path("analytics/audit-sweep/",        analytics_views.AuditSweepView.as_view(),        name="audit-sweep"),
     path("analytics/generate-10q/",       analytics_views.Generate10QView.as_view(),       name="generate-10q"),
+    # ─── AI Feedback Loop ────────────────────────────────────────────────────
+    path("ai-feedback/", feedback_views.AIFeedbackView.as_view(), name="ai-feedback"),
 ]

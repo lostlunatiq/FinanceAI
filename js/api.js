@@ -186,6 +186,14 @@ const AuthAPI = {
     return apiFetch(`/audit/${qs ? '?' + qs : ''}`);
   },
 
+  async exportAuditLog(params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    const token = localStorage.getItem('accessToken');
+    return fetch(`/api/v1/audit/export/${qs ? '?' + qs : ''}`, {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    });
+  },
+
   async listDepartments() {
     return apiFetch('/auth/departments/');
   },
@@ -452,6 +460,22 @@ const AuditAPI = {
   },
 };
 
+// ── Notification API ──────────────────────────────────────────────────────────
+
+const NotificationAPI = {
+  async list(params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return apiFetch(`/notifications/${qs ? '?' + qs : ''}`);
+  },
+  async markRead(id = null) {
+    const url = id ? `/notifications/${id}/mark-read/` : `/notifications/mark-all-read/`;
+    return apiFetch(url, { method: 'POST' });
+  },
+  async unreadCount() {
+    return apiFetch('/notifications/unread-count/');
+  }
+};
+
 // ── Budget API ────────────────────────────────────────────────────────────────
 
 const BudgetAPI = {
@@ -534,6 +558,24 @@ const AnalyticsAPI = {
   },
 };
 
+// ── AI Feedback API ───────────────────────────────────────────────────────────
+
+const FeedbackAPI = {
+  async submit({ task_type, expense_id, vendor_name, is_positive, comment, field_corrections, disputed_flags }) {
+    return apiFetch('/invoices/ai-feedback/', {
+      method: 'POST',
+      body: JSON.stringify({ task_type, expense_id, vendor_name, is_positive, comment, field_corrections, disputed_flags }),
+    });
+  },
+
+  async list({ task, expense_id } = {}) {
+    const qs = new URLSearchParams();
+    if (task) qs.set('task', task);
+    if (expense_id) qs.set('expense_id', expense_id);
+    return apiFetch(`/invoices/ai-feedback/${qs.toString() ? '?' + qs.toString() : ''}`);
+  },
+};
+
 // ── Anomaly severity helpers ──────────────────────────────────────────────────
 
 function severityToScore(severity) {
@@ -605,5 +647,6 @@ const NotificationsAPI = {
 // ── Export to window ──────────────────────────────────────────────────────────
 window.TijoriAPI = {
   Auth, AuthAPI, DashboardAPI, BillsAPI, VendorAPI, FilesAPI, AnomalyAPI,
-  AuditAPI, BudgetAPI, NLQueryAPI, AnalyticsAPI, NotificationsAPI, APIError, expenseToAnomaly, anomalyFlagToType,
+  AuditAPI, NotificationAPI, NotificationsAPI, BudgetAPI, NLQueryAPI, AnalyticsAPI, FeedbackAPI,
+  APIError, expenseToAnomaly, anomalyFlagToType,
 };

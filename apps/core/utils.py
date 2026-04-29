@@ -1,11 +1,67 @@
 import functools
+import logging
+import time
 from enum import Enum
 from django.db import models
 from django.db.models.base import ModelBase
 
+logger = logging.getLogger(__name__)
+
 
 class InvalidTransitionError(Exception):
     pass
+
+
+def log_audit_event(
+    *,
+    user=None,
+    action: str,
+    entity_type: str = "",
+    entity_id=None,
+    entity_display_name: str = "",
+    masked_before=None,
+    masked_after=None,
+    change_summary: str = "",
+    metadata=None,
+    request=None,
+):
+    """
+    Central helper for writing immutable audit log entries.
+
+    If *request* is provided, IP address, user-agent and request-id are
+    extracted automatically (requires AuditLogMiddleware).
+    """
+    from .models import AuditLog
+
+    ip_address = getattr(request, "audit_ip_address", None) if request else None
+    user_agent = getattr(request, "audit_user_agent", "") if request else ""
+    request_id = getattr(request, "audit_request_id", "") if request else ""
+
+    # Auto-generate a terse change summary if none provided
+    if not change_summary and masked_before and masked_after:
+        changes = []
+        for key in sorted(set(masked_before.keys()) | set(masked_after.keys())):
+            b = masked_before.get(key)
+            a = masked_after.get(key)
+            if b != a:
+                changes.append(f"{key}: {b} → {a}")
+        if changes:
+            change_summary = "; ".join(changes)[:500]
+
+    return AuditLog.objects.create(
+        user=user,
+        action=action,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        entity_display_name=entity_display_name,
+        masked_before=masked_before,
+        masked_after=masked_after,
+        change_summary=change_summary,
+        ip_address=ip_address,
+        user_agent=user_agent,
+        request_id=request_id,
+        metadata=metadata,
+    )
 
 
 def log_to_db():
@@ -14,16 +70,33 @@ def log_to_db():
         def wrapper(*args, **kwargs):
             from .tasks import log_approval_action
 
-            # Capture whatever you want!
-            # Logic Goes here
+            started_at = time.perf_counter()
+            result = None
+            exception = None
+            status = "success"
 
             try:
                 result = func(*args, **kwargs)
                 return result
-            except Exception as e:
-                pass
+            except Exception as exc:
+                exception = exc
+                status = "error"
+                raise
             finally:
-                log_approval_action.delay()
+                duration_ms = round((time.perf_counter() - started_at) * 1000, 2)
+                try:
+                    log_approval_action.delay(
+                        function_name=func.__name__,
+                        module=func.__module__,
+                        args=repr(args),
+                        kwargs=repr(kwargs),
+                        result=repr(result),
+                        exception=str(exception) if exception else "",
+                        status=status,
+                        duration_ms=duration_ms,
+                    )
+                except Exception:
+                    logger.exception("Failed to enqueue audit function log")
 
         return wrapper
 
