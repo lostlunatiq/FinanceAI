@@ -253,10 +253,14 @@ const BillsAPI = {
     return apiFetch(`/invoices/finance/bills/${id}/scan-anomaly/`, { method: 'POST' });
   },
 
-  async settle(id, paymentUtr) {
+  async settle(id, paymentUtr, paymentMethod, paymentNotes) {
     return apiFetch(`/invoices/finance/bills/${id}/settle/`, {
       method: 'POST',
-      body: JSON.stringify({ payment_utr: paymentUtr || '' }),
+      body: JSON.stringify({
+        payment_utr: paymentUtr || '',
+        payment_method: paymentMethod || 'NEFT',
+        payment_notes: paymentNotes || '',
+      }),
     });
   },
 
@@ -271,8 +275,11 @@ const BillsAPI = {
     });
   },
 
-  async markSafe(id) {
-    return apiFetch(`/invoices/finance/bills/${id}/mark-safe/`, { method: 'POST' });
+  async markSafe(id, note) {
+    return apiFetch(`/invoices/finance/bills/${id}/mark-safe/`, {
+      method: 'POST',
+      body: JSON.stringify({ note: note || '' }),
+    });
   },
 
   async escalate(id) {
@@ -284,10 +291,29 @@ const BillsAPI = {
     return apiFetch(`/invoices/finance/expenses/${qs ? '?' + qs : ''}`);
   },
 
+  async listVendorBills(params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return apiFetch(`/invoices/finance/vendor-bills/${qs ? '?' + qs : ''}`);
+  },
+
   async submitExpense(data) {
     return apiFetch('/invoices/finance/expenses/', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  },
+
+  async remind(id, message) {
+    return apiFetch(`/invoices/finance/bills/${id}/remind/`, {
+      method: 'POST',
+      body: JSON.stringify({ message: message || '' }),
+    });
+  },
+
+  async schedulePayment(id, scheduledDate, note) {
+    return apiFetch(`/invoices/finance/bills/${id}/schedule/`, {
+      method: 'POST',
+      body: JSON.stringify({ scheduled_date: scheduledDate, note: note || '' }),
     });
   },
 };
@@ -560,8 +586,22 @@ function expenseToAnomaly(exp, index) {
   };
 }
 
+// ── Notifications API ─────────────────────────────────────────────────────────
+const NotificationsAPI = {
+  async list(unreadOnly = false) {
+    return apiFetch(`/notifications/${unreadOnly ? '?unread=true' : ''}`);
+  },
+  async markRead(id) {
+    if (id) return apiFetch(`/notifications/${id}/mark-read/`, { method: 'POST' });
+    return apiFetch('/notifications/mark-all-read/', { method: 'POST' });
+  },
+  async unreadCount() {
+    return apiFetch('/notifications/unread-count/');
+  },
+};
+
 // ── Export to window ──────────────────────────────────────────────────────────
 window.TijoriAPI = {
   Auth, AuthAPI, DashboardAPI, BillsAPI, VendorAPI, FilesAPI, AnomalyAPI,
-  AuditAPI, BudgetAPI, NLQueryAPI, AnalyticsAPI, APIError, expenseToAnomaly, anomalyFlagToType,
+  AuditAPI, BudgetAPI, NLQueryAPI, AnalyticsAPI, NotificationsAPI, APIError, expenseToAnomaly, anomalyFlagToType,
 };

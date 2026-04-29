@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 from apps.core.permissions import HasMinimumGrade
+from apps.notifications.dispatcher import notify_user, notify_role, notify_finance_team
 from .models import (
     ApprovalAuthority,
     Expense,
@@ -188,10 +189,45 @@ class ApproveView(APIView):
                 continue
 
             if final_target != "APPROVED":
+                # Notify next assigned actor
+                if next_step and next_step.assigned_to:
+                    notify_user(
+                        user=next_step.assigned_to,
+                        title="Action Required: New Bill Approval",
+                        message=f"Bill {expense.ref_no} for ₹{float(expense.total_amount or 0):,.0f} is pending your approval.",
+                        priority="MEDIUM",
+                        nav_target="ap-hub",
+                        entity_type="Expense",
+                        entity_id=expense.id
+                    )
                 break
 
             pending_step = next_step
             break
+
+        # Notify submitter if fully approved
+        if expense._status == "APPROVED":
+            _send_approval_notification(expense, "APPROVED", reason, request.user)
+            if expense.submitted_by:
+                notify_user(
+                    user=expense.submitted_by,
+                    title="Expense Fully Approved",
+                    message=f"Your expense {expense.ref_no} for ₹{float(expense.total_amount or 0):,.0f} has been fully approved.",
+                    priority="LOW",
+                    nav_target="secondary",
+                    entity_type="Expense",
+                    entity_id=expense.id
+                )
+            # Notify Finance Team for settlement
+            notify_finance_team(
+                title="Bill Ready for Payment",
+                message=f"Bill {expense.ref_no} (₹{float(expense.total_amount or 0):,.0f}) has been fully approved and is ready for settlement.",
+                priority="MEDIUM",
+                nav_target="ai-hub",
+                entity_type="Expense",
+                entity_id=expense.id,
+                exclude_user=request.user
+            )
 
         return Response(VendorBillDetailSerializer(expense, context={"request": request}).data)
 
@@ -233,6 +269,17 @@ class RejectView(APIView):
                 actual_actor=request.user,
                 decided_at=timezone.now(),
                 decision_reason=reason,
+            )
+
+        if expense.submitted_by:
+            notify_user(
+                user=expense.submitted_by,
+                title="Expense Rejected",
+                message=f"Your expense {expense.ref_no} (₹{float(expense.total_amount or 0):,.0f}) was rejected. Reason: {reason[:50]}...",
+                priority="HIGH",
+                nav_target="secondary",
+                entity_type="Expense",
+                entity_id=expense.id
             )
 
         return Response(VendorBillDetailSerializer(expense, context={"request": request}).data)
@@ -291,6 +338,17 @@ class QueryView(APIView):
                 actual_actor=request.user,
                 decided_at=timezone.now(),
                 decision_reason=question,
+            )
+
+        if expense.submitted_by:
+            notify_user(
+                user=expense.submitted_by,
+                title="Query Raised on your Bill",
+                message=f"Finance has raised a query on {expense.ref_no}: {question[:50]}...",
+                priority="MEDIUM",
+                nav_target="secondary",
+                entity_type="Expense",
+                entity_id=expense.id
             )
 
         return Response(VendorBillDetailSerializer(expense, context={"request": request}).data)
@@ -356,6 +414,17 @@ class RespondQueryView(APIView):
                     "anomaly_override_reason",
                 ]
             )
+            # Notify the person who raised the query
+            if query.raised_by:
+                notify_user(
+                    user=query.raised_by,
+                    title="Query Responded",
+                    message=f"Submitter has responded to your query on {expense.ref_no}.",
+                    priority="LOW",
+                    nav_target="ap-hub",
+                    entity_type="Expense",
+                    entity_id=expense.id
+                )
 
         return Response(VendorBillDetailSerializer(expense, context={"request": request}).data)
 
@@ -583,13 +652,34 @@ class MarkAnomalySafeView(APIView):
 
     def post(self, request, pk):
         expense = get_object_or_404(Expense, pk=pk)
+        note = request.data.get("note", "")
         expense.anomaly_severity = "NONE"
         ocr_raw = expense.ocr_raw or {}
         ocr_raw["anomaly_flags"] = []
         ocr_raw["marked_safe_by"] = request.user.username
+        ocr_raw["marked_safe_note"] = note
+        ocr_raw["marked_safe_at"] = timezone.now().isoformat()
         expense.ocr_raw = ocr_raw
         expense.save(update_fields=["anomaly_severity", "ocr_raw"])
-        return Response({"status": "cleared", "ref_no": expense.ref_no})
+        from apps.core.models import AuditLog
+        AuditLog.objects.create(
+            user=request.user,
+            action="anomaly.marked_safe",
+            entity_type="Expense",
+            entity_id=expense.id,
+            masked_after={"ref_no": expense.ref_no, "note": note, "by": request.user.username},
+        )
+        # Notify Finance Team
+        notify_finance_team(
+            title="Anomaly Marked Safe",
+            message=f"{request.user.get_full_name() or request.user.username} marked {expense.ref_no} as safe. Note: {note[:40]}...",
+            priority="LOW",
+            nav_target="anomaly",
+            entity_type="Expense",
+            entity_id=expense.id,
+            exclude_user=request.user
+        )
+        return Response({"status": "cleared", "ref_no": expense.ref_no, "note": note})
 
 
 class EscalateAnomalyView(APIView):
@@ -601,10 +691,35 @@ class EscalateAnomalyView(APIView):
         expense = get_object_or_404(Expense, pk=pk)
         expense.anomaly_severity = "CRITICAL"
         ocr_raw = expense.ocr_raw or {}
-        ocr_raw["escalated_by"] = request.user.username
+        ocr_raw["escalated_by"] = request.user.get_full_name() or request.user.username
+        ocr_raw["escalated_by_username"] = request.user.username
         ocr_raw["escalated_at"] = timezone.now().isoformat()
         expense.ocr_raw = ocr_raw
         expense.save(update_fields=["anomaly_severity", "ocr_raw"])
+        from apps.core.models import AuditLog
+        AuditLog.objects.create(
+            user=request.user,
+            action="anomaly.escalated",
+            entity_type="Expense",
+            entity_id=expense.id,
+            masked_after={
+                "ref_no": expense.ref_no,
+                "escalated_by": request.user.get_full_name() or request.user.username,
+                "amount": float(expense.total_amount or 0),
+                "vendor": expense.vendor.name if expense.vendor else "",
+            },
+        )
+        # Notify CFO specifically
+        notify_role(
+            grade_min=5,
+            title="CRITICAL: Anomaly Escalated",
+            message=f"{request.user.get_full_name() or request.user.username} escalated {expense.ref_no} (₹{float(expense.total_amount or 0):,.0f}) for your review.",
+            priority="CRITICAL",
+            nav_target="anomaly",
+            entity_type="Expense",
+            entity_id=expense.id,
+            exclude_user=request.user
+        )
         return Response({"status": "escalated", "ref_no": expense.ref_no})
 
 
@@ -644,6 +759,257 @@ class BulkScanAnomalyView(APIView):
                 "message": f"Scanned {updated} bills. {flagged} anomalies detected.",
             }
         )
+
+
+def _send_payment_notification(expense, utr, method, amount, paid_by):
+    """Send payment confirmation email to vendor/submitter. Logs to console in dev."""
+    import logging
+    logger = logging.getLogger(__name__)
+    try:
+        from django.core.mail import send_mail
+        from django.conf import settings
+        vendor_email = None
+        recipient_name = "Vendor"
+        if expense.vendor_id and hasattr(expense.vendor, 'email'):
+            vendor_email = expense.vendor.email
+            recipient_name = expense.vendor.name
+        elif expense.submitted_by_id:
+            vendor_email = expense.submitted_by.email
+            recipient_name = expense.submitted_by.get_full_name() or expense.submitted_by.username
+        recipient = vendor_email or getattr(settings, "FINANCE_NOTIFY_EMAIL", "finance@tijori.ai")
+        from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@tijori.ai")
+        send_mail(
+            subject=f"Payment Confirmation — Invoice {expense.ref_no} | UTR: {utr}",
+            message=(
+                f"Dear {recipient_name},\n\n"
+                f"We are pleased to confirm that payment has been processed for the following invoice:\n\n"
+                f"  Invoice Reference : {expense.ref_no}\n"
+                f"  Amount Paid       : ₹{amount:,.2f}\n"
+                f"  Payment Method    : {method}\n"
+                f"  UTR / Reference   : {utr}\n"
+                f"  Processed By      : {paid_by.get_full_name() or paid_by.username}\n"
+                f"  Date & Time       : {timezone.now().strftime('%d %b %Y, %I:%M %p IST')}\n\n"
+                f"This payment has been posted to your account. Please retain this reference for your records.\n\n"
+                f"If you have any questions, please contact your finance team.\n\n"
+                f"Regards,\nFinance Team — Tijori AI"
+            ),
+            from_email=from_email,
+            recipient_list=[recipient],
+            fail_silently=True,
+        )
+        logger.info(f"Payment notification sent for {expense.ref_no} to {recipient}")
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Could not send payment notification: {e}")
+
+
+def _send_schedule_notification(expense, scheduled_date, note, scheduled_by):
+    """Send payment schedule confirmation email."""
+    import logging
+    logger = logging.getLogger(__name__)
+    try:
+        from django.core.mail import send_mail
+        from django.conf import settings
+        vendor_email = None
+        recipient_name = "Vendor"
+        if expense.vendor_id and hasattr(expense.vendor, 'email'):
+            vendor_email = expense.vendor.email
+            recipient_name = expense.vendor.name
+        elif expense.submitted_by_id:
+            vendor_email = expense.submitted_by.email
+            recipient_name = expense.submitted_by.get_full_name() or expense.submitted_by.username
+        recipient = vendor_email or getattr(settings, "FINANCE_NOTIFY_EMAIL", "finance@tijori.ai")
+        from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@tijori.ai")
+        send_mail(
+            subject=f"Payment Scheduled — Invoice {expense.ref_no}",
+            message=(
+                f"Dear {recipient_name},\n\n"
+                f"Your payment has been scheduled:\n\n"
+                f"  Invoice Reference : {expense.ref_no}\n"
+                f"  Amount            : ₹{float(expense.total_amount or 0):,.2f}\n"
+                f"  Scheduled Date    : {scheduled_date}\n"
+                f"  Scheduled By      : {scheduled_by.get_full_name() or scheduled_by.username}\n"
+                f"  Note              : {note or 'N/A'}\n\n"
+                f"Payment will be initiated automatically on the scheduled date.\n\n"
+                f"Regards,\nFinance Team — Tijori AI"
+            ),
+            from_email=from_email,
+            recipient_list=[recipient],
+            fail_silently=True,
+        )
+        logger.info(f"Schedule notification sent for {expense.ref_no} to {recipient}")
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Could not send schedule notification: {e}")
+
+
+def _send_approval_notification(expense, status_str, reason, actor):
+    """Send approval/rejection notification to the expense submitter."""
+    import logging
+    try:
+        from django.core.mail import send_mail
+        from django.conf import settings
+        if not expense.submitted_by_id:
+            return
+        recipient = expense.submitted_by.email
+        recipient_name = expense.submitted_by.get_full_name() or expense.submitted_by.username
+        if not recipient:
+            return
+        from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@tijori.ai")
+        emoji = "✅" if status_str == "APPROVED" else "❌" if status_str == "REJECTED" else "ℹ️"
+        send_mail(
+            subject=f"{emoji} Expense {status_str} — {expense.ref_no}",
+            message=(
+                f"Dear {recipient_name},\n\n"
+                f"Your expense submission has been {status_str.lower()}:\n\n"
+                f"  Reference  : {expense.ref_no}\n"
+                f"  Amount     : ₹{float(expense.total_amount or 0):,.2f}\n"
+                f"  Status     : {status_str}\n"
+                f"  Actioned By: {actor.get_full_name() or actor.username}\n"
+                f"  Reason     : {reason or 'N/A'}\n"
+                f"  Date       : {timezone.now().strftime('%d %b %Y, %I:%M %p IST')}\n\n"
+                f"{'You can now view the status in the Expense Management portal.' if status_str == 'APPROVED' else 'Please contact your approver for clarification.'}\n\n"
+                f"Regards,\nFinance Team — Tijori AI"
+            ),
+            from_email=from_email,
+            recipient_list=[recipient],
+            fail_silently=True,
+        )
+        logging.getLogger(__name__).info(f"Approval notification sent for {expense.ref_no} to {recipient}")
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Could not send approval notification: {e}")
+
+
+class VendorBillsAllView(APIView):
+    """GET /api/v1/invoices/finance/vendor-bills/ — All non-internal vendor bills with optional status filter."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        qs = (
+            Expense.objects
+            .exclude(vendor__name="Internal Expense")
+            .exclude(vendor__isnull=True)
+            .select_related("vendor", "submitted_by")
+            .order_by("-created_at")
+        )
+        status_f = request.query_params.get("status")
+        if status_f:
+            statuses = [s.strip().upper() for s in status_f.split(",")]
+            qs = qs.filter(_status__in=statuses)
+        limit = min(int(request.query_params.get("limit", 50)), 200)
+        return Response(
+            VendorBillListSerializer(qs[:limit], many=True, context={"request": request}).data
+        )
+
+
+class ARRemindView(APIView):
+    """POST /api/v1/invoices/finance/bills/<id>/remind/ — Send payment reminder email."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        expense = get_object_or_404(Expense, pk=pk)
+        from apps.core.models import AuditLog
+        import logging
+        logger = logging.getLogger(__name__)
+
+        customer_name = expense.vendor.name if expense.vendor_id else "Customer"
+        ref_no = expense.ref_no or str(expense.id)[:8]
+        amount = float(expense.total_amount or 0)
+
+        # Log the reminder action
+        AuditLog.objects.create(
+            user=request.user,
+            action="invoice.reminder_sent",
+            entity_type="Expense",
+            entity_id=expense.id,
+            masked_after={
+                "ref_no": ref_no,
+                "customer": customer_name,
+                "amount": amount,
+                "sent_by": request.user.username,
+            },
+        )
+
+        # Try to send email (works if email backend is configured)
+        try:
+            from django.core.mail import send_mail
+            from django.conf import settings
+            from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@tijori.ai")
+            vendor_email = expense.vendor.email if expense.vendor_id and hasattr(expense.vendor, 'email') else None
+            recipient = vendor_email or request.user.email or "finance@tijori.ai"
+            send_mail(
+                subject=f"Payment Reminder — Invoice {ref_no}",
+                message=(
+                    f"Dear {customer_name},\n\n"
+                    f"This is a reminder that invoice {ref_no} for ₹{amount:,.2f} is due for payment.\n\n"
+                    f"Please arrange payment at the earliest.\n\n"
+                    f"Regards,\nFinance Team"
+                ),
+                from_email=from_email,
+                recipient_list=[recipient],
+                fail_silently=True,
+            )
+            logger.info(f"Reminder sent for {ref_no} to {recipient}")
+        except Exception as e:
+            logger.warning(f"Could not send reminder email: {e}")
+
+        return Response({
+            "status": "reminder_sent",
+            "ref_no": ref_no,
+            "customer": customer_name,
+            "message": f"Payment reminder sent for {ref_no}.",
+        })
+
+
+class SchedulePaymentView(APIView):
+    """POST /api/v1/invoices/finance/bills/<id>/schedule/ — Schedule a payment for a future date."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        expense = get_object_or_404(Expense, pk=pk)
+        scheduled_date = request.data.get("scheduled_date", "")
+        note = request.data.get("note", "")
+
+        ocr_raw = expense.ocr_raw or {}
+        ocr_raw["scheduled_payment_date"] = scheduled_date
+        ocr_raw["scheduled_by"] = request.user.username
+        ocr_raw["schedule_note"] = note
+        expense.ocr_raw = ocr_raw
+        expense.save(update_fields=["ocr_raw"])
+
+        from apps.core.models import AuditLog
+        AuditLog.objects.create(
+            user=request.user,
+            action="invoice.payment_scheduled",
+            entity_type="Expense",
+            entity_id=expense.id,
+            masked_after={
+                "ref_no": expense.ref_no,
+                "scheduled_date": scheduled_date,
+                "amount": float(expense.total_amount or 0),
+            },
+        )
+
+        _send_schedule_notification(expense, scheduled_date, note, request.user)
+
+        if expense.submitted_by:
+            notify_user(
+                user=expense.submitted_by,
+                title="Payment Scheduled",
+                message=f"Your payment for {expense.ref_no} (₹{float(expense.total_amount or 0):,.0f}) has been scheduled for {scheduled_date}.",
+                priority="MEDIUM",
+                nav_target="secondary",
+                entity_type="Expense",
+                entity_id=expense.id
+            )
+
+        return Response({
+            "status": "scheduled",
+            "ref_no": expense.ref_no,
+            "scheduled_date": scheduled_date,
+            "message": f"Payment of ₹{float(expense.total_amount or 0):,.0f} scheduled for {scheduled_date}. Confirmation sent to vendor.",
+        })
 
 
 class ApprovalAuthorityView(APIView):
@@ -738,11 +1104,50 @@ class SettlePaymentView(APIView):
         expense.d365_document_no = expense.d365_document_no or f"D365-{expense.ref_no}"
         expense.d365_posted_at = expense.d365_posted_at or timezone.now()
         expense.d365_paid_at = timezone.now()
-        expense.d365_payment_utr = request.data.get("payment_utr") or f"UTR-{expense.ref_no}"
+        payment_utr = request.data.get("payment_utr") or f"UTR-{expense.ref_no}"
+        expense.d365_payment_utr = payment_utr
+        payment_method = request.data.get("payment_method", "NEFT")
+        payment_notes = request.data.get("payment_notes", "")
+        ocr_raw = expense.ocr_raw or {}
+        ocr_raw["payment_method"] = payment_method
+        ocr_raw["payment_notes"] = payment_notes
+        ocr_raw["paid_by"] = request.user.username
+        ocr_raw["paid_at"] = timezone.now().isoformat()
+        expense.ocr_raw = ocr_raw
         expense.save(
-            update_fields=["d365_document_no", "d365_posted_at", "d365_paid_at", "d365_payment_utr"]
+            update_fields=["d365_document_no", "d365_posted_at", "d365_paid_at", "d365_payment_utr", "ocr_raw"]
         )
-        return Response(VendorBillDetailSerializer(expense, context={"request": request}).data)
+        # ─── Notify vendor / submitter via email ──────────────────────────────
+        _send_payment_notification(expense, payment_utr, payment_method, float(expense.total_amount or 0), request.user)
+        
+        if expense.submitted_by:
+            notify_user(
+                user=expense.submitted_by,
+                title="Payment Processed",
+                message=f"Payment of ₹{float(expense.total_amount or 0):,.2f} for {expense.ref_no} has been processed via {payment_method}.",
+                priority="LOW",
+                nav_target="secondary",
+                entity_type="Expense",
+                entity_id=expense.id
+            )
+        
+        # Notify Finance Team (Audit purposes)
+        notify_finance_team(
+            title="Payment Recorded",
+            message=f"{request.user.get_full_name() or request.user.username} recorded ₹{float(expense.total_amount or 0):,.0f} payment for {expense.ref_no}.",
+            priority="LOW",
+            nav_target="ai-hub",
+            entity_type="Expense",
+            entity_id=expense.id,
+            exclude_user=request.user
+        )
+
+        return Response({
+            **VendorBillDetailSerializer(expense, context={"request": request}).data,
+            "payment_utr": payment_utr,
+            "payment_method": payment_method,
+            "message": f"Payment of ₹{float(expense.total_amount or 0):,.2f} processed via {payment_method}. UTR: {payment_utr}",
+        })
 
 
 class SuperiorOverrideApproveView(APIView):

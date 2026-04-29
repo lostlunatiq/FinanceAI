@@ -964,22 +964,226 @@ const DashboardScreen = ({
       color: r.color,
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, r.val))))), [{
-    icon: '✦',
-    title: 'Generate 10-Q',
-    sub: 'AI-compiled regulatory filing draft',
-    action: handleGenerate10Q,
-    loading: runLoading.q
-  }, {
-    icon: '⬡',
-    title: 'Audit Sweep',
-    sub: 'Full-spectrum transaction scan',
-    action: handleAuditSweep,
-    loading: runLoading.sweep
-  }].map((ac, i) => /*#__PURE__*/React.createElement(AIActionCard, {
-    key: i,
-    ac: ac
-  }))), /*#__PURE__*/React.createElement(FloatingCopilot, {
+  }, r.val))))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '12px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    onClick: runLoading.q ? undefined : handleGenerate10Q,
+    style: {
+      background: runLoading.q ? '#F8F7F5' : 'white',
+      borderRadius: '16px',
+      padding: '22px 20px',
+      boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+      cursor: runLoading.q ? 'wait' : 'pointer',
+      opacity: runLoading.q ? 0.7 : 1,
+      transition: 'all 200ms'
+    },
+    onMouseEnter: e => {
+      if (!runLoading.q) e.currentTarget.style.boxShadow = '0 8px 32px rgba(232,120,59,0.25)';
+    },
+    onMouseLeave: e => e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.06)'
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '4px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '15px',
+      color: '#0F172A'
+    }
+  }, "\u2726 Generate 10-Q"), /*#__PURE__*/React.createElement(AIBadge, null)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "AI-compiled regulatory filing draft"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#E8783B',
+      fontWeight: 600,
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginTop: '8px'
+    }
+  }, runLoading.q ? 'Generating…' : 'Run now →')), modal10Q && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: modal10Q.error ? '#FEF2F2' : '#F0FDF4',
+      border: `1px solid ${modal10Q.error ? '#FECACA' : '#A7F3D0'}`,
+      borderRadius: '12px',
+      padding: '14px 16px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '8px'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '12px',
+      fontWeight: 700,
+      color: modal10Q.error ? '#991B1B' : '#065F46',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, modal10Q.title || '10-Q Draft'), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: '8px',
+      alignItems: 'center'
+    }
+  }, !modal10Q.error && /*#__PURE__*/React.createElement("button", {
+    onClick: e => {
+      e.stopPropagation();
+      const blob = new Blob([modal10Q.content || ''], {
+        type: 'text/plain'
+      });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = '10Q_Draft.txt';
+      a.click();
+    },
+    style: {
+      fontSize: '11px',
+      color: '#065F46',
+      fontWeight: 600,
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Download \u2193"), /*#__PURE__*/React.createElement("button", {
+    onClick: e => {
+      e.stopPropagation();
+      setModal10Q(null);
+    },
+    style: {
+      fontSize: '16px',
+      color: '#94A3B8',
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      lineHeight: 1
+    }
+  }, "\xD7"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: modal10Q.error ? '#991B1B' : '#065F46',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      lineHeight: 1.6,
+      maxHeight: 160,
+      overflowY: 'auto',
+      whiteSpace: 'pre-wrap'
+    }
+  }, modal10Q.content || JSON.stringify(modal10Q, null, 2))), /*#__PURE__*/React.createElement("div", {
+    onClick: runLoading.sweep ? undefined : handleAuditSweep,
+    style: {
+      background: runLoading.sweep ? '#F8F7F5' : 'white',
+      borderRadius: '16px',
+      padding: '22px 20px',
+      boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+      cursor: runLoading.sweep ? 'wait' : 'pointer',
+      opacity: runLoading.sweep ? 0.7 : 1,
+      transition: 'all 200ms'
+    },
+    onMouseEnter: e => {
+      if (!runLoading.sweep) e.currentTarget.style.boxShadow = '0 8px 32px rgba(232,120,59,0.25)';
+    },
+    onMouseLeave: e => e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.06)'
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '4px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '15px',
+      color: '#0F172A'
+    }
+  }, "\u2B21 Audit Sweep"), /*#__PURE__*/React.createElement(AIBadge, null)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Full-spectrum transaction scan"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#E8783B',
+      fontWeight: 600,
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginTop: '8px'
+    }
+  }, runLoading.sweep ? 'Scanning…' : 'Run now →')), sweepResult && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: sweepResult.error ? '#FEF2F2' : '#F0FDF4',
+      border: `1px solid ${sweepResult.error ? '#FECACA' : '#A7F3D0'}`,
+      borderRadius: '12px',
+      padding: '14px 16px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '8px'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '12px',
+      fontWeight: 700,
+      color: sweepResult.error ? '#991B1B' : '#065F46',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Sweep Results"), /*#__PURE__*/React.createElement("button", {
+    onClick: e => {
+      e.stopPropagation();
+      setSweepResult(null);
+    },
+    style: {
+      fontSize: '16px',
+      color: '#94A3B8',
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      lineHeight: 1
+    }
+  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: sweepResult.error ? '#991B1B' : '#065F46',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      lineHeight: 1.6
+    }
+  }, sweepResult.message || JSON.stringify(sweepResult)), !sweepResult.error && (sweepResult.flagged || sweepResult.flagged_count) > 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: e => {
+      e.stopPropagation();
+      setSweepResult(null);
+      onNavigate && onNavigate('anomaly');
+    },
+    style: {
+      marginTop: '8px',
+      fontSize: '11px',
+      color: '#065F46',
+      fontWeight: 600,
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "View Flagged Items \u2192")))), /*#__PURE__*/React.createElement(FloatingCopilot, {
     role: roleKey
   }));
 };
