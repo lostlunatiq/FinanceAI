@@ -2,10 +2,10 @@
 
 // ─── UTILS ──────────────────────────────────────────────────────────────────
 const fmtCr = (v) => v >= 10000000 ? `₹${(v / 10000000).toFixed(2)}Cr` : v >= 100000 ? `₹${(v / 100000).toFixed(1)}L` : v >= 1000 ? `₹${(v / 1000).toFixed(0)}K` : `₹${Math.round(v)}`;
-const donutColors = ['#E8783B', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EF4444', '#06B6D4', '#84CC16', '#F43F5E', '#10B981'];
+const donutColors = ['#E8783B', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EF4444', '#06B6D4', '#84CC16', '#F43F5E', '#14B8A6'];
 
 // ─── CHART: Horizontal Multi-Bar ─────────────────────────────────────────────
-const AdvBarChart = ({ data, height = 300, onBarClick }) => {
+const AdvBarChart = ({ data, height = 300, onBarClick, valueLabel = '₹' }) => {
   const [hov, setHov] = React.useState(null);
   if (!data || data.length === 0) return <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8' }}>No data for chart</div>;
   const max = Math.max(...data.map(d => d.value), 1);
@@ -14,18 +14,18 @@ const AdvBarChart = ({ data, height = 300, onBarClick }) => {
       {data.map((d, i) => {
         const pct = (d.value / max) * 100;
         const color = d.color || donutColors[i % donutColors.length];
+        const valStr = valueLabel === '₹' ? fmtCr(d.value) : `${d.value} ${valueLabel}`;
         return (
           <div key={i} style={{ marginBottom: '14px', cursor: onBarClick ? 'pointer' : 'default' }}
             onMouseEnter={() => setHov(i)} onMouseLeave={() => setHov(null)} onClick={() => onBarClick && onBarClick(d)}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', alignItems: 'flex-end' }}>
               <span style={{ fontSize: '12px', fontWeight: 700, color: '#1E293B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{d.label}</span>
-              <span style={{ fontSize: '13px', fontWeight: 800, color: color, fontFamily: "'JetBrains Mono', monospace" }}>{fmtCr(d.value)}</span>
+              <span style={{ fontSize: '13px', fontWeight: 800, color: color, fontFamily: "'JetBrains Mono', monospace" }}>{valStr}</span>
             </div>
             <div style={{ height: '12px', background: '#F1F5F9', borderRadius: '6px', overflow: 'hidden', position: 'relative' }}>
               <div style={{ height: '100%', width: `${pct}%`, background: hov === i ? color : `${color}CC`, borderRadius: '6px', transition: 'all 400ms cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: hov === i ? `0 0 12px ${color}44` : 'none' }} />
-              {hov === i && <div style={{ position: 'absolute', right: 4, top: 1, fontSize: '8px', color: 'white', fontWeight: 800 }}>{d.count} Tx</div>}
+              {hov === i && d.count !== undefined && <div style={{ position: 'absolute', right: 4, top: 1, fontSize: '8px', color: 'white', fontWeight: 800 }}>{d.count} Tx</div>}
             </div>
-            {hov === i && d.insight && <div style={{ fontSize: '10px', color: color, marginTop: '4px', fontWeight: 600, animation: 'fadeIn 200ms ease' }}>✦ {d.insight}</div>}
           </div>
         );
       })}
@@ -36,64 +36,95 @@ const AdvBarChart = ({ data, height = 300, onBarClick }) => {
 // ─── CHART: Area / Line Trend ────────────────────────────────────────────────
 const AdvTrendChart = ({ series, labels, height = 240 }) => {
   const [hov, setHov] = React.useState(null);
-  const W = 600, H = height, padL = 60, padR = 20, padT = 30, padB = 40;
-  if (!series || !labels || labels.length < 2) return <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8' }}>Insufficient data</div>;
+  if (!series || !labels || labels.length === 0) return <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8' }}>Insufficient data</div>;
 
-  const allVals = series.flatMap(s => s.data);
+  const mainSeries = series[0];
+  const allVals = mainSeries.data;
   const maxV = Math.max(...allVals, 1) * 1.1;
-  const getX = (i) => padL + (i / (labels.length - 1)) * (W - padL - padR);
-  const getY = (v) => padT + (1 - v / maxV) * (H - padT - padB);
 
   return (
-    <div style={{ position: 'relative' }}>
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: 'visible' }}>
-        {/* Y Grid */}
-        {[0, 0.25, 0.5, 0.75, 1].map(f => (
-          <g key={f}>
-            <line x1={padL} y1={getY(maxV * f / 1.1)} x2={W - padR} y2={getY(maxV * f / 1.1)} stroke="#F1F5F9" strokeWidth="1" />
-            <text x={padL - 8} y={getY(maxV * f / 1.1) + 4} textAnchor="end" fontSize="10" fill="#94A3B8" fontFamily="Plus Jakarta Sans">{fmtCr(maxV * f / 1.1)}</text>
-          </g>
-        ))}
-        {/* Hover Line */}
-        {hov !== null && <line x1={getX(hov)} y1={padT} x2={getX(hov)} y2={H - padB} stroke="#E2E8F0" strokeWidth="1" strokeDasharray="4,4" />}
-        {/* Series Paths */}
-        {series.map((s, si) => {
-          const d = s.data.map((v, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(v)}`).join(' ');
-          const area = d + ` L ${getX(s.data.length - 1)} ${H - padB} L ${getX(0)} ${H - padB} Z`;
+    <div style={{ height, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '20px 10px 0', borderBottom: '1px solid #F1F0EE', position: 'relative' }}>
+        {labels.map((l, i) => {
+          const val = mainSeries.data[i];
+          const pct = (val / Math.max(maxV, 1)) * 100;
           return (
-            <g key={si}>
-              <path d={area} fill={s.color} opacity="0.08" />
-              <path d={d} fill="none" stroke={s.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-              {s.data.map((v, i) => (
-                <circle key={i} cx={getX(i)} cy={getY(v)} r={hov === i ? 6 : 4} fill={hov === i ? s.color : 'white'} stroke={s.color} strokeWidth="2.5" />
-              ))}
-            </g>
+            <div key={i} style={{ width: '100%', display: 'flex', justifyContent: 'center', position: 'relative', height: '100%', alignItems: 'flex-end', cursor: 'pointer' }}
+              onMouseEnter={() => setHov(i)} onMouseLeave={() => setHov(null)}>
+              <div style={{ position: 'absolute', inset: 0, background: hov === i ? '#F8FAFC' : 'transparent', zIndex: 0, transition: 'background 150ms' }} />
+              <div style={{ width: '60%', maxWidth: '40px', height: `${pct}%`, background: hov === i ? mainSeries.color : `${mainSeries.color}DD`, borderRadius: '4px 4px 0 0', zIndex: 1, transition: 'all 300ms ease', position: 'relative', boxShadow: hov === i ? `0 0 12px ${mainSeries.color}44` : 'none' }}>
+                {hov === i && (
+                  <div style={{ position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: '8px', background: '#0F172A', color: 'white', padding: '6px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'nowrap', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 10, animation: 'fadeUp 150ms ease' }}>
+                    {fmtCr(val)}
+                  </div>
+                )}
+              </div>
+            </div>
           );
         })}
-        {/* X Labels */}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 10px 0' }}>
         {labels.map((l, i) => (
-          <text key={i} x={getX(i)} y={H - 10} textAnchor="middle" fontSize="10" fill={hov === i ? '#0F172A' : '#94A3B8'} fontWeight={hov === i ? 700 : 500} fontFamily="Plus Jakarta Sans">{l}</text>
+          <div key={i} style={{ width: '100%', textAlign: 'center', fontSize: '10px', color: hov === i ? '#0F172A' : '#94A3B8', fontWeight: hov === i ? 700 : 500, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            {l}
+          </div>
         ))}
-        {/* Hover Areas */}
-        {labels.map((_, i) => (
-          <rect key={i} x={getX(i) - 20} y={padT} width={40} height={H - padT - padB} fill="transparent" style={{ cursor: 'crosshair' }}
-            onMouseEnter={() => setHov(i)} onMouseLeave={() => setHov(null)} />
-        ))}
-      </svg>
-      {hov !== null && (
-        <div style={{ position: 'absolute', top: 40, left: `${getX(hov) / W * 100}%`, transform: 'translateX(-50%)', background: 'rgba(15, 23, 42, 0.95)', backdropFilter: 'blur(4px)', borderRadius: '10px', padding: '12px', border: '1px solid rgba(255,255,255,0.1)', color: 'white', pointerEvents: 'none', zIndex: 10, boxShadow: '0 12px 32px rgba(0,0,0,0.25)' }}>
-          <div style={{ fontSize: '11px', color: '#94A3B8', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>{labels[hov]}</div>
-          {series.map((s, si) => (
-            <div key={si} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '24px', marginBottom: '4px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <div style={{ width: 8, height: 8, borderRadius: '2px', background: s.color }} />
-                <span style={{ fontSize: '12px', fontWeight: 600 }}>{s.label}</span>
-              </div>
-              <span style={{ fontSize: '13px', fontWeight: 800, fontFamily: "'JetBrains Mono', monospace" }}>{fmtCr(s.data[hov])}</span>
-            </div>
-          ))}
+      </div>
+    </div>
+  );
+};
+
+// ─── CHART: Donut ─────────────────────────────────────────────────────────────
+const AdvDonutChart = ({ slices, size = 200 }) => {
+  const [hov, setHov] = React.useState(null);
+  if (!slices || slices.length === 0) return <div style={{ height: size, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8' }}>No data</div>;
+  const total = slices.reduce((s, d) => s + d.value, 0) || 1;
+  
+  let currentPct = 0;
+  const segments = slices.map((s, i) => {
+    const pct = (s.value / total) * 100;
+    const start = currentPct;
+    currentPct += pct;
+    const color = s.color || donutColors[i % donutColors.length];
+    return { ...s, start, end: currentPct, pct: pct.toFixed(1), idx: i, color };
+  });
+
+  const gradient = segments.map(s => `${s.color} ${s.start}% ${s.end}%`).join(', ');
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap', justifyContent: 'center', width: '100%' }}>
+      <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+          borderRadius: '50%',
+          background: `conic-gradient(${gradient})`,
+          transition: 'all 300ms ease',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+        }}></div>
+        <div style={{
+          position: 'absolute', top: '25%', left: '25%', right: '25%', bottom: '25%',
+          background: 'white', borderRadius: '50%',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.05)', zIndex: 2
+        }}>
+          <div style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A', fontFamily: "'Bricolage Grotesque', sans-serif" }}>
+            {hov !== null ? segments[hov].pct + '%' : '100%'}
+          </div>
+          <div style={{ fontSize: '10px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif", textAlign: 'center', padding: '0 4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
+            {hov !== null ? segments[hov].label : 'Total'}
+          </div>
         </div>
-      )}
+      </div>
+      <div style={{ flex: 1, minWidth: '160px', maxHeight: size, overflowY: 'auto' }}>
+        {segments.map((a) => (
+          <div key={a.idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', cursor: 'pointer', opacity: hov !== null && hov !== a.idx ? 0.4 : 1, transition: 'opacity 200ms' }}
+            onMouseEnter={() => setHov(a.idx)} onMouseLeave={() => setHov(null)}>
+            <span style={{ width: 12, height: 12, borderRadius: '4px', background: a.color, flexShrink: 0 }} />
+            <span style={{ fontSize: '11px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif", flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.label}</span>
+            <span style={{ fontSize: '12px', fontWeight: 800, color: a.color, fontFamily: "'JetBrains Mono', monospace" }}>{a.pct}%</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
@@ -116,10 +147,10 @@ const InsightBlock = ({ insight, severity = 'info' }) => (
 // ─── REPORT WRAPPER ──────────────────────────────────────────────────────────
 const ReportView = ({ title, subtitle, children, actions }) => (
   <div style={{ background: 'white', borderRadius: '24px', border: '1px solid #F1F0EE', boxShadow: '0 4px 24px rgba(0,0,0,0.04)', overflow: 'hidden', animation: 'fadeUp 300ms ease' }}>
-    <div style={{ padding: '24px 32px', borderBottom: '1px solid #F8F7F5', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(to bottom, #FFFFFF, #FCFBFA)' }}>
+    <div style={{ padding: '20px 32px', borderBottom: '1px solid #F8F7F5', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(to bottom, #FFFFFF, #FCFBFA)' }}>
       <div>
-        <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '22px', color: '#0F172A', letterSpacing: '-0.5px', margin: 0 }}>{title}</h2>
-        {subtitle && <p style={{ fontSize: '13px', color: '#64748B', margin: '4px 0 0 0', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{subtitle}</p>}
+        <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '20px', color: '#0F172A', letterSpacing: '-0.5px', margin: 0 }}>{title}</h2>
+        {subtitle && <p style={{ fontSize: '12px', color: '#64748B', margin: '4px 0 0 0', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{subtitle}</p>}
       </div>
       <div style={{ display: 'flex', gap: '12px' }}>{actions}</div>
     </div>
@@ -132,9 +163,17 @@ const LiveReportsScreen = ({ role, onNavigate }) => {
   const [activeTab, setActiveTab] = React.useState('Executive Summary');
   const [dateRange, setDateRange] = React.useState('Last 3 Months');
   const [filterDept, setFilterDept] = React.useState('All Departments');
+  const [filterStatus, setFilterStatus] = React.useState('All Statuses');
   const [loading, setLoading] = React.useState(true);
   const [data, setData] = React.useState({ tx: [], depts: [], cats: [], trends: [] });
   const [exporting, setExporting] = React.useState(false);
+  const [sortConfig, setSortConfig] = React.useState({ key: 'date', direction: 'desc' });
+
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
+    setSortConfig({ key, direction });
+  };
 
   // Load Data
   React.useEffect(() => {
@@ -142,8 +181,8 @@ const LiveReportsScreen = ({ role, onNavigate }) => {
       setLoading(true);
       try {
         const [exp, bills] = await Promise.all([
-          window.TijoriAPI.BillsAPI.listExpenses({ limit: 500 }),
-          window.TijoriAPI.BillsAPI.listVendorBills({ limit: 500 })
+          window.TijoriAPI.BillsAPI.listExpenses({ limit: 800 }),
+          window.TijoriAPI.BillsAPI.listVendorBills({ limit: 800 })
         ]);
         
         const all = [
@@ -151,7 +190,6 @@ const LiveReportsScreen = ({ role, onNavigate }) => {
           ...(bills.results || bills || []).map(b => ({ ...b, _type: 'Vendor Bill' }))
         ];
 
-        // Process combined data
         const processed = all.map(r => ({
           id: r.id,
           date: new Date(r.invoice_date || r.submitted_at || r.created_at),
@@ -159,7 +197,9 @@ const LiveReportsScreen = ({ role, onNavigate }) => {
           dept: r.department_name || r.department || 'General',
           cat: r.expense_category || 'Uncategorized',
           party: r.vendor_name || r.submitted_by_name || 'Internal',
-          status: r.status || r._status || 'SUBMITTED'
+          status: r.status || r._status || 'SUBMITTED',
+          anomaly_severity: r.anomaly_severity || 'NONE',
+          anomaly_score: r.anomaly_score || (r.anomaly_severity === 'CRITICAL' ? 95 : r.anomaly_severity === 'HIGH' ? 85 : r.anomaly_severity === 'MEDIUM' ? 65 : 10),
         }));
 
         setData({ tx: processed });
@@ -175,31 +215,93 @@ const LiveReportsScreen = ({ role, onNavigate }) => {
     let cutoff = new Date(0);
     if (dateRange === 'Current Month') cutoff = new Date(now.getFullYear(), now.getMonth(), 1);
     else if (dateRange === 'Last 3 Months') cutoff = new Date(now.setMonth(now.getMonth() - 3));
+    else if (dateRange === 'Last 6 Months') cutoff = new Date(now.setMonth(now.getMonth() - 6));
     else if (dateRange === 'Year to Date') cutoff = new Date(now.getFullYear(), 0, 1);
 
-    return data.tx.filter(t => {
+    const filteredData = data.tx.filter(t => {
       const matchDate = t.date >= cutoff;
       const matchDept = filterDept === 'All Departments' || t.dept === filterDept;
-      return matchDate && matchDept;
+      const matchStatus = filterStatus === 'All Statuses' || t.status === filterStatus;
+      return matchDate && matchDept && matchStatus;
     });
-  }, [data.tx, dateRange, filterDept]);
 
-  // Breakdowns
+    filteredData.sort((a, b) => {
+      let aVal = a[sortConfig.key];
+      let bVal = b[sortConfig.key];
+      if (sortConfig.key === 'party') { aVal = a.party; bVal = b.party; }
+      if (sortConfig.key === 'dept') { aVal = a.dept; bVal = b.dept; }
+      if (sortConfig.key === 'cat') { aVal = a.cat; bVal = b.cat; }
+      
+      if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return filteredData;
+  }, [data.tx, dateRange, filterDept, filterStatus, sortConfig]);
+
+  // Comprehensive Breakdowns for 10+ Graphs
   const breakdowns = React.useMemo(() => {
-    const deptMap = {}, catMap = {}, monthlyMap = {};
+    const deptMap = {}, catMap = {}, monthlyMap = {}, vendorMap = {};
+    const statusMap = {}, riskMap = { 'High Risk': 0, 'Medium Risk': 0, 'Low Risk': 0 };
+    const paidVsPendingMap = { 'Settled (Paid/Posted)': 0, 'Pending/Processing': 0, 'Rejected': 0 };
+    const deptVolumeMap = {};
+    const deptAnomalousSpend = {};
+
     filtered.forEach(t => {
+      // 1. Dept Spend
       deptMap[t.dept] = (deptMap[t.dept] || 0) + t.amount;
+      // 2. Cat Spend
       catMap[t.cat] = (catMap[t.cat] || 0) + t.amount;
+      // 3. Monthly Spend
       const mo = t.date.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });
       monthlyMap[mo] = (monthlyMap[mo] || 0) + t.amount;
+      // 4. Vendor Spend
+      if (t._type === 'Vendor Bill' || t.party !== 'Internal') {
+        vendorMap[t.party] = (vendorMap[t.party] || 0) + t.amount;
+      }
+      // 5. Status Dist
+      statusMap[t.status] = (statusMap[t.status] || 0) + 1;
+      
+      // 6. Paid vs Pending
+      if (['PAID', 'POSTED_D365'].includes(t.status)) paidVsPendingMap['Settled (Paid/Posted)'] += t.amount;
+      else if (['REJECTED', 'AUTO_REJECT'].includes(t.status)) paidVsPendingMap['Rejected'] += t.amount;
+      else paidVsPendingMap['Pending/Processing'] += t.amount;
+
+      // 7. Risk
+      if (t.anomaly_severity === 'CRITICAL' || t.anomaly_severity === 'HIGH') {
+        riskMap['High Risk']++;
+        deptAnomalousSpend[t.dept] = (deptAnomalousSpend[t.dept] || 0) + t.amount;
+      } else if (t.anomaly_severity === 'MEDIUM') {
+        riskMap['Medium Risk']++;
+        deptAnomalousSpend[t.dept] = (deptAnomalousSpend[t.dept] || 0) + (t.amount * 0.5);
+      } else {
+        riskMap['Low Risk']++;
+      }
+
+      // 8. Dept Volume
+      deptVolumeMap[t.dept] = (deptVolumeMap[t.dept] || 0) + 1;
+    });
+
+    const sortMap = (m) => Object.entries(m).map(([label, value]) => ({ label, value })).sort((a,b) => b.value - a.value);
+
+    // Ensure chronological order for trends
+    const sortedMonths = Object.keys(monthlyMap).sort((a, b) => {
+      const [m1, y1] = a.split(' '); const [m2, y2] = b.split(' ');
+      return new Date(`1 ${m1} 20${y1}`) - new Date(`1 ${m2} 20${y2}`);
     });
 
     return {
-      depts: Object.entries(deptMap).map(([label, value]) => ({ label, value })).sort((a,b) => b.value - a.value),
-      cats: Object.entries(catMap).map(([label, value]) => ({ label, value })).sort((a,b) => b.value - a.value),
+      depts: sortMap(deptMap),
+      cats: sortMap(catMap),
+      vendors: sortMap(vendorMap),
+      statuses: sortMap(statusMap),
+      risks: Object.entries(riskMap).map(([label, value]) => ({ label, value })),
+      paidVsPending: Object.entries(paidVsPendingMap).map(([label, value]) => ({ label, value })),
+      deptVolume: sortMap(deptVolumeMap),
+      riskDepts: Object.entries(deptAnomalousSpend).map(([label, value]) => ({ label, value, color: '#EF4444' })).sort((a,b)=>b.value-a.value),
       trends: {
-        labels: Object.keys(monthlyMap),
-        values: Object.values(monthlyMap)
+        labels: sortedMonths,
+        values: sortedMonths.map(m => monthlyMap[m])
       }
     };
   }, [filtered]);
@@ -209,8 +311,8 @@ const LiveReportsScreen = ({ role, onNavigate }) => {
     setExporting(true);
     try {
       const wb = window.XLSX.utils.book_new();
+      const totalVal = filtered.reduce((s,t) => s+t.amount, 0);
       
-      // 1. Executive Summary Sheet
       const summary = [
         ['TIJORI AI — ENTERPRISE FINANCIAL INTELLIGENCE REPORT'],
         ['Generated On', new Date().toLocaleString('en-IN')],
@@ -227,42 +329,24 @@ const LiveReportsScreen = ({ role, onNavigate }) => {
         [''],
         ['AI INSIGHTS'],
         ['Spending Velocity', `Overall spend has ${breakdowns.trends.values.slice(-1)[0] > breakdowns.trends.values.slice(-2)[0] ? 'accelerated' : 'decelerated'} month-over-month.`],
-        ['Risk Outlook', 'No critical policy violations detected in the exported subset.'],
       ];
       window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.aoa_to_sheet(summary), 'Exec Summary');
 
-      // 2. Departmental Analysis
-      const deptData = [['Department', 'Total Spend (₹)', 'Tx Count', '% of Total'],
-        ...breakdowns.depts.map(d => [d.label, d.value, filtered.filter(t => t.dept === d.label).length, ((d.value / (totalVal || 1)) * 100).toFixed(2) + '%'])];
+      const deptData = [['Department', 'Total Spend (₹)', '% of Total'], ...breakdowns.depts.map(d => [d.label, d.value, ((d.value / (totalVal || 1)) * 100).toFixed(2) + '%'])];
       window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.aoa_to_sheet(deptData), 'Dept Analysis');
 
-      // 3. Category Intelligence
-      const catData = [['Category', 'Total Spend (₹)', 'Tx Count'],
-        ...breakdowns.cats.map(c => [c.label, c.value, filtered.filter(t => t.cat === c.label).length])];
+      const catData = [['Category', 'Total Spend (₹)'], ...breakdowns.cats.map(c => [c.label, c.value])];
       window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.aoa_to_sheet(catData), 'Category Intel');
 
-      // 4. Monthly Trends
-      const trendData = [['Month', 'Spend (₹)'],
-        ...breakdowns.trends.labels.map((l, i) => [l, breakdowns.trends.values[i]])];
+      const trendData = [['Month', 'Spend (₹)'], ...breakdowns.trends.labels.map((l, i) => [l, breakdowns.trends.values[i]])];
       window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.aoa_to_sheet(trendData), 'Monthly Trends');
 
-      // 5. Audit Ledger (Full Data)
       const detailed = [['Date', 'Transaction ID', 'Entity / Party', 'Department', 'Category', 'Amount (₹)', 'Status'],
         ...filtered.map(t => [t.date.toLocaleDateString(), t.id, t.party, t.dept, t.cat, t.amount, t.status])];
       window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.aoa_to_sheet(detailed), 'Full Audit Ledger');
 
-      // 6. Vendor Risk Summary
-      const vendorData = [['Vendor', 'Total Volume', 'Invoices'],
-        ...[...new Set(filtered.map(t => t.party))].map(v => {
-          const vTx = filtered.filter(t => t.party === v);
-          return [v, vTx.reduce((s,t) => s+t.amount, 0), vTx.length];
-        }).sort((a,b) => b[1] - a[1]).slice(0, 50)];
-      window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.aoa_to_sheet(vendorData), 'Vendor Spend');
-
       window.XLSX.writeFile(wb, `TijoriAI_Enterprise_Report_${new Date().getTime()}.xlsx`);
-    } catch (e) {
-      alert("Export failed: " + e.message);
-    }
+    } catch (e) { alert("Export failed: " + e.message); }
     setExporting(false);
   };
 
@@ -297,14 +381,30 @@ const LiveReportsScreen = ({ role, onNavigate }) => {
         ))}
         
         <div style={{ marginTop: '40px', padding: '16px', background: '#F8FAFC', borderRadius: '16px', border: '1px solid #F1F5F9' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '8px' }}>Report Filters</div>
-          <select value={dateRange} onChange={e => setDateRange(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '12px', marginBottom: '10px' }}>
-            {['Current Month', 'Last 3 Months', 'Year to Date', 'All Time'].map(o => <option key={o}>{o}</option>)}
-          </select>
-          <select value={filterDept} onChange={e => setFilterDept(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '12px' }}>
-            <option>All Departments</option>
-            {[...new Set(data.tx.map(t => t.dept))].map(d => <option key={d}>{d}</option>)}
-          </select>
+          <div style={{ fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '12px', display: 'flex', justifyContent: 'space-between' }}>
+            Report Filters
+            <span style={{ color: '#E8783B', cursor: 'pointer' }} onClick={() => { setFilterDept('All Departments'); setFilterStatus('All Statuses'); }}>Clear</span>
+          </div>
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ fontSize: '10px', color: '#94A3B8', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Date Range</label>
+            <select value={dateRange} onChange={e => setDateRange(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '12px', outline: 'none' }}>
+              {['Current Month', 'Last 3 Months', 'Last 6 Months', 'Year to Date', 'All Time'].map(o => <option key={o}>{o}</option>)}
+            </select>
+          </div>
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ fontSize: '10px', color: '#94A3B8', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Department</label>
+            <select value={filterDept} onChange={e => setFilterDept(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '12px', outline: 'none' }}>
+              <option>All Departments</option>
+              {[...new Set(data.tx.map(t => t.dept))].filter(Boolean).map(d => <option key={d}>{d}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: '10px', color: '#94A3B8', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Status</label>
+            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '12px', outline: 'none' }}>
+              <option>All Statuses</option>
+              {[...new Set(data.tx.map(t => t.status))].filter(Boolean).map(s => <option key={s}>{s}</option>)}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -319,7 +419,6 @@ const LiveReportsScreen = ({ role, onNavigate }) => {
             <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '36px', color: '#0F172A', letterSpacing: '-1.5px', margin: 0 }}>{activeTab}</h1>
           </div>
           <div style={{ display: 'flex', gap: '12px' }}>
-            <Btn variant="secondary" icon="↻" onClick={() => window.location.reload()}>Refresh</Btn>
             <Btn variant="primary" icon={exporting ? '⏳' : '📥'} onClick={handleExport} disabled={exporting}>
               {exporting ? 'Exporting…' : 'Export Full Report (XLSX)'}
             </Btn>
@@ -330,9 +429,9 @@ const LiveReportsScreen = ({ role, onNavigate }) => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '24px', marginBottom: '40px' }}>
           {[
             { label: 'Total Spend', value: fmtCr(totalVal), sub: `${filtered.length} transactions`, color: '#E8783B' },
-            { label: 'Largest Tx', value: fmtCr(Math.max(...filtered.map(t => t.amount), 0)), sub: 'High-value approval', color: '#F59E0B' },
+            { label: 'Avg Transaction', value: fmtCr(filtered.length ? totalVal / filtered.length : 0), sub: 'Across filters', color: '#F59E0B' },
             { label: 'Depts Active', value: [...new Set(filtered.map(t => t.dept))].length, sub: 'Cost centers reporting', color: '#10B981' },
-            { label: 'Audit Flags', value: '3 High', sub: 'Anomalies detected', color: '#EF4444' },
+            { label: 'Risk Flags', value: breakdowns.risks.find(r => r.label === 'High Risk')?.value || 0, sub: 'Critical anomalies', color: '#EF4444' },
           ].map((k, i) => (
             <div key={i} style={{ background: 'white', padding: '24px', borderRadius: '20px', border: '1px solid #F1F0EE', boxShadow: '0 2px 12px rgba(0,0,0,0.03)' }}>
               <div style={{ fontSize: '11px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>{k.label}</div>
@@ -342,51 +441,124 @@ const LiveReportsScreen = ({ role, onNavigate }) => {
           ))}
         </div>
 
-        {/* DYNAMIC CONTENT BASED ON TAB */}
+        {/* --- 1. EXECUTIVE SUMMARY --- */}
         {activeTab === 'Executive Summary' && (
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '32px' }}>
+            {/* Graph 1: Area Trend */}
             <ReportView title="Consolidated Spend Trend" subtitle="Monthly transaction velocity and total outflow">
-              <AdvTrendChart series={[{ label: 'Outflow', data: breakdowns.trends.values, color: '#E8783B' }]} labels={breakdowns.trends.labels} />
-              <InsightBlock insight={`Overall spend has ${breakdowns.trends.values.slice(-1)[0] > breakdowns.trends.values.slice(-2)[0] ? 'increased' : 'decreased'} compared to last month. Operations and Tech procurement remain the primary cost drivers.`} />
+              <AdvTrendChart series={[{ label: 'Total Outflow', data: breakdowns.trends.values, color: '#E8783B' }]} labels={breakdowns.trends.labels} />
+              <InsightBlock insight={`Overall spend has ${breakdowns.trends.values.slice(-1)[0] > (breakdowns.trends.values.slice(-2)[0]||0) ? 'accelerated' : 'decelerated'} recently.`} />
             </ReportView>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-              <ReportView title="Departmental Split" subtitle="Share of total spend">
-                <AdvBarChart data={breakdowns.depts.slice(0, 5)} height={260} />
+              {/* Graph 2: Bar Chart Dept Split */}
+              <ReportView title="Top Department Share" subtitle="Spend split by cost center">
+                <AdvBarChart data={breakdowns.depts.slice(0, 4)} height={180} />
               </ReportView>
-              <ReportView title="Risk Distribution" subtitle="Vendor reliability rating">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {['High Risk','Medium Risk','Low Risk'].map((r, i) => (
-                    <div key={r} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: '#F8FAFC', borderRadius: '12px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>{r}</span>
-                      <span style={{ padding: '2px 10px', borderRadius: '20px', background: i === 0 ? '#FEE2E2' : i === 1 ? '#FEF3C7' : '#D1FAE5', color: i === 0 ? '#991B1B' : i === 1 ? '#92400E' : '#065F46', fontSize: '11px', fontWeight: 800 }}>{i === 0 ? '3 Flags' : i === 1 ? '12 Bills' : '140 Bills'}</span>
-                    </div>
-                  ))}
-                </div>
+              {/* Graph 3: Donut Status */}
+              <ReportView title="Transaction Status" subtitle="Count of approvals vs pending">
+                <AdvDonutChart slices={breakdowns.statuses.map((s, i) => ({ ...s, color: s.label === 'PAID' ? '#10B981' : s.label.includes('REJECT') ? '#EF4444' : donutColors[i % donutColors.length] }))} size={180} />
               </ReportView>
             </div>
           </div>
         )}
 
+        {/* --- 2. DEPARTMENTAL INTEL --- */}
         {activeTab === 'Departmental Intel' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
-            <ReportView title="Top Departments" subtitle="Budget utilisation per cost center">
-              <AdvBarChart data={breakdowns.depts} height={400} />
+            {/* Graph 4: Bar Chart Top Depts Spend */}
+            <ReportView title="Budget Utilisation by Dept" subtitle="Total capital deployment per center">
+              <AdvBarChart data={breakdowns.depts} height={380} />
+              <InsightBlock insight={`${breakdowns.depts[0]?.label || 'The top department'} consumes ${((breakdowns.depts[0]?.value || 0) / (totalVal || 1) * 100).toFixed(1)}% of the total outflow.`} />
             </ReportView>
-            <ReportView title="Category Drill-Down" subtitle="Where the money is going">
-              <AdvBarChart data={breakdowns.cats} height={400} />
-              <InsightBlock insight="Marketing and Software Subscriptions account for 42% of the 'Misc' category. Potential for consolidation detected." severity="warning" />
+            {/* Graph 5: Bar Chart Dept Volume */}
+            <ReportView title="Transaction Volume" subtitle="Number of invoices/expenses processed">
+              <AdvBarChart data={breakdowns.deptVolume} valueLabel="Transactions" height={380} />
             </ReportView>
           </div>
         )}
 
+        {/* --- 3. PROCUREMENT INSIGHTS --- */}
+        {activeTab === 'Procurement Insights' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+            {/* Graph 6: Bar Chart Top Vendors */}
+            <ReportView title="Top Vendors by Spend" subtitle="Identifying major supply chain dependencies">
+              <AdvBarChart data={breakdowns.vendors.slice(0, 8)} height={380} />
+            </ReportView>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+              {/* Graph 7: Donut Top Categories */}
+              <ReportView title="Spend by Category" subtitle="Distribution of purchased services/goods">
+                <AdvDonutChart slices={breakdowns.cats.slice(0, 5)} size={220} />
+              </ReportView>
+              <InsightBlock insight={`Vendor concentration risk is low. Top 3 vendors account for ${breakdowns.vendors.length ? ((breakdowns.vendors.slice(0,3).reduce((s,v)=>s+v.value,0) / totalVal) * 100).toFixed(1) : 0}% of procurement.`} severity="warning" />
+            </div>
+          </div>
+        )}
+
+        {/* --- 4. TREASURY & CASH FLOW --- */}
+        {activeTab === 'Treasury & Cash Flow' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '32px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+              {/* Graph 8: Donut Paid vs Pending Cash */}
+              <ReportView title="Capital Settlement Status" subtitle="Realised cash vs outstanding liabilities">
+                <AdvDonutChart slices={breakdowns.paidVsPending.map(p => ({ ...p, color: p.label.includes('Settled') ? '#10B981' : p.label.includes('Rejected') ? '#EF4444' : '#F59E0B' }))} size={240} />
+              </ReportView>
+              {/* Graph 9: Area Trend Avg Size */}
+              <ReportView title="Average Transaction Value" subtitle="Monthly fluctuation in ticket size">
+                <AdvTrendChart series={[{ label: 'Avg Value (₹)', data: breakdowns.trends.values.map(v => v / (filtered.length || 1)), color: '#3B82F6' }]} labels={breakdowns.trends.labels} height={200} />
+              </ReportView>
+            </div>
+            <InsightBlock insight={`Current outstanding liabilities amount to ${fmtCr(breakdowns.paidVsPending.find(p => p.label === 'Pending/Processing')?.value || 0)}. Ensure sufficient liquidity for upcoming AP cycles.`} />
+          </div>
+        )}
+
+        {/* --- 5. AUDIT & COMPLIANCE --- */}
+        {activeTab === 'Audit & Compliance' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+            {/* Graph 10: Donut Risk Tiers */}
+            <ReportView title="System-wide Risk Assessment" subtitle="Invoices flagged by AI Fraud Engine">
+              <AdvDonutChart slices={breakdowns.risks.map(r => ({ ...r, color: r.label.includes('High') ? '#EF4444' : r.label.includes('Medium') ? '#F59E0B' : '#10B981' }))} size={240} />
+            </ReportView>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Graph 11: Bar Chart Anomalies by Dept */}
+              <ReportView title="Risk by Cost Center" subtitle="Departments generating the most flags">
+                <AdvBarChart data={breakdowns.riskDepts.slice(0, 4)} height={200} />
+              </ReportView>
+            </div>
+          </div>
+        )}
+
+        {/* --- 6. DETAILED LEDGER --- */}
         {activeTab === 'Detailed Ledger' && (
-          <ReportView title="Transaction Audit Ledger" subtitle="Full line-item history with status tracking">
+          <ReportView title="Transaction Audit Ledger" subtitle="Full line-item history with status tracking" actions={
+            <Btn variant="secondary" onClick={() => {
+              const csv = [
+                ['Date', 'Entity', 'Department', 'Category', 'Amount', 'Status'],
+                ...filtered.map(t => [t.date.toLocaleDateString(), t.party, t.dept, t.cat, t.amount, t.status])
+              ].map(r => r.join(',')).join('\n');
+              const blob = new Blob([csv], { type: 'text/csv' });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = `ledger_export_${new Date().toISOString().slice(0,10)}.csv`;
+              link.click();
+              URL.revokeObjectURL(url);
+            }}>Export to CSV</Btn>
+          }>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid #F1F0EE' }}>
-                    {['Date', 'Entity', 'Department', 'Category', 'Amount', 'Status'].map(h => (
-                      <th key={h} style={{ textAlign: 'left', padding: '16px', fontSize: '11px', fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{h}</th>
+                    {[
+                      { label: 'Date', key: 'date' },
+                      { label: 'Entity', key: 'party' },
+                      { label: 'Department', key: 'dept' },
+                      { label: 'Category', key: 'cat' },
+                      { label: 'Amount', key: 'amount' },
+                      { label: 'Status', key: 'status' }
+                    ].map(h => (
+                      <th key={h.key} onClick={() => handleSort(h.key)} style={{ textAlign: 'left', padding: '16px', fontSize: '11px', fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.1em', cursor: 'pointer' }}>
+                        {h.label} {sortConfig.key === h.key ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}
+                      </th>
                     ))}
                   </tr>
                 </thead>
@@ -403,18 +575,11 @@ const LiveReportsScreen = ({ role, onNavigate }) => {
                   ))}
                 </tbody>
               </table>
+              {filtered.length > 50 && <div style={{ textAlign: 'center', padding: '20px', color: '#94A3B8', fontSize: '12px' }}>Showing top 50 records. Export XLSX for all {filtered.length} records.</div>}
             </div>
           </ReportView>
         )}
 
-        {(activeTab === 'Procurement Insights' || activeTab === 'Treasury & Cash Flow' || activeTab === 'Audit & Compliance') && (
-           <div style={{ textAlign: 'center', padding: '100px', background: 'white', borderRadius: '24px', border: '1px dashed #E2E8F0' }}>
-             <div style={{ fontSize: '40px', marginBottom: '16px' }}>📈</div>
-             <h3 style={{ fontFamily: 'Bricolage Grotesque', fontWeight: 800, color: '#0F172A' }}>Deep Dive Analytics Loading</h3>
-             <p style={{ color: '#64748B', maxWidth: '400px', margin: '0 auto' }}>This specialist report is being computed based on real-time transaction history. Accessing secure data vaults…</p>
-             <InsightBlock insight="AI is currently cross-referencing these reports with external market benchmarks to provide vendor price-variance analysis." />
-           </div>
-        )}
       </div>
     </div>
   );

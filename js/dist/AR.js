@@ -95,9 +95,9 @@ const ARScreen = ({
   const loadData = () => {
     setLoadingInvoices(true);
     Promise.allSettled([window.TijoriAPI.BillsAPI.listVendorBills({
-      limit: 50
+      limit: 500
     }), window.TijoriAPI.AuditAPI.list({
-      limit: 10
+      limit: 30
     })]).then(([billsRes, auditRes]) => {
       if (billsRes.status === 'fulfilled') {
         const bills = Array.isArray(billsRes.value) ? billsRes.value : billsRes.value?.results || [];
@@ -546,7 +546,7 @@ const ARScreen = ({
       display: 'flex',
       gap: '5px'
     }
-  }, ['APPROVED', 'UNPAID', 'OVERDUE'].includes(inv.status) && /*#__PURE__*/React.createElement(Btn, {
+  }, ['APPROVED', 'UNPAID', 'OVERDUE'].includes(inv.status) && inv.status !== 'PAID' && /*#__PURE__*/React.createElement(Btn, {
     variant: "green",
     small: true,
     onClick: () => {

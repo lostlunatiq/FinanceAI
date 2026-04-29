@@ -30,6 +30,7 @@ const Auth = {
 
 async function apiFetch(url, options = {}) {
   const res = await fetch(`${API_BASE}${url}`, {
+    cache: 'no-store',
     ...options,
     headers: { ...Auth.headers(), ...(options.headers || {}) },
   });
@@ -39,6 +40,7 @@ async function apiFetch(url, options = {}) {
     const refreshed = await tryRefresh();
     if (refreshed) {
       const retry = await fetch(`${API_BASE}${url}`, {
+        cache: 'no-store',
         ...options,
         headers: { ...Auth.headers(), ...(options.headers || {}) },
       });

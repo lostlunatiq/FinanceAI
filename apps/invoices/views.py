@@ -134,11 +134,18 @@ class ApprovalActionView(APIView):
         decision = serializer.validated_data["decision"]
         reason = serializer.validated_data.get("reason", "")
 
-        # Map decision to FSM transition
         if decision == "APPROVED":
             current_step = expense.current_step or 1
             next_step = current_step + 1
             new_status = STEP_TO_STATUS.get(next_step, "APPROVED")
+            
+            # --- New Feature: TDS/GST Policy Compliance Check ---
+            # If the vendor has a TDS section, the invoice should have TDS deducted.
+            if expense.vendor.tds_section and float(expense.tds_amount) <= 0:
+                # TDS is applicable but not deducted! Flag as anomaly.
+                expense.anomaly_severity = "HIGH"
+                expense.save(update_fields=["anomaly_severity"])
+
         elif decision == "REJECTED":
             new_status = "REJECTED"
         else:  # QUERY_RAISED

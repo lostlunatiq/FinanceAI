@@ -511,7 +511,7 @@ const UserDetailDrawer = ({
         is_active: form.is_active
       });
       setActionMsg('User updated successfully.');
-      onUpdated();
+      onUpdated(user.id);
       setEditing(false);
     } catch (e) {
       setActionMsg('Update failed: ' + (e.message || 'Error'));
@@ -533,7 +533,7 @@ const UserDetailDrawer = ({
         is_active: !user.is_active
       });
       setActionMsg(user.is_active ? 'User suspended.' : 'User activated.');
-      onUpdated();
+      onUpdated(user.id);
     } catch (e) {
       setActionMsg('Action failed: ' + (e.message || 'Error'));
     }
@@ -973,18 +973,40 @@ const IAMScreen = ({
   const [search, setSearch] = React.useState('');
   const [gradeFilter, setGradeFilter] = React.useState(0);
   const [statusFilter, setStatusFilter] = React.useState('ALL');
-  const load = React.useCallback(() => {
+  const load = React.useCallback((refreshUserId = null) => {
     setLoading(true);
     Promise.allSettled([window.TijoriAPI.AuthAPI.listUsers(), window.TijoriAPI.AuthAPI.listDepartments(), window.TijoriAPI.AuthAPI.listGroups()]).then(([uRes, dRes, gRes]) => {
-      if (uRes.status === 'fulfilled') setUsers(uRes.value || []);
+      let latestUsers = users;
+      if (uRes.status === 'fulfilled') {
+        latestUsers = uRes.value || [];
+        setUsers(latestUsers);
+      }
       if (dRes.status === 'fulfilled') setDepartments(dRes.value || []);
       if (gRes.status === 'fulfilled') setGroups(gRes.value || []);
+      setSelectedUser(prev => {
+        const targetId = refreshUserId || (prev ? prev.id : null);
+        if (!targetId) return prev;
+        return latestUsers.find(x => x.id === targetId) || prev;
+      });
       setLoading(false);
     });
-  }, []);
+  }, [users]);
   React.useEffect(() => {
     load();
   }, [load]);
+  const handleExportUsers = async () => {
+    try {
+      const blob = await window.TijoriAPI.AuthAPI.exportUsers();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `financeai_users_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Export failed: ' + e.message);
+    }
+  };
   const filtered = users.filter(u => {
     const mg = gradeFilter === 0 || u.employee_grade === gradeFilter;
     const ms = !search || [u.username, u.first_name, u.last_name, u.email].some(f => f?.toLowerCase().includes(search.toLowerCase()));
@@ -1022,6 +1044,9 @@ const IAMScreen = ({
       variant: "secondary",
       onClick: load
     }, "\u21BB Refresh"), /*#__PURE__*/React.createElement(Btn, {
+      variant: "secondary",
+      onClick: handleExportUsers
+    }, "\u2193 Export Users"), /*#__PURE__*/React.createElement(Btn, {
       variant: "primary",
       icon: /*#__PURE__*/React.createElement("span", null, "+"),
       onClick: () => setCreateOpen(true)
@@ -1778,29 +1803,7 @@ const IAMScreen = ({
     onClick: async () => {
       if (!newGroupName) return;
       try {
-        const token = window.TijoriAPI.Auth.getAccess();
-        const res = await fetch('/api/v1/auth/groups/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token
-          },
-          body: JSON.stringify({
-            name: newGroupName
-          })
-        });
-        if (!res.ok) throw new Error('Failed to create group');
-        const newGroup = await res.json();
-        // Assign members if any selected
-        if (newGroupMembers.length > 0) {
-          await Promise.all(newGroupMembers.map(userId => {
-            const u = users.find(u => u.id === userId);
-            const currentGroups = (u?.groups || []).concat(newGroup.id);
-            return window.TijoriAPI.AuthAPI.updateUser(userId, {
-              groups: currentGroups
-            });
-          }));
-        }
+        await window.TijoriAPI.AuthAPI.createGroup(newGroupName, newGroupMembers);
       } catch (e) {
         alert(e.message || 'Group creation failed');
         return;
@@ -1959,18 +1962,9 @@ const IAMScreen = ({
     onClick: async () => {
       if (!editGroup || !editGroupName) return;
       try {
-        const token = window.TijoriAPI.Auth.getAccess();
-        const res = await fetch(`/api/v1/auth/groups/${editGroup.id}/`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token
-          },
-          body: JSON.stringify({
-            name: editGroupName
-          })
+        await window.TijoriAPI.AuthAPI.updateGroup(editGroup.id, {
+          name: editGroupName
         });
-        if (!res.ok) throw new Error('Failed to update group');
       } catch (e) {
         alert(e.message || 'Update failed');
         return;
@@ -1984,9 +1978,8 @@ const IAMScreen = ({
     groups: groups,
     open: !!selectedUser,
     onClose: () => setSelectedUser(null),
-    onUpdated: () => {
-      load();
-      setSelectedUser(null);
+    onUpdated: id => {
+      load(id);
     }
   }));
 };

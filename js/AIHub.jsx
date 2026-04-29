@@ -74,6 +74,15 @@ const CopilotWidget = ({ role }) => {
       window.TijoriAPI.BillsAPI.remind(a.payload.ref_no)
         .then(() => alert(`Reminder sent for ${a.payload.ref_no}`))
         .catch(e => alert(e.message));
+    } else if (a.type === 'export_report') {
+      const csv = `"Report Data"\n"${a.payload.report_type || 'Custom Report'}"\n"${new Date().toISOString()}"`;
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a'); 
+      link.href = url; 
+      link.download = `ai_report_${new Date().toISOString().slice(0,10)}.csv`; 
+      link.click(); 
+      URL.revokeObjectURL(url);
     } else {
       alert(`Action ${a.type} suggested for ${a.payload.ref_no || 'this item'}. Click to view details.`);
       if (a.payload.ref_no) onNavigate('ap-hub');
@@ -118,6 +127,7 @@ const CopilotWidget = ({ role }) => {
                 fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.6,
                 boxShadow: m.role === 'ai' ? '0 1px 4px rgba(0,0,0,0.07)' : 'none',
                 border: m.role === 'ai' && !m.error ? '1px solid #F1F0EE' : 'none',
+                whiteSpace: 'pre-wrap', wordBreak: 'break-word'
               }}>{m.text}</div>
               {m.actions && m.actions.length > 0 && (
                 <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>

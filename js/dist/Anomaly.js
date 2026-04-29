@@ -5,6 +5,8 @@ const AnomalyScreen = ({
   onNavigate
 }) => {
   const [activePanel, setActivePanel] = React.useState(null);
+  const [reviewQueue, setReviewQueue] = React.useState([]); // queue for "Review All"
+  const [reviewQueueIdx, setReviewQueueIdx] = React.useState(0); // current position
   const [scanLoading, setScanLoading] = React.useState(false);
   const [scanned, setScanned] = React.useState(false);
   const [anomalies, setAnomalies] = React.useState([]);
@@ -13,9 +15,25 @@ const AnomalyScreen = ({
   const [resolvedCount, setResolvedCount] = React.useState(0);
   const [resolvedItems, setResolvedItems] = React.useState([]);
   const [anomalyFilter, setAnomalyFilter] = React.useState('All');
-  const [markSafeModal, setMarkSafeModal] = React.useState(null); // { id, entity }
+  const [markSafeModal, setMarkSafeModal] = React.useState(null);
   const [markSafeNote, setMarkSafeNote] = React.useState('');
   const [markSafeLoading, setMarkSafeLoading] = React.useState(false);
+  const [vendorHistory, setVendorHistory] = React.useState([]);
+  const [vendorHistoryLoading, setVendorHistoryLoading] = React.useState(false);
+  React.useEffect(() => {
+    if (activePanel && activePanel._raw) {
+      const vendorName = activePanel._raw.vendor_name || activePanel._raw.vendor;
+      if (vendorName) {
+        setVendorHistoryLoading(true);
+        window.TijoriAPI.BillsAPI.listExpenses({
+          search: vendorName,
+          status: 'REJECTED'
+        }).then(data => setVendorHistory(data?.results || data || [])).catch(() => setVendorHistory([])).finally(() => setVendorHistoryLoading(false));
+      } else {
+        setVendorHistory([]);
+      }
+    }
+  }, [activePanel]);
   const loadAnomalies = () => {
     const {
       AnomalyAPI,
@@ -60,16 +78,33 @@ const AnomalyScreen = ({
     try {
       await window.TijoriAPI.BillsAPI.markSafe(rawId, markSafeNote.trim());
       setResolvedCount(c => c + 1);
-      setResolvedItems(prev => [...prev, {
+      const resItem = {
         ...markSafeModal,
         status: 'RESOLVED',
         resolvedNote: markSafeNote.trim()
-      }]);
+      };
+      setResolvedItems(prev => [...prev, resItem]);
       setAnomalies(prev => prev.filter(a => a.rawId !== rawId));
-      if (activePanel && activePanel.rawId === rawId) setActivePanel(null);
       setMarkSafeModal(null);
       setEscalateMsg(`✓ Anomaly for ${entity} marked as safe and resolved.`);
       setTimeout(() => setEscalateMsg(''), 4000);
+
+      // If in review queue, advance automatically
+      if (reviewQueue.length > 0) {
+        // Remove from local queue so it doesn't reappear
+        const newQueue = reviewQueue.filter(a => a.rawId !== rawId);
+        setReviewQueue(newQueue);
+        if (newQueue.length > 0) {
+          const nextIdx = Math.min(reviewQueueIdx, newQueue.length - 1);
+          setReviewQueueIdx(nextIdx);
+          setActivePanel(newQueue[nextIdx]);
+        } else {
+          setActivePanel(null);
+          setReviewQueue([]);
+        }
+      } else {
+        if (activePanel && activePanel.rawId === rawId) setActivePanel(null);
+      }
     } catch (e) {
       alert("Failed to mark safe: " + (e.message || 'Server error'));
     } finally {
@@ -81,20 +116,59 @@ const AnomalyScreen = ({
       const res = await window.TijoriAPI.BillsAPI.escalate(id);
       setEscalateMsg(`Anomaly ${res?.ref_no || id} escalated to CFO/Upper Management as CRITICAL.`);
       setTimeout(() => setEscalateMsg(''), 5000);
+
+      // Update anomalies list to reflect critical status (or remove if preferred, here we reload)
       loadAnomalies();
-      if (activePanel && activePanel.rawId === id) setActivePanel(null);
+
+      // If in review queue, advance automatically
+      if (reviewQueue.length > 0) {
+        const newQueue = reviewQueue.filter(a => a.rawId !== id);
+        setReviewQueue(newQueue);
+        if (newQueue.length > 0) {
+          const nextIdx = Math.min(reviewQueueIdx, newQueue.length - 1);
+          setReviewQueueIdx(nextIdx);
+          setActivePanel(newQueue[nextIdx]);
+        } else {
+          setActivePanel(null);
+          setReviewQueue([]);
+        }
+      } else {
+        if (activePanel && activePanel.rawId === id) setActivePanel(null);
+      }
     } catch (e) {
       alert("Failed to escalate: " + e.message);
     }
   };
-  const handleReviewAll = async () => {
+  const handleReviewAll = () => {
     const openAnomalies = anomalies.filter(a => a.status !== 'RESOLVED');
     if (openAnomalies.length === 0) {
       alert('No open anomalies to review.');
       return;
     }
-    const first = openAnomalies[0];
-    setActivePanel(first);
+    setReviewQueue(openAnomalies);
+    setReviewQueueIdx(0);
+    setActivePanel(openAnomalies[0]);
+  };
+  const reviewNext = () => {
+    const next = reviewQueueIdx + 1;
+    if (next < reviewQueue.length) {
+      setReviewQueueIdx(next);
+      setActivePanel(reviewQueue[next]);
+    } else {
+      setReviewQueue([]);
+      setActivePanel(null);
+    }
+  };
+  const reviewPrev = () => {
+    const prev = reviewQueueIdx - 1;
+    if (prev >= 0) {
+      setReviewQueueIdx(prev);
+      setActivePanel(reviewQueue[prev]);
+    }
+  };
+  const exitReviewQueue = () => {
+    setReviewQueue([]);
+    setActivePanel(null);
   };
   const scoreColor = s => s > 80 ? '#EF4444' : s > 50 ? '#F59E0B' : '#94A3B8';
   const scoreBg = s => s > 80 ? '#FEE2E2' : s > 50 ? '#FEF3C7' : '#F8F7F5';
@@ -170,7 +244,7 @@ const AnomalyScreen = ({
       alignItems: 'center',
       gap: '10px'
     }
-  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDD34"), " ", escalateMsg), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDD34"), " ", escalateMsg), !loading && anomalies.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       background: '#FEF2F2',
       border: '1px solid #FECACA',
@@ -203,11 +277,11 @@ const AnomalyScreen = ({
       color: '#B91C1C',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "3 invoices match known structural signatures of double-billing logic. 1 expense matches off-shift pattern.")), /*#__PURE__*/React.createElement(Btn, {
+  }, highConf.length > 0 && `${highConf.length} high-confidence anomaly${highConf.length !== 1 ? 'ies' : 'y'} (>80%) require immediate attention. `, anomalies.length, " total flag", anomalies.length !== 1 ? 's' : '', " across ", [...new Set(anomalies.map(a => a.type))].length, " pattern type", [...new Set(anomalies.map(a => a.type))].length !== 1 ? 's' : '', " detected by AI engine.")), /*#__PURE__*/React.createElement(Btn, {
     variant: "destructive",
     small: true,
     onClick: handleReviewAll
-  }, "Review All")), /*#__PURE__*/React.createElement(StatsRow, {
+  }, "Review All (", anomalies.length, ")")), /*#__PURE__*/React.createElement(StatsRow, {
     cards: [{
       label: 'Total Flagged',
       value: loading ? '…' : String(anomalies.length),
@@ -610,10 +684,57 @@ const AnomalyScreen = ({
     disabled: markSafeLoading
   }, markSafeLoading ? 'Clearing…' : 'Confirm — Mark as Safe'))), /*#__PURE__*/React.createElement(SidePanel, {
     open: !!activePanel,
-    onClose: () => setActivePanel(null),
+    onClose: () => {
+      setActivePanel(null);
+      setReviewQueue([]);
+    },
     title: activePanel ? `Anomaly: ${activePanel.entity}` : '',
     width: 460
-  }, activePanel && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }, activePanel && /*#__PURE__*/React.createElement(React.Fragment, null, reviewQueue.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: '#FEF3C7',
+      borderRadius: '10px',
+      padding: '10px 14px',
+      marginBottom: '16px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between'
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: reviewPrev,
+    disabled: reviewQueueIdx === 0,
+    style: {
+      padding: '4px 10px',
+      borderRadius: '6px',
+      border: '1px solid #F59E0B',
+      background: reviewQueueIdx === 0 ? '#F8F7F5' : 'white',
+      color: reviewQueueIdx === 0 ? '#CBD5E1' : '#92400E',
+      fontSize: '11px',
+      fontWeight: 700,
+      cursor: reviewQueueIdx === 0 ? 'default' : 'pointer',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "\u2190 Prev"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '11px',
+      fontWeight: 700,
+      color: '#92400E',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, reviewQueueIdx + 1, " of ", reviewQueue.length, " anomalies"), /*#__PURE__*/React.createElement("button", {
+    onClick: reviewNext,
+    style: {
+      padding: '4px 10px',
+      borderRadius: '6px',
+      border: '1px solid #F59E0B',
+      background: 'white',
+      color: '#92400E',
+      fontSize: '11px',
+      fontWeight: 700,
+      cursor: 'pointer',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, reviewQueueIdx < reviewQueue.length - 1 ? 'Next →' : 'Done ✓')), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       alignItems: 'center',
@@ -769,6 +890,90 @@ const AnomalyScreen = ({
       transition: 'width 600ms ease'
     }
   }))))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: '20px',
+      background: '#FFF8F5',
+      borderRadius: '12px',
+      padding: '14px 16px',
+      border: '1px solid #FFEDD5'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      fontWeight: 700,
+      color: '#9A3412',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginBottom: '12px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px'
+    }
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDCDC"), " Vendor Risk History (Past Rejections)"), vendorHistoryLoading ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Loading history...") : vendorHistory.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#10B981',
+      fontWeight: 600,
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "\u2713 No past rejected invoices for this vendor.") : /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px'
+    }
+  }, vendorHistory.slice(0, 3).map((h, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      background: 'white',
+      padding: '10px',
+      borderRadius: '8px',
+      border: '1px solid #FFEDD5',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      fontWeight: 700,
+      color: '#0F172A',
+      fontFamily: "'JetBrains Mono', monospace"
+    }
+  }, h.invoice_number || h.ref_no || h.id.slice(0, 8)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#64748B',
+      marginTop: '2px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+      maxWidth: 200
+    }
+  }, h.rejection_reason || 'Rejected by Compliance')), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      fontWeight: 700,
+      color: '#EF4444',
+      fontFamily: "'Bricolage Grotesque', sans-serif"
+    }
+  }, "\u20B9", parseFloat(h.total_amount || 0).toLocaleString('en-IN')))), vendorHistory.length > 3 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#E8783B',
+      textAlign: 'center',
+      marginTop: '4px',
+      cursor: 'pointer',
+      fontWeight: 600,
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "+ ", vendorHistory.length - 3, " more rejections"))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       gap: '8px'

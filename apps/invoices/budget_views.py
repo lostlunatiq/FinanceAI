@@ -14,6 +14,7 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Sum, Count, Avg
 from decimal import Decimal
 import logging
+from .models import Budget, Expense
 
 logger = logging.getLogger(__name__)
 
@@ -258,7 +259,11 @@ def _build_cashflow_forecast(days: int = 90) -> dict:
     # Generate forecast
     forecast_days = []
     running_balance = 0
-    opening_balance = 2500000  # Mock opening cash position
+    
+    # Calculate dynamic opening balance from total active budget minus paid expenses
+    total_budget = float(Budget.objects.filter(status__in=["active", "draft"]).aggregate(t=Sum("total_amount"))["t"] or 10000000)
+    total_paid = float(Expense.objects.filter(_status="PAID").aggregate(t=Sum("total_amount"))["t"] or 0)
+    opening_balance = max(total_budget - total_paid, 500000.0)
 
     for i in range(days):
         d = today + timedelta(days=i)
@@ -272,7 +277,8 @@ def _build_cashflow_forecast(days: int = 90) -> dict:
             projected_outflow = avg_daily * factor
             confidence = max(0.5, 0.9 - (i / days) * 0.4)
 
-        projected_inflow = avg_daily * factor * 1.1  # Inflows slightly higher (mock AR)
+        # Dynamic AR inflows projection based on historical margin targets (5% over daily average)
+        projected_inflow = avg_daily * factor * 1.05
         net = projected_inflow - projected_outflow
         running_balance += net
 

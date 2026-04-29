@@ -34,19 +34,30 @@ const DashboardScreen = ({ role, onNavigate }) => {
   const [modal10Q,    setModal10Q]    = React.useState(null);   // { title, content, sections }
   const [sweepResult, setSweepResult] = React.useState(null);
   const [approveLoading, setApproveLoading] = React.useState({});
+  const [complianceData, setComplianceData] = React.useState({ tds: 0, gst: 0, count: 0 });
 
   const loadData = React.useCallback(async () => {
     setLoading(true);
     try {
       const { DashboardAPI, BillsAPI, AnalyticsAPI } = window.TijoriAPI;
-      const [s, bills, i] = await Promise.all([
+      const [s, bills, i, exp] = await Promise.all([
         DashboardAPI.stats(),
         BillsAPI.queue(),
         AnalyticsAPI.commandCenter(),
+        BillsAPI.listExpenses({ limit: 200 }),
       ]);
       setStats(s);
       setQueueBills((bills || []).slice(0, 3));
       setIntel(i);
+
+      const expenses = Array.isArray(exp) ? exp : (exp?.results || []);
+      const tdsLiab = expenses.filter(e => e.status !== 'PAID').reduce((sum, e) => sum + parseFloat(e.tds_amount || 0), 0);
+      const gstLiab = expenses.filter(e => e.status !== 'PAID' && e.gstin).reduce((sum, e) => sum + parseFloat(e.total_amount || 0) * 0.18, 0);
+      setComplianceData({ 
+        tds: tdsLiab, 
+        gst: gstLiab, 
+        count: expenses.filter(e => e.status !== 'PAID' && (parseFloat(e.tds_amount) > 0 || e.gstin)).length 
+      });
     } catch (e) {}
     setLoading(false);
   }, []);
@@ -100,24 +111,18 @@ const DashboardScreen = ({ role, onNavigate }) => {
     return `₹${n.toFixed(0)}`;
   };
 
-  const riskItems = intel?.risk_watch || [
-    { id: 1, score: 94, color: '#EF4444', title: 'Duplicate Invoice Detected', desc: 'Check anomaly engine for high-confidence duplicate flags.', time: 'live' },
-    { id: 2, score: 78, color: '#F59E0B', title: 'Unusual Vendor Velocity', desc: 'Some vendors have submitted invoices at above-average rates.', time: 'live' },
-  ];
+  const riskItems = intel?.risk_watch || [];
 
   // Cash flow chart data
   const months = (intel?.chart_data || []).map(d => d.date?.slice(5) || '');
   const projected = (intel?.chart_data || []).map(d => (d.running_balance || 0) / 1000000); // in millions
-  if (projected.length === 0) {
-    // fallback
-    for(let i=0; i<6; i++) projected.push(Math.random() * 5 + 2);
-  }
   const bandHigh = projected.map(v => v * 1.15);
   const bandLow = projected.map(v => v * 0.85);
   const cw = 520, ch = 200;
-  const maxV = Math.max(...bandHigh), minV = Math.min(...bandLow);
-  const px = (i) => 48 + (i / (projected.length - 1)) * (cw - 72);
-  const py = (v) => ch - 20 - ((v - minV) / (maxV - minV)) * (ch - 40);
+  const maxV = projected.length ? Math.max(...bandHigh) : 10;
+  const minV = projected.length ? Math.min(...bandLow) : 0;
+  const px = (i) => 48 + (i / (Math.max(projected.length - 1, 1))) * (cw - 72);
+  const py = (v) => ch - 20 - ((v - minV) / (Math.max(maxV - minV, 1))) * (ch - 40);
   const linePath = projected.map((v, i) => `${i === 0 ? 'M' : 'L'} ${px(i)} ${py(v)}`).join(' ');
   const bandPath = [
     ...bandHigh.map((v, i) => `${i === 0 ? 'M' : 'L'} ${px(i)} ${py(v)}`),
@@ -148,49 +153,9 @@ const DashboardScreen = ({ role, onNavigate }) => {
 
   return (
     <div style={{ padding: '32px 32px 100px', position: 'relative' }}>
-      {/* 10-Q Modal */}
-      {modal10Q && (
-        <TjModal open={!!modal10Q} onClose={() => setModal10Q(null)} title="10-Q Report Draft" width={720}>
-          {modal10Q.error ? (
-            <div style={{ padding: '16px', background: '#FEE2E2', borderRadius: '8px', color: '#991B1B', fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{modal10Q.content}</div>
-          ) : (
-            <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <div>
-                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '18px', color: '#0F172A' }}>{modal10Q.title || 'Quarterly Report'}</div>
-                  <div style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>AI-Generated Draft · Not for official filing</div>
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <Btn variant="secondary" small onClick={() => {
-                    const blob = new Blob([modal10Q.content || ''], { type: 'text/plain' });
-                    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = '10Q_Draft.txt'; a.click();
-                  }}>↓ Download</Btn>
-                </div>
-              </div>
-              <div style={{ maxHeight: '60vh', overflow: 'auto', background: '#FAFAF8', borderRadius: '10px', padding: '20px', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '13px', color: '#0F172A', lineHeight: 1.7, whiteSpace: 'pre-wrap', border: '1px solid #F1F0EE' }}>
-                {modal10Q.content || JSON.stringify(modal10Q, null, 2)}
-              </div>
-            </>
-          )}
-        </TjModal>
-      )}
-
-      {/* Audit Sweep Result Modal */}
-      {sweepResult && (
-        <TjModal open={!!sweepResult} onClose={() => setSweepResult(null)} title="Audit Sweep Results" width={480}>
-          <div style={{ padding: '16px', background: sweepResult.error ? '#FEE2E2' : '#F0FDF4', borderRadius: '10px', fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif", color: sweepResult.error ? '#991B1B' : '#065F46', lineHeight: 1.6 }}>
-            {sweepResult.message || JSON.stringify(sweepResult)}
-          </div>
-          {!sweepResult.error && sweepResult.flagged_count > 0 && (
-            <div style={{ marginTop: '12px' }}>
-              <Btn variant="primary" onClick={() => { setSweepResult(null); onNavigate && onNavigate('anomaly'); }}>View Flagged Items →</Btn>
-            </div>
-          )}
-        </TjModal>
-      )}
-
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px', animation: 'fadeUp 300ms ease both' }}>
+
         <div>
           <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '32px', color: '#0F172A', letterSpacing: '-1.5px', marginBottom: '4px' }}>{ROLE_TITLES[roleKey] || 'Intelligence Command'}</h1>
           <div style={{ fontSize: '13px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{new Date().toLocaleDateString('en-IN', { month: 'long', day: 'numeric', year: 'numeric' })} — {ROLE_SUBTITLES[roleKey] || 'Operational Overview'}</div>
@@ -335,7 +300,7 @@ const DashboardScreen = ({ role, onNavigate }) => {
       {/* Bottom bento */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 180px 180px', gap: '16px', animation: 'fadeUp 300ms 320ms ease both', opacity: 0, animationFillMode: 'forwards' }}>
         {/* Treasury ring */}
-        <Card style={{ padding: '24px', display: 'flex', gap: '20px', alignItems: 'center', gridColumn: 'span 2' }}>
+        <Card style={{ padding: '24px', display: 'flex', gap: '20px', alignItems: 'center', gridColumn: 'span 1' }}>
           <div style={{ position: 'relative', width: 130, height: 130, flexShrink: 0 }}>
             <svg width="130" height="130" viewBox="0 0 130 130">
               <circle cx="65" cy="65" r="52" fill="none" stroke="#F1F5F9" strokeWidth="12"/>
@@ -359,6 +324,25 @@ const DashboardScreen = ({ role, onNavigate }) => {
                 <span style={{ fontSize: '13px', fontWeight: 700, color: r.color, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{r.val}</span>
               </div>
             ))}
+          </div>
+        </Card>
+
+        {/* Treasury & Compliance */}
+        <Card style={{ padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gridColumn: 'span 1' }}>
+          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A', marginBottom: '12px' }}>Treasury & Compliance</div>
+          <div style={{ fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '16px' }}>Estimated Tax Liabilities (TDS/GST)</div>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #F8F7F5' }}>
+            <span style={{ fontSize: '13px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>TDS Payable</span>
+            <span style={{ fontSize: '14px', fontWeight: 700, color: '#E8783B', fontFamily: "'Bricolage Grotesque', sans-serif" }}>{fmtAmt(complianceData.tds)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #F8F7F5' }}>
+            <span style={{ fontSize: '13px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Estimated GST Input</span>
+            <span style={{ fontSize: '14px', fontWeight: 700, color: '#10B981', fontFamily: "'Bricolage Grotesque', sans-serif" }}>{fmtAmt(complianceData.gst)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0' }}>
+            <span style={{ fontSize: '13px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Compliance Invoices</span>
+            <span style={{ background: '#F1F5F9', color: '#475569', padding: '2px 8px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{complianceData.count} Pending</span>
           </div>
         </Card>
 

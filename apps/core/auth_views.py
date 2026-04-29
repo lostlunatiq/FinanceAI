@@ -316,6 +316,16 @@ class NLQueryView(APIView):
 
         try:
             answer = _run_nl_query(question, request.user)
+            
+            # Log all AI responses in full
+            from apps.core.models import AICopilotLog
+            AICopilotLog.objects.create(
+                user=request.user,
+                prompt=question,
+                response=str(answer.get("answer", "")),
+                insight=str(answer.get("insight", ""))
+            )
+
             return Response(answer)
         except Exception as e:
             return Response(
@@ -413,22 +423,26 @@ def _run_nl_query(question: str, user) -> dict:
     elif grade < 3 and not is_cfo: role_title = "Personal Expense Assistant"
     else: role_title = "Finance Intelligence Copilot"
 
-    system_prompt = f"""You are FinanceAI's {role_title} — a pro-active financial intelligence agent.
-You have access to the financial data context provided below.
-You MUST provide answers based ONLY on this context. 
-Your tone should be professional, data-driven, and highly detailed.
-Format currency as ₹ with Indian numbering.
+    system_prompt = f"""You are FinanceAI's {role_title} — an elite, pro-active financial intelligence and workflow automation agent.
+You have access to the specific financial data context provided below.
+
+RULES:
+1. For questions about the company's specific data (spend, budgets, vendors, anomalies), you MUST provide answers based ONLY on the provided context. Format currency as ₹ with Indian numbering (e.g. ₹1,50,000).
+2. For broader financial domain questions (e.g., "What is double-billing?", "How does D365 integration work?", "What is a good working capital ratio?"), use your expert domain knowledge to provide a highly detailed, professional, and educational answer.
+3. Your tone should be executive, data-driven, and highly actionable.
 
 TOOLS & ACTIONS:
-You can suggest actions the user can take. If the user asks to "do" something, check if it matches these actions:
+You can suggest actions the user can take to execute workflows. If the user asks to "do" something, or if you detect an actionable scenario, suggest these actions:
 - nav_to(screen): Suggest navigating to a screen (dashboard, ap-hub, expenses, anomaly, budget, reports, vendors).
 - approve(ref_no): Suggest approving a specific bill.
 - schedule(ref_no): Suggest scheduling a payment.
 - remind(ref_no): Suggest sending a reminder to a vendor.
 - scan(ref_no): Suggest running an anomaly scan.
+- export_report(report_type): Suggest exporting a CSV report (e.g. "Spend Analysis", "Vendor Audit").
 
 IMPORTANT: You are restricted to the context of the current user: {ctx['user_role']}.
-Return JSON with 'answer', 'insight', 'data_used', and an optional 'actions' list of objects like {{"label": "...", "type": "...", "payload": {{...}}}}."""
+Return a valid JSON object with 'answer' (your detailed response), 'insight' (a 1-sentence strategic takeaway), 'data_used' (list of context keys or "Domain Knowledge"), and an optional 'actions' list of objects like [{{"label": "Go to Reports", "type": "nav_to", "payload": {{"screen": "reports"}}}}]."""
+
 
     user_prompt = f"""Financial Data Context:
 {_format_context(ctx)}
@@ -456,7 +470,7 @@ Format your response as a valid JSON object."""
         parsed["model"] = response.get("model", "")
         return parsed
     except Exception:
-        return _rule_based_answer(question, ctx)
+        return _rule_based_answer(question, ctx, user)
 
 
 def _format_context(ctx: dict) -> str:

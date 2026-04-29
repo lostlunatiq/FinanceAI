@@ -98,6 +98,7 @@ class Expense(models.Model):
     sgst = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     igst = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     total_amount = models.DecimalField(max_digits=18, decimal_places=2)
+    gstin = models.CharField(max_length=15, blank=True)
     tds_section = models.CharField(max_length=10, blank=True)
     tds_amount = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     business_purpose = models.TextField(blank=True)
