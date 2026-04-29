@@ -50,10 +50,12 @@ const CopilotWidget = ({ role }) => {
       const res = await NLQueryAPI.ask(q);
       const answer = res.answer || res.error || 'No response.';
       const insight = res.insight || '';
+      const actions = res.actions || [];
       setMessages(prev => [...prev, {
         role: 'ai',
         text: answer,
         insight,
+        actions,
         model: res.model,
         time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
       }]);
@@ -61,6 +63,29 @@ const CopilotWidget = ({ role }) => {
       setMessages(prev => [...prev, { role: 'ai', text: 'Sorry, I encountered an error. Please try again.', time, error: true }]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAction = (a) => {
+    if (a.type === 'nav_to') {
+      onNavigate(a.payload.screen);
+    } else if (a.type === 'remind') {
+      // Direct call to reminder API
+      window.TijoriAPI.BillsAPI.remind(a.payload.ref_no)
+        .then(() => alert(`Reminder sent for ${a.payload.ref_no}`))
+        .catch(e => alert(e.message));
+    } else if (a.type === 'export_report') {
+      const csv = `"Report Data"\n"${a.payload.report_type || 'Custom Report'}"\n"${new Date().toISOString()}"`;
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a'); 
+      link.href = url; 
+      link.download = `ai_report_${new Date().toISOString().slice(0,10)}.csv`; 
+      link.click(); 
+      URL.revokeObjectURL(url);
+    } else {
+      alert(`Action ${a.type} suggested for ${a.payload.ref_no || 'this item'}. Click to view details.`);
+      if (a.payload.ref_no) onNavigate('ap-hub');
     }
   };
 
@@ -102,7 +127,18 @@ const CopilotWidget = ({ role }) => {
                 fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.6,
                 boxShadow: m.role === 'ai' ? '0 1px 4px rgba(0,0,0,0.07)' : 'none',
                 border: m.role === 'ai' && !m.error ? '1px solid #F1F0EE' : 'none',
+                whiteSpace: 'pre-wrap', wordBreak: 'break-word'
               }}>{m.text}</div>
+              {m.actions && m.actions.length > 0 && (
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+                  {m.actions.map((a, idx) => (
+                    <button key={idx} onClick={() => handleAction(a)}
+                      style={{ background: 'white', border: '1px solid #E8783B', borderRadius: '8px', padding: '6px 12px', fontSize: '11px', color: '#E8783B', fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: '0 2px 4px rgba(232,120,59,0.1)' }}>
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+              )}
               {m.insight && (
                 <div style={{ background: '#F5F3FF', border: '1px solid #EDE9FE', borderRadius: '8px', padding: '8px 12px', marginTop: '6px', fontSize: '12px', color: '#5B21B6', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                   <span style={{ fontWeight: 700 }}>Insight: </span>{m.insight}
@@ -154,12 +190,55 @@ const AIHubScreen = ({ role, onNavigate }) => {
   const [selectedMonth, setSelectedMonth] = React.useState(null);
   const [runningAll, setRunningAll] = React.useState(false);
   const [cfData, setCfData] = React.useState(null);
+  const [rerunLoading, setRerunLoading] = React.useState(false);
+  const [rerunMsg, setRerunMsg] = React.useState(null);
+  const [monthlySummaries, setMonthlySummaries] = React.useState(null);
+  const [payNowLoading, setPayNowLoading] = React.useState(null);
+  const [payNowMsg, setPayNowMsg] = React.useState(null);
+  const [payModal, setPayModal] = React.useState(null); // { rec } — Pay Now modal
+  const [schedModal, setSchedModal] = React.useState(null); // { rec } — Schedule modal
+  const [payForm, setPayForm] = React.useState({ method: 'NEFT', utr: '', notes: '' });
+  const [schedForm, setSchedForm] = React.useState({ date: '', note: '' });
+  const [payProcessing, setPayProcessing] = React.useState(false);
+  const [schedProcessing, setSchedProcessing] = React.useState(false);
+  const [autoGenEnabled, setAutoGenEnabled] = React.useState(true);
 
   React.useEffect(() => {
     window.TijoriAPI.BudgetAPI.cashflow()
       .then(d => setCfData(d))
       .catch(() => {});
+    // Load real monthly summaries from backend analytics
+    window.TijoriAPI.AnalyticsAPI.spendIntelligence()
+      .then(d => {
+        if (d && d.monthly_trends && d.monthly_trends.length > 0) {
+          const trend = d.monthly_trends;
+          const built = trend.slice(-3).reverse().map((m, i) => ({
+            month: m.month_label || m.month || `Month ${i + 1}`,
+            status: i === 0 ? 'REVIEWED' : 'AUTO_GEN',
+            revenue: '₹' + Number(m.revenue || 0).toLocaleString('en-IN'),
+            expenses: '₹' + Number(m.total || m.expenses || 0).toLocaleString('en-IN'),
+            profit: (() => { const p = (m.revenue || 0) - (m.total || m.expenses || 0); return (p < 0 ? '-₹' : '₹') + Math.abs(p).toLocaleString('en-IN'); })(),
+            cash: m.cash_position ? '₹' + Number(m.cash_position).toLocaleString('en-IN') : '—',
+            insight: m.insight || (i === 0 ? 'Latest month — live data from system.' : 'Auto-generated from expense buckets.'),
+          }));
+          if (built.length > 0) setMonthlySummaries(built);
+        }
+      })
+      .catch(() => {});
   }, []);
+
+  const handleRerun = async () => {
+    setRerunLoading(true); setRerunMsg(null);
+    try {
+      await runAll();
+      setRerunMsg({ type: 'success', text: 'Forecast and models refreshed with latest data.' });
+    } catch(e) {
+      setRerunMsg({ type: 'error', text: 'Rerun failed: ' + (e.message || 'Server error') });
+    } finally {
+      setRerunLoading(false);
+      setTimeout(() => setRerunMsg(null), 4000);
+    }
+  };
 
   const runAll = async () => {
     setRunningAll(true);
@@ -167,7 +246,21 @@ const AIHubScreen = ({ role, onNavigate }) => {
       const { AnalyticsAPI, BudgetAPI } = window.TijoriAPI;
       // Run all analytics models in parallel
       await Promise.allSettled([
-        AnalyticsAPI.spendIntelligence(),
+        AnalyticsAPI.spendIntelligence().then(d => {
+          if (d && d.monthly_trends && d.monthly_trends.length > 0) {
+            const trend = d.monthly_trends;
+            const built = trend.slice(-3).reverse().map((m, i) => ({
+              month: m.month_label || m.month || `Month ${i + 1}`,
+              status: i === 0 ? 'REVIEWED' : 'AUTO_GEN',
+              revenue: '₹' + Number(m.revenue || 0).toLocaleString('en-IN'),
+              expenses: '₹' + Number(m.total || m.expenses || 0).toLocaleString('en-IN'),
+              profit: (() => { const p = (m.revenue || 0) - (m.total || m.expenses || 0); return (p < 0 ? '-₹' : '₹') + Math.abs(p).toLocaleString('en-IN'); })(),
+              cash: m.cash_position ? '₹' + Number(m.cash_position).toLocaleString('en-IN') : '—',
+              insight: m.insight || (i === 0 ? 'Latest month — live data from system.' : 'Auto-generated from expense buckets.'),
+            }));
+            if (built.length > 0) setMonthlySummaries(built);
+          }
+        }),
         AnalyticsAPI.workingCapital(),
         AnalyticsAPI.vendorRisk(),
         BudgetAPI.cashflow().then(d => setCfData(d)),
@@ -218,18 +311,67 @@ const AIHubScreen = ({ role, onNavigate }) => {
     { x: toX(pastData.length + 3), y: toY(forecast[3]?.val || 58) - 24, label: 'Payroll: ₹45L', color: '#EF4444', icon: '⚠' },
   ];
 
-  // ── Summary months ────────────────────────────────────────────────────────
-  const summaryMonths = [
+  // ── Summary months (real data preferred, static fallback) ────────────────
+  const staticSummaryMonths = [
     { month: 'March 2026', status: 'REVIEWED', revenue: '₹62L', expenses: '₹50L', profit: '₹12L', cash: '₹18L', insight: 'Travel expenses up 34% vs February. AR collection rate improved to 82%.' },
     { month: 'February 2026', status: 'AUTO_GEN', revenue: '₹51L', expenses: '₹44L', profit: '₹7L', cash: '₹15L', insight: 'Engineering budget at 95% — recommend variance review before Q4.' },
     { month: 'January 2026', status: 'AUTO_GEN', revenue: '₹48L', expenses: '₹52L', profit: '-₹4L', cash: '₹11L', insight: 'Net loss driven by one-time infrastructure spend. Normalised margin 14%.' },
   ];
+  const summaryMonths = monthlySummaries || staticSummaryMonths;
 
   // ── Optimisation recommendations ─────────────────────────────────────────
-  const payRecs = [
-    { vendor: 'SML Security', invoices: 'BILL-2026-00004', amount: '₹14,500', due: 'May 10', suggested: 'May 3', type: 'discount', tip: 'Save ₹72 — 0.5% early payment discount available' },
-    { vendor: 'Bajaj Electronics', invoices: 'BILL-2026-00001', amount: '₹2,15,500', due: 'Apr 25', suggested: 'Apr 24', type: 'lateFee', tip: 'Pay by Apr 24 to avoid ₹1,080 late fee' },
-  ];
+  const [payRecs, setPayRecs] = React.useState([]);
+
+  React.useEffect(() => {
+    // Load approved vendor bills for payment optimization
+    window.TijoriAPI.BillsAPI.listVendorBills({ status: 'APPROVED,BOOKED_D365', limit: 15 })
+      .then(d => {
+        const bills = Array.isArray(d) ? d : (d?.results || []);
+        if (bills.length === 0) {
+          // Fallback: try all non-paid vendor bills
+          return window.TijoriAPI.BillsAPI.listVendorBills({ limit: 15 });
+        }
+        return bills;
+      })
+      .then(d => {
+        const bills = Array.isArray(d) ? d : (d?.results || []);
+        if (bills.length > 0) {
+          const now = Date.now();
+          const mapped = bills
+            .filter(b => !['PAID', 'REJECTED', 'WITHDRAWN', 'AUTO_REJECT'].includes(b._status || b.status || ''))
+            .slice(0, 10)
+            .map((b, i) => {
+              const amt = Number(b.total_amount || 0);
+              const dueRaw = b.due_date;
+              const due = dueRaw ? new Date(dueRaw) : new Date(now + 86400000 * (15 + i * 3));
+              const daysUntilDue = Math.floor((due.getTime() - now) / 86400000);
+              const isEarly = daysUntilDue > 5;
+              const suggested = new Date(due.getTime() - 86400000 * (isEarly ? 5 : 1));
+              const type = isEarly ? 'discount' : daysUntilDue < 0 ? 'lateFee' : 'batch';
+              const tip = type === 'discount'
+                ? `Pay ${Math.abs(daysUntilDue) > 0 ? daysUntilDue + 'd early' : 'now'} — save ₹${Math.round(amt * 0.015).toLocaleString('en-IN')} (1.5% discount)`
+                : type === 'lateFee'
+                ? `OVERDUE by ${Math.abs(daysUntilDue)}d — avoid ₹${Math.round(amt * 0.02).toLocaleString('en-IN')} penalty`
+                : `Pay by ${due.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })} to stay on time`;
+              return {
+                vendor: b.vendor_name || b.vendor?.name || 'Unknown Vendor',
+                invoices: b.ref_no || `INV-${String(b.id).slice(0,6).toUpperCase()}`,
+                amount: '₹' + amt.toLocaleString('en-IN'),
+                due: due.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
+                suggested: suggested.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
+                suggestedDate: suggested.toISOString().slice(0,10),
+                type,
+                tip,
+                rawId: b.id,
+                rawAmount: amt,
+                daysUntilDue,
+              };
+            });
+          setPayRecs(mapped);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const tipColor = { discount: { bg: '#D1FAE5', color: '#065F46' }, lateFee: { bg: '#FEF3C7', color: '#92400E' }, batch: { bg: '#FFF7ED', color: '#C2410C' }, shortfall: { bg: '#FEE2E2', color: '#991B1B' } };
 
@@ -269,11 +411,16 @@ const AIHubScreen = ({ role, onNavigate }) => {
                 {s}
               </button>
             ))}
-            <Btn variant="secondary" small onClick={() => {
-              window.TijoriAPI.BudgetAPI.cashflow().then(d => setCfData(d)).catch(() => {});
-            }}>Rerun</Btn>
+            <Btn variant="secondary" small onClick={handleRerun} disabled={rerunLoading}>
+              {rerunLoading ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 10, height: 10, border: '2px solid #CBD5E1', borderTopColor: '#E8783B', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />Running…</span> : 'Rerun'}
+            </Btn>
           </div>
         </div>
+        {rerunMsg && (
+          <div style={{ marginBottom: 12, padding: '8px 14px', borderRadius: 8, background: rerunMsg.type === 'success' ? '#D1FAE5' : '#FEE2E2', border: `1px solid ${rerunMsg.type === 'success' ? '#6EE7B7' : '#FCA5A5'}`, fontSize: 12, fontWeight: 600, color: rerunMsg.type === 'success' ? '#065F46' : '#991B1B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            {rerunMsg.type === 'success' ? '✓ ' : '✕ '}{rerunMsg.text}
+          </div>
+        )}
 
         {/* Chart */}
         <div style={{ position: 'relative' }}>
@@ -334,11 +481,15 @@ const AIHubScreen = ({ role, onNavigate }) => {
 
         {/* Insight cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px', marginTop: '20px' }}>
-          {[
+          {(cfData ? [
+            { label: 'Surplus Peak', value: '₹' + Number(cfData.summary?.max_balance_amount || 0).toLocaleString('en-IN'), date: cfData.summary?.max_balance_date || '', color: '#10B981', bg: '#F0FDF4', border: '#BBF7D0', icon: '↑' },
+            { label: 'Shortfall Risk', value: '₹' + Number(cfData.summary?.min_balance_amount || 0).toLocaleString('en-IN'), date: cfData.summary?.min_balance_date || '', color: '#EF4444', bg: '#FEF2F2', border: '#FECACA', icon: '⚠' },
+            { label: 'Action Needed', value: cfData.risk_highlights?.[0]?.message?.slice(0, 20) || 'Monitor Cash', date: cfData.risk_highlights?.[0]?.date || 'Ongoing', color: '#E8783B', bg: '#FFF7ED', border: '#FED7AA', icon: '✦' },
+          ] : [
             { label: 'Surplus Peak', value: '₹1.18M', date: 'Sep 2026', color: '#10B981', bg: '#F0FDF4', border: '#BBF7D0', icon: '↑' },
             { label: 'Shortfall Risk', value: '₹34L deficit', date: 'Jul 2026 if delayed', color: '#EF4444', bg: '#FEF2F2', border: '#FECACA', icon: '⚠' },
             { label: 'Recommended Action', value: 'Accelerate ₹8L AR', date: '3 customers flagged', color: '#E8783B', bg: '#FFF7ED', border: '#FED7AA', icon: '✦' },
-          ].map((c, i) => (
+          ]).map((c, i) => (
             <div key={i} style={{ padding: '16px', background: c.bg, border: `1px solid ${c.border}`, borderRadius: '12px' }}>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
                 <span style={{ width: 24, height: 24, borderRadius: '50%', background: c.color + '22', color: c.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 700 }}>{c.icon}</span>
@@ -434,8 +585,8 @@ const AIHubScreen = ({ role, onNavigate }) => {
             <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Auto-generate on 1st of each month</div>
             <div style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>Sends to: finance@acmecorp.in, cfo@acmecorp.in</div>
           </div>
-          <div style={{ width: 44, height: 24, borderRadius: 12, background: '#E8783B', cursor: 'pointer', position: 'relative' }}>
-            <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'white', position: 'absolute', top: 3, left: 23, boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }} />
+          <div onClick={() => setAutoGenEnabled(!autoGenEnabled)} style={{ width: 44, height: 24, borderRadius: 12, background: autoGenEnabled ? '#E8783B' : '#E2E8F0', cursor: 'pointer', position: 'relative', transition: 'background 200ms' }}>
+            <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'white', position: 'absolute', top: 3, left: autoGenEnabled ? 23 : 3, boxShadow: '0 1px 4px rgba(0,0,0,0.15)', transition: 'left 200ms' }} />
           </div>
         </div>
       </Card>
@@ -472,20 +623,36 @@ const AIHubScreen = ({ role, onNavigate }) => {
         <div style={{ background: 'linear-gradient(135deg, rgba(232,120,59,0.06), rgba(16,185,129,0.06))', border: '1px solid #FED7AA', borderRadius: '14px', padding: '20px', marginBottom: '20px', display: 'flex', gap: '32px', alignItems: 'center' }}>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '10px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '4px' }}>Total Savings</div>
-            <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '28px', color: '#10B981', letterSpacing: '-1px' }}>₹14,200</div>
+            <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '28px', color: '#10B981', letterSpacing: '-1px' }}>₹{Math.round(payRecs.filter(r => r.type === 'discount').reduce((a, b) => a + b.rawAmount * 0.015, 0)).toLocaleString('en-IN') || '0'}</div>
           </div>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '10px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '4px' }}>Avoided Late Fees</div>
-            <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '28px', color: '#E8783B', letterSpacing: '-1px' }}>₹3,800</div>
+            <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '28px', color: '#E8783B', letterSpacing: '-1px' }}>₹{Math.round(payRecs.filter(r => r.type === 'lateFee').reduce((a, b) => a + b.rawAmount * 0.02, 0)).toLocaleString('en-IN') || '0'}</div>
           </div>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '10px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '4px' }}>Optimised DPO</div>
             <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '28px', color: '#F59E0B', letterSpacing: '-1px' }}>+4.2d</div>
           </div>
           <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
-            <Btn variant="primary" onClick={() => alert('Applying all payment recommendations to your payment schedule. In production, this would create scheduled payment batches in D365.')}>Apply All Recommendations</Btn>
+            <Btn variant="primary" disabled={payRecs.length === 0} onClick={async () => {
+              if (!window.confirm(`Apply ${payRecs.length} payment recommendations?`)) return;
+              setPayNowMsg({ type: 'info', text: 'Applying recommendations and scheduling payments...' });
+              try {
+                await Promise.all(payRecs.map(r => window.TijoriAPI.BillsAPI.settle(r.rawId, `OPT-${Date.now()}`)));
+                setPayNowMsg({ type: 'success', text: `✓ ${payRecs.length} payments successfully scheduled.` });
+                setPayRecs([]);
+              } catch(e) {
+                setPayNowMsg({ type: 'error', text: 'Failed to apply some recommendations.' });
+              }
+              setTimeout(() => setPayNowMsg(null), 6000);
+            }}>Apply All Recommendations</Btn>
           </div>
         </div>
+        {payNowMsg && (
+          <div style={{ marginBottom: 20, padding: '12px 16px', borderRadius: 8, background: payNowMsg.type === 'success' ? '#D1FAE5' : payNowMsg.type === 'error' ? '#FEE2E2' : '#DBEAFE', border: `1px solid ${payNowMsg.type === 'success' ? '#6EE7B7' : payNowMsg.type === 'error' ? '#FCA5A5' : '#93C5FD'}`, fontSize: 13, fontWeight: 600, color: payNowMsg.type === 'success' ? '#065F46' : payNowMsg.type === 'error' ? '#991B1B' : '#1E40AF', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            {payNowMsg.text}
+          </div>
+        )}
 
         {/* Recommendations table */}
         <div style={{ background: 'white', borderRadius: '12px', overflow: 'hidden', border: '1px solid #F1F0EE' }}>
@@ -514,12 +681,12 @@ const AIHubScreen = ({ role, onNavigate }) => {
                     <td style={{ padding: '0 14px' }}>
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <Btn variant="primary" small onClick={() => {
-                          if (window.confirm(`Initiate payment of ${r.amount} to ${r.vendor}?`)) {
-                            alert(`Payment of ${r.amount} to ${r.vendor} queued. UTR will be generated within 24h.`);
-                          }
+                          setPayForm({ method: 'NEFT', utr: '', notes: '' });
+                          setPayModal({ rec: r });
                         }}>Pay Now</Btn>
                         <Btn variant="secondary" small onClick={() => {
-                          alert(`Payment of ${r.amount} to ${r.vendor} scheduled for ${r.suggested}.`);
+                          setSchedForm({ date: r.suggestedDate || '', note: '' });
+                          setSchedModal({ rec: r });
                         }}>Schedule</Btn>
                       </div>
                     </td>
@@ -529,6 +696,13 @@ const AIHubScreen = ({ role, onNavigate }) => {
             </tbody>
           </table>
         </div>
+        {/* Payment feedback toast */}
+        {payNowMsg && (
+          <div style={{ marginTop: 12, padding: '10px 16px', borderRadius: 10, background: payNowMsg.type === 'success' ? '#D1FAE5' : payNowMsg.type === 'error' ? '#FEE2E2' : '#EDE9FE', border: `1px solid ${payNowMsg.type === 'success' ? '#6EE7B7' : payNowMsg.type === 'error' ? '#FCA5A5' : '#C4B5FD'}`, fontSize: 13, fontWeight: 600, color: payNowMsg.type === 'success' ? '#065F46' : payNowMsg.type === 'error' ? '#991B1B' : '#5B21B6', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>{payNowMsg.type === 'success' ? '✓' : payNowMsg.type === 'error' ? '✕' : '…'}</span>
+            {payNowMsg.text}
+          </div>
+        )}
       </Card>
 
       {/* CFO Copilot — NL Query */}
@@ -569,6 +743,125 @@ const AIHubScreen = ({ role, onNavigate }) => {
           </>
         )}
       </SidePanel>
+
+      {/* ── Pay Now Modal ─────────────────────────────────────────────────── */}
+      {payModal && (
+        <TjModal open onClose={() => { setPayModal(null); setPayProcessing(false); }} title="Initiate Payment" accentColor="#E8783B" width={480}>
+          {/* Invoice summary */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', background: 'linear-gradient(135deg, #FFF7ED, #FEF3C7)', border: '1px solid #FED7AA', borderRadius: '12px', marginBottom: '20px' }}>
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Invoice</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', color: '#E8783B', fontWeight: 600, marginTop: '2px' }}>{payModal.rec.invoices}</div>
+              <div style={{ fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>{payModal.rec.vendor}</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '26px', color: '#E8783B', letterSpacing: '-1px' }}>{payModal.rec.amount}</div>
+              <div style={{ fontSize: '11px', color: '#92400E', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Due: {payModal.rec.due}</div>
+            </div>
+          </div>
+
+          {/* Payment method */}
+          <div style={{ marginBottom: '14px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#374151', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '6px' }}>Payment Method</div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {['NEFT', 'RTGS', 'IMPS', 'UPI'].map(m => (
+                <button key={m} onClick={() => setPayForm(f => ({...f, method: m}))}
+                  style={{ flex: 1, padding: '8px 4px', borderRadius: '8px', border: `2px solid ${payForm.method === m ? '#E8783B' : '#E2E8F0'}`, background: payForm.method === m ? '#FFF7ED' : 'white', fontSize: '12px', fontWeight: 700, color: payForm.method === m ? '#E8783B' : '#64748B', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'all 150ms' }}>
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <TjInput label="UTR / Transaction Reference (optional — auto-generated if blank)" placeholder={`UTR-${payModal.rec.invoices}-${Date.now().toString().slice(-6)}`} value={payForm.utr} onChange={e => setPayForm(f => ({...f, utr: e.target.value}))} />
+          <TjInput label="Payment Notes / Remarks" placeholder="e.g. Early payment for 1.5% discount" value={payForm.notes} onChange={e => setPayForm(f => ({...f, notes: e.target.value}))} />
+
+          <div style={{ padding: '12px 14px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '10px', marginBottom: '16px', fontSize: '12px', color: '#065F46', fontFamily: "'Plus Jakarta Sans', sans-serif' ", fontWeight: 500 }}>
+            ✓ Payment confirmation will be sent to vendor via email. Transaction will be recorded in AuditLog with UTR.
+          </div>
+
+          {payNowMsg && (
+            <div style={{ marginBottom: '12px', padding: '10px 14px', borderRadius: '8px', background: payNowMsg.type === 'success' ? '#D1FAE5' : '#FEE2E2', border: `1px solid ${payNowMsg.type === 'success' ? '#6EE7B7' : '#FCA5A5'}`, fontSize: '13px', fontWeight: 600, color: payNowMsg.type === 'success' ? '#065F46' : '#991B1B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              {payNowMsg.text}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <Btn variant="secondary" onClick={() => setPayModal(null)}>Cancel</Btn>
+            <Btn variant="primary" disabled={payProcessing} onClick={async () => {
+              const r = payModal.rec;
+              setPayProcessing(true); setPayNowMsg(null);
+              try {
+                const utr = payForm.utr.trim() || `UTR-${r.invoices}-${Date.now().toString().slice(-6)}`;
+                const res = await window.TijoriAPI.BillsAPI.settle(r.rawId, utr, payForm.method, payForm.notes);
+                setPayNowMsg({ type: 'success', text: res?.message || `✓ Payment of ${r.amount} to ${r.vendor} processed via ${payForm.method}. UTR: ${utr}` });
+                setPayRecs(prev => prev.filter(p => p.rawId !== r.rawId));
+                setTimeout(() => { setPayModal(null); setPayNowMsg(null); }, 3000);
+              } catch(e) {
+                setPayNowMsg({ type: 'error', text: `Payment failed: ${e.message || 'Check approval status or authority limits'}` });
+              } finally {
+                setPayProcessing(false);
+              }
+            }}>
+              {payProcessing ? 'Processing…' : `Confirm Payment — ${payModal.rec.amount}`}
+            </Btn>
+          </div>
+        </TjModal>
+      )}
+
+      {/* ── Schedule Payment Modal ─────────────────────────────────────────── */}
+      {schedModal && (
+        <TjModal open onClose={() => { setSchedModal(null); setSchedProcessing(false); }} title="Schedule Payment" accentColor="#5B21B6" width={440}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', background: '#F5F3FF', border: '1px solid #EDE9FE', borderRadius: '12px', marginBottom: '20px' }}>
+            <div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#7C3AED', fontWeight: 600 }}>{schedModal.rec.invoices}</div>
+              <div style={{ fontSize: '13px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600, marginTop: '2px' }}>{schedModal.rec.vendor}</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '22px', color: '#7C3AED', letterSpacing: '-0.5px' }}>{schedModal.rec.amount}</div>
+              <div style={{ fontSize: '11px', color: '#7C3AED', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                {schedModal.rec.tip}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '6px', fontSize: '12px', fontWeight: 600, color: '#374151', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Payment Date <span style={{ color: '#EF4444' }}>*</span></div>
+          <input type="date" value={schedForm.date} onChange={e => setSchedForm(f => ({...f, date: e.target.value}))} min={new Date().toISOString().slice(0,10)}
+            style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1.5px solid #E2E8F0', borderRadius: '10px', fontSize: '14px', fontFamily: "'Plus Jakarta Sans', sans-serif", color: '#0F172A', outline: 'none', marginBottom: '14px' }} />
+
+          <TjInput label="Note / Reason (optional)" placeholder="e.g. Early payment for discount — AI recommendation" value={schedForm.note} onChange={e => setSchedForm(f => ({...f, note: e.target.value}))} />
+
+          <div style={{ padding: '10px 14px', background: '#F5F3FF', border: '1px solid #EDE9FE', borderRadius: '10px', marginBottom: '16px', fontSize: '12px', color: '#5B21B6', fontFamily: "'Plus Jakarta Sans', sans-serif'", fontWeight: 500 }}>
+            ✓ Vendor will be notified via email. Payment will auto-initiate on the scheduled date.
+          </div>
+
+          {payNowMsg && schedModal && (
+            <div style={{ marginBottom: '12px', padding: '10px 14px', borderRadius: '8px', background: payNowMsg.type === 'success' ? '#D1FAE5' : '#FEE2E2', border: `1px solid ${payNowMsg.type === 'success' ? '#6EE7B7' : '#FCA5A5'}`, fontSize: '13px', fontWeight: 600, color: payNowMsg.type === 'success' ? '#065F46' : '#991B1B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              {payNowMsg.text}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <Btn variant="secondary" onClick={() => setSchedModal(null)}>Cancel</Btn>
+            <Btn variant="purple" disabled={schedProcessing || !schedForm.date} onClick={async () => {
+              const r = schedModal.rec;
+              if (!schedForm.date) { setPayNowMsg({ type: 'error', text: 'Please select a payment date.' }); return; }
+              setSchedProcessing(true);
+              try {
+                const res = await window.TijoriAPI.BillsAPI.schedulePayment(r.rawId, schedForm.date, schedForm.note || `Scheduled via AI Optimization for ${r.vendor}`);
+                setPayNowMsg({ type: 'success', text: res?.message || `✓ Payment of ${r.amount} to ${r.vendor} scheduled for ${schedForm.date}. Vendor notified.` });
+                setTimeout(() => { setSchedModal(null); setPayNowMsg(null); }, 3000);
+              } catch(e) {
+                setPayNowMsg({ type: 'error', text: `Schedule failed: ${e.message || 'Server error'}` });
+              } finally {
+                setSchedProcessing(false);
+              }
+            }}>
+              {schedProcessing ? 'Scheduling…' : `Confirm Schedule — ${schedModal.rec.amount}`}
+            </Btn>
+          </div>
+        </TjModal>
+      )}
     </div>
   );
 };

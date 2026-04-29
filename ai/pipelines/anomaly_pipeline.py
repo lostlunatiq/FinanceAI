@@ -88,16 +88,48 @@ def _get_historical_context(vendor, exclude_pk):
     context_str = f"Vendor: {vendor.name}, Historical Vendor Data (Count: {count}, Avg Amount: {avg_amt}, StdDev: {std_amt}). Recent Invoices: {json.dumps(recent)}"
     return _mask_pii(context_str)
 
+def _get_anomaly_feedback_context(vendor_name: str) -> str:
+    """Return a prompt block of past false-positive feedback for this vendor."""
+    if not vendor_name:
+        return ""
+    try:
+        from apps.invoices.models import AIFeedback
+        feedbacks = AIFeedback.objects.filter(
+            task_type=AIFeedback.TASK_ANOMALY,
+            vendor_name__iexact=vendor_name,
+            is_positive=False,
+        ).order_by("-created_at")[:10]
+        if not feedbacks:
+            return ""
+        lines = []
+        for fb in feedbacks:
+            date_str = fb.created_at.strftime("%Y-%m-%d")
+            if fb.disputed_flags:
+                flags_str = ", ".join(fb.disputed_flags)
+                lines.append(f"- [{date_str}] User disputed flags: {flags_str}")
+            if fb.comment:
+                lines.append(f"  Reason: {fb.comment}")
+        if not lines:
+            return ""
+        return "\n\nPAST USER FEEDBACK FOR THIS VENDOR (use to calibrate detection — reduce false positives accordingly):\n" + "\n".join(lines)
+    except Exception as e:
+        logger.warning(f"Could not load anomaly feedback context: {e}")
+        return ""
+
+
 def run_anomaly_checks(expense) -> dict:
     """
     Run LLM anomaly checks on an expense.
     """
     logger.info(f"Starting LLM Anomaly checks for {expense.id}")
-    
+
     # 1. Prepare historical context
     history_context = _get_historical_context(expense.vendor, expense.pk)
     
-    # 2. Prepare current invoice data
+    # 2. Load past feedback for this vendor
+    feedback_context = _get_anomaly_feedback_context(expense.vendor.name)
+
+    # 3. Prepare current invoice data
     current_data = {
         "invoice_number": expense.invoice_number,
         "invoice_date": str(expense.invoice_date) if expense.invoice_date else None,
@@ -107,8 +139,8 @@ def run_anomaly_checks(expense) -> dict:
         "ocr_raw": expense.ocr_raw.get("extracted_fields", {}) if expense.ocr_raw else {}
     }
     masked_current_data = _mask_pii(json.dumps(current_data))
-    
-    # 3. Build Prompt
+
+    # 4. Build Prompt
     prompt = f"""
     You are an expert fraud and anomaly detection AI for a finance system.
     Analyze the current invoice against the vendor's historical context and general financial rules.
@@ -116,6 +148,7 @@ def run_anomaly_checks(expense) -> dict:
 
     Historical Context (Masked):
     {history_context}
+    {feedback_context}
 
     Current Invoice Data (Masked):
     {masked_current_data}

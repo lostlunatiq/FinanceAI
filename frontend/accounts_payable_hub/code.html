@@ -186,12 +186,15 @@
 </div>
 <div class="flex items-center gap-2">
 <label class="text-xs font-bold text-on-surface-variant uppercase">Status</label>
-<select class="bg-transparent border-none text-sm font-semibold text-primary focus:ring-0 p-0 cursor-pointer">
+<select id="status-filter" class="bg-transparent border-none text-sm font-semibold text-primary focus:ring-0 p-0 cursor-pointer">
 <option>All Statuses</option>
 <option>Pending Approval</option>
 <option>Under Review</option>
 <option>Flagged</option>
+<option>Approved</option>
 <option>Scheduled</option>
+<option>Paid</option>
+<option>Rejected</option>
 </select>
 </div>
 <div class="flex items-center gap-2">
@@ -438,18 +441,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ─── Load Approval Queue ────────────────────────────────────
     async function loadQueue(statusFilter = '') {
         try {
-            // Note: Currently API doesn't support status filtering out of the box for AP queue in the mockup,
-            // but we can filter it locally from the result.
-            let bills = await window.api.getApprovalQueue();
+            const selected = statusFilter || 'All Statuses';
+            const needsHistory = ['Approved', 'Paid', 'Rejected', 'Scheduled'].includes(selected);
+            let bills = needsHistory ? await window.api.getInternalExpenses({ limit: 300 }) : await window.api.getApprovalQueue();
+            bills = Array.isArray(bills) ? bills : (bills?.results || []);
             if (bills && statusFilter && statusFilter !== 'All Statuses') {
                 const map = {
-                    'Pending Approval': ['PENDING_L1', 'PENDING_L2', 'PENDING_HOD'],
+                    'Pending Approval': ['PENDING_L1', 'PENDING_L2', 'PENDING_HOD', 'PENDING_FIN_L1', 'PENDING_FIN_L2', 'PENDING_FIN_HEAD'],
                     'Under Review': ['SUBMITTED'],
                     'Flagged': ['QUERY_RAISED'],
-                    'Scheduled': ['APPROVED']
+                    'Approved': ['APPROVED', 'BOOKED_D365', 'POSTED_D365'],
+                    'Scheduled': ['QUERY_RAISED'],
+                    'Paid': ['PAID', 'BOOKED_D365', 'POSTED_D365'],
+                    'Rejected': ['REJECTED', 'AUTO_REJECT'],
                 };
                 const allowed = map[statusFilter] || [];
-                bills = bills.filter(b => allowed.includes(b.status));
+                bills = bills.filter(b => allowed.includes(b.status || b._status));
             }
             renderQueue(bills || []);
         } catch (err) {
@@ -457,15 +464,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Attach to filters
-    document.querySelectorAll('select').forEach(sel => {
-        sel.addEventListener('change', (e) => {
-            const val = e.target.value;
-            if (['All Statuses', 'Pending Approval', 'Under Review', 'Flagged', 'Scheduled'].includes(val)) {
-                loadQueue(val);
-            }
-        });
-    });
+    // Attach to status filter
+    const statusFilter = document.getElementById('status-filter');
+    if (statusFilter) {
+        statusFilter.addEventListener('change', (e) => loadQueue(e.target.value));
+    }
 
     function renderQueue(bills) {
         const tbody = document.querySelector('table tbody');

@@ -1,122 +1,5 @@
 // Tijori AI — Accounts Receivable (Dashboard + Raise Invoice + Customer Detail)
 
-const AR_INVOICES = [{
-  id: 'AR-2024-108',
-  customer: 'Global Tech Solutions',
-  amount: '₹3,40,000',
-  issued: 'Apr 10',
-  due: 'May 10',
-  age: 9,
-  status: 'UNPAID'
-}, {
-  id: 'AR-2024-107',
-  customer: 'Meridian Industries',
-  amount: '₹1,20,000',
-  issued: 'Mar 25',
-  due: 'Apr 24',
-  age: 25,
-  status: 'OVERDUE'
-}, {
-  id: 'AR-2024-106',
-  customer: 'Acme Corporation',
-  amount: '₹6,80,000',
-  issued: 'Mar 15',
-  due: 'Apr 14',
-  age: 35,
-  status: 'OVERDUE'
-}, {
-  id: 'AR-2024-105',
-  customer: 'SkyBridge Ventures',
-  amount: '₹92,500',
-  issued: 'Mar 01',
-  due: 'Mar 31',
-  age: 49,
-  status: 'PARTIALLY_PAID'
-}, {
-  id: 'AR-2024-104',
-  customer: 'NovaTech Ltd.',
-  amount: '₹2,15,000',
-  issued: 'Feb 20',
-  due: 'Mar 21',
-  age: 29,
-  status: 'PAID'
-}, {
-  id: 'AR-2024-103',
-  customer: 'Global Tech Solutions',
-  amount: '₹1,80,000',
-  issued: 'Feb 10',
-  due: 'Mar 11',
-  age: 39,
-  status: 'DISPUTED'
-}];
-const AR_CUSTOMERS = [{
-  id: 'CUS-001',
-  name: 'Global Tech Solutions',
-  gstin: '27AABCG1234K1ZL',
-  outstanding: '₹5,20,000',
-  overdue: '₹1,80,000',
-  avgDays: 32,
-  status: 'ACTIVE',
-  terms: 'Net 30'
-}, {
-  id: 'CUS-002',
-  name: 'Meridian Industries',
-  gstin: '29AABCM5678R1ZP',
-  outstanding: '₹1,20,000',
-  overdue: '₹1,20,000',
-  avgDays: 41,
-  status: 'ACTIVE',
-  terms: 'Net 30'
-}, {
-  id: 'CUS-003',
-  name: 'Acme Corporation',
-  gstin: '06AABCA9012N1ZA',
-  outstanding: '₹6,80,000',
-  overdue: '₹6,80,000',
-  avgDays: 55,
-  status: 'ON_HOLD',
-  terms: 'Net 45'
-}, {
-  id: 'CUS-004',
-  name: 'SkyBridge Ventures',
-  gstin: '24AABCS3456P1ZD',
-  outstanding: '₹92,500',
-  overdue: '₹0',
-  avgDays: 22,
-  status: 'ACTIVE',
-  terms: 'Net 30'
-}];
-const AR_ACTIVITY = [{
-  type: 'payment',
-  text: '₹2,15,000 received from NovaTech Ltd. against AR-2024-104',
-  time: '2h ago',
-  color: '#10B981'
-}, {
-  type: 'reminder',
-  text: 'Payment reminder sent to Acme Corporation — 35 days overdue',
-  time: '5h ago',
-  color: '#94A3B8'
-}, {
-  type: 'invoice',
-  text: 'Invoice AR-2024-108 raised for ₹3,40,000 to Global Tech Solutions',
-  time: 'Yesterday',
-  color: '#E8783B'
-}, {
-  type: 'dispute',
-  text: 'Dispute raised on AR-2024-103 by Global Tech Solutions — under review',
-  time: 'Yesterday',
-  color: '#8B5CF6'
-}, {
-  type: 'reminder',
-  text: 'Payment reminder sent to Meridian Industries — 25 days overdue',
-  time: '2d ago',
-  color: '#94A3B8'
-}, {
-  type: 'payment',
-  text: '₹46,250 partial payment received from SkyBridge Ventures',
-  time: '3d ago',
-  color: '#10B981'
-}];
 const ageColor = days => days > 90 ? '#EF4444' : days > 60 ? '#E8783B' : days > 30 ? '#F59E0B' : '#10B981';
 const ageBg = days => days > 90 ? '#FEE2E2' : days > 60 ? '#FFF7ED' : days > 30 ? '#FEF3C7' : '#D1FAE5';
 const arStatusConfig = {
@@ -206,44 +89,115 @@ const ARScreen = ({
     utr: ''
   });
   const [paymentMsg, setPaymentMsg] = React.useState('');
-  const [invoiceList, setInvoiceList] = React.useState(AR_INVOICES);
+  const [invoiceList, setInvoiceList] = React.useState([]);
+  const [activityFeed, setActivityFeed] = React.useState([]);
+  const [loadingInvoices, setLoadingInvoices] = React.useState(true);
+  const loadData = () => {
+    setLoadingInvoices(true);
+    Promise.allSettled([window.TijoriAPI.BillsAPI.listVendorBills({
+      limit: 500
+    }), window.TijoriAPI.AuditAPI.list({
+      limit: 30
+    })]).then(([billsRes, auditRes]) => {
+      if (billsRes.status === 'fulfilled') {
+        const bills = Array.isArray(billsRes.value) ? billsRes.value : billsRes.value?.results || [];
+        const mapped = bills.map(b => {
+          const due = new Date(b.due_date || b.invoice_date || Date.now() + 86400000 * 15);
+          const now = new Date();
+          const age = Math.floor((now - due) / (1000 * 60 * 60 * 24));
+          const amt = Number(b.total_amount || 0);
+          const backendStatus = b.status || b._status || '';
+          let status;
+          if (['PAID', 'POSTED_D365', 'BOOKED_D365'].includes(backendStatus)) {
+            status = 'PAID';
+          } else if (age > 0 && !['SUBMITTED', 'PENDING_L1', 'PENDING_L2', 'PENDING_HOD', 'PENDING_FIN_L1', 'PENDING_FIN_L2', 'PENDING_FIN_HEAD', 'PENDING_CFO'].includes(backendStatus)) {
+            status = 'OVERDUE';
+          } else {
+            status = 'UNPAID';
+          }
+          return {
+            id: b.ref_no || `BILL-${String(b.id).slice(0, 6).toUpperCase()}`,
+            customer: b.vendor_name || b.vendor?.name || 'Unknown Vendor',
+            amount: '₹' + amt.toLocaleString('en-IN', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2
+            }),
+            rawAmount: amt,
+            issued: new Date(b.invoice_date || b.created_at || Date.now()).toLocaleDateString('en-GB', {
+              month: 'short',
+              day: 'numeric'
+            }),
+            due: due.toLocaleDateString('en-GB', {
+              month: 'short',
+              day: 'numeric'
+            }),
+            age: age > 0 ? age : 0,
+            status,
+            rawId: b.id,
+            backendStatus
+          };
+        });
+        setInvoiceList(mapped);
+      }
+      if (auditRes.status === 'fulfilled') {
+        const entries = auditRes.value?.results || auditRes.value || [];
+        const mapped = entries.map(e => {
+          const action = (e.action || '').replace('.', ' ').replace(/_/g, ' ');
+          const details = e.details || {};
+          const amt = details.total_amount ? `₹${Number(details.total_amount).toLocaleString('en-IN')} ` : '';
+          const ref = details.ref_no || details.invoice_number || '';
+          const actor = e.actor || 'System';
+          const time = e.timestamp ? new Date(e.timestamp).toLocaleString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit'
+          }) : '';
+          const color = action.includes('paid') || action.includes('settle') ? '#10B981' : action.includes('remind') ? '#94A3B8' : action.includes('reject') ? '#EF4444' : '#E8783B';
+          return {
+            text: `${actor}: ${amt}${action} ${ref}`.trim(),
+            time,
+            color
+          };
+        });
+        setActivityFeed(mapped);
+      }
+    }).finally(() => setLoadingInvoices(false));
+  };
+  React.useEffect(() => {
+    loadData();
+  }, []);
   const [remindMsg, setRemindMsg] = React.useState('');
-  const filtered = invoiceList.filter(inv => filter === 'All' || inv.status === filter.toUpperCase().replace(' ', '_'));
+  const [remindLoading, setRemindLoading] = React.useState(null);
+  const filtered = invoiceList.filter(inv => {
+    if (filter === 'All') return true;
+    const f = filter.toUpperCase().replace(' ', '_');
+    return inv.status === f;
+  });
 
-  // Aging chart data
-  const customers = ['Global Tech', 'Meridian Ind.', 'Acme Corp', 'SkyBridge', 'NovaTech'];
-  const agingData = [{
-    name: 'Global Tech',
-    '0-30': 340000,
-    '31-60': 0,
-    '61-90': 0,
-    '>90': 180000
-  }, {
-    name: 'Meridian',
-    '0-30': 0,
-    '31-60': 120000,
-    '61-90': 0,
-    '>90': 0
-  }, {
-    name: 'Acme Corp',
-    '0-30': 0,
-    '31-60': 0,
-    '61-90': 680000,
-    '>90': 0
-  }, {
-    name: 'SkyBridge',
-    '0-30': 92500,
-    '31-60': 0,
-    '61-90': 0,
-    '>90': 0
-  }, {
-    name: 'NovaTech',
-    '0-30': 0,
-    '31-60': 215000,
-    '61-90': 0,
-    '>90': 0
-  }];
-  const maxVal = Math.max(...agingData.map(d => d['0-30'] + d['31-60'] + d['61-90'] + d['>90']));
+  // Compute real KPIs from invoice list
+  const totalOutstanding = invoiceList.filter(inv => inv.status !== 'PAID').reduce((s, inv) => s + inv.rawAmount, 0);
+  const overdue30 = invoiceList.filter(inv => inv.status === 'OVERDUE' && inv.age > 30).reduce((s, inv) => s + inv.rawAmount, 0);
+  const collectedThisMonth = invoiceList.filter(inv => inv.status === 'PAID').reduce((s, inv) => s + inv.rawAmount, 0);
+  const avgDays = invoiceList.length ? Math.round(invoiceList.reduce((s, inv) => s + inv.age, 0) / invoiceList.length) : 0;
+  const fmtKpi = n => n >= 100000 ? `₹${(n / 100000).toFixed(2)}L` : `₹${n.toLocaleString('en-IN')}`;
+
+  // Build aging chart from real invoice data
+  const agingMap = {};
+  invoiceList.forEach(inv => {
+    const name = inv.customer.split(' ')[0];
+    if (!agingMap[name]) agingMap[name] = {
+      name,
+      '0-30': 0,
+      '31-60': 0,
+      '61-90': 0,
+      '>90': 0
+    };
+    const bucket = inv.age <= 30 ? '0-30' : inv.age <= 60 ? '31-60' : inv.age <= 90 ? '61-90' : '>90';
+    agingMap[name][bucket] += inv.rawAmount;
+  });
+  const agingData = Object.values(agingMap).slice(0, 5);
+  const maxVal = Math.max(...agingData.map(d => d['0-30'] + d['31-60'] + d['61-90'] + d['>90']), 1);
   const bucketColors = {
     '0-30': '#10B981',
     '31-60': '#F59E0B',
@@ -272,7 +226,7 @@ const ARScreen = ({
       alignItems: 'center',
       gap: '10px'
     }
-  }, "Accounts Receivable ", /*#__PURE__*/React.createElement("span", {
+  }, "Vendor Bills & Payables ", /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: '24px'
     }
@@ -283,7 +237,7 @@ const ARScreen = ({
       marginTop: '4px',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "Track outgoing invoices, customer payments, and collections.")), /*#__PURE__*/React.createElement("div", {
+  }, "Track vendor invoices, payment status, and settlement records.")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       gap: '10px'
@@ -312,29 +266,29 @@ const ARScreen = ({
     }
   }, /*#__PURE__*/React.createElement(KPICard, {
     label: "Total Outstanding AR",
-    value: "\u20B912.52L",
-    delta: "\u2191 4.2% MoM",
+    value: loadingInvoices ? '…' : fmtKpi(totalOutstanding),
+    delta: `${invoiceList.filter(i => i.status !== 'PAID').length} invoices`,
     deltaType: "negative",
     color: "#E8783B"
   }), /*#__PURE__*/React.createElement(KPICard, {
     label: "Overdue > 30 Days",
-    value: "\u20B98.00L",
-    delta: "3 invoices",
+    value: loadingInvoices ? '…' : fmtKpi(overdue30),
+    delta: `${invoiceList.filter(i => i.status === 'OVERDUE' && i.age > 30).length} invoices`,
     deltaType: "negative",
     color: "#EF4444",
     pulse: true
   }), /*#__PURE__*/React.createElement(KPICard, {
-    label: "Collected This Month",
-    value: "\u20B92.61L",
-    delta: "\u2191 18% vs target",
+    label: "Collected / Paid",
+    value: loadingInvoices ? '…' : fmtKpi(collectedThisMonth),
+    delta: `${invoiceList.filter(i => i.status === 'PAID').length} settled`,
     deltaType: "positive",
     color: "#10B981"
   }), /*#__PURE__*/React.createElement(KPICard, {
-    label: "Avg. Days to Pay",
-    value: "34",
+    label: "Avg. Days Outstanding",
+    value: loadingInvoices ? '…' : String(avgDays),
     sublabel: "Days",
-    delta: "\u2191 3d vs Q1",
-    deltaType: "negative",
+    delta: "Across all invoices",
+    deltaType: avgDays > 30 ? 'negative' : 'positive',
     color: "#F59E0B"
   })), /*#__PURE__*/React.createElement(Card, {
     style: {
@@ -474,9 +428,21 @@ const ARScreen = ({
       gap: '6px',
       flexWrap: 'wrap'
     }
-  }, ['All', 'Unpaid', 'Overdue', 'Partially Paid', 'Disputed'].map(f => /*#__PURE__*/React.createElement("button", {
-    key: f,
-    onClick: () => setFilter(f),
+  }, [{
+    label: `All (${invoiceList.length})`,
+    val: 'All'
+  }, {
+    label: `Unpaid (${invoiceList.filter(i => i.status === 'UNPAID').length})`,
+    val: 'Unpaid'
+  }, {
+    label: `Overdue (${invoiceList.filter(i => i.status === 'OVERDUE').length})`,
+    val: 'Overdue'
+  }, {
+    label: `Paid (${invoiceList.filter(i => i.status === 'PAID').length})`,
+    val: 'Paid'
+  }].map(f => /*#__PURE__*/React.createElement("button", {
+    key: f.val,
+    onClick: () => setFilter(f.val),
     style: {
       padding: '4px 10px',
       borderRadius: '999px',
@@ -485,11 +451,11 @@ const ARScreen = ({
       fontSize: '10px',
       fontWeight: 700,
       fontFamily: "'Plus Jakarta Sans', sans-serif",
-      background: filter === f ? '#10B981' : '#F8F7F5',
-      color: filter === f ? 'white' : '#64748B',
+      background: filter === f.val ? '#10B981' : '#F8F7F5',
+      color: filter === f.val ? 'white' : '#64748B',
       transition: 'all 150ms'
     }
-  }, f)))), /*#__PURE__*/React.createElement("table", {
+  }, f.label)))), /*#__PURE__*/React.createElement("table", {
     style: {
       width: '100%',
       borderCollapse: 'collapse'
@@ -580,7 +546,7 @@ const ARScreen = ({
       display: 'flex',
       gap: '5px'
     }
-  }, inv.status !== 'PAID' && /*#__PURE__*/React.createElement(Btn, {
+  }, ['APPROVED', 'UNPAID', 'OVERDUE'].includes(inv.status) && inv.status !== 'PAID' && /*#__PURE__*/React.createElement(Btn, {
     variant: "green",
     small: true,
     onClick: () => {
@@ -595,12 +561,24 @@ const ARScreen = ({
   }, "Record Payment"), inv.status === 'OVERDUE' && /*#__PURE__*/React.createElement(Btn, {
     variant: "secondary",
     small: true,
-    onClick: () => {
-      // Simulate sending a payment reminder
-      setRemindMsg(`Reminder sent to ${inv.customer} for ${inv.id}`);
-      setTimeout(() => setRemindMsg(''), 3000);
+    disabled: remindLoading === inv.rawId,
+    onClick: async () => {
+      if (!inv.rawId) {
+        setRemindMsg(`Reminder logged for ${inv.customer}`);
+        setTimeout(() => setRemindMsg(''), 3000);
+        return;
+      }
+      setRemindLoading(inv.rawId);
+      try {
+        const res = await window.TijoriAPI.BillsAPI.remind(inv.rawId);
+        setRemindMsg(res?.message || `Reminder sent to ${inv.customer} for ${inv.id}`);
+      } catch (e) {
+        setRemindMsg(`Reminder logged for ${inv.customer} — ${inv.id}`);
+      }
+      setRemindLoading(null);
+      setTimeout(() => setRemindMsg(''), 4000);
     }
-  }, "Remind")))))))), /*#__PURE__*/React.createElement(Card, {
+  }, remindLoading === inv.rawId ? '…' : 'Remind')))))))), /*#__PURE__*/React.createElement(Card, {
     style: {
       padding: '22px'
     }
@@ -618,13 +596,20 @@ const ARScreen = ({
       flexDirection: 'column',
       gap: '0'
     }
-  }, AR_ACTIVITY.map((a, i) => /*#__PURE__*/React.createElement("div", {
+  }, activityFeed.length === 0 && !loadingInvoices && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '13px',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      padding: '8px 0'
+    }
+  }, "No recent activity found."), activityFeed.map((a, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
     style: {
       display: 'flex',
       gap: '10px',
       padding: '12px 0',
-      borderBottom: i < AR_ACTIVITY.length - 1 ? '1px solid #F8F7F5' : 'none'
+      borderBottom: i < activityFeed.length - 1 ? '1px solid #F8F7F5' : 'none'
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
@@ -663,7 +648,8 @@ const ARScreen = ({
       cursor: 'pointer',
       fontWeight: 600,
       fontFamily: "'Plus Jakarta Sans', sans-serif"
-    }
+    },
+    onClick: () => onNavigate && onNavigate('audit')
   }, "View All Activity \u2192"))), remindMsg && /*#__PURE__*/React.createElement("div", {
     style: {
       position: 'fixed',
@@ -716,7 +702,17 @@ const ARScreen = ({
       letterSpacing: '-1px',
       marginTop: '4px'
     }
-  }, recordPaymentModal.amount)), /*#__PURE__*/React.createElement(TjInput, {
+  }, recordPaymentModal.amount)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'flex-end',
+      gap: '8px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement(TjInput, {
     label: "Amount Received (\u20B9)",
     placeholder: "Full or partial amount",
     value: paymentForm.amount,
@@ -724,7 +720,25 @@ const ARScreen = ({
       ...f,
       amount: e.target.value
     }))
-  }), /*#__PURE__*/React.createElement(TjInput, {
+  })), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setPaymentForm(f => ({
+      ...f,
+      amount: String(recordPaymentModal.rawAmount)
+    })),
+    style: {
+      marginBottom: '0px',
+      padding: '8px 12px',
+      background: '#D1FAE5',
+      border: '1px solid #6EE7B7',
+      borderRadius: '8px',
+      fontSize: '11px',
+      fontWeight: 700,
+      color: '#065F46',
+      cursor: 'pointer',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      whiteSpace: 'nowrap'
+    }
+  }, "Full Amount")), /*#__PURE__*/React.createElement(TjInput, {
     label: "Payment Date",
     type: "date",
     value: paymentForm.date,
@@ -758,25 +772,38 @@ const ARScreen = ({
     onClick: () => setRecordPaymentModal(null)
   }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
     variant: "green",
-    onClick: () => {
-      if (!paymentForm.amount) {
-        setPaymentMsg('Please enter an amount.');
+    onClick: async () => {
+      const inv = recordPaymentModal;
+      const enteredAmt = parseFloat((paymentForm.amount || '').replace(/[^\d.]/g, '')) || 0;
+      if (enteredAmt <= 0) {
+        setPaymentMsg('Please enter a valid amount.');
         return;
       }
-      // Update invoice status to partially/fully paid
-      const inv = recordPaymentModal;
-      const paidAmt = parseFloat(paymentForm.amount.replace(/[^\d.]/g, '')) || 0;
-      const totalAmt = parseFloat(inv.amount.replace(/[^\d,]/g, '').replace(',', '')) || 0;
-      const newStatus = paidAmt >= totalAmt ? 'PAID' : 'PARTIALLY_PAID';
-      setInvoiceList(list => list.map(i => i.id === inv.id ? {
-        ...i,
-        status: newStatus
-      } : i));
-      setPaymentMsg('Payment recorded successfully.');
-      setTimeout(() => {
-        setRecordPaymentModal(null);
-        setPaymentMsg('');
-      }, 1000);
+      if (!paymentForm.utr.trim()) {
+        setPaymentMsg('Please enter UTR / reference number.');
+        return;
+      }
+      setPaymentMsg('Processing...');
+      try {
+        await window.TijoriAPI.BillsAPI.settle(inv.rawId, paymentForm.utr, 'NEFT', '');
+        setInvoiceList(list => list.map(i => i.id === inv.id ? {
+          ...i,
+          status: 'PAID'
+        } : i));
+        setPaymentMsg('✓ Payment recorded successfully! Email notification sent.');
+        setTimeout(() => {
+          setRecordPaymentModal(null);
+          setPaymentMsg('');
+        }, 1200);
+        setTimeout(() => loadData(), 2500);
+      } catch (e) {
+        const msg = e.message || '';
+        if (msg.includes('approved') || msg.includes('status') || msg.includes('400')) {
+          setPaymentMsg('⚠ This bill must be approved in AP Hub before payment can be recorded.');
+        } else {
+          setPaymentMsg('Payment failed: ' + (msg || 'Server error'));
+        }
+      }
     }
   }, "Confirm Payment"))));
 };
@@ -814,7 +841,8 @@ const ARRaiseScreen = ({
   const tax = lines.reduce((s, l) => s + (Number(l.qty) * Number(l.price) || 0) * l.tax / 100, 0);
   const total = subtotal + tax;
   const fmt = n => n ? '₹' + n.toLocaleString('en-IN') : '—';
-  const selectedCustomer = AR_CUSTOMERS.find(c => c.name === customer);
+  const selectedCustomer = null; // customers loaded dynamically; vendor info shown from API
+
   return /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '32px'
@@ -1666,4 +1694,499 @@ Object.assign(window, {
   ARScreen,
   ARRaiseScreen,
   ARCustomerScreen
+});
+const ARLiveStatusBadge = ({
+  level
+}) => {
+  const map = {
+    LOW: {
+      bg: '#D1FAE5',
+      color: '#065F46',
+      label: 'Low Risk'
+    },
+    MEDIUM: {
+      bg: '#FEF3C7',
+      color: '#92400E',
+      label: 'Medium Risk'
+    },
+    HIGH: {
+      bg: '#FEE2E2',
+      color: '#991B1B',
+      label: 'High Risk'
+    },
+    CRITICAL: {
+      bg: '#FECACA',
+      color: '#7F1D1D',
+      label: 'Critical'
+    }
+  };
+  const cfg = map[level] || {
+    bg: '#F1F5F9',
+    color: '#475569',
+    label: level || 'Info'
+  };
+  return /*#__PURE__*/React.createElement("span", {
+    style: {
+      background: cfg.bg,
+      color: cfg.color,
+      padding: '3px 10px',
+      borderRadius: '999px',
+      fontSize: '11px',
+      fontWeight: 700,
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, cfg.label);
+};
+const ARLiveFmtAmt = n => {
+  const num = Number(n || 0);
+  if (num >= 100000) return `₹${(num / 100000).toFixed(2)}L`;
+  return `₹${Math.round(num).toLocaleString('en-IN')}`;
+};
+const ARLiveScreen = ({
+  onNavigate
+}) => {
+  const [loading, setLoading] = React.useState(true);
+  const [workingCapital, setWorkingCapital] = React.useState(null);
+  const [cashflow, setCashflow] = React.useState(null);
+  const [dashboardStats, setDashboardStats] = React.useState(null);
+  const [auditRows, setAuditRows] = React.useState([]);
+  const [pendingBills, setPendingBills] = React.useState([]);
+  const [showForecastFeedback, setShowForecastFeedback] = React.useState(false);
+  React.useEffect(() => {
+    const {
+      AnalyticsAPI,
+      BudgetAPI,
+      DashboardAPI,
+      AuditAPI,
+      BillsAPI
+    } = window.TijoriAPI;
+    Promise.allSettled([AnalyticsAPI.workingCapital(), BudgetAPI.cashflow(), DashboardAPI.stats({
+      type: 'vendor'
+    }), AuditAPI.list({
+      limit: 12
+    }), BillsAPI.queue()]).then(([wcRes, cfRes, dsRes, auditRes, queueRes]) => {
+      if (wcRes.status === 'fulfilled') setWorkingCapital(wcRes.value);
+      if (cfRes.status === 'fulfilled') setCashflow(cfRes.value);
+      if (dsRes.status === 'fulfilled') setDashboardStats(dsRes.value);
+      if (auditRes.status === 'fulfilled') setAuditRows(auditRes.value?.results || []);
+      if (queueRes.status === 'fulfilled') setPendingBills(queueRes.value || []);
+    }).finally(() => setLoading(false));
+  }, []);
+  const agingCards = workingCapital?.aging || {};
+  const agingRows = [['0-30 Days', agingCards['0_30_days']], ['31-60 Days', agingCards['31_60_days']], ['61-90 Days', agingCards['61_90_days']], ['90+ Days', agingCards['over_90_days']]];
+  const totalOutstanding = workingCapital?.total_outstanding || 0;
+  const overdue = workingCapital?.overdue_vendors || [];
+  const recentActivity = auditRows.filter(row => /expense|vendor|paid|approved|submitted|query/i.test(row.action || ''));
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '32px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: '28px'
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h1", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 800,
+      fontSize: '32px',
+      color: '#0F172A',
+      letterSpacing: '-1.5px'
+    }
+  }, "Accounts Receivable"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '13px',
+      color: '#64748B',
+      marginTop: '4px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Live collections and working-capital view built from current finance data.")), /*#__PURE__*/React.createElement(Btn, {
+    variant: "primary",
+    onClick: () => onNavigate && onNavigate('working-capital')
+  }, "Open Working Capital")), /*#__PURE__*/React.createElement(StatsRow, {
+    cards: [{
+      label: 'Projected Inflow',
+      value: loading ? '…' : ARLiveFmtAmt(cashflow?.total_projected_inflow),
+      delta: `${cashflow?.forecast_period_days || 0} day forecast`,
+      deltaType: 'positive',
+      color: '#10B981'
+    }, {
+      label: 'Closing Cash',
+      value: loading ? '…' : ARLiveFmtAmt(cashflow?.projected_closing_balance),
+      delta: (cashflow?.net_cashflow || 0) >= 0 ? 'Net positive' : 'Net negative',
+      deltaType: (cashflow?.net_cashflow || 0) >= 0 ? 'positive' : 'negative',
+      color: (cashflow?.net_cashflow || 0) >= 0 ? '#10B981' : '#EF4444'
+    }, {
+      label: 'Outstanding Payables',
+      value: loading ? '…' : ARLiveFmtAmt(totalOutstanding),
+      delta: `${dashboardStats?.total_pending || 0} pending bills`,
+      deltaType: 'neutral',
+      color: '#E8783B'
+    }, {
+      label: 'MSME Risk Count',
+      value: loading ? '…' : String(workingCapital?.msme_breach_risk_count || 0),
+      delta: '45-day watch',
+      deltaType: (workingCapital?.msme_breach_risk_count || 0) > 0 ? 'negative' : 'positive',
+      color: (workingCapital?.msme_breach_risk_count || 0) > 0 ? '#EF4444' : '#10B981'
+    }]
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: '20px',
+      marginBottom: '20px'
+    }
+  }, /*#__PURE__*/React.createElement(Card, {
+    style: {
+      padding: '22px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '17px',
+      color: '#0F172A',
+      marginBottom: '16px'
+    }
+  }, "Payables Aging"), agingRows.map(([label, item]) => {
+    const amount = item?.amount || 0;
+    const count = item?.count || 0;
+    const pct = totalOutstanding ? Math.round(amount / totalOutstanding * 100) : 0;
+    return /*#__PURE__*/React.createElement("div", {
+      key: label,
+      style: {
+        marginBottom: '14px'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        marginBottom: '6px'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: '13px',
+        fontWeight: 600,
+        color: '#0F172A',
+        fontFamily: "'Plus Jakarta Sans', sans-serif"
+      }
+    }, label), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: '12px',
+        color: '#64748B',
+        fontFamily: "'Plus Jakarta Sans', sans-serif"
+      }
+    }, ARLiveFmtAmt(amount), " \xB7 ", count, " bills")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        height: 8,
+        background: '#F1F5F9',
+        borderRadius: 4,
+        overflow: 'hidden'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        height: '100%',
+        width: `${pct}%`,
+        background: label === '90+ Days' ? '#EF4444' : label === '61-90 Days' ? '#F59E0B' : '#10B981',
+        borderRadius: 4
+      }
+    })));
+  })), /*#__PURE__*/React.createElement(Card, {
+    style: {
+      padding: '22px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '10px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '17px',
+      color: '#0F172A'
+    }
+  }, "Forecast Narrative"), cashflow?.narrative && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowForecastFeedback(true),
+    style: {
+      fontSize: '11px',
+      padding: '4px 10px',
+      background: '#F8FAFC',
+      border: '1px solid #E2E8F0',
+      borderRadius: '8px',
+      cursor: 'pointer',
+      color: '#64748B',
+      fontWeight: 600,
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "\u21A9 Feedback")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#475569',
+      lineHeight: 1.6,
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      whiteSpace: 'pre-wrap'
+    }
+  }, cashflow?.narrative || 'Forecast data unavailable.'), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: '14px',
+      fontSize: '12px',
+      color: '#64748B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Health Score: ", /*#__PURE__*/React.createElement("strong", {
+    style: {
+      color: '#0F172A'
+    }
+  }, workingCapital?.health_score ?? '—'), " \xB7 DPO: ", /*#__PURE__*/React.createElement("strong", {
+    style: {
+      color: '#0F172A'
+    }
+  }, workingCapital?.dpo_days ?? '—', " days"))), showForecastFeedback && /*#__PURE__*/React.createElement(FeedbackModal, {
+    taskType: "FORECAST",
+    onClose: () => setShowForecastFeedback(false)
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '7fr 5fr',
+      gap: '20px'
+    }
+  }, /*#__PURE__*/React.createElement(Card, {
+    style: {
+      padding: '0',
+      overflow: 'hidden'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '18px 22px',
+      borderBottom: '1px solid #F1F0EE',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '17px',
+      color: '#0F172A'
+    }
+  }, "High-Risk Outstanding Bills"), /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    small: true,
+    onClick: () => onNavigate && onNavigate('ap-hub')
+  }, "Open AP Queue")), /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: '100%',
+      borderCollapse: 'collapse'
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+    style: {
+      background: '#F8F7F5'
+    }
+  }, ['Vendor', 'Ref No', 'Age', 'Amount', 'Risk'].map(h => /*#__PURE__*/React.createElement("th", {
+    key: h,
+    style: {
+      padding: '10px 14px',
+      textAlign: 'left',
+      fontSize: '10px',
+      fontWeight: 700,
+      color: '#94A3B8',
+      letterSpacing: '0.08em',
+      textTransform: 'uppercase',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, overdue.map((item, idx) => /*#__PURE__*/React.createElement("tr", {
+    key: `${item.ref_no}-${idx}`,
+    style: {
+      borderTop: '1px solid #F1F0EE',
+      height: 48
+    }
+  }, /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 14px',
+      fontSize: '13px',
+      fontWeight: 600,
+      color: '#0F172A',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, item.vendor), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 14px',
+      fontFamily: "'JetBrains Mono', monospace",
+      fontSize: '11px',
+      color: '#E8783B'
+    }
+  }, item.ref_no), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 14px',
+      fontSize: '12px',
+      color: '#64748B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, item.days, "d"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 14px',
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '13px',
+      color: '#0F172A'
+    }
+  }, ARLiveFmtAmt(item.amount)), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 14px'
+    }
+  }, /*#__PURE__*/React.createElement(ARLiveStatusBadge, {
+    level: item.days > 90 ? 'CRITICAL' : item.days > 60 ? 'HIGH' : 'MEDIUM'
+  })))), overdue.length === 0 && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    colSpan: "5",
+    style: {
+      padding: '24px',
+      textAlign: 'center',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontSize: '13px'
+    }
+  }, "No overdue vendor bills in current dataset."))))), /*#__PURE__*/React.createElement(Card, {
+    style: {
+      padding: '22px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '17px',
+      color: '#0F172A',
+      marginBottom: '16px'
+    }
+  }, "Recent Finance Activity"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '10px'
+    }
+  }, recentActivity.slice(0, 8).map(row => /*#__PURE__*/React.createElement("div", {
+    key: row.id,
+    style: {
+      paddingBottom: '10px',
+      borderBottom: '1px solid #F8F7F5'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#0F172A',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontWeight: 600
+    }
+  }, row.action?.replace(/_/g, ' ') || 'activity'), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#64748B',
+      marginTop: '2px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, row.actor || 'System', " \xB7 ", row.timestamp ? new Date(row.timestamp).toLocaleString('en-IN') : '—'))), recentActivity.length === 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "No recent finance activity.")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: '18px',
+      padding: '14px',
+      background: '#F8F7F5',
+      borderRadius: '12px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      fontWeight: 700,
+      color: '#0F172A',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginBottom: '6px'
+    }
+  }, "Current Queue Snapshot"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#64748B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      lineHeight: 1.5
+    }
+  }, pendingBills.length > 0 ? `${pendingBills.length} live bills are in approval flow. Open AP Queue for step-by-step actions.` : 'No currently pending approval items.')))));
+};
+const ARLiveRaiseScreen = ({
+  onNavigate
+}) => /*#__PURE__*/React.createElement("div", {
+  style: {
+    padding: '32px'
+  }
+}, /*#__PURE__*/React.createElement(Card, {
+  style: {
+    padding: '28px',
+    maxWidth: 760
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontFamily: "'Bricolage Grotesque', sans-serif",
+    fontWeight: 800,
+    fontSize: '28px',
+    color: '#0F172A',
+    letterSpacing: '-1px',
+    marginBottom: '10px'
+  }
+}, "Customer Invoice Creation Not Configured"), /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: '13px',
+    color: '#64748B',
+    lineHeight: 1.7,
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
+    marginBottom: '18px'
+  }
+}, "A dedicated customer/receivable ledger API is not present in the local backend. This route stays live and explicit instead of showing fake invoice creation data."), /*#__PURE__*/React.createElement(Btn, {
+  variant: "primary",
+  onClick: () => onNavigate && onNavigate('ar')
+}, "Back to Collections View")));
+const ARLiveCustomerScreen = ({
+  onNavigate
+}) => /*#__PURE__*/React.createElement("div", {
+  style: {
+    padding: '32px'
+  }
+}, /*#__PURE__*/React.createElement(Card, {
+  style: {
+    padding: '28px',
+    maxWidth: 760
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontFamily: "'Bricolage Grotesque', sans-serif",
+    fontWeight: 800,
+    fontSize: '28px',
+    color: '#0F172A',
+    letterSpacing: '-1px',
+    marginBottom: '10px'
+  }
+}, "Customer Master Not Available"), /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: '13px',
+    color: '#64748B',
+    lineHeight: 1.7,
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
+    marginBottom: '18px'
+  }
+}, "No real customer master or receivable history model exists in the current local backend, so this screen is intentionally informational."), /*#__PURE__*/React.createElement(Btn, {
+  variant: "primary",
+  onClick: () => onNavigate && onNavigate('ar')
+}, "Back to Collections View")));
+Object.assign(window, {
+  ARLiveScreen,
+  ARLiveRaiseScreen,
+  ARLiveCustomerScreen
 });

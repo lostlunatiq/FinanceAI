@@ -8,6 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700;12..96,800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -198,6 +199,8 @@
 
   <!-- Pre-compiled screens — no Babel needed, loads instantly -->
   <script defer src="js/dist/DS.js"></script>
+  <script defer src="js/dist/FeedbackModal.js"></script>
+  <!-- FeedbackModal must load before the screens below -->
   <script defer src="js/dist/Login.js"></script>
   <script defer src="js/dist/Dashboard.js"></script>
   <script defer src="js/dist/APHub.js"></script>

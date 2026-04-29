@@ -1,6 +1,6 @@
 // Tijori AI — AP Invoice Detail (real data + working actions)
 
-const APMatchScreen = ({ onNavigate, invoice: passedInvoice, role: propRole }) => {
+const APMatchScreen = ({ onNavigate, onBack, invoice: passedInvoice, role: propRole }) => {
   const [bill, setBill] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState('');
@@ -8,6 +8,7 @@ const APMatchScreen = ({ onNavigate, invoice: passedInvoice, role: propRole }) =
   const [notes, setNotes] = React.useState('');
   const [anomalyOverride, setAnomalyOverride] = React.useState('');
   const [actionLoading, setActionLoading] = React.useState(false);
+  const [feedbackMode, setFeedbackMode] = React.useState(null); // 'OCR' | 'ANOMALY'
   const [actionError, setActionError] = React.useState('');
 
   const currentRole = propRole || localStorage.getItem('tj_role') || 'CFO';
@@ -80,7 +81,7 @@ const APMatchScreen = ({ onNavigate, invoice: passedInvoice, role: propRole }) =
     <div style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       <div style={{ fontSize: '48px', marginBottom: '12px' }}>📄</div>
       <div style={{ fontSize: '14px' }}>{error || 'Invoice not found.'}</div>
-      <Btn variant="secondary" style={{ marginTop: 16 }} onClick={() => onNavigate && onNavigate('ap-hub')}>← Back to Hub</Btn>
+      <Btn variant="secondary" style={{ marginTop: 16 }} onClick={() => onBack ? onBack() : onNavigate && onNavigate('ap-hub')}>← Back</Btn>
     </div>
   );
 
@@ -106,7 +107,7 @@ const APMatchScreen = ({ onNavigate, invoice: passedInvoice, role: propRole }) =
       {/* Header */}
       <div style={{ marginBottom: '24px' }}>
         <div style={{ fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ cursor: 'pointer', color: '#E8783B' }} onClick={() => onNavigate && onNavigate('ap-hub')}>← Accounts Payable Hub</span>
+          <span style={{ cursor: 'pointer', color: '#E8783B' }} onClick={() => onBack ? onBack() : onNavigate && onNavigate('ap-hub')}>← Back</span>
           <span>›</span>
           <span style={{ color: '#0F172A', fontWeight: 600 }}>{bill.ref_no}</span>
         </div>
@@ -127,7 +128,7 @@ const APMatchScreen = ({ onNavigate, invoice: passedInvoice, role: propRole }) =
             </div>
           </div>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <Btn variant="secondary" onClick={() => onNavigate && onNavigate('ap-hub')}>← Back</Btn>
+            <Btn variant="secondary" onClick={() => onBack ? onBack() : onNavigate && onNavigate('ap-hub')}>← Back</Btn>
             {canAct && (
               <>
                 {bill.anomaly_severity && bill.anomaly_severity !== 'NONE' && (
@@ -205,6 +206,10 @@ const APMatchScreen = ({ onNavigate, invoice: passedInvoice, role: propRole }) =
                     {Math.round(parseFloat(bill.ocr_confidence) * 100)}% Confidence
                   </span>
                 )}
+                <button onClick={() => setFeedbackMode('OCR')}
+                  style={{ background: 'none', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '2px 10px', fontSize: '11px', color: '#64748B', cursor: 'pointer', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  ↩ Feedback
+                </button>
               </div>
               <div style={{ padding: '20px' }}>
                 {/* Key extracted fields */}
@@ -412,6 +417,12 @@ const APMatchScreen = ({ onNavigate, invoice: passedInvoice, role: propRole }) =
               {bill.anomaly_severity && bill.anomaly_severity !== 'NONE' && (
                 <Btn variant="secondary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => { setModal({ type: 'investigate' }); }}>🔍 Re-Run Anomaly Scan</Btn>
               )}
+              {bill.anomaly_severity && bill.anomaly_severity !== 'NONE' && (
+                <button onClick={() => setFeedbackMode('ANOMALY')}
+                  style={{ width: '100%', padding: '10px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '10px', cursor: 'pointer', fontSize: '13px', color: '#15803D', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  ↩ This anomaly is incorrect — give feedback
+                </button>
+              )}
             </div>
           )}
           {!canAct && bill && (
@@ -475,6 +486,16 @@ const APMatchScreen = ({ onNavigate, invoice: passedInvoice, role: propRole }) =
             </Btn>
           </div>
         </TjModal>
+      )}
+
+      {feedbackMode && bill && (
+        <FeedbackModal
+          taskType={feedbackMode}
+          expenseId={bill.id}
+          vendorName={bill.vendor_name || ''}
+          anomalyFlags={bill.ocr_raw?.anomaly_flags || []}
+          onClose={() => setFeedbackMode(null)}
+        />
       )}
     </div>
   );

@@ -42,6 +42,11 @@ INSTALLED_APPS = [
     # Local
     "apps.core",
     "apps.invoices",
+    "apps.expenses",
+    "apps.forecast",
+    "apps.query",
+    "apps.reports",
+    "apps.notifications.apps.NotificationsConfig",
 ]
 
 # Remove allauth middleware if allauth is not installed
@@ -54,6 +59,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "apps.core.middleware.AuditLogMiddleware",
 ]
 
 AUTHENTICATION_BACKENDS = [

@@ -126,15 +126,31 @@ const RBACMatrixView = () => {
 const AuditLogView = () => {
   const [logs, setLogs] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
-  const [filter, setFilter] = React.useState({ action: '', entity_type: '' });
+  const [filtersMeta, setFiltersMeta] = React.useState({ entity_types: [], actions: [] });
+  const [filter, setFilter] = React.useState({
+    scope: 'business',
+    state_change_only: 'true',
+    action: '',
+    entity_type: '',
+    actor: '',
+    search: '',
+  });
 
   const load = React.useCallback(() => {
     setLoading(true);
     const params = {};
+    if (filter.scope) params.scope = filter.scope;
+    if (filter.state_change_only) params.state_change_only = filter.state_change_only;
     if (filter.action) params.action = filter.action;
     if (filter.entity_type) params.entity_type = filter.entity_type;
+    if (filter.actor) params.actor = filter.actor;
+    if (filter.search) params.search = filter.search;
     window.TijoriAPI.AuditAPI.list(params)
-      .then(data => setLogs(Array.isArray(data) ? data : (data.results || [])))
+      .then(data => {
+        const payload = Array.isArray(data) ? { results: data, filters: {} } : (data || {});
+        setLogs(payload.results || []);
+        setFiltersMeta(payload.filters || { entity_types: [], actions: [] });
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [filter]);
@@ -144,15 +160,28 @@ const AuditLogView = () => {
   return (
     <div style={{ animation: 'fadeUp 220ms ease both' }}>
       <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+        <select value={filter.scope} onChange={e => setFilter(f => ({ ...f, scope: e.target.value }))}
+          style={{ padding: '9px 12px', border: '1.5px solid #E2E8F0', borderRadius: 10, fontSize: 13, fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', background: '#FAFAF8', flex: 1 }}>
+          <option value="business">Business Trail</option>
+          <option value="all">All Visible Events</option>
+          <option value="admin">Admin Changes</option>
+          <option value="auth">Auth Events</option>
+          <option value="system">System Events</option>
+        </select>
         <select value={filter.entity_type} onChange={e => setFilter(f => ({ ...f, entity_type: e.target.value }))}
           style={{ padding: '9px 12px', border: '1.5px solid #E2E8F0', borderRadius: 10, fontSize: 13, fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', background: '#FAFAF8', flex: 1 }}>
           <option value="">All Entities</option>
-          <option value="EXPENSE">Expense</option>
-          <option value="VENDOR">Vendor</option>
-          <option value="USER">User</option>
-          <option value="BUDGET">Budget</option>
+          {filtersMeta.entity_types.map(type => (
+            <option key={type} value={type}>{type}</option>
+          ))}
         </select>
-        <TjInput placeholder="Filter by action (e.g. LOGIN)" value={filter.action} onChange={e => setFilter(f => ({ ...f, action: e.target.value }))} />
+        <TjInput placeholder="Actor" value={filter.actor} onChange={e => setFilter(f => ({ ...f, actor: e.target.value }))} />
+        <TjInput placeholder="Search summary or object" value={filter.search} onChange={e => setFilter(f => ({ ...f, search: e.target.value }))} />
+      </div>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+        <input type="checkbox" checked={filter.state_change_only === 'true'} onChange={e => setFilter(f => ({ ...f, state_change_only: e.target.checked ? 'true' : 'false' }))} />
+        <span style={{ fontSize: 12, color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif", alignSelf: 'center' }}>State changes only</span>
+        <TjInput placeholder="Filter by action (e.g. approved)" value={filter.action} onChange={e => setFilter(f => ({ ...f, action: e.target.value }))} />
         <Btn variant="secondary" onClick={load}>Filter</Btn>
       </div>
 
@@ -160,7 +189,7 @@ const AuditLogView = () => {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ background: '#F8F7F5' }}>
-              {['Timestamp', 'User', 'Action', 'Entity', 'Details'].map(h => (
+              {['Timestamp', 'Actor', 'Action', 'Entity', 'Summary', 'Details'].map(h => (
                 <th key={h} style={{ padding: '12px 14px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#94A3B8', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{h}</th>
               ))}
             </tr>
@@ -169,9 +198,10 @@ const AuditLogView = () => {
             {logs.map(log => (
               <tr key={log.id} style={{ borderTop: '1px solid #F1F0EE' }}>
                 <td style={{ padding: '12px 14px', color: '#94A3B8', fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}>{new Date(log.timestamp).toLocaleString('en-IN')}</td>
-                <td style={{ padding: '12px 14px', fontWeight: 600 }}>{log.user_full_name || 'System'}</td>
+                <td style={{ padding: '12px 14px', fontWeight: 600 }}>{log.actor || 'System'}</td>
                 <td style={{ padding: '12px 14px' }}><span style={{ background: '#F1F5F9', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>{log.action}</span></td>
-                <td style={{ padding: '12px 14px', color: '#475569' }}>{log.entity_type}</td>
+                <td style={{ padding: '12px 14px', color: '#475569' }}>{log.entity_display_name || log.entity_type}</td>
+                <td style={{ padding: '12px 14px', color: '#334155', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.change_summary || '—'}</td>
                 <td style={{ padding: '12px 14px', color: '#94A3B8', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{JSON.stringify(log.details)}</td>
               </tr>
             ))}
@@ -192,7 +222,7 @@ const UserDetailDrawer = ({ user, departments, groups, open, onClose, onUpdated 
   const [actionMsg, setActionMsg] = React.useState('');
 
   React.useEffect(() => {
-    if (user) { setEditForm({ ...user }); setEditing(false); setActionMsg(''); }
+    if (user) { setEditForm({ ...user }); setEditing(false); }
   }, [user]);
 
   const handleSave = async () => {
@@ -206,7 +236,7 @@ const UserDetailDrawer = ({ user, departments, groups, open, onClose, onUpdated 
         is_active: form.is_active,
       });
       setActionMsg('User updated successfully.');
-      onUpdated();
+      onUpdated(user.id);
       setEditing(false);
     } catch (e) { setActionMsg('Update failed: ' + (e.message || 'Error')); }
   };
@@ -224,7 +254,7 @@ const UserDetailDrawer = ({ user, departments, groups, open, onClose, onUpdated 
     try {
       await window.TijoriAPI.AuthAPI.updateUser(user.id, { is_active: !user.is_active });
       setActionMsg(user.is_active ? 'User suspended.' : 'User activated.');
-      onUpdated();
+      onUpdated(user.id);
     } catch (e) { setActionMsg('Action failed: ' + (e.message || 'Error')); }
   };
 
@@ -356,8 +386,9 @@ const UserDetailDrawer = ({ user, departments, groups, open, onClose, onUpdated 
       )}
 
       {actionMsg && (
-        <div style={{ marginTop: 12, padding: '10px 14px', background: actionMsg.includes('failed') || actionMsg.includes('Failed') ? '#FEE2E2' : '#F0FDF4', border: `1px solid ${actionMsg.includes('failed') || actionMsg.includes('Failed') ? '#FECACA' : '#BBF7D0'}`, borderRadius: 8, fontSize: 12, color: actionMsg.includes('failed') || actionMsg.includes('Failed') ? '#991B1B' : '#065F46', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-          {actionMsg}
+        <div style={{ marginTop: 12, padding: '10px 14px', background: actionMsg.toLowerCase().includes('fail') || actionMsg.toLowerCase().includes('cannot') || actionMsg.toLowerCase().includes('error') ? '#FEE2E2' : '#F0FDF4', border: `1px solid ${actionMsg.toLowerCase().includes('fail') || actionMsg.toLowerCase().includes('cannot') || actionMsg.toLowerCase().includes('error') ? '#FECACA' : '#BBF7D0'}`, borderRadius: 8, fontSize: 12, color: actionMsg.toLowerCase().includes('fail') || actionMsg.toLowerCase().includes('cannot') || actionMsg.toLowerCase().includes('error') ? '#991B1B' : '#065F46', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+          <span>{actionMsg}</span>
+          <span style={{ cursor: 'pointer', flexShrink: 0, opacity: 0.6 }} onClick={() => setActionMsg('')}>✕</span>
         </div>
       )}
     </SidePanel>
@@ -379,25 +410,53 @@ const IAMScreen = ({ onNavigate }) => {
   const [createUserLoading, setCreateUserLoading] = React.useState(false);
   const [createUserError, setCreateUserError] = React.useState('');
   const [newGroupName, setNewGroupName] = React.useState('');
+  const [newGroupMembers, setNewGroupMembers] = React.useState([]);
+  const [addMembersGroup, setAddMembersGroup] = React.useState(null);
+  const [addMembersSelected, setAddMembersSelected] = React.useState([]);
+  const [addMembersLoading, setAddMembersLoading] = React.useState(false);
+  const [editGroupOpen, setEditGroupOpen] = React.useState(false);
+  const [editGroup, setEditGroup] = React.useState(null);
+  const [editGroupName, setEditGroupName] = React.useState('');
   const [search, setSearch] = React.useState('');
   const [gradeFilter, setGradeFilter] = React.useState(0);
   const [statusFilter, setStatusFilter] = React.useState('ALL');
 
-  const load = React.useCallback(() => {
+  const load = React.useCallback((refreshUserId = null) => {
     setLoading(true);
     Promise.allSettled([
       window.TijoriAPI.AuthAPI.listUsers(),
       window.TijoriAPI.AuthAPI.listDepartments(),
       window.TijoriAPI.AuthAPI.listGroups(),
     ]).then(([uRes, dRes, gRes]) => {
-      if (uRes.status === 'fulfilled') setUsers(uRes.value || []);
+      const latestUsers = uRes.status === 'fulfilled' ? (uRes.value || []) : [];
+      if (uRes.status === 'fulfilled') setUsers(latestUsers);
       if (dRes.status === 'fulfilled') setDepartments(dRes.value || []);
       if (gRes.status === 'fulfilled') setGroups(gRes.value || []);
+
+      if (refreshUserId) {
+        const found = latestUsers.find(x => x.id === refreshUserId);
+        if (found) setSelectedUser(found);
+      }
+
       setLoading(false);
     });
   }, []);
 
   React.useEffect(() => { load(); }, [load]);
+
+  const handleExportUsers = async () => {
+    try {
+      const blob = await window.TijoriAPI.AuthAPI.exportUsers();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `financeai_users_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Export failed: ' + e.message);
+    }
+  };
 
   const filtered = users.filter(u => {
     const mg = gradeFilter === 0 || u.employee_grade === gradeFilter;
@@ -423,6 +482,7 @@ const IAMScreen = ({ onNavigate }) => {
         right={
           <div style={{ display: 'flex', gap: 8 }}>
             <Btn variant="secondary" onClick={load}>↻ Refresh</Btn>
+            <Btn variant="secondary" onClick={handleExportUsers}>↓ Export Users</Btn>
             <Btn variant="primary" icon={<span>+</span>} onClick={() => setCreateOpen(true)}>Create User</Btn>
           </div>
         }
@@ -536,24 +596,49 @@ const IAMScreen = ({ onNavigate }) => {
 
       {tab === 'Groups' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16, animation: 'fadeUp 220ms ease both' }}>
-          {groups.map(g => (
-            <Card key={g.id} style={{ padding: 20 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: '#F5F3FF', color: '#7C3AED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>👥</div>
-                <Btn variant="ghost" small>Edit</Btn>
-              </div>
-              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: 17, color: '#0F172A' }}>{g.name}</div>
-              <div style={{ fontSize: 12, color: '#64748B', marginTop: 4, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                {users.filter(u => u.group_names?.includes(g.name)).length} members
-              </div>
-              <div style={{ marginTop: 16, borderTop: '1px solid #F1F0EE', paddingTop: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                   <span style={{ fontSize: 11, color: '#94A3B8', cursor: 'pointer' }}>View Members →</span>
+          {groups.map(g => {
+            const members = users.filter(u => u.group_names?.includes(g.name));
+            return (
+              <Card key={g.id} style={{ padding: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 10, background: '#F5F3FF', color: '#7C3AED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>👥</div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <Btn variant="ghost" small onClick={() => { setEditGroup(g); setEditGroupName(g.name); setEditGroupOpen(true); }}>Edit</Btn>
+                    <Btn variant="destructive" small onClick={async () => {
+                      if (!window.confirm(`Delete group "${g.name}"? This cannot be undone.`)) return;
+                      try {
+                        await window.TijoriAPI.AuthAPI.deleteGroup(g.id);
+                        load();
+                      } catch(e) { alert(e.message || 'Delete failed'); }
+                    }}>Delete</Btn>
+                  </div>
                 </div>
-              </div>
-            </Card>
-          ))}
-          <button onClick={() => setCreateGroupOpen(true)}
+                <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: 17, color: '#0F172A' }}>{g.name}</div>
+                <div style={{ fontSize: 12, color: '#64748B', marginTop: 4, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  {members.length} member{members.length !== 1 ? 's' : ''}
+                </div>
+                {members.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 10 }}>
+                    {members.slice(0, 4).map(u => (
+                      <span key={u.id} style={{ background: '#F1F5F9', color: '#475569', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600 }}>
+                        {u.first_name || u.username}
+                      </span>
+                    ))}
+                    {members.length > 4 && <span style={{ fontSize: 10, color: '#94A3B8' }}>+{members.length - 4} more</span>}
+                  </div>
+                )}
+                <div style={{ marginTop: 16, borderTop: '1px solid #F1F0EE', paddingTop: 12 }}>
+                  <button onClick={() => { setAddMembersGroup(g); setAddMembersSelected(members.map(u => u.id)); }}
+                    style={{ width: '100%', padding: '8px', borderRadius: 8, border: '1px solid #E8783B', background: '#FFF8F5', color: '#E8783B', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'all 150ms' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#E8783B'; e.currentTarget.style.color = 'white'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#FFF8F5'; e.currentTarget.style.color = '#E8783B'; }}>
+                    + Add / Manage Members
+                  </button>
+                </div>
+              </Card>
+            );
+          })}
+          <button onClick={() => { setCreateGroupOpen(true); setNewGroupMembers([]); }}
             style={{ background: 'none', border: '2px dashed #E2E8F0', borderRadius: 16, padding: 20, cursor: 'pointer', transition: 'all 200ms', minHeight: 140 }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = '#E8783B'; e.currentTarget.style.background = '#FFF8F5'; }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = '#E2E8F0'; e.currentTarget.style.background = 'none'; }}>
@@ -625,26 +710,98 @@ const IAMScreen = ({ onNavigate }) => {
         </div>
       </TjModal>
 
-      <TjModal open={createGroupOpen} onClose={() => setCreateGroupOpen(false)} title="Create Security Group">
-        <TjInput label="Group Name" placeholder="e.g. Finance Approvers" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} />
+      <TjModal open={createGroupOpen} onClose={() => setCreateGroupOpen(false)} title="Create Security Group" width={480}>
+        <TjInput label="Group Name *" placeholder="e.g. Finance Approvers" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} />
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Add Members (optional)</div>
+          <div style={{ maxHeight: 200, overflowY: 'auto', border: '1.5px solid #E2E8F0', borderRadius: 10, background: '#FAFAF8' }}>
+            {users.filter(u => u.is_active).map(u => {
+              const selected = newGroupMembers.includes(u.id);
+              return (
+                <div key={u.id} onClick={() => setNewGroupMembers(prev => selected ? prev.filter(id => id !== u.id) : [...prev, u.id])}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid #F1F0EE', background: selected ? '#FFF8F5' : 'transparent', transition: 'background 150ms' }}>
+                  <div style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${selected ? '#E8783B' : '#CBD5E1'}`, background: selected ? '#E8783B' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 150ms' }}>
+                    {selected && <span style={{ color: 'white', fontSize: 11, lineHeight: 1 }}>✓</span>}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#0F172A' }}>{u.first_name} {u.last_name}</div>
+                    <div style={{ fontSize: 11, color: '#94A3B8' }}>{u.username} · G{u.employee_grade} {GRADE_LABELS[u.employee_grade] || ''}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {newGroupMembers.length > 0 && (
+            <div style={{ fontSize: 11, color: '#E8783B', marginTop: 6, fontWeight: 600 }}>{newGroupMembers.length} user{newGroupMembers.length !== 1 ? 's' : ''} selected</div>
+          )}
+        </div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 10 }}>
-          <Btn variant="secondary" onClick={() => setCreateGroupOpen(false)}>Cancel</Btn>
+          <Btn variant="secondary" onClick={() => { setCreateGroupOpen(false); setNewGroupName(''); setNewGroupMembers([]); }}>Cancel</Btn>
           <Btn variant="primary" onClick={async () => {
             if(!newGroupName) return;
             try {
-              // POST to groups endpoint
-              const token = window.TijoriAPI.Auth.getAccess();
-              const res = await fetch('/api/v1/auth/groups/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-                body: JSON.stringify({ name: newGroupName }),
-              });
-              if (!res.ok) throw new Error('Failed to create group');
+              await window.TijoriAPI.AuthAPI.createGroup(newGroupName, newGroupMembers);
             } catch(e) { alert(e.message || 'Group creation failed'); return; }
             setCreateGroupOpen(false);
             setNewGroupName('');
+            setNewGroupMembers([]);
             load();
           }}>Create Group</Btn>
+        </div>
+      </TjModal>
+
+      {/* Add/Manage Members Modal */}
+      <TjModal open={!!addMembersGroup} onClose={() => setAddMembersGroup(null)} title={`Members — ${addMembersGroup?.name || ''}`} width={480}>
+        <div style={{ fontSize: 12, color: '#64748B', marginBottom: 10, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          Toggle active users to add or remove them from this group.
+        </div>
+        <div style={{ maxHeight: 320, overflowY: 'auto', border: '1.5px solid #E2E8F0', borderRadius: 10, background: '#FAFAF8' }}>
+          {users.filter(u => u.is_active).map(u => {
+            const selected = addMembersSelected.includes(u.id);
+            return (
+              <div key={u.id} onClick={() => setAddMembersSelected(prev => selected ? prev.filter(id => id !== u.id) : [...prev, u.id])}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid #F1F0EE', background: selected ? '#FFF8F5' : 'transparent', transition: 'background 150ms' }}>
+                <div style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${selected ? '#E8783B' : '#CBD5E1'}`, background: selected ? '#E8783B' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 150ms' }}>
+                  {selected && <span style={{ color: 'white', fontSize: 11, lineHeight: 1 }}>✓</span>}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#0F172A' }}>{u.first_name} {u.last_name}</div>
+                  <div style={{ fontSize: 11, color: '#94A3B8' }}>{u.username} · G{u.employee_grade} {GRADE_LABELS[u.employee_grade] || ''} · {u.department_name || 'No dept'}</div>
+                </div>
+                {selected && <span style={{ fontSize: 10, fontWeight: 700, color: '#E8783B', background: '#FFF8F5', padding: '2px 6px', borderRadius: 4 }}>MEMBER</span>}
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 8 }}>{addMembersSelected.length} member{addMembersSelected.length !== 1 ? 's' : ''} selected</div>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
+          <Btn variant="secondary" onClick={() => setAddMembersGroup(null)}>Cancel</Btn>
+          <Btn variant="primary" disabled={addMembersLoading} onClick={async () => {
+            if (!addMembersGroup) return;
+            setAddMembersLoading(true);
+            try {
+              await window.TijoriAPI.AuthAPI.updateGroup(addMembersGroup.id, { user_ids: addMembersSelected });
+              setAddMembersGroup(null);
+              load();
+            } catch(e) { alert(e.message || 'Failed to update members'); }
+            finally { setAddMembersLoading(false); }
+          }}>{addMembersLoading ? 'Saving…' : 'Save Members'}</Btn>
+        </div>
+      </TjModal>
+
+      {/* Edit Group Modal */}
+      <TjModal open={editGroupOpen} onClose={() => setEditGroupOpen(false)} title="Edit Group">
+        <TjInput label="Group Name" value={editGroupName} onChange={e => setEditGroupName(e.target.value)} />
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 10 }}>
+          <Btn variant="secondary" onClick={() => setEditGroupOpen(false)}>Cancel</Btn>
+          <Btn variant="primary" onClick={async () => {
+            if (!editGroup || !editGroupName) return;
+            try {
+              await window.TijoriAPI.AuthAPI.updateGroup(editGroup.id, { name: editGroupName });
+            } catch(e) { alert(e.message || 'Update failed'); return; }
+            setEditGroupOpen(false);
+            load();
+          }}>Save Changes</Btn>
         </div>
       </TjModal>
 
@@ -654,7 +811,7 @@ const IAMScreen = ({ onNavigate }) => {
         groups={groups}
         open={!!selectedUser}
         onClose={() => setSelectedUser(null)}
-        onUpdated={() => { load(); setSelectedUser(null); }}
+        onUpdated={(id) => { load(id); }}
       />
     </div>
   );

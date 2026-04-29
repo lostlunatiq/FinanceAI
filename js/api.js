@@ -30,6 +30,7 @@ const Auth = {
 
 async function apiFetch(url, options = {}) {
   const res = await fetch(`${API_BASE}${url}`, {
+    cache: 'no-store',
     ...options,
     headers: { ...Auth.headers(), ...(options.headers || {}) },
   });
@@ -39,6 +40,7 @@ async function apiFetch(url, options = {}) {
     const refreshed = await tryRefresh();
     if (refreshed) {
       const retry = await fetch(`${API_BASE}${url}`, {
+        cache: 'no-store',
         ...options,
         headers: { ...Auth.headers(), ...(options.headers || {}) },
       });
@@ -149,6 +151,16 @@ const AuthAPI = {
     return apiFetch(`/auth/users/${id}/`, { method: 'PATCH', body: JSON.stringify(data) });
   },
 
+  async exportUsers() {
+    // Return the blob so the frontend can trigger download
+    const token = localStorage.getItem('tijori_token');
+    const response = await fetch(`${API_BASE}/auth/users/export/`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!response.ok) throw new Error('Export failed');
+    return response.blob();
+  },
+
   async createUser(data) {
     return apiFetch('/auth/register/', { method: 'POST', body: JSON.stringify(data) });
   },
@@ -174,6 +186,14 @@ const AuthAPI = {
     return apiFetch(`/audit/${qs ? '?' + qs : ''}`);
   },
 
+  async exportAuditLog(params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    const token = localStorage.getItem('accessToken');
+    return fetch(`/api/v1/audit/export/${qs ? '?' + qs : ''}`, {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    });
+  },
+
   async listDepartments() {
     return apiFetch('/auth/departments/');
   },
@@ -182,8 +202,16 @@ const AuthAPI = {
     return apiFetch('/auth/groups/');
   },
 
-  async createGroup(name) {
-    return apiFetch('/auth/groups/', { method: 'POST', body: JSON.stringify({ name }) });
+  async createGroup(name, userIds = []) {
+    return apiFetch('/auth/groups/', { method: 'POST', body: JSON.stringify({ name, user_ids: userIds }) });
+  },
+
+  async updateGroup(id, data) {
+    return apiFetch(`/auth/groups/${id}/`, { method: 'PATCH', body: JSON.stringify(data) });
+  },
+
+  async deleteGroup(id) {
+    return apiFetch(`/auth/groups/${id}/`, { method: 'DELETE' });
   },
 };
 
@@ -239,10 +267,14 @@ const BillsAPI = {
     return apiFetch(`/invoices/finance/bills/${id}/scan-anomaly/`, { method: 'POST' });
   },
 
-  async settle(id, paymentUtr) {
+  async settle(id, paymentUtr, paymentMethod, paymentNotes) {
     return apiFetch(`/invoices/finance/bills/${id}/settle/`, {
       method: 'POST',
-      body: JSON.stringify({ payment_utr: paymentUtr || '' }),
+      body: JSON.stringify({
+        payment_utr: paymentUtr || '',
+        payment_method: paymentMethod || 'NEFT',
+        payment_notes: paymentNotes || '',
+      }),
     });
   },
 
@@ -257,8 +289,11 @@ const BillsAPI = {
     });
   },
 
-  async markSafe(id) {
-    return apiFetch(`/invoices/finance/bills/${id}/mark-safe/`, { method: 'POST' });
+  async markSafe(id, note) {
+    return apiFetch(`/invoices/finance/bills/${id}/mark-safe/`, {
+      method: 'POST',
+      body: JSON.stringify({ note: note || '' }),
+    });
   },
 
   async escalate(id) {
@@ -270,10 +305,29 @@ const BillsAPI = {
     return apiFetch(`/invoices/finance/expenses/${qs ? '?' + qs : ''}`);
   },
 
+  async listVendorBills(params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return apiFetch(`/invoices/finance/vendor-bills/${qs ? '?' + qs : ''}`);
+  },
+
   async submitExpense(data) {
     return apiFetch('/invoices/finance/expenses/', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  },
+
+  async remind(id, message) {
+    return apiFetch(`/invoices/finance/bills/${id}/remind/`, {
+      method: 'POST',
+      body: JSON.stringify({ message: message || '' }),
+    });
+  },
+
+  async schedulePayment(id, scheduledDate, note) {
+    return apiFetch(`/invoices/finance/bills/${id}/schedule/`, {
+      method: 'POST',
+      body: JSON.stringify({ scheduled_date: scheduledDate, note: note || '' }),
     });
   },
 };
@@ -410,6 +464,22 @@ const AuditAPI = {
   },
 };
 
+// ── Notification API ──────────────────────────────────────────────────────────
+
+const NotificationAPI = {
+  async list(params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return apiFetch(`/notifications/${qs ? '?' + qs : ''}`);
+  },
+  async markRead(id = null) {
+    const url = id ? `/notifications/${id}/mark-read/` : `/notifications/mark-all-read/`;
+    return apiFetch(url, { method: 'POST' });
+  },
+  async unreadCount() {
+    return apiFetch('/notifications/unread-count/');
+  }
+};
+
 // ── Budget API ────────────────────────────────────────────────────────────────
 
 const BudgetAPI = {
@@ -492,6 +562,24 @@ const AnalyticsAPI = {
   },
 };
 
+// ── AI Feedback API ───────────────────────────────────────────────────────────
+
+const FeedbackAPI = {
+  async submit({ task_type, expense_id, vendor_name, is_positive, comment, field_corrections, disputed_flags }) {
+    return apiFetch('/invoices/ai-feedback/', {
+      method: 'POST',
+      body: JSON.stringify({ task_type, expense_id, vendor_name, is_positive, comment, field_corrections, disputed_flags }),
+    });
+  },
+
+  async list({ task, expense_id } = {}) {
+    const qs = new URLSearchParams();
+    if (task) qs.set('task', task);
+    if (expense_id) qs.set('expense_id', expense_id);
+    return apiFetch(`/invoices/ai-feedback/${qs.toString() ? '?' + qs.toString() : ''}`);
+  },
+};
+
 // ── Anomaly severity helpers ──────────────────────────────────────────────────
 
 function severityToScore(severity) {
@@ -546,8 +634,32 @@ function expenseToAnomaly(exp, index) {
   };
 }
 
+// ── Notifications API ─────────────────────────────────────────────────────────
+const NotificationsAPI = {
+  async list(unreadOnly = false) {
+    return apiFetch(`/notifications/${unreadOnly ? '?unread=true' : ''}`);
+  },
+  async markRead(id) {
+    if (id) return apiFetch(`/notifications/${id}/mark-read/`, { method: 'POST' });
+    return apiFetch('/notifications/mark-all-read/', { method: 'POST' });
+  },
+  async unreadCount() {
+    return apiFetch('/notifications/unread-count/');
+  },
+  async getPrefs() {
+    return apiFetch('/notifications/preferences/');
+  },
+  async savePrefs(data) {
+    return apiFetch('/notifications/preferences/', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+};
+
 // ── Export to window ──────────────────────────────────────────────────────────
 window.TijoriAPI = {
   Auth, AuthAPI, DashboardAPI, BillsAPI, VendorAPI, FilesAPI, AnomalyAPI,
-  AuditAPI, BudgetAPI, NLQueryAPI, AnalyticsAPI, APIError, expenseToAnomaly, anomalyFlagToType,
+  AuditAPI, NotificationAPI, NotificationsAPI, BudgetAPI, NLQueryAPI, AnalyticsAPI, FeedbackAPI,
+  APIError, expenseToAnomaly, anomalyFlagToType,
 };

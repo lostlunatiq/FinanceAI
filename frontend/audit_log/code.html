@@ -38,6 +38,12 @@
         h1, h2, h3, .font-headline {
             font-family: 'Manrope', sans-serif;
         }
+        /* Diff table styling */
+        .diff-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .diff-table th { text-align: left; padding: 6px 8px; background: #f5f3f3; font-weight: 600; color: #3e494a; }
+        .diff-table td { padding: 6px 8px; border-bottom: 1px solid #e3e2e2; vertical-align: top; }
+        .diff-table .col-before { color: #93000a; background: #ffdad6; }
+        .diff-table .col-after { color: #004f56; background: #9ff0fb; }
     </style>
 <script id="tailwind-config">
         tailwind.config = {
@@ -119,7 +125,7 @@
 <div class="flex items-center gap-6">
 <div class="relative">
 <span class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant material-symbols-outlined text-sm" data-icon="search">search</span>
-<input class="bg-surface-container-low border-none rounded-full pl-10 pr-4 py-2 text-sm w-64 focus:ring-2 focus:ring-primary/20 transition-all" placeholder="Search audit trail..." type="text"/>
+<input id="top-search" class="bg-surface-container-low border-none rounded-full pl-10 pr-4 py-2 text-sm w-64 focus:ring-2 focus:ring-primary/20 transition-all" placeholder="Search audit trail..." type="text"/>
 </div>
 </div>
 <div class="flex items-center gap-4">
@@ -144,14 +150,14 @@
 <h1 class="text-2xl font-extrabold tracking-tight font-headline text-primary mb-2">Audit Registry</h1>
 <p class="text-on-surface-variant text-lg max-w-xl leading-relaxed">A permanent, immutable record of every transaction and system alteration within the FinanceAI ecosystem.</p>
 </div>
-<button class="primary-gradient text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 signature-shadow active:opacity-80 transition-opacity">
+<button id="export-csv-btn" class="primary-gradient text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 signature-shadow active:opacity-80 transition-opacity">
 <span class="material-symbols-outlined" data-icon="file_download">file_download</span>
                     Export to CSV
                 </button>
 </div>
 <!-- Contextual Filters Section -->
-<section class="bg-surface-container-low p-6 rounded-xl mb-8 flex flex-wrap gap-4 items-center">
-<div class="flex-1 min-w-[200px]">
+<section class="bg-surface-container-low p-6 rounded-xl mb-8 flex flex-wrap gap-4 items-end">
+<div class="flex-1 min-w-[180px]">
 <label class="block text-[10px] uppercase font-bold text-on-surface-variant/70 mb-1 ml-1">Action Type</label>
 <select id="filter-action" class="w-full bg-surface-container-lowest border-none rounded-lg text-sm px-3 py-2.5 focus:ring-2 focus:ring-primary/20">
 <option value="">All Actions</option>
@@ -162,9 +168,11 @@
 <option value="override">Superior Override</option>
 <option value="paid">Payments</option>
 <option value="vendor">Vendor Changes</option>
+<option value="auth.login">Logins</option>
+<option value="system">System Events</option>
 </select>
 </div>
-<div class="flex-1 min-w-[200px]">
+<div class="flex-1 min-w-[180px]">
 <label class="block text-[10px] uppercase font-bold text-on-surface-variant/70 mb-1 ml-1">Entity Type</label>
 <select id="filter-entity" class="w-full bg-surface-container-lowest border-none rounded-lg text-sm px-3 py-2.5 focus:ring-2 focus:ring-primary/20">
 <option value="">All Entities</option>
@@ -172,6 +180,14 @@
 <option value="Vendor">Vendor</option>
 <option value="User">User / Auth</option>
 </select>
+</div>
+<div class="flex-1 min-w-[160px]">
+<label class="block text-[10px] uppercase font-bold text-on-surface-variant/70 mb-1 ml-1">From</label>
+<input id="filter-date-from" type="date" class="w-full bg-surface-container-lowest border-none rounded-lg text-sm px-3 py-2.5 focus:ring-2 focus:ring-primary/20"/>
+</div>
+<div class="flex-1 min-w-[160px]">
+<label class="block text-[10px] uppercase font-bold text-on-surface-variant/70 mb-1 ml-1">To</label>
+<input id="filter-date-to" type="date" class="w-full bg-surface-container-lowest border-none rounded-lg text-sm px-3 py-2.5 focus:ring-2 focus:ring-primary/20"/>
 </div>
 <div class="flex items-end h-full self-end gap-2">
 <button id="apply-filters" class="primary-gradient text-white px-5 py-2.5 rounded-lg font-bold text-sm transition-opacity hover:opacity-90">
@@ -182,6 +198,11 @@
 </button>
 </div>
 </section>
+<!-- Stats bar -->
+<div id="audit-stats" class="flex gap-6 mb-6 text-sm text-on-surface-variant">
+  <span>Total Records: <strong class="text-on-surface" id="stat-total">—</strong></span>
+  <span>Showing: <strong class="text-on-surface" id="stat-showing">—</strong></span>
+</div>
 <!-- Timeline-Style Audit Log (Live Data) -->
 <div class="relative">
 <div class="absolute left-[31px] top-0 bottom-0 w-px bg-outline-variant/20 hidden md:block"></div>
@@ -200,12 +221,25 @@
 </div>
 </div>
 </main>
-<!-- Glassmorphism Command Palette (Contextual FAB Replacement for High-Focus Page) -->
-<div class="fixed bottom-8 right-8 z-50">
-<button class="w-14 h-14 primary-gradient text-white rounded-full flex items-center justify-center shadow-2xl active:scale-95 transition-transform">
-<span class="material-symbols-outlined" data-icon="search">search</span>
-</button>
+
+<!-- Detail Modal -->
+<div id="audit-modal" class="fixed inset-0 z-[60] hidden" aria-hidden="true">
+  <div class="absolute inset-0 bg-inverse-surface/40 backdrop-blur-sm" id="audit-modal-backdrop"></div>
+  <div class="absolute right-0 top-0 bottom-0 w-full max-w-xl bg-surface-container-lowest shadow-2xl transform transition-transform translate-x-full" id="audit-modal-panel">
+    <div class="h-full flex flex-col">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/30">
+        <h3 class="text-lg font-bold font-headline text-primary">Audit Entry Detail</h3>
+        <button id="audit-modal-close" class="p-2 hover:bg-surface-container-high rounded-full transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="flex-1 overflow-y-auto p-6 space-y-6" id="audit-modal-content">
+        <!-- injected dynamically -->
+      </div>
+    </div>
+  </div>
 </div>
+
 <!-- Shared Scripts -->
 <script src="/frontend/shared/api.js"></script>
 <script src="/frontend/shared/auth.js"></script>
@@ -219,56 +253,160 @@ function _actionColor(action) {
     if (action.includes('approved') || action.includes('paid')) return 'bg-primary/10 text-primary';
     if (action.includes('rejected') || action.includes('critical') || action.includes('override')) return 'bg-error/10 text-error';
     if (action.includes('query')) return 'bg-tertiary/10 text-tertiary';
-    return 'bg-secondary/10 text-secondary';
+    if (action.includes('login') || action.includes('auth')) return 'bg-secondary/10 text-secondary';
+    return 'bg-surface-container-high text-on-surface-variant';
 }
 function _dotColor(action) {
     if (action.includes('approved') || action.includes('paid')) return 'bg-primary-container';
     if (action.includes('rejected') || action.includes('override')) return 'bg-error';
     if (action.includes('query')) return 'bg-tertiary';
+    if (action.includes('login') || action.includes('auth')) return 'bg-secondary';
     return 'bg-outline';
 }
 function _actionLabel(action) {
-    return action.replace('expense.', '').replace(/_/g, ' ').toUpperCase();
+    return action.replace('expense.', '').replace('auth.', '').replace('system.', '').replace(/_/g, ' ').toUpperCase();
 }
+function _formatValue(v) {
+    if (v === null || v === undefined) return '<em class="text-on-surface-variant/50">null</em>';
+    if (typeof v === 'boolean') return v ? 'true' : 'false';
+    if (typeof v === 'object') return '<code class="text-xs bg-surface-container-high px-1 rounded">' + JSON.stringify(v).slice(0, 120) + '</code>';
+    return String(v);
+}
+
+function _renderDiff(diff) {
+    if (!diff || Object.keys(diff).length === 0) return '<p class="text-sm text-on-surface-variant">No field-level diff available.</p>';
+    const rows = Object.entries(diff).map(([field, vals]) => `
+        <tr>
+            <td class="font-mono text-xs">${field}</td>
+            <td class="col-before rounded-l">${_formatValue(vals.before)}</td>
+            <td class="col-after rounded-r">${_formatValue(vals.after)}</td>
+        </tr>
+    `).join('');
+    return `
+    <table class="diff-table rounded-lg overflow-hidden">
+        <thead>
+            <tr><th>Field</th><th class="col-before">Before</th><th class="col-after">After</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+    </table>`;
+}
+
 function _renderEntry(entry) {
     const ts = new Date(entry.timestamp);
     const timeStr = ts.toLocaleString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const fullTime = ts.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'long' });
     const details = entry.details || {};
-    const detailText = details.reason ? `Reason: ${details.reason}` :
-        details.status ? `Status → ${details.status}` : '';
+    const detailText = entry.change_summary || (details.reason ? `Reason: ${details.reason}` :
+        details.status ? `Status → ${details.status}` : '');
     const isOverride = entry.action.includes('override');
     const borderClass = isOverride ? 'border-error/20' : 'border-outline-variant/10';
     const entityLink = entry.entity_id
         ? `<a href="/frontend/accounts_payable_hub/code.html?bill_id=${entry.entity_id}" class="text-xs text-primary font-mono hover:underline">${entry.entity_id.slice(0, 8)}…</a>`
         : '';
+    const displayName = entry.entity_display_name || entityLink || '';
     return `
-    <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-start cursor-pointer group" onclick="openAuditDetail('${entry.id}')">
       <div class="md:col-span-1 flex justify-center pt-4">
-        <div class="w-3 h-3 rounded-full ${_dotColor(entry.action)} ring-4 ring-background z-10"></div>
+        <div class="w-3 h-3 rounded-full ${_dotColor(entry.action)} ring-4 ring-background z-10 group-hover:scale-125 transition-transform"></div>
       </div>
-      <div class="md:col-span-8">
-        <div class="bg-surface-container-lowest p-5 rounded-xl signature-shadow border ${borderClass}">
+      <div class="md:col-span-11">
+        <div class="bg-surface-container-lowest p-5 rounded-xl signature-shadow border ${borderClass} group-hover:border-primary/30 transition-colors">
           <div class="flex justify-between items-start mb-3">
             <span class="${_actionColor(entry.action)} text-[10px] font-bold px-2 py-1 rounded">${_actionLabel(entry.action)}</span>
-            <span class="text-xs text-on-surface-variant font-mono">${timeStr}</span>
+            <span class="text-xs text-on-surface-variant font-mono" title="${fullTime}">${timeStr}</span>
           </div>
           <h4 class="text-base font-semibold mb-1 text-on-surface">
-            ${entry.entity_type}${entry.entity_id ? ' — ' : ''}${entityLink}
+            ${entry.entity_type}${displayName ? ' — ' + displayName : ''}
           </h4>
-          ${detailText ? `<p class="text-on-surface-variant text-sm">${detailText}</p>` : ''}
+          ${detailText ? `<p class="text-on-surface-variant text-sm mt-1">${detailText}</p>` : ''}
           ${isOverride ? '<div class="mt-2 inline-flex items-center gap-1 bg-error/5 text-error text-xs font-bold px-2 py-1 rounded"><span class="material-symbols-outlined text-[12px]">shield</span> Superior Override</div>' : ''}
-          <div class="mt-3 pt-3 border-t border-outline-variant/10 flex items-center gap-2">
-            <div class="w-5 h-5 rounded-full bg-primary flex items-center justify-center text-white text-[9px] font-bold">
-              ${(entry.actor || 'S')[0].toUpperCase()}
+          <div class="mt-3 pt-3 border-t border-outline-variant/10 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="w-5 h-5 rounded-full bg-primary flex items-center justify-center text-white text-[9px] font-bold">
+                ${(entry.actor || 'S')[0].toUpperCase()}
+              </div>
+              <span class="text-xs text-on-surface-variant">
+                By <strong class="text-on-surface">${entry.actor}</strong>
+                ${entry.actor_role ? `(Grade ${entry.actor_role})` : ''}
+              </span>
             </div>
-            <span class="text-xs text-on-surface-variant">
-              By <strong class="text-on-surface">${entry.actor}</strong>
-              ${entry.actor_role ? `(Grade ${entry.actor_role})` : ''}
-            </span>
+            <span class="material-symbols-outlined text-sm text-on-surface-variant/50 group-hover:text-primary transition-colors">chevron_right</span>
           </div>
         </div>
       </div>
     </div>`;
+}
+
+function openAuditDetail(id) {
+    const entry = window._auditEntries?.find(e => e.id === id);
+    if (!entry) return;
+    const panel = document.getElementById('audit-modal-panel');
+    const modal = document.getElementById('audit-modal');
+    const content = document.getElementById('audit-modal-content');
+
+    const ts = new Date(entry.timestamp);
+    const timeStr = ts.toLocaleString('en-IN', { dateStyle: 'full', timeStyle: 'long' });
+    const metaRows = [];
+    if (entry.ip_address) metaRows.push({ label: 'IP Address', value: entry.ip_address });
+    if (entry.request_id) metaRows.push({ label: 'Request ID', value: entry.request_id });
+    if (entry.user_agent) metaRows.push({ label: 'User Agent', value: entry.user_agent });
+
+    content.innerHTML = `
+      <div class="space-y-6">
+        <div>
+          <div class="text-[10px] uppercase font-bold text-on-surface-variant/70 mb-1">Action</div>
+          <div class="text-xl font-bold text-on-surface">${_actionLabel(entry.action)}</div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <div class="text-[10px] uppercase font-bold text-on-surface-variant/70 mb-1">Entity</div>
+            <div class="text-sm font-semibold text-on-surface">${entry.entity_type}</div>
+            <div class="text-xs text-primary font-mono mt-0.5">${entry.entity_display_name || entry.entity_id?.slice(0,8)+'…' || '—'}</div>
+          </div>
+          <div>
+            <div class="text-[10px] uppercase font-bold text-on-surface-variant/70 mb-1">Actor</div>
+            <div class="text-sm font-semibold text-on-surface">${entry.actor}</div>
+            ${entry.actor_role ? `<div class="text-xs text-on-surface-variant">Grade ${entry.actor_role}</div>` : ''}
+          </div>
+        </div>
+        <div>
+          <div class="text-[10px] uppercase font-bold text-on-surface-variant/70 mb-1">Timestamp</div>
+          <div class="text-sm text-on-surface">${timeStr}</div>
+        </div>
+        ${entry.change_summary ? `
+        <div class="bg-primary-fixed/30 p-3 rounded-lg">
+          <div class="text-[10px] uppercase font-bold text-on-primary-fixed-variant mb-1">Change Summary</div>
+          <div class="text-sm text-on-surface">${entry.change_summary}</div>
+        </div>` : ''}
+        ${Object.keys(entry.diff || {}).length ? `
+        <div>
+          <div class="text-[10px] uppercase font-bold text-on-surface-variant/70 mb-2">Field Changes</div>
+          ${_renderDiff(entry.diff)}
+        </div>` : ''}
+        ${metaRows.length ? `
+        <div class="border-t border-outline-variant/30 pt-4">
+          <div class="text-[10px] uppercase font-bold text-on-surface-variant/70 mb-2">Request Context</div>
+          <div class="space-y-1">
+            ${metaRows.map(r => `<div class="text-xs text-on-surface-variant"><strong class="text-on-surface/70">${r.label}:</strong> <span class="font-mono">${r.value}</span></div>`).join('')}
+          </div>
+        </div>` : ''}
+        ${entry.metadata ? `
+        <div class="border-t border-outline-variant/30 pt-4">
+          <div class="text-[10px] uppercase font-bold text-on-surface-variant/70 mb-2">Metadata</div>
+          <pre class="text-xs bg-surface-container-high p-3 rounded-lg overflow-x-auto">${JSON.stringify(entry.metadata, null, 2)}</pre>
+        </div>` : ''}
+      </div>
+    `;
+
+    modal.classList.remove('hidden');
+    setTimeout(() => panel.classList.remove('translate-x-full'), 10);
+}
+
+function closeAuditDetail() {
+    const panel = document.getElementById('audit-modal-panel');
+    const modal = document.getElementById('audit-modal');
+    panel.classList.add('translate-x-full');
+    setTimeout(() => modal.classList.add('hidden'), 300);
 }
 
 async function loadAuditLog(reset = false) {
@@ -284,24 +422,75 @@ async function loadAuditLog(reset = false) {
         const entries = data.results || [];
 
         if (reset) {
+            window._auditEntries = [];
             if (entries.length === 0) {
                 timeline.innerHTML = '<div class="py-16 text-center text-on-surface-variant text-sm">No audit records visible for your role.</div>';
+                document.getElementById('stat-total').textContent = '0';
+                document.getElementById('stat-showing').textContent = '0';
                 return;
             }
             timeline.innerHTML = '';
         }
         entries.forEach(e => {
+            window._auditEntries.push(e);
             const el = document.createElement('div');
             el.innerHTML = _renderEntry(e);
             timeline.appendChild(el.firstElementChild);
         });
 
         auditOffset += entries.length;
+        document.getElementById('stat-total').textContent = auditTotal.toLocaleString();
+        document.getElementById('stat-showing').textContent = `${Math.min(auditOffset, auditTotal)}`;
         if (loadMoreBtn) {
             loadMoreBtn.classList.toggle('hidden', auditOffset >= auditTotal);
         }
     } catch (e) {
         if (reset) timeline.innerHTML = `<div class="py-16 text-center text-error text-sm">Failed to load audit log: ${e.message}</div>`;
+    }
+}
+
+function buildFilterState() {
+    const action = document.getElementById('filter-action')?.value;
+    const entity = document.getElementById('filter-entity')?.value;
+    const dateFrom = document.getElementById('filter-date-from')?.value;
+    const dateTo = document.getElementById('filter-date-to')?.value;
+    const search = document.getElementById('top-search')?.value?.trim();
+    const f = {};
+    if (action) f.action = action;
+    if (entity) f.entity_type = entity;
+    if (dateFrom) f.date_from = dateFrom;
+    if (dateTo) f.date_to = dateTo;
+    if (search) f.search = search;
+    return f;
+}
+
+async function exportCsv() {
+    const btn = document.getElementById('export-csv-btn');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<span class="material-symbols-outlined animate-spin">refresh</span> Exporting…';
+    btn.disabled = true;
+    try {
+        const params = new URLSearchParams(buildFilterState());
+        const token = localStorage.getItem('accessToken');
+        const resp = await fetch(`/api/v1/audit/export/?${params}`, {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        });
+        if (!resp.ok) throw new Error('Export failed');
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const cd = resp.headers.get('content-disposition');
+        a.download = cd?.match(/filename="(.+)"/)?.[1] || 'audit_export.csv';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    } catch (e) {
+        alert('Failed to export: ' + e.message);
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
     }
 }
 
@@ -312,19 +501,36 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Filter buttons
     document.getElementById('apply-filters')?.addEventListener('click', () => {
-        auditFilters = {};
-        const action = document.getElementById('filter-action')?.value;
-        const entity = document.getElementById('filter-entity')?.value;
-        if (action) auditFilters.action = action;
-        if (entity) auditFilters.entity_type = entity;
+        auditFilters = buildFilterState();
         loadAuditLog(true);
     });
     document.getElementById('clear-filters')?.addEventListener('click', () => {
-        auditFilters = {};
         document.getElementById('filter-action').value = '';
         document.getElementById('filter-entity').value = '';
+        document.getElementById('filter-date-from').value = '';
+        document.getElementById('filter-date-to').value = '';
+        document.getElementById('top-search').value = '';
+        auditFilters = {};
         loadAuditLog(true);
     });
+
+    // Search debounce
+    let searchTimeout;
+    document.getElementById('top-search')?.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            auditFilters = buildFilterState();
+            loadAuditLog(true);
+        }, 400);
+    });
+
+    // Export
+    document.getElementById('export-csv-btn')?.addEventListener('click', exportCsv);
+
+    // Modal close
+    document.getElementById('audit-modal-close')?.addEventListener('click', closeAuditDetail);
+    document.getElementById('audit-modal-backdrop')?.addEventListener('click', closeAuditDetail);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAuditDetail(); });
 
     // Wire sign out
     const signOutEl = document.querySelector('[data-logout]');

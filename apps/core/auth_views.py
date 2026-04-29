@@ -9,6 +9,226 @@ from django.db.models import Q
 from .auth_serializers import LoginSerializer, UserProfileSerializer, RegisterUserSerializer
 from .permissions import HasMinimumGrade
 from .models import User, AuditLog
+from .utils import log_audit_event
+
+BUSINESS_ENTITY_TYPES = {"Expense", "Vendor", "Budget", "ExpenseQuery", "ApprovalAuthority"}
+ADMIN_ENTITY_TYPES = {"User", "Group", "Department"}
+
+
+def _classify_audit_entry(entry):
+    action = (entry.action or "").lower()
+    entity_type = entry.entity_type or ""
+
+    if action.startswith("auth."):
+        scope = "auth"
+    elif action.startswith("system."):
+        scope = "system"
+    elif entity_type in ADMIN_ENTITY_TYPES:
+        scope = "admin"
+    elif entity_type in BUSINESS_ENTITY_TYPES:
+        scope = "business"
+    else:
+        scope = "other"
+
+    is_state_change = False
+    if scope == "business":
+        before = entry.masked_before or {}
+        after = entry.masked_after or {}
+        is_state_change = (
+            "status" in before
+            or "status" in after
+            or action.startswith(("expense.", "vendor.", "budget.", "approval_authority."))
+        )
+
+    return {
+        "scope": scope,
+        "is_state_change": is_state_change,
+    }
+
+
+def _get_visible_audit_queryset(user):
+    grade = user.employee_grade or 1
+    is_vendor = hasattr(user, "vendor_profile") and user.vendor_profile is not None
+    is_cfo = user.is_superuser or grade >= 5
+
+    qs = AuditLog.objects.select_related("user").order_by("-created_at")
+
+    if is_vendor:
+        from apps.invoices.models import Expense
+
+        vendor_expense_ids = list(
+            Expense.objects.filter(vendor=user.vendor_profile).values_list("id", flat=True)
+        )
+        vendor_visible_actions = [
+            "expense.submitted",
+            "expense.approved",
+            "expense.rejected",
+            "expense.query_raised",
+            "expense.pending_l1",
+            "expense.pending_hod",
+            "expense.pending_fin_l1",
+            "expense.pending_fin_l2",
+            "expense.pending_fin_head",
+            "expense.paid",
+            "expense.withdrawn",
+        ]
+        return qs.filter(
+            entity_type="Expense",
+            entity_id__in=vendor_expense_ids,
+            action__in=vendor_visible_actions,
+        )
+
+    if not is_cfo and grade < 4:
+        grade_qs = User.objects.filter(employee_grade__lte=grade, is_active=True)
+        # G2 HOD: further restrict to own department's users
+        if grade == 2 and user.department_id:
+            grade_qs = grade_qs.filter(department=user.department)
+        visible_user_ids = list(grade_qs.values_list("id", flat=True))
+        if user.id not in visible_user_ids:
+            visible_user_ids.append(user.id)
+
+        qs = qs.filter(user_id__in=visible_user_ids)
+        if grade < 3:
+            return qs.exclude(
+                action__in=[
+                    "expense.pending_fin_l1",
+                    "expense.pending_fin_l2",
+                    "expense.pending_fin_head",
+                    "expense.superior_override_approved",
+                ]
+            )
+        return qs.exclude(action="expense.superior_override_approved")
+
+    if not is_cfo and grade == 4:
+        cfo_user_ids = list(
+            User.objects.filter(Q(is_superuser=True) | Q(employee_grade__gte=5)).values_list(
+                "id", flat=True
+            )
+        )
+        return qs.exclude(user_id__in=cfo_user_ids).exclude(
+            action__in=["expense.superior_override_approved"]
+        )
+
+    return qs
+
+
+def _apply_audit_filters(qs, request):
+    scope = (request.query_params.get("scope") or "business").strip().lower()
+    entity_type = request.query_params.get("entity_type")
+    entity_id = request.query_params.get("entity_id")
+    action_filter = request.query_params.get("action")
+    actor = request.query_params.get("actor", "").strip()
+    search = request.query_params.get("search", "").strip()
+    date_from = request.query_params.get("date_from")
+    date_to = request.query_params.get("date_to")
+    state_change_only = (request.query_params.get("state_change_only") or "").strip().lower()
+
+    if scope == "business":
+        qs = qs.filter(entity_type__in=BUSINESS_ENTITY_TYPES).exclude(action__startswith="system.")
+    elif scope == "auth":
+        qs = qs.filter(action__startswith="auth.")
+    elif scope == "admin":
+        qs = qs.filter(entity_type__in=ADMIN_ENTITY_TYPES)
+    elif scope == "system":
+        qs = qs.filter(action__startswith="system.")
+    elif scope != "all":
+        qs = qs.filter(entity_type__in=BUSINESS_ENTITY_TYPES).exclude(action__startswith="system.")
+
+    if entity_type:
+        qs = qs.filter(entity_type=entity_type)
+    if entity_id:
+        qs = qs.filter(entity_id=entity_id)
+    if action_filter:
+        qs = qs.filter(action__icontains=action_filter)
+    if actor:
+        qs = qs.filter(
+            Q(user__username__icontains=actor)
+            | Q(user__first_name__icontains=actor)
+            | Q(user__last_name__icontains=actor)
+        )
+    if search:
+        qs = qs.filter(
+            Q(change_summary__icontains=search)
+            | Q(entity_display_name__icontains=search)
+            | Q(action__icontains=search)
+        )
+    if date_from:
+        qs = qs.filter(created_at__date__gte=date_from)
+    if date_to:
+        qs = qs.filter(created_at__date__lte=date_to)
+    if state_change_only in {"1", "true", "yes"}:
+        qs = qs.filter(
+            Q(action__startswith="expense.")
+            | Q(action__startswith="vendor.")
+            | Q(action__startswith="budget.")
+            | Q(action__startswith="approval_authority.")
+        )
+
+    user_id_param = request.query_params.get("user_id")
+    grade = request.user.employee_grade or 1
+    if user_id_param and (request.user.is_superuser or grade >= 4):
+        qs = qs.filter(user_id=user_id_param)
+
+    return qs
+
+
+def _serialize_audit_entry(entry, *, is_vendor, include_metadata):
+    classification = _classify_audit_entry(entry)
+    details = entry.masked_after or {}
+    if is_vendor:
+        details = {
+            k: v
+            for k, v in details.items()
+            if k not in ("reason", "override", "actor_grade", "note")
+        }
+
+    return {
+        "id": str(entry.id),
+        "action": entry.action,
+        "entity_type": entry.entity_type,
+        "entity_id": str(entry.entity_id) if entry.entity_id else None,
+        "entity_display_name": entry.entity_display_name,
+        "actor": entry.user.get_full_name() if entry.user else "System",
+        "actor_role": entry.user.employee_grade if entry.user else None,
+        "timestamp": entry.created_at.isoformat(),
+        "change_summary": entry.change_summary,
+        "details": details,
+        "diff": entry.diff,
+        "scope": classification["scope"],
+        "is_state_change": classification["is_state_change"],
+        "request_id": entry.request_id,
+        "ip_address": entry.ip_address,
+        "user_agent": entry.user_agent[:120] if entry.user_agent else "",
+        "metadata": entry.metadata if include_metadata else None,
+    }
+
+
+def _build_audit_filter_metadata(qs):
+    entity_types = sorted(
+        {
+            entity_type
+            for entity_type in qs.values_list("entity_type", flat=True).distinct()
+            if entity_type
+        }
+    )
+    actions = sorted(
+        {
+            action
+            for action in qs.values_list("action", flat=True).distinct()
+            if action
+        }
+    )
+    scopes = sorted(
+        {
+            _classify_audit_entry(entry)["scope"]
+            for entry in qs.defer("masked_before", "masked_after", "metadata", "ip_address", "user_agent")[:200]
+        }
+    )
+    return {
+        "entity_types": entity_types,
+        "actions": actions,
+        "scopes": scopes,
+    }
 
 
 class LoginView(APIView):
@@ -21,6 +241,18 @@ class LoginView(APIView):
         refresh = RefreshToken.for_user(user)
         refresh["username"] = user.username
         refresh["employee_grade"] = user.employee_grade  # ← grade in token, not role
+
+        # Log successful login
+        log_audit_event(
+            user=user,
+            action="auth.login",
+            entity_type="User",
+            entity_id=user.id,
+            entity_display_name=user.get_full_name() or user.username,
+            change_summary=f"User {user.username} logged in",
+            request=request,
+        )
+
         return Response(
             {
                 "access": str(refresh.access_token),
@@ -56,9 +288,29 @@ class MeView(APIView):
         return Response(UserProfileSerializer(request.user).data)
 
     def patch(self, request):
+        before = {
+            "first_name": request.user.first_name,
+            "last_name": request.user.last_name,
+            "email": request.user.email,
+        }
         serializer = UserProfileSerializer(request.user, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        log_audit_event(
+            user=request.user,
+            action="auth.profile_updated",
+            entity_type="User",
+            entity_id=request.user.id,
+            entity_display_name=request.user.get_full_name() or request.user.username,
+            masked_before=before,
+            masked_after={
+                "first_name": request.user.first_name,
+                "last_name": request.user.last_name,
+                "email": request.user.email,
+            },
+            change_summary=f"{request.user.username} updated their own profile",
+            request=request,
+        )
         return Response(serializer.data)
 
 
@@ -79,6 +331,15 @@ class ChangePasswordView(APIView):
             )
         request.user.set_password(new_password)
         request.user.save(update_fields=["password"])
+        log_audit_event(
+            user=request.user,
+            action="auth.password_changed",
+            entity_type="User",
+            entity_id=request.user.id,
+            entity_display_name=request.user.get_full_name() or request.user.username,
+            change_summary="User changed their password",
+            request=request,
+        )
         return Response({"detail": "Password updated."})
 
 
@@ -89,6 +350,21 @@ class RegisterView(APIView):
         serializer = RegisterUserSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        log_audit_event(
+            user=request.user,
+            action="auth.user_created",
+            entity_type="User",
+            entity_id=user.id,
+            entity_display_name=user.get_full_name() or user.username,
+            masked_after={
+                "username": user.username,
+                "email": user.email,
+                "employee_grade": user.employee_grade,
+                "department_id": str(user.department_id) if user.department_id else None,
+            },
+            change_summary=f"Created user {user.username}",
+            request=request,
+        )
         return Response(UserProfileSerializer(user).data, status=status.HTTP_201_CREATED)
 
 
@@ -123,6 +399,16 @@ class UserDetailView(APIView):
 
     def patch(self, request, pk):
         user = get_object_or_404(User, pk=pk)
+        before = {
+            "is_active": user.is_active,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "email": user.email,
+            "employee_grade": user.employee_grade,
+            "department_id": str(user.department_id) if user.department_id else None,
+            "is_superuser": user.is_superuser,
+            "groups": sorted(user.groups.values_list("name", flat=True)),
+        }
         allowed_fields = {
             "is_active",
             "first_name",
@@ -130,8 +416,6 @@ class UserDetailView(APIView):
             "email",
             "employee_grade",
             "department",
-            "is_superuser",
-            "groups",
         }
         data = {k: v for k, v in request.data.items() if k in allowed_fields}
 
@@ -140,18 +424,83 @@ class UserDetailView(APIView):
             if len(new_pass) >= 6:
                 user.set_password(new_pass)
 
+        # Handle groups separately (M2M — serializer can't set via standard write)
+        new_group_ids = request.data.get("groups")
+
         serializer = UserProfileSerializer(user, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+
+        if isinstance(new_group_ids, list):
+            from django.contrib.auth.models import Group as DjangoGroup
+            groups_qs = DjangoGroup.objects.filter(id__in=new_group_ids)
+            user.groups.set(groups_qs)
+
+        user.refresh_from_db()
+        after = {
+            "is_active": user.is_active,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "email": user.email,
+            "employee_grade": user.employee_grade,
+            "department_id": str(user.department_id) if user.department_id else None,
+            "is_superuser": user.is_superuser,
+            "groups": sorted(user.groups.values_list("name", flat=True)),
+        }
+        if "password" in request.data and len(request.data["password"]) >= 6:
+            after["password"] = "<changed>"
+            before["password"] = "<hidden>"
+        log_audit_event(
+            user=request.user,
+            action="auth.user_updated",
+            entity_type="User",
+            entity_id=user.id,
+            entity_display_name=user.get_full_name() or user.username,
+            masked_before=before,
+            masked_after=after,
+            request=request,
+        )
         return Response(serializer.data)
 
     def delete(self, request, pk):
+        from django.db.models import ProtectedError
         user = get_object_or_404(User, pk=pk)
         if user == request.user:
             return Response({"detail": "Cannot delete your own account."}, status=400)
         if user.is_superuser and not request.user.is_superuser:
             return Response({"detail": "Only superusers can delete superuser accounts."}, status=403)
-        user.delete()
+        deleted_snapshot = {
+            "username": user.username,
+            "email": user.email,
+            "employee_grade": user.employee_grade,
+            "department_id": str(user.department_id) if user.department_id else None,
+            "is_superuser": user.is_superuser,
+            "groups": sorted(user.groups.values_list("name", flat=True)),
+        }
+        try:
+            user.delete()
+        except ProtectedError:
+            return Response(
+                {
+                    "detail": (
+                        f"Cannot delete {user.get_full_name() or user.username} — they have active "
+                        "approval steps or transactions linked to their account. "
+                        "Suspend the user instead to revoke access."
+                    )
+                },
+                status=400,
+            )
+        log_audit_event(
+            user=request.user,
+            action="auth.user_deleted",
+            entity_type="User",
+            entity_id=pk,
+            entity_display_name=deleted_snapshot["username"],
+            masked_before=deleted_snapshot,
+            masked_after={"deleted": True},
+            change_summary=f"Deleted user {deleted_snapshot['username']}",
+            request=request,
+        )
         return Response({"detail": "User deleted."}, status=204)
 
 
@@ -176,6 +525,15 @@ class AuditLogListView(APIView):
       - G4 Finance Admin: full trail of everyone *below* CFO; sees who paused,
                           who uploaded, when documents arrived; no CFO-tier overrides
       - G5 / superuser  : full unrestricted access (CFO)
+
+    Query params:
+      - limit, offset   : pagination
+      - entity_type     : filter by entity type
+      - action          : substring filter on action
+      - user_id         : filter by user (admin only)
+      - search          : search in change_summary and entity_display_name
+      - date_from       : ISO date filter (inclusive)
+      - date_to         : ISO date filter (inclusive)
     """
 
     permission_classes = [IsAuthenticated]
@@ -184,120 +542,33 @@ class AuditLogListView(APIView):
         user = request.user
         grade = user.employee_grade or 1
         is_vendor = hasattr(user, "vendor_profile") and user.vendor_profile is not None
-        is_cfo = user.is_superuser or grade >= 5
 
         limit = min(int(request.query_params.get("limit", 50)), 200)
         offset = int(request.query_params.get("offset", 0))
-        entity_type = request.query_params.get("entity_type")
-        action_filter = request.query_params.get("action")
-
-        qs = AuditLog.objects.select_related("user").order_by("-created_at")
-
-        if is_vendor:
-            # Vendors see only their own invoice lifecycle events — no internal details
-            from apps.invoices.models import Expense
-
-            vendor_expense_ids = list(
-                Expense.objects.filter(vendor=user.vendor_profile).values_list("id", flat=True)
-            )
-            vendor_visible_actions = [
-                "expense.submitted",
-                "expense.approved",
-                "expense.rejected",
-                "expense.query_raised",
-                "expense.pending_l1",
-                "expense.pending_hod",
-                "expense.pending_fin_l1",
-                "expense.pending_fin_l2",
-                "expense.pending_fin_head",
-                "expense.paid",
-                "expense.withdrawn",
-            ]
-            qs = qs.filter(
-                entity_type="Expense",
-                entity_id__in=vendor_expense_ids,
-                action__in=vendor_visible_actions,
-            )
-
-        elif not is_cfo and grade < 4:
-            # Mid-level: restrict to logs from users at or below their grade
-            visible_user_ids = list(
-                User.objects.filter(
-                    employee_grade__lte=grade, is_active=True
-                ).values_list("id", flat=True)
-            )
-            if str(user.id) not in [str(uid) for uid in visible_user_ids]:
-                visible_user_ids.append(user.id)
-
-            qs = qs.filter(user_id__in=visible_user_ids)
-
-            # G2 HOD cannot see finance-level or CFO override actions
-            if grade < 3:
-                qs = qs.exclude(
-                    action__in=[
-                        "expense.pending_fin_l1",
-                        "expense.pending_fin_l2",
-                        "expense.pending_fin_head",
-                        "expense.superior_override_approved",
-                    ]
-                )
-            else:
-                # G3 cannot see CFO overrides
-                qs = qs.exclude(action="expense.superior_override_approved")
-
-        elif not is_cfo and grade == 4:
-            # G4 Finance Admin: full trail BELOW CFO. Excludes CFO actions and superuser overrides.
-            # This gives admins the document lifecycle (arrival, hold, upload, approval) while
-            # keeping CFO-tier strategic actions opaque.
-            cfo_user_ids = list(
-                User.objects.filter(
-                    Q(is_superuser=True) | Q(employee_grade__gte=5)
-                ).values_list("id", flat=True)
-            )
-            qs = qs.exclude(user_id__in=cfo_user_ids).exclude(
-                action__in=[
-                    "expense.superior_override_approved",
-                ]
-            )
-
-        # G5+ / superuser (CFO): full access — sees ALL juniors' approve/reject/comments,
-        # superior overrides, and every entity. No additional filtering.
-
-        if entity_type:
-            qs = qs.filter(entity_type=entity_type)
-        if action_filter:
-            qs = qs.filter(action__icontains=action_filter)
-        # user_id filter only available to admins
-        user_id_param = request.query_params.get("user_id")
-        if user_id_param and (user.is_superuser or grade >= 4):
-            qs = qs.filter(user_id=user_id_param)
+        qs = _apply_audit_filters(_get_visible_audit_queryset(user), request)
+        filter_metadata = _build_audit_filter_metadata(qs)
 
         total = qs.count()
         entries = qs[offset : offset + limit]
 
-        results = []
-        for entry in entries:
-            details = entry.masked_after or {}
-            # Strip internal fields from vendor-facing view
-            if is_vendor:
-                details = {
-                    k: v for k, v in details.items()
-                    if k not in ("reason", "override", "actor_grade", "note")
-                }
-            results.append(
-                {
-                    "id": str(entry.id),
-                    "action": entry.action,
-                    "entity_type": entry.entity_type,
-                    "entity_id": str(entry.entity_id) if entry.entity_id else None,
-                    "actor": entry.user.get_full_name() if entry.user else "System",
-                    "actor_role": entry.user.employee_grade if entry.user else None,
-                    "timestamp": entry.created_at.isoformat(),
-                    "details": details,
-                }
+        results = [
+            _serialize_audit_entry(
+                entry,
+                is_vendor=is_vendor,
+                include_metadata=user.is_superuser or grade >= 4,
             )
+            for entry in entries
+        ]
 
-        return Response({"total": total, "results": results, "limit": limit, "offset": offset})
+        return Response(
+            {
+                "total": total,
+                "results": results,
+                "limit": limit,
+                "offset": offset,
+                "filters": filter_metadata,
+            }
+        )
 
 
 class NLQueryView(APIView):
@@ -316,6 +587,16 @@ class NLQueryView(APIView):
 
         try:
             answer = _run_nl_query(question, request.user)
+            
+            # Log all AI responses in full
+            from apps.core.models import AICopilotLog
+            AICopilotLog.objects.create(
+                user=request.user,
+                prompt=question,
+                response=str(answer.get("answer", "")),
+                insight=str(answer.get("insight", ""))
+            )
+
             return Response(answer)
         except Exception as e:
             return Response(
@@ -327,8 +608,10 @@ class NLQueryView(APIView):
 def _run_nl_query(question: str, user) -> dict:
     """Run NL query using OpenRouter and real DB data, scoped by user role."""
     from ai.tools.openrouter_client import call_text_model
-    from apps.invoices.models import Expense, Vendor, ExpenseApprovalStep
+    from apps.invoices.models import Expense, Vendor, ExpenseApprovalStep, ExpenseQuery
     from django.db.models import Sum, Count, Avg, Q
+    from django.utils import timezone
+    from datetime import timedelta
 
     # ─── 1. Determine Role ───
     is_vendor = hasattr(user, "vendor_profile") and user.vendor_profile is not None
@@ -343,7 +626,14 @@ def _run_nl_query(question: str, user) -> dict:
     if is_vendor:
         expense_qs = expense_qs.filter(vendor=user.vendor_profile)
         ctx["vendor_name"] = user.vendor_profile.name
-    elif grade < 3 and not is_cfo: # Employee or Dept Head (G1, G2)
+    elif grade == 2 and not is_cfo:
+        # HOD sees their whole department
+        if user.department_id:
+            expense_qs = expense_qs.filter(submitted_by__department=user.department)
+        else:
+            expense_qs = expense_qs.filter(submitted_by=user)
+    elif grade < 3 and not is_cfo:
+        # G1 employee — own submissions only
         expense_qs = expense_qs.filter(submitted_by=user)
 
     # Total Outstanding
@@ -377,6 +667,30 @@ def _run_nl_query(question: str, user) -> dict:
         ]
         ctx["anomaly_count"] = Expense.objects.filter(anomaly_severity__in=["HIGH", "CRITICAL"]).count()
         
+        # ─── Deep Intelligence for Queries & Delays ───
+        thirty_days_ago = timezone.now() - timedelta(days=30)
+        query_counts = (
+            ExpenseQuery.objects.filter(raised_at__gte=thirty_days_ago)
+            .values("expense__vendor__name")
+            .annotate(count=Count("id"))
+            .order_by("-count")[:5]
+        )
+        ctx["vendor_queries"] = [
+            {"vendor": q["expense__vendor__name"], "query_count": q["count"]}
+            for q in query_counts
+        ]
+
+        # Delayed Payments (Simplified: Approved but not paid, older than 30 days)
+        delayed_invoices = Expense.objects.filter(
+            _status__in=["APPROVED", "BOOKED_D365", "POSTED_D365"],
+            invoice_date__lt=timezone.now().date() - timedelta(days=30)
+        ).values("vendor__name").annotate(count=Count("id"), total_amt=Sum("total_amount")).order_by("-count")[:5]
+        
+        ctx["delayed_payments"] = [
+            {"vendor": d["vendor__name"], "count": d["count"], "amount": float(d["total_amt"] or 0)}
+            for d in delayed_invoices
+        ]
+
         # ─── Deep Budget Intelligence ───
         from apps.invoices.models import Budget
         budgets = Budget.objects.filter(status="active").select_related("department")
@@ -410,26 +724,37 @@ def _run_nl_query(question: str, user) -> dict:
     # ─── 3. Construct Prompts ───
     role_title = "CFO Copilot"
     if is_vendor: role_title = "Vendor Assistant"
+    elif grade == 2 and not is_cfo: role_title = "Department Intelligence Copilot"
     elif grade < 3 and not is_cfo: role_title = "Personal Expense Assistant"
     else: role_title = "Finance Intelligence Copilot"
 
-    system_prompt = f"""You are FinanceAI's {role_title} — a strict financial intelligence engine.
-You MUST provide answers based ONLY on the database context provided below.
-DO NOT guess or use outside information. If the data is not in the context, say "I don't have that specific data in my records."
-Always format currency as ₹ with Indian numbering (e.g., ₹1,42,500).
-Your tone should be professional, data-driven, and highly detailed.
-Explain the numbers you are providing.
-IMPORTANT: You are restricted to the context of the current user: {ctx['user_role']}."""
+    system_prompt = f"""You are FinanceAI's {role_title} — an elite, pro-active financial intelligence and workflow automation agent.
+You have access to the specific financial data context provided below.
+
+RULES:
+1. For questions about the company's specific data (spend, budgets, vendors, anomalies), you MUST provide answers based ONLY on the provided context. Format currency as ₹ with Indian numbering (e.g. ₹1,50,000).
+2. For broader financial domain questions (e.g., "What is double-billing?", "How does D365 integration work?", "What is a good working capital ratio?"), use your expert domain knowledge to provide a highly detailed, professional, and educational answer.
+3. Your tone should be executive, data-driven, and highly actionable.
+
+TOOLS & ACTIONS:
+You can suggest actions the user can take to execute workflows. If the user asks to "do" something, or if you detect an actionable scenario, suggest these actions:
+- nav_to(screen): Suggest navigating to a screen (dashboard, ap-hub, expenses, anomaly, budget, reports, vendors).
+- approve(ref_no): Suggest approving a specific bill.
+- schedule(ref_no): Suggest scheduling a payment.
+- remind(ref_no): Suggest sending a reminder to a vendor.
+- scan(ref_no): Suggest running an anomaly scan.
+- export_report(report_type): Suggest exporting a CSV report (e.g. "Spend Analysis", "Vendor Audit").
+
+IMPORTANT: You are restricted to the context of the current user: {ctx['user_role']}.
+Return a valid JSON object with 'answer' (your detailed response), 'insight' (a 1-sentence strategic takeaway), 'data_used' (list of context keys or "Domain Knowledge"), and an optional 'actions' list of objects like [{{"label": "Go to Reports", "type": "nav_to", "payload": {{"screen": "reports"}}}}]."""
+
 
     user_prompt = f"""Financial Data Context:
 {_format_context(ctx)}
 
 User Question: {question}
 
-Provide a clear, direct answer. Include specific numbers from the data above.
-Also provide a brief "insight" (one actionable observation based on the user's role).
-Format your response as JSON:
-{{"answer": "...", "insight": "...", "data_used": ["list of data points used"]}}"""
+Format your response as a valid JSON object."""
 
     try:
         response = call_text_model(prompt=user_prompt, system_prompt=system_prompt)
@@ -470,6 +795,16 @@ def _format_context(ctx: dict) -> str:
         for v in ctx["top_vendors"]:
             lines.append(f"  - {v['vendor']}: ₹{v['total_spend']:,.0f} ({v['invoice_count']} inv)")
             
+    if "vendor_queries" in ctx:
+        lines.append("Vendors with most Queries (last 30d):")
+        for q in ctx["vendor_queries"]:
+            lines.append(f"  - {q['vendor']}: {q['query_count']} queries")
+
+    if "delayed_payments" in ctx:
+        lines.append("Vendors with Delayed Payments (>30d):")
+        for d in ctx["delayed_payments"]:
+            lines.append(f"  - {d['vendor']}: {d['count']} items (₹{d['amount']:,.0f})")
+
     if "budget_health" in ctx:
         lines.append("Budget Health (Active):")
         for b in ctx["budget_health"]:
@@ -488,25 +823,156 @@ def _format_context(ctx: dict) -> str:
 
 def _rule_based_answer(question: str, ctx: dict) -> dict:
     q = question.lower()
-    if any(w in q for w in ["vendor", "supplier", "spend", "top"]):
+    role = ctx.get("user_role", "Finance User")
+
+    # ── Greetings / identity questions ──────────────────────────────────────────
+    greeting_words = ["hi", "hello", "hey", "who are you", "what are you", "what can you do", "help me", "help"]
+    finance_words = ["audit", "budget", "vendor", "invoice", "payment", "expense", "anomaly", "cash", "outstanding", "pending", "queue"]
+    if any(w in q for w in greeting_words) and not any(w in q for w in finance_words):
+        answer = (
+            f"Hello! I'm your {role} Copilot — an AI-powered finance intelligence assistant.\n\n"
+            "I can help you with:\n"
+            "• Outstanding invoices and payment status\n"
+            "• Vendor spend analysis and top vendors\n"
+            "• Budget utilization and alerts\n"
+            "• Anomaly & fraud detection summary\n"
+            "• Cash flow insights and treasury health\n\n"
+            "I'm restricted to financial data only. What would you like to know?"
+        )
+        return {"answer": answer, "insight": "Ask me about vendors, invoices, budget, or anomalies for real-time insights.", "context": ctx}
+
+    # ── Non-finance domain block ────────────────────────────────────────────────
+    non_finance = ["weather", "news", "sports", "movie", "music", "food recipe", "travel plan", "joke", "poem", "programming", "history lesson", "science", "geography"]
+    if any(w in q for w in non_finance):
+        return {
+            "answer": "I'm strictly a finance intelligence assistant. I can only answer questions about your financial data — invoices, vendors, budgets, expenses, and anomalies. Please ask me a finance-related question.",
+            "insight": "Try: 'What are my top vendors?' or 'Show budget status' or 'Any anomalies?'",
+            "context": ctx,
+        }
+
+    # ── Queries / Late payments (NEW) ──────────────────────────────────────────
+    if any(w in q for w in ["query", "queries", "question raised"]):
+        vendor_queries = ctx.get("vendor_queries", [])
+        if vendor_queries:
+            lines = "\n".join(f"• {vq['vendor']}: {vq['query_count']} queries" for vq in vendor_queries)
+            answer = f"Vendors with the most queries raised in the last 30 days:\n{lines}"
+            insight = f"Vendor '{vendor_queries[0]['vendor']}' has the highest query volume ({vendor_queries[0]['query_count']})."
+        else:
+            answer = "No significant query volume detected for vendors in the last 30 days."
+            insight = "Query levels are within normal parameters."
+        return {"answer": answer, "insight": insight, "context": ctx}
+
+    if any(w in q for w in ["late", "delay", "overdue", "slow payment"]):
+        delayed = ctx.get("delayed_payments", [])
+        if delayed:
+            lines = "\n".join(f"• {d['vendor']}: {d['count']} delayed items (₹{d['amount']:,.0f})" for d in delayed)
+            answer = f"Vendors with delayed payments (over 30 days old):\n{lines}"
+            insight = f"Total delayed exposure for top flagged vendors: ₹{sum(d['amount'] for d in delayed):,.0f}."
+        else:
+            answer = "No significant payment delays detected (all approved invoices are under 30 days old)."
+            insight = "Payment cycle is performing according to SLA."
+        return {"answer": answer, "insight": insight, "context": ctx}
+
+    # ── Vendor / spend questions ────────────────────────────────────────────────
+    if any(w in q for w in ["vendor", "supplier", "spend", "top vendor", "purchase", "procurement"]):
         vendors = ctx.get("top_vendors", [])[:5]
-        answer = "Top vendors by total spend:\n" + "\n".join(
-            f"{i + 1}. {v['vendor']}: ₹{v['total_spend']:,.0f}" for i, v in enumerate(vendors)
+        if vendors:
+            lines = "\n".join(f"{i+1}. {v['vendor']}: ₹{v['total_spend']:,.0f} ({v['invoice_count']} invoices)" for i, v in enumerate(vendors))
+            answer = f"Top vendors by total spend:\n{lines}"
+            insight = f"Your top vendor '{vendors[0]['vendor']}' accounts for ₹{vendors[0]['total_spend']:,.0f} in spend."
+        else:
+            answer = "No vendor spend data available for your access scope."
+            insight = "Contact Finance Admin for vendor data access."
+        return {"answer": answer, "insight": insight, "context": ctx}
+
+    # ── Budget questions ────────────────────────────────────────────────────────
+    if any(w in q for w in ["budget", "over budget", "utilization", "guardrail", "limit", "dept budget", "department budget"]):
+        budgets = ctx.get("budget_health", [])
+        if budgets:
+            critical = [b for b in budgets if "OVER_BUDGET" in b["status"]]
+            warning = [b for b in budgets if "NEAR_LIMIT" in b["status"]]
+            lines = "\n".join(f"• {b['dept']}: {b['util_pct']}% used (₹{b['spent']:,.0f} of ₹{b['total']:,.0f}) — {b['status']}" for b in budgets)
+            answer = f"Budget Health Summary:\n{lines}"
+            insight = f"{len(critical)} department(s) OVER budget, {len(warning)} near limit. Immediate action required: {', '.join(b['dept'] for b in critical) or 'None'}."
+        else:
+            answer = "No active budget data found. Please configure budgets in the Budgetary Guardrails module."
+            insight = "Set up department budgets to enable this feature."
+        return {"answer": answer, "insight": insight, "context": ctx}
+
+    # ── Anomaly / fraud / risk questions ────────────────────────────────────────
+    if any(w in q for w in ["anomal", "fraud", "suspicious", "flag", "risk", "duplicate"]):
+        count = ctx.get("anomaly_count", 0)
+        answer = f"There are currently {count} HIGH/CRITICAL anomaly flag(s) in the system requiring immediate review.\n\nThese include duplicate invoices, inflated values, and abnormal patterns detected by the AI engine."
+        insight = "Navigate to AI Fraud & Anomaly Engine to investigate and take action on flagged items."
+        return {"answer": answer, "insight": insight, "context": ctx}
+
+    # ── Outstanding / payable / receivable questions ─────────────────────────────
+    if any(w in q for w in ["outstanding", "payable", "receivable", "unpaid", "overdue", "due"]):
+        total = ctx.get("total_outstanding", 0)
+        queue = ctx.get("pending_my_queue", 0)
+        dist = ctx.get("expense_status", [])
+        overdue = next((s for s in dist if s["status"] in ("OVERDUE", "APPROVED")), None)
+        answer = f"Total Outstanding Amount: ₹{total:,.0f}\nYour Pending Queue: {queue} items"
+        if overdue:
+            answer += f"\nApproved & Awaiting Payment: {overdue['count']} items (₹{overdue['amount']:,.0f})"
+        insight = "Prioritize clearing overdue items to avoid late payment penalties and interest."
+        return {"answer": answer, "insight": insight, "context": ctx}
+
+    # ── Pending queue / my tasks ────────────────────────────────────────────────
+    if any(w in q for w in ["queue", "my task", "my approval", "my invoice", "my expense", "my reimbursement", "pending approval"]):
+        queue = ctx.get("pending_my_queue", 0)
+        answer = f"You have {queue} item(s) pending in your approval queue."
+        if queue > 0:
+            answer += "\nPlease review these promptly to avoid SLA breaches."
+        insight = "Access the AP Hub or your dashboard to process pending items."
+        return {"answer": answer, "insight": insight, "context": ctx}
+
+    # ── Audit / activity log ────────────────────────────────────────────────────
+    if any(w in q for w in ["audit", "log", "activity", "history", "24h", "last 24", "audit log"]):
+        anomaly_count = ctx.get("anomaly_count", 0)
+        total = ctx.get("total_outstanding", 0)
+        queue = ctx.get("pending_my_queue", 0)
+        answer = (
+            f"Audit Summary:\n"
+            f"• Active Anomaly Flags (HIGH/CRITICAL): {anomaly_count}\n"
+            f"• Total Outstanding: ₹{total:,.0f}\n"
+            f"• Pending Approvals in Queue: {queue}\n\n"
+            "For a full activity log, use Dashboard → Audit Sweep."
         )
-        insight = (
-            f"Your top vendor accounts for ₹{vendors[0]['total_spend']:,.0f} in spend."
-            if vendors
-            else "No vendor data available."
-        )
-    elif any(w in q for w in ["outstanding", "pending", "due"]):
-        answer = f"Total outstanding amount: ₹{ctx['total_outstanding']:,.0f}"
-        insight = "Prioritize clearing the oldest pending invoices first."
-    elif any(w in q for w in ["anomal", "fraud", "suspicious"]):
-        answer = f"There are {ctx.get('anomaly_count', 'N/A')} HIGH/CRITICAL anomalies requiring review."
-        insight = "Review flagged invoices immediately to prevent potential fraud."
-    else:
-        answer = f"Outstanding: ₹{ctx['total_outstanding']:,.0f} | Anomalies: {ctx.get('anomaly_count', 'N/A')} | Your queue: {ctx['pending_my_queue']}"
-        insight = "Review the dashboard for full financial overview."
+        insight = "Regular audit log reviews help catch fraud patterns early."
+        return {"answer": answer, "insight": insight, "context": ctx}
+
+    # ── Cash flow / treasury ────────────────────────────────────────────────────
+    if any(w in q for w in ["cash", "cashflow", "cash flow", "forecast", "projection", "treasury"]):
+        treasury = ctx.get("treasury_index", "N/A")
+        outstanding = ctx.get("total_outstanding", 0)
+        answer = f"Treasury Health Index: {treasury}%\nTotal Outstanding Payables: ₹{outstanding:,.0f}"
+        insight = "Navigate to AI Intelligence → Cash Flow Forecasting for detailed 90-day projections."
+        return {"answer": answer, "insight": insight, "context": ctx}
+
+    # ── Status distribution / overview ─────────────────────────────────────────
+    if any(w in q for w in ["status", "distribution", "summary", "overview", "dashboard", "report"]):
+        dist = ctx.get("expense_status", [])
+        if dist:
+            lines = "\n".join(f"• {s['status']}: {s['count']} items (₹{s['amount']:,.0f})" for s in dist)
+            answer = f"Expense & Invoice Status Distribution:\n{lines}"
+        else:
+            answer = f"Total Outstanding: ₹{ctx.get('total_outstanding', 0):,.0f}"
+        insight = "Visit the Dashboard for a complete visual breakdown of all financial metrics."
+        return {"answer": answer, "insight": insight, "context": ctx}
+
+    # ── Default: comprehensive financial summary ────────────────────────────────
+    dist = ctx.get("expense_status", [])
+    status_lines = "\n".join(f"  • {s['status']}: {s['count']} items (₹{s['amount']:,.0f})" for s in dist[:5])
+    answer = (
+        f"Financial Summary for {role}:\n"
+        f"• Total Outstanding: ₹{ctx.get('total_outstanding', 0):,.0f}\n"
+        f"• Anomalies (HIGH/CRITICAL): {ctx.get('anomaly_count', 'N/A')}\n"
+        f"• Your Pending Queue: {ctx.get('pending_my_queue', 0)}\n"
+        f"{'Status Breakdown:\n' + status_lines if status_lines else ''}\n\n"
+        "I can answer questions about vendors, budgets, anomalies, cash flow, and outstanding invoices."
+    )
+    insight = "Ask me a specific question for deeper analysis — e.g. 'top vendors', 'budget status', or 'anomalies'."
     return {"answer": answer, "insight": insight, "context": ctx}
 
 from django.contrib.auth.models import Group
@@ -523,5 +989,425 @@ class GroupListView(APIView):
         name = request.data.get("name")
         if not name:
             return Response({"error": "Group name required."}, status=400)
-        group, created = Group.objects.get_or_create(name=name)
+        user_ids = request.data.get("user_ids") or []
+        group, created = Group.objects.get_or_create(name=name.strip())
+        if isinstance(user_ids, list) and user_ids:
+            users = User.objects.filter(id__in=user_ids, is_active=True)
+            group.user_set.set(users)
+        log_audit_event(
+            user=request.user,
+            action="auth.group_created" if created else "auth.group_updated",
+            entity_type="Group",
+            entity_display_name=group.name,
+            masked_after={
+                "name": group.name,
+                "user_ids": [str(user_id) for user_id in group.user_set.values_list("id", flat=True)],
+            },
+            metadata={"group_id": group.id},
+            change_summary=f"{'Created' if created else 'Updated'} group {group.name}",
+            request=request,
+        )
         return Response(GroupSerializer(group).data, status=201 if created else 200)
+
+
+class GroupDetailView(APIView):
+    permission_classes = [IsAuthenticated, HasMinimumGrade.make(4)]
+
+    def patch(self, request, pk):
+        group = get_object_or_404(Group, pk=pk)
+        before = {
+            "name": group.name,
+            "user_ids": [str(user_id) for user_id in group.user_set.values_list("id", flat=True)],
+        }
+        name = (request.data.get("name") or "").strip()
+        user_ids = request.data.get("user_ids")
+        if name:
+            group.name = name
+            group.save(update_fields=["name"])
+        if isinstance(user_ids, list):
+            users = User.objects.filter(id__in=user_ids, is_active=True)
+            group.user_set.set(users)
+        log_audit_event(
+            user=request.user,
+            action="auth.group_updated",
+            entity_type="Group",
+            entity_display_name=group.name,
+            masked_before=before,
+            masked_after={
+                "name": group.name,
+                "user_ids": [str(user_id) for user_id in group.user_set.values_list("id", flat=True)],
+            },
+            metadata={"group_id": group.id},
+            request=request,
+        )
+        return Response(GroupSerializer(group).data)
+
+    def delete(self, request, pk):
+        group = get_object_or_404(Group, pk=pk)
+        group_name = group.name
+        group_id = group.id
+        group.delete()
+        log_audit_event(
+            user=request.user,
+            action="auth.group_deleted",
+            entity_type="Group",
+            entity_display_name=group_name,
+            masked_before={"name": group_name, "group_id": group_id},
+            masked_after={"deleted": True},
+            change_summary=f"Deleted group {group_name}",
+            request=request,
+        )
+        return Response({"detail": "Group deleted."}, status=204)
+
+
+from rest_framework.permissions import IsAdminUser
+from django.http import HttpResponse
+import csv
+
+class AuditLogExportView(APIView):
+    """
+    GET /api/v1/audit/export/
+    Export audit logs to CSV. Admin / Finance Admin only.
+    """
+    permission_classes = [IsAuthenticated, HasMinimumGrade.make(4)]
+
+    def get(self, request):
+        from django.utils import timezone
+
+        qs = _apply_audit_filters(_get_visible_audit_queryset(request.user), request)
+
+        # Cap at 10k rows to prevent memory issues
+        entries = list(qs[:10000])
+
+        log_audit_event(
+            user=request.user,
+            action="system.audit_export",
+            entity_type="AuditLog",
+            masked_after={
+                "count": len(entries),
+                "format": "CSV",
+                "filters": {
+                    "entity_type": request.query_params.get("entity_type", ""),
+                    "action": request.query_params.get("action", ""),
+                    "search": request.query_params.get("search", ""),
+                    "date_from": request.query_params.get("date_from", ""),
+                    "date_to": request.query_params.get("date_to", ""),
+                    "user_id": request.query_params.get("user_id", ""),
+                },
+            },
+            change_summary=f"Exported {len(entries)} audit records to CSV",
+            request=request,
+        )
+
+        response = HttpResponse(content_type="text/csv")
+        ts = timezone.now().strftime("%Y%m%d_%H%M%S")
+        response["Content-Disposition"] = f'attachment; filename="audit_export_{ts}.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow([
+            "Timestamp", "Actor", "Actor Grade", "Action", "Entity Type",
+            "Entity ID", "Entity Name", "Change Summary", "IP Address",
+            "Request ID", "Before", "After", "Metadata"
+        ])
+
+        for entry in entries:
+            writer.writerow([
+                entry.created_at.isoformat(),
+                entry.user.get_full_name() if entry.user else "System",
+                entry.user.employee_grade if entry.user else "",
+                entry.action,
+                entry.entity_type,
+                str(entry.entity_id) if entry.entity_id else "",
+                entry.entity_display_name,
+                entry.change_summary,
+                entry.ip_address or "",
+                entry.request_id,
+                str(entry.masked_before or ""),
+                str(entry.masked_after or ""),
+                str(entry.metadata or ""),
+            ])
+
+        return response
+
+
+class UserExportView(APIView):
+    """
+    GET /api/v1/auth/users/export/
+    Admin-only endpoint to export users to CSV, with audit logging.
+    """
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get(self, request):
+        users = User.objects.all().order_by("employee_grade", "username")
+
+        log_audit_event(
+            user=request.user,
+            action="system.user_export",
+            entity_type="User",
+            masked_after={"count": users.count(), "format": "CSV"},
+            request=request,
+        )
+
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="users_export.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow(["ID", "Username", "Email", "First Name", "Last Name", "Grade", "Department", "Is Active", "Is Vendor"])
+
+        for user in users:
+            dept = user.department.name if user.department else ""
+            is_vendor = hasattr(user, "vendor_profile") and user.vendor_profile is not None
+            writer.writerow([
+                str(user.id), user.username, user.email, user.first_name, user.last_name,
+                user.employee_grade, dept, user.is_active, is_vendor
+            ])
+        return response
+
+
+class NotificationsView(APIView):
+    """
+    GET /api/v1/notifications/
+    Returns role-appropriate, prioritised notifications for the current user.
+    Sources: AuditLog, Expense.ocr_raw (escalations/schedules), ExpenseApprovalStep (pending queue).
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from django.utils import timezone
+        from datetime import timedelta
+        from apps.invoices.models import Expense, ExpenseApprovalStep
+
+        user = request.user
+        grade = getattr(user, 'employee_grade', 1) or 1
+        is_cfo = user.is_superuser or grade >= 5
+        is_finance_admin = grade >= 4
+        is_manager = grade >= 2
+        since = timezone.now() - timedelta(hours=72)
+
+        notifs = []
+        seen = set()
+
+        def add(nid, ntype, priority, title, message, timestamp, nav_target, dot='#F59E0B', amount=None, ref_no=None):
+            if nid in seen:
+                return
+            seen.add(nid)
+            notifs.append({
+                'id': nid, 'type': ntype, 'priority': priority,
+                'title': title, 'message': message,
+                'timestamp': timestamp if isinstance(timestamp, str) else timestamp.isoformat(),
+                'nav_target': nav_target, 'dot': dot,
+                'amount': amount, 'ref_no': ref_no,
+            })
+
+        # ── 1. ESCALATED ANOMALIES → CFO and Finance Admin ────────────────
+        if is_cfo or is_finance_admin:
+            escalated_qs = Expense.objects.filter(
+                anomaly_severity__in=['CRITICAL', 'HIGH'],
+                updated_at__gte=since,
+            ).order_by('-updated_at')[:20]
+            for exp in escalated_qs:
+                ocr = exp.ocr_raw or {}
+                if 'escalated_by' not in ocr:
+                    continue
+                # Self-filter: check both username field and display name field
+                by_uname = ocr.get('escalated_by_username') or ocr.get('escalated_by', '')
+                if by_uname and (by_uname == user.username or by_uname == user.get_full_name()):
+                    continue  # don't notify self
+                add(
+                    nid=f'escalate-{exp.id}',
+                    ntype='ESCALATION',
+                    priority='HIGH',
+                    title='Anomaly Escalated to CFO',
+                    message=f'{ocr["escalated_by"]} escalated {exp.ref_no} as CRITICAL — immediate review required',
+                    timestamp=ocr.get('escalated_at', exp.updated_at.isoformat()),
+                    nav_target='anomaly',
+                    dot='#EF4444',
+                    amount=float(exp.total_amount or 0),
+                    ref_no=exp.ref_no,
+                )
+
+        # ── 2. PAYMENT SCHEDULED → CFO and Finance Admin ──────────────────
+        if is_cfo or is_finance_admin:
+            sched_qs = Expense.objects.filter(
+                updated_at__gte=since,
+            ).exclude(ocr_raw=None).order_by('-updated_at')[:50]
+            for exp in sched_qs:
+                ocr = exp.ocr_raw or {}
+                if 'scheduled_payment_date' not in ocr:
+                    continue
+                if ocr.get('scheduled_by') == user.username:
+                    continue
+                add(
+                    nid=f'sched-{exp.id}',
+                    ntype='PAYMENT_SCHEDULED',
+                    priority='MEDIUM',
+                    title='Payment Scheduled',
+                    message=f'{ocr.get("scheduled_by","Finance")} scheduled ₹{float(exp.total_amount or 0):,.0f} payment for {exp.ref_no} on {ocr.get("scheduled_payment_date","—")}',
+                    timestamp=exp.updated_at.isoformat(),
+                    nav_target='ai-hub',
+                    dot='#F59E0B',
+                    amount=float(exp.total_amount or 0),
+                    ref_no=exp.ref_no,
+                )
+
+        # ── 3. PAYMENT SETTLED → Finance Admin and CFO ────────────────────
+        if is_cfo or is_finance_admin:
+            paid_qs = Expense.objects.filter(
+                _status__in=['PAID', 'POSTED_D365'],
+                updated_at__gte=since,
+            ).exclude(ocr_raw=None).order_by('-updated_at')[:15]
+            for exp in paid_qs:
+                ocr = exp.ocr_raw or {}
+                if ocr.get('paid_by') == user.username:
+                    continue
+                if 'paid_by' not in ocr:
+                    continue
+                add(
+                    nid=f'paid-{exp.id}',
+                    ntype='PAYMENT_DONE',
+                    priority='LOW',
+                    title='Payment Processed',
+                    message=f'{exp.ref_no} settled via {ocr.get("payment_method","NEFT")} — ₹{float(exp.total_amount or 0):,.0f} by {ocr.get("paid_by","Finance")}',
+                    timestamp=ocr.get('paid_at', exp.updated_at.isoformat()),
+                    nav_target='ar',
+                    dot='#10B981',
+                    amount=float(exp.total_amount or 0),
+                    ref_no=exp.ref_no,
+                )
+
+        # ── 4. ANOMALY MARKED SAFE → CFO and Finance Admin ────────────────
+        if is_cfo or is_finance_admin:
+            safe_qs = Expense.objects.filter(
+                anomaly_severity='NONE',
+                updated_at__gte=since,
+            ).exclude(ocr_raw=None).order_by('-updated_at')[:10]
+            for exp in safe_qs:
+                ocr = exp.ocr_raw or {}
+                if 'marked_safe_by' not in ocr:
+                    continue
+                if ocr.get('marked_safe_by') == user.username:
+                    continue
+                add(
+                    nid=f'safe-{exp.id}',
+                    ntype='ANOMALY_CLEARED',
+                    priority='LOW',
+                    title='Anomaly Cleared',
+                    message=f'{ocr.get("marked_safe_by","Finance")} cleared anomaly on {exp.ref_no}: "{ocr.get("marked_safe_note","")[:60]}"',
+                    timestamp=ocr.get('marked_safe_at', exp.updated_at.isoformat()),
+                    nav_target='anomaly',
+                    dot='#10B981',
+                    ref_no=exp.ref_no,
+                )
+
+        # ── 5. PENDING APPROVALS IN USER'S QUEUE ──────────────────────────
+        pending_steps = ExpenseApprovalStep.objects.filter(
+            assigned_to=user,
+            status='PENDING',
+        ).select_related('expense', 'expense__submitted_by').order_by('-expense__created_at')[:15]
+        for step in pending_steps:
+            exp = step.expense
+            submitter = exp.submitted_by.get_full_name() if exp.submitted_by else 'Employee'
+            add(
+                nid=f'approval-{step.id}',
+                ntype='APPROVAL_NEEDED',
+                priority='HIGH',
+                title='Approval Required',
+                message=f'{submitter} submitted {exp.ref_no} — ₹{float(exp.total_amount or 0):,.0f} — awaiting your approval (Level {step.level})',
+                timestamp=exp.created_at.isoformat(),
+                nav_target='ap-hub',
+                dot='#F59E0B',
+                amount=float(exp.total_amount or 0),
+                ref_no=exp.ref_no,
+            )
+
+        # ── 6. MY EXPENSE STATUS CHANGES (for submitter) ──────────────────
+        my_exps = Expense.objects.filter(
+            submitted_by=user,
+            updated_at__gte=since,
+        ).exclude(_status__in=['SUBMITTED', 'PENDING_L1', 'PENDING_L2', 'PENDING_HOD',
+                               'PENDING_FIN_L1', 'PENDING_FIN_L2', 'PENDING_FIN_HEAD', 'PENDING_CFO']).order_by('-updated_at')[:10]
+        for exp in my_exps:
+            status_map = {
+                'APPROVED': ('Expense Approved', '✓ Your expense {ref} has been approved and will be reimbursed.', '#10B981', 'MEDIUM'),
+                'PAID': ('Expense Paid', '✓ Your expense {ref} has been reimbursed — ₹{amt:,.0f} settled.', '#10B981', 'MEDIUM'),
+                'REJECTED': ('Expense Rejected', '⚠ Your expense {ref} was rejected. Check notes in Expense Management.', '#EF4444', 'HIGH'),
+                'QUERY_RAISED': ('Query on Your Expense', 'A query was raised on {ref} — please respond in the AP Hub.', '#F59E0B', 'HIGH'),
+            }
+            st = exp._status
+            if st not in status_map:
+                continue
+            title, msg_tpl, dot, priority = status_map[st]
+            msg = msg_tpl.format(ref=exp.ref_no or str(exp.id)[:8], amt=float(exp.total_amount or 0))
+            add(
+                nid=f'my-{exp.id}-{st}',
+                ntype='MY_EXPENSE',
+                priority=priority,
+                title=title,
+                message=msg,
+                timestamp=exp.updated_at.isoformat(),
+                nav_target='expenses',
+                dot=dot,
+                amount=float(exp.total_amount or 0),
+                ref_no=exp.ref_no,
+            )
+
+        # ── 7. AUDIT LOG: recent key events not captured above ─────────────
+        action_priority_map = {
+            'anomaly.escalated': ('HIGH', '#EF4444', 'anomaly'),
+            'anomaly.marked_safe': ('LOW', '#10B981', 'anomaly'),
+            'invoice.payment_scheduled': ('MEDIUM', '#F59E0B', 'ai-hub'),
+            'expense.submitted': ('MEDIUM', '#F59E0B', 'ap-hub'),
+            'expense.approved': ('LOW', '#10B981', 'ap-hub'),
+            'expense.rejected': ('MEDIUM', '#EF4444', 'ap-hub'),
+        }
+        visible_actions = list(action_priority_map.keys())
+        audit_qs = AuditLog.objects.filter(
+            action__in=visible_actions,
+            created_at__gte=since,
+        ).exclude(user=user).select_related('user').order_by('-created_at')[:30]
+        for log in audit_qs:
+            nid = f'audit-{log.id}'
+            if nid in seen:
+                continue
+            action = log.action
+            priority, dot, nav = action_priority_map.get(action, ('LOW', '#94A3B8', 'audit'))
+            details = log.masked_after or {}
+            actor = log.user.get_full_name() if log.user else 'System'
+            ref = details.get('ref_no', str(log.entity_id)[:8] if log.entity_id else '')
+            amt = details.get('amount', '')
+            amt_str = f' — ₹{float(amt):,.0f}' if amt else ''
+
+            # Role filtering: non-CFO should only see submissions/approvals relevant to them
+            if not (is_cfo or is_finance_admin) and action in ('anomaly.escalated', 'invoice.payment_scheduled'):
+                continue
+
+            human_action = {
+                'anomaly.escalated': 'escalated anomaly',
+                'anomaly.marked_safe': 'cleared anomaly',
+                'invoice.payment_scheduled': 'scheduled payment',
+                'expense.submitted': 'submitted expense',
+                'expense.approved': 'approved expense',
+                'expense.rejected': 'rejected expense',
+            }.get(action, action.replace('.', ' ').replace('_', ' '))
+
+            add(
+                nid=nid,
+                ntype=action.upper().replace('.', '_'),
+                priority=priority,
+                title=human_action.title(),
+                message=f'{actor} {human_action} {ref}{amt_str}',
+                timestamp=log.created_at.isoformat(),
+                nav_target=nav,
+                dot=dot,
+                ref_no=ref,
+            )
+
+        # Sort and deduplicate
+        notifs.sort(key=lambda x: x['timestamp'], reverse=True)
+        high_count = sum(1 for n in notifs if n['priority'] == 'HIGH')
+
+        return Response({
+            'notifications': notifs[:25],
+            'unread_count': high_count,
+            'total': len(notifs),
+        })

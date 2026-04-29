@@ -77,6 +77,11 @@ const DashboardScreen = ({
   const [modal10Q, setModal10Q] = React.useState(null); // { title, content, sections }
   const [sweepResult, setSweepResult] = React.useState(null);
   const [approveLoading, setApproveLoading] = React.useState({});
+  const [complianceData, setComplianceData] = React.useState({
+    tds: 0,
+    gst: 0,
+    count: 0
+  });
   const loadData = React.useCallback(async () => {
     setLoading(true);
     try {
@@ -85,10 +90,20 @@ const DashboardScreen = ({
         BillsAPI,
         AnalyticsAPI
       } = window.TijoriAPI;
-      const [s, bills, i] = await Promise.all([DashboardAPI.stats(), BillsAPI.queue(), AnalyticsAPI.commandCenter()]);
+      const [s, bills, i, exp] = await Promise.all([DashboardAPI.stats(), BillsAPI.queue(), AnalyticsAPI.commandCenter(), BillsAPI.listExpenses({
+        limit: 200
+      })]);
       setStats(s);
       setQueueBills((bills || []).slice(0, 3));
       setIntel(i);
+      const expenses = Array.isArray(exp) ? exp : exp?.results || [];
+      const tdsLiab = expenses.filter(e => e.status !== 'PAID').reduce((sum, e) => sum + parseFloat(e.tds_amount || 0), 0);
+      const gstLiab = expenses.filter(e => e.status !== 'PAID' && e.gstin).reduce((sum, e) => sum + parseFloat(e.total_amount || 0) * 0.18, 0);
+      setComplianceData({
+        tds: tdsLiab,
+        gst: gstLiab,
+        count: expenses.filter(e => e.status !== 'PAID' && (parseFloat(e.tds_amount) > 0 || e.gstin)).length
+      });
     } catch (e) {}
     setLoading(false);
   }, []);
@@ -168,37 +183,19 @@ const DashboardScreen = ({
     if (n >= 1000) return `₹${(n / 1000).toFixed(1)}K`;
     return `₹${n.toFixed(0)}`;
   };
-  const riskItems = intel?.risk_watch || [{
-    id: 1,
-    score: 94,
-    color: '#EF4444',
-    title: 'Duplicate Invoice Detected',
-    desc: 'Check anomaly engine for high-confidence duplicate flags.',
-    time: 'live'
-  }, {
-    id: 2,
-    score: 78,
-    color: '#F59E0B',
-    title: 'Unusual Vendor Velocity',
-    desc: 'Some vendors have submitted invoices at above-average rates.',
-    time: 'live'
-  }];
+  const riskItems = intel?.risk_watch || [];
 
   // Cash flow chart data
   const months = (intel?.chart_data || []).map(d => d.date?.slice(5) || '');
   const projected = (intel?.chart_data || []).map(d => (d.running_balance || 0) / 1000000); // in millions
-  if (projected.length === 0) {
-    // fallback
-    for (let i = 0; i < 6; i++) projected.push(Math.random() * 5 + 2);
-  }
   const bandHigh = projected.map(v => v * 1.15);
   const bandLow = projected.map(v => v * 0.85);
   const cw = 520,
     ch = 200;
-  const maxV = Math.max(...bandHigh),
-    minV = Math.min(...bandLow);
-  const px = i => 48 + i / (projected.length - 1) * (cw - 72);
-  const py = v => ch - 20 - (v - minV) / (maxV - minV) * (ch - 40);
+  const maxV = projected.length ? Math.max(...bandHigh) : 10;
+  const minV = projected.length ? Math.min(...bandLow) : 0;
+  const px = i => 48 + i / Math.max(projected.length - 1, 1) * (cw - 72);
+  const py = v => ch - 20 - (v - minV) / Math.max(maxV - minV, 1) * (ch - 40);
   const linePath = projected.map((v, i) => `${i === 0 ? 'M' : 'L'} ${px(i)} ${py(v)}`).join(' ');
   const bandPath = [...bandHigh.map((v, i) => `${i === 0 ? 'M' : 'L'} ${px(i)} ${py(v)}`), ...[...bandLow].reverse().map((v, i) => `L ${px(bandLow.length - 1 - i)} ${py(v)}`), 'Z'].join(' ');
   const approvalQueue = queueBills.map(b => ({
@@ -225,98 +222,7 @@ const DashboardScreen = ({
       padding: '32px 32px 100px',
       position: 'relative'
     }
-  }, modal10Q && /*#__PURE__*/React.createElement(TjModal, {
-    open: !!modal10Q,
-    onClose: () => setModal10Q(null),
-    title: "10-Q Report Draft",
-    width: 720
-  }, modal10Q.error ? /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: '16px',
-      background: '#FEE2E2',
-      borderRadius: '8px',
-      color: '#991B1B',
-      fontSize: '13px',
-      fontFamily: "'Plus Jakarta Sans', sans-serif"
-    }
-  }, modal10Q.content) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: '16px'
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontFamily: "'Bricolage Grotesque', sans-serif",
-      fontWeight: 700,
-      fontSize: '18px',
-      color: '#0F172A'
-    }
-  }, modal10Q.title || 'Quarterly Report'), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: '11px',
-      color: '#94A3B8',
-      fontFamily: "'Plus Jakarta Sans', sans-serif",
-      marginTop: '2px'
-    }
-  }, "AI-Generated Draft \xB7 Not for official filing")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      gap: '8px'
-    }
-  }, /*#__PURE__*/React.createElement(Btn, {
-    variant: "secondary",
-    small: true,
-    onClick: () => {
-      const blob = new Blob([modal10Q.content || ''], {
-        type: 'text/plain'
-      });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = '10Q_Draft.txt';
-      a.click();
-    }
-  }, "\u2193 Download"))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      maxHeight: '60vh',
-      overflow: 'auto',
-      background: '#FAFAF8',
-      borderRadius: '10px',
-      padding: '20px',
-      fontFamily: "'Plus Jakarta Sans', sans-serif",
-      fontSize: '13px',
-      color: '#0F172A',
-      lineHeight: 1.7,
-      whiteSpace: 'pre-wrap',
-      border: '1px solid #F1F0EE'
-    }
-  }, modal10Q.content || JSON.stringify(modal10Q, null, 2)))), sweepResult && /*#__PURE__*/React.createElement(TjModal, {
-    open: !!sweepResult,
-    onClose: () => setSweepResult(null),
-    title: "Audit Sweep Results",
-    width: 480
   }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: '16px',
-      background: sweepResult.error ? '#FEE2E2' : '#F0FDF4',
-      borderRadius: '10px',
-      fontSize: '13px',
-      fontFamily: "'Plus Jakarta Sans', sans-serif",
-      color: sweepResult.error ? '#991B1B' : '#065F46',
-      lineHeight: 1.6
-    }
-  }, sweepResult.message || JSON.stringify(sweepResult)), !sweepResult.error && sweepResult.flagged_count > 0 && /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: '12px'
-    }
-  }, /*#__PURE__*/React.createElement(Btn, {
-    variant: "primary",
-    onClick: () => {
-      setSweepResult(null);
-      onNavigate && onNavigate('anomaly');
-    }
-  }, "View Flagged Items \u2192"))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       justifyContent: 'space-between',
@@ -847,7 +753,7 @@ const DashboardScreen = ({
       display: 'flex',
       gap: '20px',
       alignItems: 'center',
-      gridColumn: 'span 2'
+      gridColumn: 'span 1'
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -964,22 +870,314 @@ const DashboardScreen = ({
       color: r.color,
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, r.val))))), [{
-    icon: '✦',
-    title: 'Generate 10-Q',
-    sub: 'AI-compiled regulatory filing draft',
-    action: handleGenerate10Q,
-    loading: runLoading.q
-  }, {
-    icon: '⬡',
-    title: 'Audit Sweep',
-    sub: 'Full-spectrum transaction scan',
-    action: handleAuditSweep,
-    loading: runLoading.sweep
-  }].map((ac, i) => /*#__PURE__*/React.createElement(AIActionCard, {
-    key: i,
-    ac: ac
-  }))), /*#__PURE__*/React.createElement(FloatingCopilot, {
+  }, r.val))))), /*#__PURE__*/React.createElement(Card, {
+    style: {
+      padding: '24px',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'center',
+      gridColumn: 'span 1'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '17px',
+      color: '#0F172A',
+      marginBottom: '12px'
+    }
+  }, "Treasury & Compliance"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#64748B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginBottom: '16px'
+    }
+  }, "Estimated Tax Liabilities (TDS/GST)"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: '10px 0',
+      borderBottom: '1px solid #F8F7F5'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '13px',
+      color: '#475569',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "TDS Payable"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '14px',
+      fontWeight: 700,
+      color: '#E8783B',
+      fontFamily: "'Bricolage Grotesque', sans-serif"
+    }
+  }, fmtAmt(complianceData.tds))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: '10px 0',
+      borderBottom: '1px solid #F8F7F5'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '13px',
+      color: '#475569',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Estimated GST Input"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '14px',
+      fontWeight: 700,
+      color: '#10B981',
+      fontFamily: "'Bricolage Grotesque', sans-serif"
+    }
+  }, fmtAmt(complianceData.gst))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: '10px 0'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '13px',
+      color: '#475569',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Compliance Invoices"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      background: '#F1F5F9',
+      color: '#475569',
+      padding: '2px 8px',
+      borderRadius: '999px',
+      fontSize: '11px',
+      fontWeight: 700,
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, complianceData.count, " Pending"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '12px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    onClick: runLoading.q ? undefined : handleGenerate10Q,
+    style: {
+      background: runLoading.q ? '#F8F7F5' : 'white',
+      borderRadius: '16px',
+      padding: '22px 20px',
+      boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+      cursor: runLoading.q ? 'wait' : 'pointer',
+      opacity: runLoading.q ? 0.7 : 1,
+      transition: 'all 200ms'
+    },
+    onMouseEnter: e => {
+      if (!runLoading.q) e.currentTarget.style.boxShadow = '0 8px 32px rgba(232,120,59,0.25)';
+    },
+    onMouseLeave: e => e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.06)'
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '4px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '15px',
+      color: '#0F172A'
+    }
+  }, "\u2726 Generate 10-Q"), /*#__PURE__*/React.createElement(AIBadge, null)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "AI-compiled regulatory filing draft"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#E8783B',
+      fontWeight: 600,
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginTop: '8px'
+    }
+  }, runLoading.q ? 'Generating…' : 'Run now →')), modal10Q && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: modal10Q.error ? '#FEF2F2' : '#F0FDF4',
+      border: `1px solid ${modal10Q.error ? '#FECACA' : '#A7F3D0'}`,
+      borderRadius: '12px',
+      padding: '14px 16px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '8px'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '12px',
+      fontWeight: 700,
+      color: modal10Q.error ? '#991B1B' : '#065F46',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, modal10Q.title || '10-Q Draft'), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: '8px',
+      alignItems: 'center'
+    }
+  }, !modal10Q.error && /*#__PURE__*/React.createElement("button", {
+    onClick: e => {
+      e.stopPropagation();
+      const blob = new Blob([modal10Q.content || ''], {
+        type: 'text/plain'
+      });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = '10Q_Draft.txt';
+      a.click();
+    },
+    style: {
+      fontSize: '11px',
+      color: '#065F46',
+      fontWeight: 600,
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Download \u2193"), /*#__PURE__*/React.createElement("button", {
+    onClick: e => {
+      e.stopPropagation();
+      setModal10Q(null);
+    },
+    style: {
+      fontSize: '16px',
+      color: '#94A3B8',
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      lineHeight: 1
+    }
+  }, "\xD7"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: modal10Q.error ? '#991B1B' : '#065F46',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      lineHeight: 1.6,
+      maxHeight: 160,
+      overflowY: 'auto',
+      whiteSpace: 'pre-wrap'
+    }
+  }, modal10Q.content || JSON.stringify(modal10Q, null, 2))), /*#__PURE__*/React.createElement("div", {
+    onClick: runLoading.sweep ? undefined : handleAuditSweep,
+    style: {
+      background: runLoading.sweep ? '#F8F7F5' : 'white',
+      borderRadius: '16px',
+      padding: '22px 20px',
+      boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+      cursor: runLoading.sweep ? 'wait' : 'pointer',
+      opacity: runLoading.sweep ? 0.7 : 1,
+      transition: 'all 200ms'
+    },
+    onMouseEnter: e => {
+      if (!runLoading.sweep) e.currentTarget.style.boxShadow = '0 8px 32px rgba(232,120,59,0.25)';
+    },
+    onMouseLeave: e => e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.06)'
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '4px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '15px',
+      color: '#0F172A'
+    }
+  }, "\u2B21 Audit Sweep"), /*#__PURE__*/React.createElement(AIBadge, null)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Full-spectrum transaction scan"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#E8783B',
+      fontWeight: 600,
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginTop: '8px'
+    }
+  }, runLoading.sweep ? 'Scanning…' : 'Run now →')), sweepResult && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: sweepResult.error ? '#FEF2F2' : '#F0FDF4',
+      border: `1px solid ${sweepResult.error ? '#FECACA' : '#A7F3D0'}`,
+      borderRadius: '12px',
+      padding: '14px 16px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '8px'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '12px',
+      fontWeight: 700,
+      color: sweepResult.error ? '#991B1B' : '#065F46',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Sweep Results"), /*#__PURE__*/React.createElement("button", {
+    onClick: e => {
+      e.stopPropagation();
+      setSweepResult(null);
+    },
+    style: {
+      fontSize: '16px',
+      color: '#94A3B8',
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      lineHeight: 1
+    }
+  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: sweepResult.error ? '#991B1B' : '#065F46',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      lineHeight: 1.6
+    }
+  }, sweepResult.message || JSON.stringify(sweepResult)), !sweepResult.error && (sweepResult.flagged || sweepResult.flagged_count) > 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: e => {
+      e.stopPropagation();
+      setSweepResult(null);
+      onNavigate && onNavigate('anomaly');
+    },
+    style: {
+      marginTop: '8px',
+      fontSize: '11px',
+      color: '#065F46',
+      fontWeight: 600,
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "View Flagged Items \u2192")))), /*#__PURE__*/React.createElement(FloatingCopilot, {
     role: roleKey
   }));
 };

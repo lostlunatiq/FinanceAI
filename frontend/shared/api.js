@@ -282,6 +282,13 @@ class FinanceAPI {
         });
     }
 
+    async settleBill(billId, paymentUtr = '') {
+        return this.request(`/invoices/finance/bills/${billId}/settle/`, {
+            method: 'POST',
+            body: JSON.stringify({ payment_utr: paymentUtr }),
+        });
+    }
+
     async respondQuery(billId, response, queryId = null) {
         return this.request(`/invoices/finance/bills/${billId}/respond-query/`, {
             method: 'POST',
@@ -356,6 +363,14 @@ class FinanceAPI {
     async getAuditLog(params = {}) {
         const q = new URLSearchParams(params).toString();
         return this.request(`/audit/${q ? '?' + q : ''}`);
+    }
+
+    async exportAuditLog(params = {}) {
+        const q = new URLSearchParams(params).toString();
+        const token = localStorage.getItem('accessToken');
+        return fetch(`/api/v1/audit/export/${q ? '?' + q : ''}`, {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        });
     }
 
     // ─── NL Query ─────────────────────────────────────
