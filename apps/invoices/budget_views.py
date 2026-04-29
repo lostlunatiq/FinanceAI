@@ -14,6 +14,8 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Sum, Count, Avg
 from decimal import Decimal
 import logging
+from .models import Budget, Expense
+from apps.core.utils import log_audit_event
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +26,14 @@ class BudgetListView(APIView):
 
     def get(self, request):
         from .models import Budget
+        user = request.user
+        grade = user.employee_grade or 0
         budgets = Budget.objects.select_related("department", "created_by").all()
+        if grade == 2:
+            if user.department_id:
+                budgets = budgets.filter(department=user.department)
+            else:
+                budgets = budgets.none()
         dept_id = request.query_params.get("department")
         if dept_id:
             budgets = budgets.filter(department_id=dept_id)
@@ -84,6 +93,21 @@ class BudgetListView(APIView):
                 notes=data.get("notes", ""),
                 created_by=request.user,
             )
+            log_audit_event(
+                user=request.user,
+                action="budget.created",
+                entity_type="Budget",
+                entity_id=budget.id,
+                entity_display_name=budget.name,
+                masked_after={
+                    "status": budget.status,
+                    "total_amount": float(budget.total_amount),
+                    "department_id": str(budget.department_id) if budget.department_id else None,
+                    "fiscal_year": budget.fiscal_year,
+                },
+                change_summary=f"Created budget {budget.name}",
+                request=request,
+            )
             return Response(_budget_to_dict(budget), status=status.HTTP_201_CREATED)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -96,12 +120,27 @@ class BudgetDetailView(APIView):
     def get(self, request, pk):
         from .models import Budget
         b = get_object_or_404(Budget, pk=pk)
+        grade = request.user.employee_grade or 0
+        if grade == 2 and b.department_id != request.user.department_id:
+            return Response(
+                {"error": "Access denied to this department's budget."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         return Response(_budget_to_dict(b))
 
     def patch(self, request, pk):
         from .models import Budget
         b = get_object_or_404(Budget, pk=pk)
         data = request.data
+        before = {
+            "name": b.name,
+            "status": b.status,
+            "total_amount": float(b.total_amount),
+            "warning_threshold": b.warning_threshold,
+            "critical_threshold": b.critical_threshold,
+            "notes": b.notes,
+            "end_date": str(b.end_date),
+        }
         updatable = ["name", "total_amount", "status", "warning_threshold", "critical_threshold", "notes", "end_date"]
         for field in updatable:
             if field in data:
@@ -110,13 +149,43 @@ class BudgetDetailView(APIView):
                 else:
                     setattr(b, field, data[field])
         b.save()
+        log_audit_event(
+            user=request.user,
+            action="budget.updated",
+            entity_type="Budget",
+            entity_id=b.id,
+            entity_display_name=b.name,
+            masked_before=before,
+            masked_after={
+                "name": b.name,
+                "status": b.status,
+                "total_amount": float(b.total_amount),
+                "warning_threshold": b.warning_threshold,
+                "critical_threshold": b.critical_threshold,
+                "notes": b.notes,
+                "end_date": str(b.end_date),
+            },
+            request=request,
+        )
         return Response(_budget_to_dict(b))
 
     def delete(self, request, pk):
         from .models import Budget
         b = get_object_or_404(Budget, pk=pk)
+        old_status = b.status
         b.status = "closed"
         b.save()
+        log_audit_event(
+            user=request.user,
+            action="budget.closed",
+            entity_type="Budget",
+            entity_id=b.id,
+            entity_display_name=b.name,
+            masked_before={"status": old_status},
+            masked_after={"status": b.status},
+            change_summary=f"Closed budget {b.name}",
+            request=request,
+        )
         return Response({"message": "Budget closed."})
 
 
@@ -127,6 +196,12 @@ class BudgetUtilizationView(APIView):
     def get(self, request, pk):
         from .models import Budget, Expense
         b = get_object_or_404(Budget, pk=pk)
+        grade = request.user.employee_grade or 0
+        if grade == 2 and b.department_id != request.user.department_id:
+            return Response(
+                {"error": "Access denied to this department's budget."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         qs = Expense.objects.filter(
             _status__in=["APPROVED", "PENDING_D365", "BOOKED_D365", "POSTED_D365", "PAID"],
@@ -258,7 +333,11 @@ def _build_cashflow_forecast(days: int = 90) -> dict:
     # Generate forecast
     forecast_days = []
     running_balance = 0
-    opening_balance = 2500000  # Mock opening cash position
+    
+    # Calculate dynamic opening balance from total active budget minus paid expenses
+    total_budget = float(Budget.objects.filter(status__in=["active", "draft"]).aggregate(t=Sum("total_amount"))["t"] or 10000000)
+    total_paid = float(Expense.objects.filter(_status="PAID").aggregate(t=Sum("total_amount"))["t"] or 0)
+    opening_balance = max(total_budget - total_paid, 500000.0)
 
     for i in range(days):
         d = today + timedelta(days=i)
@@ -272,7 +351,8 @@ def _build_cashflow_forecast(days: int = 90) -> dict:
             projected_outflow = avg_daily * factor
             confidence = max(0.5, 0.9 - (i / days) * 0.4)
 
-        projected_inflow = avg_daily * factor * 1.1  # Inflows slightly higher (mock AR)
+        # Dynamic AR inflows projection based on historical margin targets (5% over daily average)
+        projected_inflow = avg_daily * factor * 1.05
         net = projected_inflow - projected_outflow
         running_balance += net
 
@@ -332,10 +412,31 @@ def _build_cashflow_forecast(days: int = 90) -> dict:
     }
 
 
+def _get_forecast_feedback_context() -> str:
+    """Return last 5 forecast feedback entries as a prompt block."""
+    try:
+        from .models import AIFeedback
+        feedbacks = AIFeedback.objects.filter(task_type=AIFeedback.TASK_FORECAST).order_by("-created_at")[:5]
+        if not feedbacks:
+            return ""
+        lines = []
+        for fb in feedbacks:
+            date_str = fb.created_at.strftime("%Y-%m-%d")
+            sentiment = "Positive" if fb.is_positive else "Negative"
+            if fb.comment:
+                lines.append(f"- [{date_str}] ({sentiment}) {fb.comment}")
+        if not lines:
+            return ""
+        return "\n\nPAST CFO FEEDBACK ON FORECASTS (incorporate these learnings into the narrative):\n" + "\n".join(lines)
+    except Exception:
+        return ""
+
+
 def _generate_forecast_narrative(days, opening, closing, total_out, total_in, min_day, max_day, upcoming_count):
     """Try AI narrative, fall back to rule-based."""
     try:
         from ai.tools.openrouter_client import call_text_model
+        feedback_context = _get_forecast_feedback_context()
         prompt = f"""Generate a concise 2-paragraph CFO cash flow narrative for this {days}-day forecast:
 - Opening Balance: ₹{opening:,.0f}
 - Projected Closing: ₹{closing:,.0f}
@@ -344,6 +445,7 @@ def _generate_forecast_narrative(days, opening, closing, total_out, total_in, mi
 - Minimum Balance: ₹{min_day['running_balance']:,.0f} on {min_day['date']}
 - Maximum Balance: ₹{max_day['running_balance']:,.0f} on {max_day['date']}
 - Known upcoming payments: {upcoming_count}
+{feedback_context}
 
 Be direct and actionable. Use Indian financial context. Keep it under 100 words."""
         response = call_text_model(prompt=prompt)

@@ -14,16 +14,6 @@ app.autodiscover_tasks()
 
 # --- Periodic tasks (Celery Beat) ---
 app.conf.beat_schedule = {
-    # Expire SLA-breached approval steps every 15 minutes
-    "expire-overdue-steps": {
-        "task": "apps.invoices.tasks.expire_overdue_steps",
-        "schedule": crontab(minute="*/15"),
-    },
-    # Rebuild Prophet forecast nightly
-    "rebuild-cashflow-forecast": {
-        "task": "apps.invoices.tasks.rebuild_cashflow_forecast",
-        "schedule": crontab(hour=2, minute=0),
-    },
 }
 
 app.conf.update(
@@ -39,7 +29,5 @@ app.conf.update(
         "apps.invoices.tasks.run_ocr_pipeline": {"queue": "ocr"},
         "apps.invoices.tasks.run_anomaly_pipeline": {"queue": "anomaly"},
         "apps.core.tasks.mirror_event_to_clickhouse": {"queue": "analytics"},
-        "apps.invoices.tasks.expire_overdue_steps": {"queue": "default"},
-        "apps.invoices.tasks.rebuild_cashflow_forecast": {"queue": "default"},
     },
 )

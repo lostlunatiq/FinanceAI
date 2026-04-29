@@ -5,10 +5,36 @@ const AnomalyScreen = ({
   onNavigate
 }) => {
   const [activePanel, setActivePanel] = React.useState(null);
+  const [reviewQueue, setReviewQueue] = React.useState([]); // queue for "Review All"
+  const [reviewQueueIdx, setReviewQueueIdx] = React.useState(0); // current position
   const [scanLoading, setScanLoading] = React.useState(false);
   const [scanned, setScanned] = React.useState(false);
   const [anomalies, setAnomalies] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  const [escalateMsg, setEscalateMsg] = React.useState('');
+  const [resolvedCount, setResolvedCount] = React.useState(0);
+  const [resolvedItems, setResolvedItems] = React.useState([]);
+  const [anomalyFilter, setAnomalyFilter] = React.useState('All');
+  const [markSafeModal, setMarkSafeModal] = React.useState(null);
+  const [markSafeNote, setMarkSafeNote] = React.useState('');
+  const [markSafeLoading, setMarkSafeLoading] = React.useState(false);
+  const [vendorHistory, setVendorHistory] = React.useState([]);
+  const [vendorHistoryLoading, setVendorHistoryLoading] = React.useState(false);
+  const [feedbackTarget, setFeedbackTarget] = React.useState(null);
+  React.useEffect(() => {
+    if (activePanel && activePanel._raw) {
+      const vendorName = activePanel._raw.vendor_name || activePanel._raw.vendor;
+      if (vendorName) {
+        setVendorHistoryLoading(true);
+        window.TijoriAPI.BillsAPI.listExpenses({
+          search: vendorName,
+          status: 'REJECTED'
+        }).then(data => setVendorHistory(data?.results || data || [])).catch(() => setVendorHistory([])).finally(() => setVendorHistoryLoading(false));
+      } else {
+        setVendorHistory([]);
+      }
+    }
+  }, [activePanel]);
   const loadAnomalies = () => {
     const {
       AnomalyAPI,
@@ -35,28 +61,122 @@ const AnomalyScreen = ({
       setScanned(true);
     }, 800);
   };
-  const handleMarkSafe = async id => {
+  const openMarkSafeModal = anomaly => {
+    setMarkSafeNote('');
+    setMarkSafeModal(anomaly);
+  };
+  const handleMarkSafe = async () => {
+    if (!markSafeModal) return;
+    const {
+      rawId,
+      entity
+    } = markSafeModal;
+    if (!markSafeNote.trim()) {
+      alert('Please enter a reason for marking this anomaly as safe.');
+      return;
+    }
+    setMarkSafeLoading(true);
     try {
-      await window.TijoriAPI.BillsAPI.markSafe(id);
-      loadAnomalies();
-      if (activePanel && activePanel.rawId === id) setActivePanel(null);
+      await window.TijoriAPI.BillsAPI.markSafe(rawId, markSafeNote.trim());
+      setResolvedCount(c => c + 1);
+      const resItem = {
+        ...markSafeModal,
+        status: 'RESOLVED',
+        resolvedNote: markSafeNote.trim()
+      };
+      setResolvedItems(prev => [...prev, resItem]);
+      setAnomalies(prev => prev.filter(a => a.rawId !== rawId));
+      setMarkSafeModal(null);
+      setEscalateMsg(`✓ Anomaly for ${entity} marked as safe and resolved.`);
+      setTimeout(() => setEscalateMsg(''), 4000);
+
+      // If in review queue, advance automatically
+      if (reviewQueue.length > 0) {
+        // Remove from local queue so it doesn't reappear
+        const newQueue = reviewQueue.filter(a => a.rawId !== rawId);
+        setReviewQueue(newQueue);
+        if (newQueue.length > 0) {
+          const nextIdx = Math.min(reviewQueueIdx, newQueue.length - 1);
+          setReviewQueueIdx(nextIdx);
+          setActivePanel(newQueue[nextIdx]);
+        } else {
+          setActivePanel(null);
+          setReviewQueue([]);
+        }
+      } else {
+        if (activePanel && activePanel.rawId === rawId) setActivePanel(null);
+      }
     } catch (e) {
-      alert("Failed to mark safe: " + e.message);
+      alert("Failed to mark safe: " + (e.message || 'Server error'));
+    } finally {
+      setMarkSafeLoading(false);
     }
   };
   const handleEscalate = async id => {
     try {
-      await window.TijoriAPI.BillsAPI.escalate(id);
+      const res = await window.TijoriAPI.BillsAPI.escalate(id);
+      setEscalateMsg(`Anomaly ${res?.ref_no || id} escalated to CFO/Upper Management as CRITICAL.`);
+      setTimeout(() => setEscalateMsg(''), 5000);
+
+      // Update anomalies list to reflect critical status (or remove if preferred, here we reload)
       loadAnomalies();
-      if (activePanel && activePanel.rawId === id) setActivePanel(null);
+
+      // If in review queue, advance automatically
+      if (reviewQueue.length > 0) {
+        const newQueue = reviewQueue.filter(a => a.rawId !== id);
+        setReviewQueue(newQueue);
+        if (newQueue.length > 0) {
+          const nextIdx = Math.min(reviewQueueIdx, newQueue.length - 1);
+          setReviewQueueIdx(nextIdx);
+          setActivePanel(newQueue[nextIdx]);
+        } else {
+          setActivePanel(null);
+          setReviewQueue([]);
+        }
+      } else {
+        if (activePanel && activePanel.rawId === id) setActivePanel(null);
+      }
     } catch (e) {
       alert("Failed to escalate: " + e.message);
     }
+  };
+  const handleReviewAll = () => {
+    const openAnomalies = anomalies.filter(a => a.status !== 'RESOLVED');
+    if (openAnomalies.length === 0) {
+      alert('No open anomalies to review.');
+      return;
+    }
+    setReviewQueue(openAnomalies);
+    setReviewQueueIdx(0);
+    setActivePanel(openAnomalies[0]);
+  };
+  const reviewNext = () => {
+    const next = reviewQueueIdx + 1;
+    if (next < reviewQueue.length) {
+      setReviewQueueIdx(next);
+      setActivePanel(reviewQueue[next]);
+    } else {
+      setReviewQueue([]);
+      setActivePanel(null);
+    }
+  };
+  const reviewPrev = () => {
+    const prev = reviewQueueIdx - 1;
+    if (prev >= 0) {
+      setReviewQueueIdx(prev);
+      setActivePanel(reviewQueue[prev]);
+    }
+  };
+  const exitReviewQueue = () => {
+    setReviewQueue([]);
+    setActivePanel(null);
   };
   const scoreColor = s => s > 80 ? '#EF4444' : s > 50 ? '#F59E0B' : '#94A3B8';
   const scoreBg = s => s > 80 ? '#FEE2E2' : s > 50 ? '#FEF3C7' : '#F8F7F5';
   const open = anomalies.filter(a => a.status === 'OPEN');
   const highConf = anomalies.filter(a => a.score > 80);
+  const totalResolved = resolvedCount; // tracked locally since backend excludes NONE severity
+
   return /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '32px'
@@ -110,7 +230,22 @@ const AnomalyScreen = ({
     }) : /*#__PURE__*/React.createElement("span", null, "\u2B21"),
     onClick: runScan,
     disabled: scanLoading
-  }, scanLoading ? 'Scanning…' : scanned ? 'Scan Complete ✓' : 'Run Full Scan'))), /*#__PURE__*/React.createElement("div", {
+  }, scanLoading ? 'Scanning…' : scanned ? 'Scan Complete ✓' : 'Run Full Scan'))), escalateMsg && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: '#FEF2F2',
+      border: '1px solid #FECACA',
+      borderRadius: '12px',
+      padding: '12px 16px',
+      marginBottom: '16px',
+      fontSize: '13px',
+      fontWeight: 600,
+      color: '#991B1B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px'
+    }
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDD34"), " ", escalateMsg), !loading && anomalies.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       background: '#FEF2F2',
       border: '1px solid #FECACA',
@@ -143,10 +278,11 @@ const AnomalyScreen = ({
       color: '#B91C1C',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "3 invoices match known structural signatures of double-billing logic. 1 expense matches off-shift pattern.")), /*#__PURE__*/React.createElement(Btn, {
+  }, highConf.length > 0 && `${highConf.length} high-confidence anomaly${highConf.length !== 1 ? 'ies' : 'y'} (>80%) require immediate attention. `, anomalies.length, " total flag", anomalies.length !== 1 ? 's' : '', " across ", [...new Set(anomalies.map(a => a.type))].length, " pattern type", [...new Set(anomalies.map(a => a.type))].length !== 1 ? 's' : '', " detected by AI engine.")), /*#__PURE__*/React.createElement(Btn, {
     variant: "destructive",
-    small: true
-  }, "Review All")), /*#__PURE__*/React.createElement(StatsRow, {
+    small: true,
+    onClick: handleReviewAll
+  }, "Review All (", anomalies.length, ")")), /*#__PURE__*/React.createElement(StatsRow, {
     cards: [{
       label: 'Total Flagged',
       value: loading ? '…' : String(anomalies.length),
@@ -167,19 +303,143 @@ const AnomalyScreen = ({
       deltaType: 'neutral'
     }, {
       label: 'Resolved',
-      value: loading ? '…' : String(anomalies.filter(a => a.status === 'RESOLVED').length),
-      delta: 'Historical',
+      value: loading ? '…' : String(totalResolved),
+      delta: 'This session',
       deltaType: 'positive',
       color: '#10B981'
     }]
   }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: '6px',
+      marginBottom: '16px'
+    }
+  }, [{
+    label: `All (${anomalies.length + resolvedItems.length})`,
+    val: 'All'
+  }, {
+    label: `Open (${anomalies.length})`,
+    val: 'Open'
+  }, {
+    label: `Resolved (${resolvedItems.length})`,
+    val: 'Resolved'
+  }].map(f => /*#__PURE__*/React.createElement("button", {
+    key: f.val,
+    onClick: () => setAnomalyFilter(f.val),
+    style: {
+      padding: '6px 14px',
+      borderRadius: '999px',
+      border: 'none',
+      cursor: 'pointer',
+      fontSize: '11px',
+      fontWeight: 700,
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      background: anomalyFilter === f.val ? f.val === 'Resolved' ? '#10B981' : '#EF4444' : '#F8F7F5',
+      color: anomalyFilter === f.val ? 'white' : '#64748B',
+      transition: 'all 150ms'
+    }
+  }, f.label))), /*#__PURE__*/React.createElement("div", {
     style: {
       background: 'white',
       borderRadius: '16px',
       overflow: 'hidden',
       boxShadow: '0 2px 12px rgba(0,0,0,0.06)'
     }
-  }, /*#__PURE__*/React.createElement("table", {
+  }, anomalyFilter === 'Resolved' ? /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: '100%',
+      borderCollapse: 'collapse'
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+    style: {
+      background: '#F0FDF4'
+    }
+  }, ['Entity Ref', 'Anomaly Type', 'Details', 'Resolved Reason', 'Status'].map(h => /*#__PURE__*/React.createElement("th", {
+    key: h,
+    style: {
+      padding: '12px 16px',
+      textAlign: 'left',
+      fontSize: '10px',
+      fontWeight: 700,
+      color: '#065F46',
+      letterSpacing: '0.08em',
+      textTransform: 'uppercase',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, resolvedItems.length === 0 ? /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    colSpan: "5",
+    style: {
+      padding: '32px',
+      textAlign: 'center',
+      color: '#10B981',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontSize: '13px'
+    }
+  }, "No anomalies resolved this session.")) : null, resolvedItems.map((a, idx) => /*#__PURE__*/React.createElement("tr", {
+    key: idx,
+    style: {
+      borderTop: '1px solid #F1F0EE',
+      height: 60,
+      background: 'white'
+    }
+  }, /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 16px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'JetBrains Mono', monospace",
+      fontSize: '12px',
+      color: '#10B981',
+      fontWeight: 500
+    }
+  }, a.entity), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '10px',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginTop: '2px'
+    }
+  }, a.date)), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 16px',
+      fontWeight: 700,
+      fontSize: '13px',
+      color: '#0F172A',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, a.type), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 16px',
+      fontSize: '12px',
+      color: '#64748B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      maxWidth: 200
+    }
+  }, a.details), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 16px',
+      fontSize: '12px',
+      color: '#065F46',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontStyle: 'italic',
+      maxWidth: 200
+    }
+  }, "\"", a.resolvedNote, "\""), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '0 16px'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      background: '#D1FAE5',
+      color: '#065F46',
+      padding: '3px 10px',
+      borderRadius: '999px',
+      fontSize: '11px',
+      fontWeight: 700,
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "\u2713 Resolved")))))) : /*#__PURE__*/React.createElement("table", {
     style: {
       width: '100%',
       borderCollapse: 'collapse'
@@ -218,7 +478,7 @@ const AnomalyScreen = ({
       fontFamily: "'Plus Jakarta Sans', sans-serif",
       fontSize: '13px'
     }
-  }, "No anomalies detected. System is clean.")) : null, anomalies.map(a => {
+  }, "No open anomalies detected. System is clean.")) : null, anomalies.map(a => {
     const hi = a.score > 80;
     return /*#__PURE__*/React.createElement("tr", {
       key: a.id,
@@ -338,18 +598,144 @@ const AnomalyScreen = ({
     }, "Investigate"), a.status !== 'RESOLVED' && /*#__PURE__*/React.createElement(Btn, {
       variant: "green",
       small: true,
-      onClick: () => handleMarkSafe(a.rawId)
+      onClick: () => openMarkSafeModal(a)
     }, "Mark Safe"), a.score > 80 && /*#__PURE__*/React.createElement(Btn, {
       variant: "destructive",
       small: true,
       onClick: () => handleEscalate(a.rawId)
     }, "Escalate"))));
-  })))), /*#__PURE__*/React.createElement(SidePanel, {
+  })))), markSafeModal && /*#__PURE__*/React.createElement(TjModal, {
+    open: true,
+    onClose: () => setMarkSafeModal(null),
+    title: "Mark Anomaly as Safe",
+    accentColor: "#10B981",
+    width: 440
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: '#F0FDF4',
+      border: '1px solid #BBF7D0',
+      borderRadius: '10px',
+      padding: '14px',
+      marginBottom: '16px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'JetBrains Mono', monospace",
+      fontSize: '12px',
+      color: '#10B981'
+    }
+  }, markSafeModal.entity), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: '14px',
+      color: '#0F172A',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginTop: '4px'
+    }
+  }, markSafeModal.type), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#64748B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginTop: '4px'
+    }
+  }, markSafeModal.details)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: '4px',
+      fontSize: '12px',
+      fontWeight: 600,
+      color: '#374151',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Reason for clearing this anomaly ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: '#EF4444'
+    }
+  }, "*")), /*#__PURE__*/React.createElement("textarea", {
+    value: markSafeNote,
+    onChange: e => setMarkSafeNote(e.target.value),
+    placeholder: "e.g. Verified with vendor \u2014 this is a legitimate duplicate submission due to system error. Reference: email-2026-04-29.",
+    rows: 4,
+    style: {
+      width: '100%',
+      boxSizing: 'border-box',
+      padding: '10px 12px',
+      border: '1.5px solid #E2E8F0',
+      borderRadius: '10px',
+      fontSize: '13px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      color: '#0F172A',
+      background: '#FAFAFA',
+      resize: 'vertical',
+      outline: 'none',
+      marginBottom: '16px'
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: '10px',
+      justifyContent: 'flex-end'
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    onClick: () => setMarkSafeModal(null)
+  }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
+    variant: "green",
+    onClick: handleMarkSafe,
+    disabled: markSafeLoading
+  }, markSafeLoading ? 'Clearing…' : 'Confirm — Mark as Safe'))), /*#__PURE__*/React.createElement(SidePanel, {
     open: !!activePanel,
-    onClose: () => setActivePanel(null),
+    onClose: () => {
+      setActivePanel(null);
+      setReviewQueue([]);
+    },
     title: activePanel ? `Anomaly: ${activePanel.entity}` : '',
     width: 460
-  }, activePanel && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }, activePanel && /*#__PURE__*/React.createElement(React.Fragment, null, reviewQueue.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: '#FEF3C7',
+      borderRadius: '10px',
+      padding: '10px 14px',
+      marginBottom: '16px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between'
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: reviewPrev,
+    disabled: reviewQueueIdx === 0,
+    style: {
+      padding: '4px 10px',
+      borderRadius: '6px',
+      border: '1px solid #F59E0B',
+      background: reviewQueueIdx === 0 ? '#F8F7F5' : 'white',
+      color: reviewQueueIdx === 0 ? '#CBD5E1' : '#92400E',
+      fontSize: '11px',
+      fontWeight: 700,
+      cursor: reviewQueueIdx === 0 ? 'default' : 'pointer',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "\u2190 Prev"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '11px',
+      fontWeight: 700,
+      color: '#92400E',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, reviewQueueIdx + 1, " of ", reviewQueue.length, " anomalies"), /*#__PURE__*/React.createElement("button", {
+    onClick: reviewNext,
+    style: {
+      padding: '4px 10px',
+      borderRadius: '6px',
+      border: '1px solid #F59E0B',
+      background: 'white',
+      color: '#92400E',
+      fontSize: '11px',
+      fontWeight: 700,
+      cursor: 'pointer',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, reviewQueueIdx < reviewQueue.length - 1 ? 'Next →' : 'Done ✓')), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       alignItems: 'center',
@@ -506,6 +892,90 @@ const AnomalyScreen = ({
     }
   }))))), /*#__PURE__*/React.createElement("div", {
     style: {
+      marginBottom: '20px',
+      background: '#FFF8F5',
+      borderRadius: '12px',
+      padding: '14px 16px',
+      border: '1px solid #FFEDD5'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      fontWeight: 700,
+      color: '#9A3412',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginBottom: '12px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px'
+    }
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDCDC"), " Vendor Risk History (Past Rejections)"), vendorHistoryLoading ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Loading history...") : vendorHistory.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#10B981',
+      fontWeight: 600,
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "\u2713 No past rejected invoices for this vendor.") : /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px'
+    }
+  }, vendorHistory.slice(0, 3).map((h, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      background: 'white',
+      padding: '10px',
+      borderRadius: '8px',
+      border: '1px solid #FFEDD5',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      fontWeight: 700,
+      color: '#0F172A',
+      fontFamily: "'JetBrains Mono', monospace"
+    }
+  }, h.invoice_number || h.ref_no || h.id.slice(0, 8)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#64748B',
+      marginTop: '2px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+      maxWidth: 200
+    }
+  }, h.rejection_reason || 'Rejected by Compliance')), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      fontWeight: 700,
+      color: '#EF4444',
+      fontFamily: "'Bricolage Grotesque', sans-serif"
+    }
+  }, "\u20B9", parseFloat(h.total_amount || 0).toLocaleString('en-IN')))), vendorHistory.length > 3 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#E8783B',
+      textAlign: 'center',
+      marginTop: '4px',
+      cursor: 'pointer',
+      fontWeight: 600,
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "+ ", vendorHistory.length - 3, " more rejections"))), /*#__PURE__*/React.createElement("div", {
+    style: {
       display: 'flex',
       gap: '8px'
     }
@@ -520,8 +990,23 @@ const AnomalyScreen = ({
     style: {
       flex: 1
     },
-    onClick: () => handleMarkSafe(activePanel.rawId)
+    onClick: () => openMarkSafeModal(activePanel)
   }, "Mark as Safe")), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setFeedbackTarget(activePanel),
+    style: {
+      width: '100%',
+      marginTop: '10px',
+      padding: '10px',
+      background: '#F0FDF4',
+      border: '1px solid #BBF7D0',
+      borderRadius: '10px',
+      cursor: 'pointer',
+      fontSize: '13px',
+      color: '#15803D',
+      fontWeight: 600,
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "\u21A9 This is a false positive \u2014 give feedback"), /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       setActivePanel(null);
       if (onNavigate) onNavigate('ai-hub');
@@ -546,7 +1031,13 @@ const AnomalyScreen = ({
       fontWeight: 600,
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "\u2726 Explain this anomaly in Copilot"))));
+  }, "\u2726 Explain this anomaly in Copilot"))), feedbackTarget && /*#__PURE__*/React.createElement(FeedbackModal, {
+    taskType: "ANOMALY",
+    expenseId: feedbackTarget.rawId,
+    vendorName: feedbackTarget._raw?.vendor_name || '',
+    anomalyFlags: feedbackTarget._raw?.ocr_raw?.anomaly_flags || [],
+    onClose: () => setFeedbackTarget(null)
+  }));
 };
 Object.assign(window, {
   AnomalyScreen

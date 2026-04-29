@@ -60,6 +60,20 @@ class FileUploadView(APIView):
         with open(full_path, "wb+") as dest:
             for chunk in file_obj.chunks():
                 dest.write(chunk)
+                
+        # Validate MIME type with python-magic
+        try:
+            import magic
+            actual_mime = magic.from_file(full_path, mime=True)
+            if actual_mime not in allowed_types:
+                os.remove(full_path)
+                return Response(
+                    {"error": f"File content type '{actual_mime}' not allowed. Allowed: {', '.join(allowed_types)}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        except ImportError:
+            # Fallback if magic is not installed
+            pass
 
         # Create FileRef record
         file_ref = FileRef.objects.create(

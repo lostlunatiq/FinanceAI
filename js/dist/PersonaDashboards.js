@@ -55,6 +55,14 @@ const APClerkDashboard = ({
     setNotes('');
   };
   const pending = items.filter(i => i.status === 'PENDING_L1');
+  const processedCount = items.filter(i => ['APPROVED', 'REJECTED'].includes(i.status)).length;
+  const avgAgeDays = pending.length ? (pending.reduce((sum, item) => sum + (parseInt(item.age, 10) || 0), 0) / pending.length).toFixed(1) + 'd' : '0d';
+  const queueValue = pending.reduce((sum, item) => {
+    const raw = Number(String(item.amount).replace(/[^\d.]/g, '')) || 0;
+    return sum + raw;
+  }, 0);
+  const highPriority = pending.filter(i => i.priority === 'high');
+  const insightText = highPriority.length > 0 ? `${highPriority.length} invoice(s) carry HIGH anomaly priority. Review ${highPriority[0].refNo || highPriority[0].id} first.` : pending.length > 0 ? `${pending.length} invoice(s) are waiting in your queue. Oldest pending item is ${pending[0].age}.` : 'Queue is clear. No pending AP clerk actions right now.';
   const priorityColor = {
     high: '#EF4444',
     medium: '#F59E0B',
@@ -115,19 +123,19 @@ const APClerkDashboard = ({
     deltaType: 'neutral',
     pulse: true
   }, {
-    label: 'Processed This Week',
-    value: '12',
+    label: 'Processed Visible Queue',
+    value: String(processedCount),
     color: '#10B981',
-    delta: '↑ 4 vs last',
+    delta: 'Approved or rejected',
     deltaType: 'positive'
   }, {
-    label: 'Avg. Processing Time',
-    value: '1.4d',
-    delta: 'Within SLA',
-    deltaType: 'positive'
+    label: 'Avg. Pending Age',
+    value: avgAgeDays,
+    delta: pending.length ? 'Based on current queue' : 'No pending invoices',
+    deltaType: pending.length ? 'neutral' : 'positive'
   }, {
     label: 'Total Value in Queue',
-    value: '₹4.75L',
+    value: queueValue >= 100000 ? '₹' + (queueValue / 100000).toFixed(2) + 'L' : '₹' + queueValue.toLocaleString('en-IN'),
     delta: 'Pending L1',
     deltaType: 'neutral'
   }].map((c, i) => /*#__PURE__*/React.createElement(KPICard, _extends({
@@ -327,16 +335,7 @@ const APClerkDashboard = ({
       fontFamily: "'Plus Jakarta Sans', sans-serif",
       lineHeight: 1.5
     }
-  }, "I've analyzed the current queue. ", /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: '#E8783B',
-      fontWeight: 600
-    }
-  }, "2 invoices"), " show high variance from historical patterns. I recommend reviewing ", /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: 'white'
-    }
-  }, "TS-INV-056"), " first as it's nearing MSME SLA limit.")), /*#__PURE__*/React.createElement(Card, {
+  }, insightText)), /*#__PURE__*/React.createElement(Card, {
     style: {
       padding: '20px'
     }
@@ -489,14 +488,21 @@ const FinanceManagerDashboard = ({
   const [queueItems, setQueueItems] = React.useState([]);
   const [statsData, setStatsData] = React.useState(null);
   const [queueLoading, setQueueLoading] = React.useState(true);
+  const [budgetHealth, setBudgetHealth] = React.useState([]);
+  const [teamExpenses, setTeamExpenses] = React.useState([]);
   React.useEffect(() => {
     const {
       BillsAPI,
-      DashboardAPI
+      DashboardAPI,
+      AnalyticsAPI
     } = window.TijoriAPI;
-    Promise.allSettled([BillsAPI.queue(), DashboardAPI.stats()]).then(([qRes, sRes]) => {
+    Promise.allSettled([BillsAPI.queue(), DashboardAPI.stats(), AnalyticsAPI.budgetHealth(), BillsAPI.listExpenses({
+      limit: 3
+    })]).then(([qRes, sRes, bRes, eRes]) => {
       if (qRes.status === 'fulfilled') setQueueItems(qRes.value || []);
       if (sRes.status === 'fulfilled') setStatsData(sRes.value);
+      if (bRes.status === 'fulfilled') setBudgetHealth(bRes.value.budgets || []);
+      if (eRes.status === 'fulfilled') setTeamExpenses(Array.isArray(eRes.value) ? eRes.value.slice(0, 3) : (eRes.value.results || []).slice(0, 3));
     }).finally(() => setQueueLoading(false));
   }, []);
   const fmtAmt = v => {
@@ -527,28 +533,14 @@ const FinanceManagerDashboard = ({
     amount: fmtAmt(totalValue * 0.15),
     color: '#8B5CF6'
   }];
-  const teamBudgets = [{
-    name: 'Engineering',
-    manager: 'Dev Kapoor',
-    util: 100,
-    spent: '$2.4M',
-    total: '$2.4M',
-    color: '#EF4444'
-  }, {
-    name: 'Marketing',
-    manager: 'Sunita Rao',
-    util: 85,
-    spent: '$1.1M',
-    total: '$1.3M',
-    color: '#F59E0B'
-  }, {
-    name: 'Operations',
-    manager: 'Rahul Desai',
-    util: 43,
-    spent: '$0.65M',
-    total: '$1.5M',
-    color: '#10B981'
-  }];
+  const teamBudgets = budgetHealth.length > 0 ? budgetHealth.map(b => ({
+    name: b.name,
+    manager: b.department || 'General',
+    util: Math.min(100, Math.round(b.utilization_pct || 0)),
+    spent: fmtAmt(b.spent_amount),
+    total: fmtAmt(b.total_amount),
+    color: b.alert_level === 'CRITICAL' ? '#EF4444' : b.alert_level === 'WARNING' ? '#F59E0B' : '#10B981'
+  })) : [];
   return /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '32px'
@@ -607,8 +599,8 @@ const FinanceManagerDashboard = ({
       color: '#10B981'
     }, {
       label: 'Budget Alerts',
-      value: '1',
-      delta: 'Engineering 100%',
+      value: String(budgetHealth.filter(b => b.alert_level === 'CRITICAL').length),
+      delta: 'Require attention',
       deltaType: 'negative',
       pulse: true
     }]
@@ -703,7 +695,7 @@ const FinanceManagerDashboard = ({
       borderRadius: 4,
       transition: 'width 600ms ease'
     }
-  })))), /*#__PURE__*/React.createElement("div", {
+  })))), queueItems.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: '16px',
       padding: '14px',
@@ -725,7 +717,7 @@ const FinanceManagerDashboard = ({
       color: '#78350F',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "INV-2024-091 (NovaBridge \xB7 \u20B98,40,000) is pending your Finance Manager approval."), /*#__PURE__*/React.createElement("div", {
+  }, queueItems[0].ref_no || queueItems[0].id, " (", queueItems[0].vendor_name || queueItems[0].vendor?.name || 'Vendor', " \xB7 ", fmtAmt(queueItems[0].total_amount), ") is pending your approval."), /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: '10px'
     }
@@ -733,9 +725,7 @@ const FinanceManagerDashboard = ({
     variant: "primary",
     small: true,
     onClick: () => onNavigate && onNavigate('ap-match', {
-      invoice: {
-        id: 'INV-2024-091'
-      }
+      invoice: queueItems[0]
     })
   }, "Review Now \u2192")))), /*#__PURE__*/React.createElement(Card, {
     style: {
@@ -749,7 +739,12 @@ const FinanceManagerDashboard = ({
       color: '#0F172A',
       marginBottom: '18px'
     }
-  }, "Team Budget Health"), teamBudgets.map((t, i) => /*#__PURE__*/React.createElement("div", {
+  }, "Team Budget Health"), teamBudgets.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '13px',
+      color: '#94A3B8'
+    }
+  }, "No budgets active") : teamBudgets.map((t, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
     style: {
       marginBottom: '16px',
@@ -847,31 +842,19 @@ const FinanceManagerDashboard = ({
     }
   }, "Team Expense Submissions"), /*#__PURE__*/React.createElement(Btn, {
     variant: "secondary",
-    small: true
+    small: true,
+    onClick: () => onNavigate && onNavigate('ap-hub')
   }, "View All")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       gap: '12px'
     }
-  }, [{
-    name: 'Aisha Nair',
-    exp: 'EXP-441',
-    amt: '₹4,200',
-    cat: 'Travel',
-    status: 'PENDING_L1'
-  }, {
-    name: 'Rahul Desai',
-    exp: 'EXP-440',
-    amt: '₹12,500',
-    cat: 'Software',
-    status: 'APPROVED'
-  }, {
-    name: 'Dev Kapoor',
-    exp: 'EXP-438',
-    amt: '₹6,400',
-    cat: 'Equipment',
-    status: 'REJECTED'
-  }].map((e, i) => /*#__PURE__*/React.createElement("div", {
+  }, teamExpenses.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '13px',
+      color: '#94A3B8'
+    }
+  }, "No recent team expenses") : teamExpenses.map((e, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
     style: {
       flex: 1,
@@ -900,8 +883,8 @@ const FinanceManagerDashboard = ({
       fontSize: '12px',
       color: 'white'
     }
-  }, e.name[0]), /*#__PURE__*/React.createElement(StatusBadge, {
-    status: e.status
+  }, (e.vendor_name || 'U')[0]), /*#__PURE__*/React.createElement(StatusBadge, {
+    status: e.status || e._status
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       fontWeight: 700,
@@ -909,14 +892,14 @@ const FinanceManagerDashboard = ({
       color: '#0F172A',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, e.name), /*#__PURE__*/React.createElement("div", {
+  }, e.vendor_name || e.vendor?.name), /*#__PURE__*/React.createElement("div", {
     style: {
       fontFamily: "'JetBrains Mono', monospace",
       fontSize: '11px',
       color: '#94A3B8',
       marginTop: '2px'
     }
-  }, e.exp), /*#__PURE__*/React.createElement("div", {
+  }, e.ref_no || e.id), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       justifyContent: 'space-between',
@@ -933,7 +916,7 @@ const FinanceManagerDashboard = ({
       fontFamily: "'Plus Jakarta Sans', sans-serif",
       fontWeight: 600
     }
-  }, e.cat), /*#__PURE__*/React.createElement("span", {
+  }, e.business_purpose?.slice(0, 15) || 'General'), /*#__PURE__*/React.createElement("span", {
     style: {
       fontFamily: "'Bricolage Grotesque', sans-serif",
       fontWeight: 800,
@@ -941,7 +924,7 @@ const FinanceManagerDashboard = ({
       color: '#E8783B',
       letterSpacing: '-0.5px'
     }
-  }, e.amt)))))));
+  }, fmtAmt(e.total_amount))))))));
 };
 
 // ─── FINANCE ADMIN DASHBOARD ──────────────────────────────────────────────────
@@ -952,31 +935,81 @@ const FinanceAdminDashboard = ({
   user
 }) => {
   const [initiating, setInitiating] = React.useState(null);
-  const paymentQueue = [{
-    id: 'PAY-2024-041',
-    vendor: 'CloudInfra Services',
-    amount: '₹6,80,000',
-    bank: 'HDFC •• 4521',
-    approved: 'CFO',
-    due: 'Today',
-    urgent: true
-  }, {
-    id: 'PAY-2024-040',
-    vendor: 'Acme Office Supplies',
-    amount: '₹45,200',
-    bank: 'ICICI •• 7890',
-    approved: 'Finance Mgr',
-    due: 'Apr 20',
-    urgent: false
-  }, {
-    id: 'PAY-2024-039',
-    vendor: 'Meridian Logistics',
-    amount: '₹92,300',
-    bank: 'HDFC •• 1234',
-    approved: 'HOD',
-    due: 'Apr 22',
-    urgent: false
-  }];
+  const [payRef, setPayRef] = React.useState('');
+  const [payNotes, setPayNotes] = React.useState('');
+  const [paymentQueue, setPaymentQueue] = React.useState([]);
+  const [statsData, setStatsData] = React.useState(null);
+  const [vendorStats, setVendorStats] = React.useState({
+    total: 0,
+    active: 0,
+    pending: 0,
+    suspended: 0
+  });
+  const [loading, setLoading] = React.useState(true);
+  const [payMsg, setPayMsg] = React.useState(null);
+  const fmtAmt = v => {
+    const n = parseFloat(v || 0);
+    if (n >= 100000) return '₹' + (n / 100000).toFixed(2) + 'L';
+    return '₹' + n.toLocaleString('en-IN');
+  };
+  React.useEffect(() => {
+    const {
+      BillsAPI,
+      DashboardAPI,
+      VendorAPI
+    } = window.TijoriAPI;
+    Promise.allSettled([BillsAPI.listExpenses({
+      status: 'APPROVED',
+      limit: 20
+    }), DashboardAPI.stats(), VendorAPI.listAll()]).then(([qRes, sRes, vRes]) => {
+      if (qRes.status === 'fulfilled') {
+        const bills = qRes.value?.results || qRes.value || [];
+        setPaymentQueue(bills.map(b => ({
+          id: b.invoice_number || b.ref_no || b.id?.slice(0, 12).toUpperCase(),
+          rawId: b.id,
+          vendor: b.vendor_name || b.vendor?.name || '—',
+          amount: fmtAmt(b.total_amount),
+          rawAmount: parseFloat(b.total_amount || 0),
+          bank: b.vendor?.bank_account ? '•• ' + String(b.vendor.bank_account).slice(-4) : '•• ????',
+          approved: b.approved_by || 'Finance',
+          due: b.due_date ? new Date(b.due_date).toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'short'
+          }) : 'ASAP',
+          urgent: b.anomaly_severity === 'HIGH' || b.anomaly_severity === 'CRITICAL'
+        })));
+      }
+      if (sRes.status === 'fulfilled') setStatsData(sRes.value);
+      if (vRes.status === 'fulfilled') {
+        const vendors = vRes.value?.results || vRes.value || [];
+        setVendorStats({
+          total: vendors.length,
+          active: vendors.filter(v => v.status === 'ACTIVE').length,
+          pending: vendors.filter(v => v.status === 'PENDING').length,
+          suspended: vendors.filter(v => v.status === 'SUSPENDED' || v.status === 'BLACKLISTED').length
+        });
+      }
+    }).finally(() => setLoading(false));
+  }, []);
+  const totalPayable = paymentQueue.reduce((s, p) => s + p.rawAmount, 0);
+  const dueTodayCount = paymentQueue.filter(p => p.urgent).length;
+  const handleConfirmPayment = async () => {
+    if (!initiating) return;
+    try {
+      await window.TijoriAPI.BillsAPI.settle(initiating.rawId, payRef);
+      setPaymentQueue(prev => prev.filter(p => p.rawId !== initiating.rawId));
+      setPayMsg({
+        type: 'success',
+        text: `Payment initiated for ${initiating.vendor}`
+      });
+      setInitiating(null);
+      setPayRef('');
+      setPayNotes('');
+      setTimeout(() => setPayMsg(null), 4000);
+    } catch (e) {
+      alert(e.message || 'Payment initiation failed');
+    }
+  };
   return /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '32px'
@@ -1014,32 +1047,44 @@ const FinanceAdminDashboard = ({
     month: 'long',
     day: 'numeric',
     year: 'numeric'
-  }), " \u2014 Initiate payments, manage vendors, oversee system health")), /*#__PURE__*/React.createElement(StatsRow, {
+  }), " \u2014 Initiate payments, manage vendors, oversee system health")), payMsg && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: payMsg.type === 'success' ? '#D1FAE5' : '#FEE2E2',
+      border: `1px solid ${payMsg.type === 'success' ? '#6EE7B7' : '#FCA5A5'}`,
+      borderRadius: '10px',
+      padding: '10px 16px',
+      marginBottom: '16px',
+      fontSize: '13px',
+      fontWeight: 600,
+      color: payMsg.type === 'success' ? '#065F46' : '#991B1B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, payMsg.type === 'success' ? '✓ ' : '✕ ', payMsg.text), /*#__PURE__*/React.createElement(StatsRow, {
     cards: [{
       label: 'Payments Due Today',
-      value: '1',
-      delta: '↑ Urgent',
-      deltaType: 'negative',
-      color: '#EF4444',
-      pulse: true
+      value: loading ? '…' : String(dueTodayCount),
+      delta: dueTodayCount > 0 ? '↑ Urgent' : 'None urgent',
+      deltaType: dueTodayCount > 0 ? 'negative' : 'positive',
+      color: dueTodayCount > 0 ? '#EF4444' : '#10B981',
+      pulse: dueTodayCount > 0
     }, {
-      label: 'Total Payable This Week',
-      value: '₹8.17L',
-      delta: '3 approved',
+      label: 'Total Payable',
+      value: loading ? '…' : fmtAmt(totalPayable),
+      delta: `${paymentQueue.length} approved`,
       deltaType: 'neutral'
     }, {
       label: 'Vendors Pending Approval',
-      value: '1',
-      delta: 'Sigma Elec.',
-      deltaType: 'neutral',
+      value: loading ? '…' : String(vendorStats.pending),
+      delta: vendorStats.pending > 0 ? 'Needs review' : 'All cleared',
+      deltaType: vendorStats.pending > 0 ? 'neutral' : 'positive',
       color: '#F59E0B'
     }, {
       label: 'System Anomalies',
-      value: '3',
-      delta: 'High priority',
-      deltaType: 'negative',
-      color: '#EF4444',
-      pulse: true
+      value: loading ? '…' : String(statsData?.anomaly_count || 0),
+      delta: (statsData?.anomaly_count || 0) > 0 ? 'High priority' : 'All clear',
+      deltaType: (statsData?.anomaly_count || 0) > 0 ? 'negative' : 'positive',
+      color: (statsData?.anomaly_count || 0) > 0 ? '#EF4444' : '#10B981',
+      pulse: (statsData?.anomaly_count || 0) > 0
     }]
   }), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -1075,7 +1120,23 @@ const FinanceAdminDashboard = ({
       fontFamily: "'Plus Jakarta Sans', sans-serif",
       fontWeight: 500
     }
-  }, "All fully approved")), paymentQueue.map((p, i) => /*#__PURE__*/React.createElement("div", {
+  }, "All fully approved")), loading ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '32px',
+      textAlign: 'center',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontSize: '13px'
+    }
+  }, "Loading payment queue\u2026") : paymentQueue.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '32px',
+      textAlign: 'center',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontSize: '13px'
+    }
+  }, "No approved bills pending payment.") : paymentQueue.map((p, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
     style: {
       padding: '16px 22px',
@@ -1138,7 +1199,11 @@ const FinanceAdminDashboard = ({
   }, p.amount), /*#__PURE__*/React.createElement(Btn, {
     variant: "primary",
     small: true,
-    onClick: () => setInitiating(p)
+    onClick: () => {
+      setInitiating(p);
+      setPayRef('');
+      setPayNotes('');
+    }
   }, "Initiate Payment")))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
@@ -1227,7 +1292,7 @@ const FinanceAdminDashboard = ({
       color: '#0F172A',
       letterSpacing: '-2px'
     }
-  }, "6"), /*#__PURE__*/React.createElement("div", {
+  }, loading ? '…' : vendorStats.total), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: '12px',
       color: '#64748B',
@@ -1250,7 +1315,7 @@ const FinanceAdminDashboard = ({
       fontWeight: 700,
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "4 Active"), /*#__PURE__*/React.createElement("span", {
+  }, vendorStats.active, " Active"), vendorStats.pending > 0 && /*#__PURE__*/React.createElement("span", {
     style: {
       background: '#FEF3C7',
       color: '#92400E',
@@ -1260,7 +1325,7 @@ const FinanceAdminDashboard = ({
       fontWeight: 700,
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "1 Pending"), /*#__PURE__*/React.createElement("span", {
+  }, vendorStats.pending, " Pending"), vendorStats.suspended > 0 && /*#__PURE__*/React.createElement("span", {
     style: {
       background: '#FEE2E2',
       color: '#991B1B',
@@ -1270,7 +1335,19 @@ const FinanceAdminDashboard = ({
       fontWeight: 700,
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "1 Suspended"))))), initiating && /*#__PURE__*/React.createElement(TjModal, {
+  }, vendorStats.suspended, " Suspended")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: '12px'
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    small: true,
+    style: {
+      width: '100%',
+      justifyContent: 'center'
+    },
+    onClick: () => onNavigate && onNavigate('vendor-hub')
+  }, "Manage Vendors \u2192"))))), initiating && /*#__PURE__*/React.createElement(TjModal, {
     open: true,
     onClose: () => setInitiating(null),
     title: "Initiate Payment",
@@ -1323,12 +1400,16 @@ const FinanceAdminDashboard = ({
       marginTop: '4px'
     }
   }, "Bank: ", initiating.bank, " \xB7 Approved by ", initiating.approved)), /*#__PURE__*/React.createElement(TjInput, {
-    label: "Payment Reference",
-    placeholder: "PAY-REF-2024-XXX"
+    label: "Payment Reference / UTR *",
+    placeholder: "PAY-REF-2024-XXX or UTR number",
+    value: payRef,
+    onChange: e => setPayRef(e.target.value)
   }), /*#__PURE__*/React.createElement(TjTextarea, {
     label: "Internal Notes",
     placeholder: "Optional payment notes for audit trail\u2026",
-    rows: 2
+    rows: 2,
+    value: payNotes,
+    onChange: e => setPayNotes(e.target.value)
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
@@ -1340,7 +1421,8 @@ const FinanceAdminDashboard = ({
     onClick: () => setInitiating(null)
   }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
     variant: "primary",
-    onClick: () => setInitiating(null)
+    onClick: handleConfirmPayment,
+    disabled: !payRef.trim()
   }, "Confirm Payment"))), /*#__PURE__*/React.createElement(FloatingCopilot, {
     role: role
   }));
@@ -1354,94 +1436,61 @@ const EmployeeDashboard = ({
   user
 }) => {
   const [fileOpen, setFileOpen] = React.useState(false);
-  const [expCategory, setExpCategory] = React.useState('Travel');
+  const [expCategory, setExpCategory] = React.useState('');
   const [expAmount, setExpAmount] = React.useState('');
+  const [expDate, setExpDate] = React.useState('');
+  const [expDesc, setExpDesc] = React.useState('');
   const [uploadDone, setUploadDone] = React.useState(false);
   const [aiAccepted, setAiAccepted] = React.useState(false);
+  const [submitting, setSubmitting] = React.useState(false);
+  const [submitMsg, setSubmitMsg] = React.useState(null);
   const [myExpenses, setMyExpenses] = React.useState([]);
+  const [budgetHealth, setBudgetHealth] = React.useState([]);
   const [expLoading, setExpLoading] = React.useState(true);
   React.useEffect(() => {
-    window.TijoriAPI.BillsAPI.listExpenses({
+    Promise.allSettled([window.TijoriAPI.BillsAPI.listExpenses({
       my: true,
       limit: 10
-    }).then(data => {
-      const items = (data?.results || data || []).slice(0, 10).map(e => {
-        const amt = parseFloat(e.amount || e.total_amount || 0);
-        return {
-          id: e.ref_no || e.id?.slice(0, 12).toUpperCase(),
-          amount: '₹' + amt.toLocaleString('en-IN'),
-          date: e.date ? new Date(e.date).toLocaleDateString('en-IN', {
-            day: 'numeric',
-            month: 'short'
-          }) : '—',
-          category: e.category || e.expense_type || 'Other',
-          status: e.status || 'PENDING_L1',
-          aiCat: !!e.ai_category,
-          conf: e.ai_confidence ? Math.round(e.ai_confidence * 100) : null,
-          rawAmt: amt
-        };
-      });
-      setMyExpenses(items);
-    }).catch(() => {
-      // fallback demo data
-      setMyExpenses([{
-        id: 'EXP-2024-441',
-        amount: '₹4,200',
-        date: '19 Apr',
-        category: 'Travel',
-        status: 'PENDING_L1',
-        aiCat: true,
-        conf: 91,
-        rawAmt: 4200
-      }, {
-        id: 'EXP-2024-428',
-        amount: '₹2,800',
-        date: '12 Apr',
-        category: 'Office Supplies',
-        status: 'APPROVED',
-        aiCat: false,
-        conf: null,
-        rawAmt: 2800
-      }, {
-        id: 'EXP-2024-415',
-        amount: '₹6,500',
-        date: '5 Apr',
-        category: 'Travel',
-        status: 'PAID',
-        aiCat: false,
-        conf: null,
-        rawAmt: 6500
-      }, {
-        id: 'EXP-2024-402',
-        amount: '₹1,200',
-        date: '28 Mar',
-        category: 'Meals',
-        status: 'PAID',
-        aiCat: false,
-        conf: null,
-        rawAmt: 1200
-      }]);
-    }).finally(() => setExpLoading(false));
+    }), window.TijoriAPI.AnalyticsAPI.budgetHealth()]).then(([expRes, bRes]) => {
+      if (expRes.status === 'fulfilled') {
+        const data = expRes.value;
+        const items = (data?.results || data || []).slice(0, 10).map(e => {
+          const amt = parseFloat(e.amount || e.total_amount || 0);
+          return {
+            id: e.ref_no || e.id?.slice(0, 12).toUpperCase(),
+            amount: '₹' + amt.toLocaleString('en-IN'),
+            date: e.submitted_at || e.created_at || e.date || e.invoice_date ? new Date(e.submitted_at || e.created_at || e.date || e.invoice_date).toLocaleDateString('en-IN', {
+              day: 'numeric',
+              month: 'short'
+            }) : '—',
+            category: e.expense_category || e.category || e.business_purpose || e.expense_type || 'Other',
+            status: e.status || e._status || 'PENDING_L1',
+            aiCat: false,
+            conf: null,
+            rawAmt: amt
+          };
+        });
+        setMyExpenses(items);
+      }
+      if (bRes.status === 'fulfilled') {
+        setBudgetHealth(bRes.value.budgets || []);
+        if (bRes.value.budgets?.length > 0) setExpCategory(bRes.value.budgets[0].name);
+      }
+    }).catch(() => {}).finally(() => setExpLoading(false));
   }, []);
   const pendingAmt = myExpenses.filter(e => ['PENDING_L1', 'PENDING_L2', 'PENDING_HOD', 'PENDING_FIN_L1', 'PENDING_FIN_L2', 'SUBMITTED'].includes(e.status)).reduce((s, e) => s + e.rawAmt, 0);
   const approvedAmt = myExpenses.filter(e => e.status === 'APPROVED').reduce((s, e) => s + e.rawAmt, 0);
   const paidAmt = myExpenses.filter(e => ['PAID', 'POSTED_D365', 'BOOKED_D365'].includes(e.status)).reduce((s, e) => s + e.rawAmt, 0);
-  const EXP_CATS = ['Travel', 'Software & Licences', 'Office Supplies', 'Marketing & Events', 'Professional Services', 'Meals', 'Other'];
-  const budgetMap = {
-    'Travel': {
-      rem: 180000,
-      total: 300000
-    },
-    'Software & Licences': {
-      rem: 420000,
-      total: 600000
-    },
-    'Office Supplies': {
-      rem: 85000,
-      total: 100000
-    }
-  };
-  const budgetInfo = budgetMap[expCategory];
+  const budgetHealthMap = budgetHealth.reduce((acc, b) => {
+    acc[b.name] = {
+      rem: b.remaining_amount,
+      total: b.total_amount
+    };
+    return acc;
+  }, {});
+  const EXP_CATS = budgetHealth.length > 0 ? budgetHealth.map(b => b.name) : ['General Operations', 'Travel', 'Software & Licences', 'Office Supplies', 'Marketing & Events', 'Professional Services'];
+  if (!expCategory && EXP_CATS.length > 0) setExpCategory(EXP_CATS[0]);
+  const budgetInfo = budgetHealthMap[expCategory] || null;
   const budgetPct = budgetInfo ? Math.round(budgetInfo.rem / budgetInfo.total * 100) : null;
   const budgetColor = budgetPct === null ? '#94A3B8' : budgetPct > 50 ? '#10B981' : budgetPct > 20 ? '#F59E0B' : '#EF4444';
   return /*#__PURE__*/React.createElement("div", {
@@ -1526,10 +1575,10 @@ const EmployeeDashboard = ({
     deltaType: 'positive',
     color: '#10B981'
   }, {
-    label: 'Avg. Processing Time',
-    value: '1.8d',
-    delta: 'From submit',
-    deltaType: 'positive'
+    label: 'Open Claims',
+    value: String(myExpenses.filter(e => !['PAID', 'REJECTED'].includes(e.status)).length),
+    delta: 'Live from your submissions',
+    deltaType: 'neutral'
   }].map((c, i) => /*#__PURE__*/React.createElement(KPICard, _extends({
     key: i
   }, c)))), /*#__PURE__*/React.createElement("div", {
@@ -1666,6 +1715,77 @@ const EmployeeDashboard = ({
       color: '#0F172A',
       marginBottom: '14px'
     }
+  }, "My Department Budget"), budgetHealth.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "No budget data available.") : /*#__PURE__*/React.createElement("div", null, budgetHealth.slice(0, 1).map((b, i) => {
+    const util = Math.min(100, Math.round(b.utilization_pct || 0));
+    const spentAmt = parseFloat(b.spent_amount || 0);
+    const totalAmt = parseFloat(b.total_amount || 0);
+    const bColor = b.alert_level === 'CRITICAL' ? '#EF4444' : b.alert_level === 'WARNING' ? '#F59E0B' : '#10B981';
+    return /*#__PURE__*/React.createElement("div", {
+      key: i
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '6px'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: '13px',
+        fontWeight: 600,
+        color: '#0F172A',
+        fontFamily: "'Plus Jakarta Sans', sans-serif"
+      }
+    }, b.name), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: '12px',
+        fontWeight: 700,
+        color: bColor,
+        fontFamily: "'Plus Jakarta Sans', sans-serif"
+      }
+    }, util, "% Used")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        height: 10,
+        background: '#F1F5F9',
+        borderRadius: 5,
+        overflow: 'hidden',
+        marginBottom: '8px'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        height: '100%',
+        width: `${util}%`,
+        background: bColor,
+        borderRadius: 5,
+        transition: 'width 600ms ease'
+      }
+    })), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        fontSize: '11px',
+        color: '#64748B',
+        fontFamily: "'Plus Jakarta Sans', sans-serif"
+      }
+    }, /*#__PURE__*/React.createElement("span", null, "\u20B9", spentAmt.toLocaleString('en-IN'), " spent"), /*#__PURE__*/React.createElement("span", null, "\u20B9", totalAmt.toLocaleString('en-IN'), " limit")));
+  }))), /*#__PURE__*/React.createElement(Card, {
+    style: {
+      padding: '20px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '16px',
+      color: '#0F172A',
+      marginBottom: '14px'
+    }
   }, "Expense Policy"), [{
     rule: 'Meals',
     limit: '₹500 / day',
@@ -1772,7 +1892,7 @@ const EmployeeDashboard = ({
   }, "+ File New Expense"))))), /*#__PURE__*/React.createElement(SidePanel, {
     open: fileOpen,
     onClose: () => setFileOpen(false),
-    title: "File Expense / Bill"
+    title: "File Internal Expense"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       border: `1.5px dashed ${uploadDone ? '#10B981' : '#E2E8F0'}`,
@@ -1925,19 +2045,92 @@ const EmployeeDashboard = ({
     onChange: e => setExpAmount(e.target.value)
   }), /*#__PURE__*/React.createElement(TjInput, {
     label: "Date",
-    type: "date"
+    type: "date",
+    value: expDate,
+    onChange: e => setExpDate(e.target.value)
   }), /*#__PURE__*/React.createElement(TjTextarea, {
     label: "Description",
     placeholder: "What was this expense for?",
-    rows: 3
-  }), /*#__PURE__*/React.createElement(Btn, {
+    rows: 3,
+    value: expDesc,
+    onChange: e => setExpDesc(e.target.value)
+  }), submitMsg && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: submitMsg.type === 'success' ? '#D1FAE5' : '#FEE2E2',
+      border: `1px solid ${submitMsg.type === 'success' ? '#6EE7B7' : '#FCA5A5'}`,
+      borderRadius: '8px',
+      padding: '10px 14px',
+      marginBottom: '8px',
+      fontSize: '12px',
+      fontWeight: 600,
+      color: submitMsg.type === 'success' ? '#065F46' : '#991B1B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, submitMsg.text), /*#__PURE__*/React.createElement(Btn, {
     variant: "primary",
     style: {
       width: '100%',
       justifyContent: 'center'
     },
-    onClick: () => setFileOpen(false)
-  }, "Submit for Approval")), /*#__PURE__*/React.createElement(FloatingCopilot, {
+    disabled: submitting || !expAmount,
+    onClick: async () => {
+      if (!expAmount) {
+        alert('Please enter an amount');
+        return;
+      }
+      setSubmitting(true);
+      try {
+        await window.TijoriAPI.BillsAPI.submitExpense({
+          expense_category: expCategory,
+          amount: parseFloat(expAmount),
+          invoice_date: expDate || new Date().toISOString().slice(0, 10),
+          description: expDesc || expCategory + ' expense'
+        });
+        setSubmitMsg({
+          type: 'success',
+          text: 'Expense submitted for approval!'
+        });
+        setExpAmount('');
+        setExpDate('');
+        setExpDesc('');
+        setUploadDone(false);
+        setAiAccepted(false);
+        // refresh list
+        window.TijoriAPI.BillsAPI.listExpenses({
+          my: true,
+          limit: 10
+        }).then(data => {
+          const items = (data?.results || data || []).slice(0, 10).map(e => {
+            const amt = parseFloat(e.amount || e.total_amount || 0);
+            return {
+              id: e.ref_no || e.id?.slice(0, 12).toUpperCase(),
+              amount: '₹' + amt.toLocaleString('en-IN'),
+              date: e.submitted_at || e.created_at || e.date || e.invoice_date ? new Date(e.submitted_at || e.created_at || e.date || e.invoice_date).toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'short'
+              }) : '—',
+              category: e.expense_category || e.category || e.expense_type || 'Other',
+              status: e.status || 'PENDING_L1',
+              aiCat: false,
+              conf: null,
+              rawAmt: amt
+            };
+          });
+          setMyExpenses(items);
+        }).catch(() => {});
+        setTimeout(() => {
+          setFileOpen(false);
+          setSubmitMsg(null);
+        }, 2000);
+      } catch (e) {
+        setSubmitMsg({
+          type: 'error',
+          text: e.message || 'Submission failed'
+        });
+      }
+      setSubmitting(false);
+    }
+  }, submitting ? 'Submitting…' : 'Submit for Approval')), /*#__PURE__*/React.createElement(FloatingCopilot, {
     role: role
   }));
 };

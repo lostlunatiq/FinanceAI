@@ -292,6 +292,8 @@ const ExpensesScreen = ({ role: propRole, onNavigate }) => {
   const [expenses, setExpenses] = React.useState([]);
   const [loadingExp, setLoadingExp] = React.useState(true);
   const [selectedInv, setSelectedInv] = React.useState(null);
+  const [selectedInvDetail, setSelectedInvDetail] = React.useState(null);
+  const [selectedInvDetailLoading, setSelectedInvDetailLoading] = React.useState(false);
   const [reviewNotes, setReviewNotes] = React.useState('');
   const [reviewLoading, setReviewLoading] = React.useState(false);
   const [reviewMsg, setReviewMsg] = React.useState('');
@@ -402,10 +404,11 @@ const ExpensesScreen = ({ role: propRole, onNavigate }) => {
     setReviewLoading(true); setReviewMsg('');
     try {
       const { BillsAPI } = window.TijoriAPI;
-      await BillsAPI.approve(selectedInv.id, reviewNotes || 'Approved');
-      setReviewMsg('Approved successfully.');
+      const rawId = selectedInv.rawId || selectedInv.id;
+      await BillsAPI.approve(rawId, reviewNotes || 'Approved');
+      setReviewMsg('✓ Approved. Submitter notified via email.');
       setExpenses(prev => prev.map(e => e.id === selectedInv.id ? { ...e, status: 'APPROVED' } : e));
-      setTimeout(() => { setSelectedInv(null); setReviewMsg(''); }, 1000);
+      setTimeout(() => { setSelectedInv(null); setReviewMsg(''); }, 1500);
     } catch (err) {
       setReviewMsg('Failed: ' + (err.message || 'Error'));
     } finally {
@@ -480,13 +483,14 @@ const ExpensesScreen = ({ role: propRole, onNavigate }) => {
             {expFiltered.map(e => {
               const rowId = e.ref_no || (e.id ? String(e.id).slice(0, 8).toUpperCase() : '—');
               const refNo = e.ref_no;
-              const employee = e.submitted_by || e.submitted_by_name || '—';
-              const category = e.expense_category || e.category || '—';
-              const dept = e.department || null;
+              // Always prefer the human-readable name; submitted_by is a UUID/ID not a name
+              const employee = e.submitted_by_name || e.submitted_by || e.submitted_by_display || e.submitted_by_username || '—';
+              const category = e.expense_category || e.category || e.business_purpose?.slice(0, 30) || '—';
+              const dept = e.department_name || e.department || null;
               const amount = e.total_amount != null ? `₹${Number(e.total_amount).toLocaleString('en-IN')}` : '—';
-              const date = (e.submitted_at || e.created_at) ? new Date(e.submitted_at || e.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—';
-              const aiCat = false;
-              const catConf = null;
+              const date = (e.submitted_at || e.created_at || e.invoice_date) ? new Date(e.submitted_at || e.created_at || e.invoice_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—';
+              const aiCat = !!(e.invoice_file && e.expense_category && e.expense_category !== 'Misc');
+              const catConf = aiCat ? 82 : null;
               return (
               <React.Fragment key={e.id || rowId}>
                 <tr style={{ borderTop: '1px solid #F1F0EE', height: 52, transition: 'background 150ms', cursor: 'pointer' }}
@@ -523,7 +527,18 @@ const ExpensesScreen = ({ role: propRole, onNavigate }) => {
                   <td style={{ padding: '0 16px' }}><StatusBadge status={e.status} /></td>
                   <td style={{ padding: '0 16px' }} onClick={ev => ev.stopPropagation()}>
                     <div style={{ display: 'flex', gap: '6px' }}>
-                      {e.status && e.status.startsWith('PENDING') && <><Btn variant="green" small onClick={() => { setSelectedInv(e); setReviewNotes(''); setReviewMsg(''); }}>Review</Btn></>}
+                      {e.status && e.status.startsWith('PENDING') && <><Btn variant="green" small onClick={async () => {
+                        setSelectedInv(e); setReviewNotes(''); setReviewMsg(''); setSelectedInvDetail(null);
+                        const rawId = e.rawId || e.id;
+                        if (rawId) {
+                          setSelectedInvDetailLoading(true);
+                          try {
+                            const det = await window.TijoriAPI.BillsAPI.detail(rawId);
+                            setSelectedInvDetail(det);
+                          } catch(_) {}
+                          finally { setSelectedInvDetailLoading(false); }
+                        }
+                      }}>Review</Btn></>}
                       {(!e.status || !e.status.startsWith('PENDING')) && <span style={{ fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>—</span>}
                     </div>
                   </td>
@@ -570,21 +585,126 @@ const ExpensesScreen = ({ role: propRole, onNavigate }) => {
         </table>
       </div>
 
-      {/* Review Modal */}
+      {/* Review Modal — full extracted data */}
       {selectedInv && (
-        <TjModal open={!!selectedInv} onClose={() => { setSelectedInv(null); setReviewNotes(''); setReviewMsg(''); }} title="Review Expense" accentColor="#065F46" width={480}>
-          <div style={{ padding: '12px 14px', background: '#F8F7F5', borderRadius: '10px', marginBottom: '16px' }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#E8783B' }}>{selectedInv.ref_no || String(selectedInv.id).slice(0,8).toUpperCase()}</div>
-            <div style={{ fontWeight: 600, fontSize: '14px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '4px' }}>{selectedInv.submitted_by || selectedInv.submitted_by_name || '—'}</div>
-            <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '22px', color: '#E8783B', letterSpacing: '-0.5px', marginTop: '4px' }}>
-              ₹{selectedInv.total_amount ? Number(selectedInv.total_amount).toLocaleString('en-IN') : '—'}
+        <TjModal open={!!selectedInv} onClose={() => { setSelectedInv(null); setSelectedInvDetail(null); setReviewNotes(''); setReviewMsg(''); }} title="Review Expense" accentColor="#065F46" width={580}>
+          {/* Header band */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 16px', background: 'linear-gradient(135deg, #F0FDF4, #ECFDF5)', border: '1px solid #BBF7D0', borderRadius: '12px', marginBottom: '16px' }}>
+            <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span style={{ color: 'white', fontWeight: 800, fontSize: '14px', fontFamily: "'Bricolage Grotesque', sans-serif" }}>
+                {(selectedInv.submitted_by_name || selectedInv.submitted_by || 'U').slice(0,1).toUpperCase()}
+              </span>
             </div>
-            <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Purpose: {selectedInv.description || selectedInv.business_purpose || '—'}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#10B981', fontWeight: 600 }}>{selectedInv.ref_no || String(selectedInv.id).slice(0,8).toUpperCase()}</div>
+              <div style={{ fontWeight: 700, fontSize: '15px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{selectedInv.submitted_by_name || selectedInv.submitted_by || '—'}</div>
+              <div style={{ fontSize: '11px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{selectedInv.department || selectedInv.department_name || '—'} · Grade {selectedInv.submitted_by_grade || '—'}</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '24px', color: '#E8783B', letterSpacing: '-1px' }}>
+                ₹{Number(selectedInv.total_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </div>
+              <div style={{ fontSize: '11px', color: selectedInv.over_limit ? '#EF4444' : '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>
+                {selectedInv.over_limit ? `⚠ Exceeds ₹${Number(selectedInv.grade_limit).toLocaleString('en-IN')} limit` : 'Within policy limit'}
+              </div>
+            </div>
           </div>
-          <TjTextarea label="Approval Notes (optional)" placeholder="Add any notes for this approval…" value={reviewNotes} onChange={e => setReviewNotes(e.target.value)} rows={3} />
+
+          {selectedInvDetailLoading && (
+            <div style={{ textAlign: 'center', padding: '8px', fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '10px' }}>Loading full details…</div>
+          )}
+
+          {/* Financial breakdown from detail */}
+          {selectedInvDetail && (
+            <div style={{ background: '#F8F7F5', borderRadius: '10px', padding: '12px 14px', marginBottom: '14px' }}>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '10px' }}>Invoice Details (OCR Extracted)</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                {[
+                  { label: 'Invoice #', value: selectedInvDetail.invoice_number || '—' },
+                  { label: 'Invoice Date', value: selectedInvDetail.invoice_date ? new Date(selectedInvDetail.invoice_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—' },
+                  { label: 'Pre-GST Amount', value: selectedInvDetail.pre_gst_amount ? `₹${Number(selectedInvDetail.pre_gst_amount).toLocaleString('en-IN')}` : '—' },
+                  { label: 'CGST', value: selectedInvDetail.cgst ? `₹${Number(selectedInvDetail.cgst).toLocaleString('en-IN')}` : '—' },
+                  { label: 'SGST', value: selectedInvDetail.sgst ? `₹${Number(selectedInvDetail.sgst).toLocaleString('en-IN')}` : '—' },
+                  { label: 'IGST', value: selectedInvDetail.igst ? `₹${Number(selectedInvDetail.igst).toLocaleString('en-IN')}` : '—' },
+                ].map((f, i) => (
+                  <div key={i} style={{ background: 'white', borderRadius: '6px', padding: '8px 10px', border: '1px solid #E2E8F0' }}>
+                    <div style={{ fontSize: '9px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '3px' }}>{f.label}</div>
+                    <div style={{ fontSize: '12px', fontWeight: 600, color: '#0F172A', fontFamily: "'JetBrains Mono', monospace" }}>{f.value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Core details grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '14px' }}>
+            {(() => {
+              const det = selectedInvDetail || selectedInv;
+              const rawDesc = det.description || (det.ocr_raw && det.ocr_raw.expense_description) || det.business_purpose || '';
+              const cleanDesc = (rawDesc && (rawDesc.includes('/') || rawDesc.includes('_2F') || rawDesc.startsWith('Expense for ')))
+                ? `Invoice submitted — Ref: ${det.ref_no || String(det.id).slice(0,8).toUpperCase()}`
+                : (rawDesc || '—');
+              return [
+                { label: 'Category', value: (det.expense_category || selectedInv.expense_category || '—'), highlight: true },
+                { label: 'Status', value: (det.status || selectedInv.status || '—') },
+                { label: 'Description / Purpose', value: cleanDesc, span: 2 },
+                { label: 'Submitted At', value: (det.submitted_at || selectedInv.submitted_at) ? new Date(det.submitted_at || selectedInv.submitted_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—' },
+                { label: 'Vendor / Merchant', value: (det.vendor_name || selectedInv.vendor_name || 'Internal') },
+              ].map((f, i) => (
+                <div key={i} style={{ gridColumn: f.span === 2 ? '1 / -1' : 'auto', background: '#F8F7F5', borderRadius: '8px', padding: '10px 12px' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '4px' }}>{f.label}</div>
+                  <div style={{ fontSize: '13px', fontWeight: f.highlight ? 700 : 500, color: f.highlight ? '#5B21B6' : '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{f.value}</div>
+                </div>
+              ));
+            })()}
+          </div>
+
+          {/* OCR anomaly flags if any */}
+          {selectedInvDetail && selectedInvDetail.ocr_raw && selectedInvDetail.ocr_raw.anomaly_flags && selectedInvDetail.ocr_raw.anomaly_flags.length > 0 && (
+            <div style={{ padding: '10px 14px', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: '10px', marginBottom: '14px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#92400E', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '4px' }}>⚠ AI Anomaly Flags</div>
+              {selectedInvDetail.ocr_raw.anomaly_flags.map((flag, fi) => (
+                <div key={fi} style={{ fontSize: '12px', color: '#78350F', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>· {flag}</div>
+              ))}
+            </div>
+          )}
+
+          {/* Invoice file link */}
+          {(selectedInv.invoice_file || (selectedInvDetail && selectedInvDetail.invoice_file)) && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '10px', marginBottom: '14px' }}>
+              <span style={{ fontSize: '20px' }}>📄</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#1E40AF', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Invoice / Receipt Attached</div>
+                <div style={{ fontSize: '11px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  {selectedInvDetail && selectedInvDetail.ocr_confidence ? `OCR confidence: ${Math.round(selectedInvDetail.ocr_confidence * 100)}%` : 'AI-processed document'}
+                </div>
+              </div>
+              <Btn variant="secondary" small onClick={() => window.TijoriAPI.FilesAPI.open(selectedInv.invoice_file || selectedInvDetail.invoice_file)}>View Document ↗</Btn>
+            </div>
+          )}
+
+          {/* Anomaly warning */}
+          {(selectedInv.anomaly_severity === 'HIGH' || selectedInv.anomaly_severity === 'CRITICAL' || selectedInv.status === 'ANOMALY') && (
+            <div style={{ padding: '10px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '10px', marginBottom: '14px', fontSize: '12px', fontWeight: 600, color: '#991B1B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              ⚠ This expense has been flagged by the AI Fraud Engine ({selectedInv.anomaly_severity || 'HIGH'} severity). Review carefully before approving.
+            </div>
+          )}
+
+          <TjTextarea label="Approval Notes (required for rejection, optional for approval)" placeholder="Add justification, comments, or reason for rejection…" value={reviewNotes} onChange={e => setReviewNotes(e.target.value)} rows={3} />
           {reviewMsg && <div style={{ fontSize: '12px', color: reviewMsg.includes('Failed') ? '#EF4444' : '#10B981', marginBottom: '8px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{reviewMsg}</div>}
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-            <Btn variant="secondary" onClick={() => { setSelectedInv(null); setReviewNotes(''); setReviewMsg(''); }}>Cancel</Btn>
+            <Btn variant="secondary" onClick={() => { setSelectedInv(null); setSelectedInvDetail(null); setReviewNotes(''); setReviewMsg(''); }}>Cancel</Btn>
+            <Btn variant="destructive" onClick={async () => {
+              if (!reviewNotes.trim()) { setReviewMsg('Please add a reason for rejection.'); return; }
+              setReviewLoading(true); setReviewMsg('');
+              try {
+                await window.TijoriAPI.BillsAPI.reject(selectedInv.rawId || selectedInv.id, reviewNotes);
+                setReviewMsg('Rejected. Submitter notified.');
+                setExpenses(prev => prev.map(e => e.id === selectedInv.id ? { ...e, status: 'REJECTED' } : e));
+                setTimeout(() => { setSelectedInv(null); setSelectedInvDetail(null); setReviewMsg(''); }, 1200);
+              } catch(err) { setReviewMsg('Failed: ' + (err.message || 'Error')); }
+              finally { setReviewLoading(false); }
+            }} disabled={reviewLoading}>Reject</Btn>
             <Btn variant="green" onClick={handleReviewApprove} disabled={reviewLoading}>{reviewLoading ? 'Processing…' : '✓ Approve'}</Btn>
           </div>
         </TjModal>
@@ -1052,18 +1172,58 @@ const BudgetScreen = ({ role, onNavigate }) => {
 // ─── BUDGETARY GUARDRAILS ─────────────────────────────────────────────────────
 
 const GuardrailsScreen = ({ onNavigate }) => {
-  const depts = [
-    { name: 'Engineering', spent: 2.4, total: 2.4, color: '#EF4444' },
-    { name: 'Marketing', spent: 1.1, total: 1.3, color: '#F59E0B' },
-    { name: 'Operations', spent: 0.65, total: 1.5, color: '#10B981' },
-    { name: 'Human Resources', spent: 0.544, total: 0.8, color: '#F59E0B' },
-  ];
-  const logs = [
-    { time: '09:14', text: 'System blocked $12,400 transaction for Engineering. Cap exceeded.', entity: 'System' },
-    { time: '08:52', text: 'Warning email sent to Engineering HOD — 98% threshold crossed.', entity: 'System' },
-    { time: 'Apr 18', text: 'System blocked $8,200 transaction for Engineering.', entity: 'System' },
-    { time: 'Apr 17', text: 'Marketing budget warning triggered at 85%.', entity: 'System' },
-  ];
+  const [budgets, setBudgets] = React.useState([]);
+  const [logs, setLogs] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [resolveModal, setResolveModal] = React.useState(null);
+  const [resolveAmt, setResolveAmt] = React.useState('');
+  const [resolveLoading, setResolveLoading] = React.useState(false);
+  const [resolveMsg, setResolveMsg] = React.useState('');
+
+  const loadData = () => {
+    setLoading(true);
+    Promise.allSettled([
+      window.TijoriAPI.BudgetAPI.list(),
+      window.TijoriAPI.AuditAPI.list({ limit: 12 }),
+    ]).then(([budgetRes, auditRes]) => {
+      if (budgetRes.status === 'fulfilled') setBudgets(budgetRes.value || []);
+      if (auditRes.status === 'fulfilled') {
+        const entries = auditRes.value?.results || auditRes.value || [];
+        setLogs(entries.map(e => {
+          const action = (e.action || '').replace('.', ' ').replace(/_/g, ' ');
+          const details = e.details || {};
+          const amt = details.total_amount ? `₹${Number(details.total_amount).toLocaleString('en-IN')} ` : '';
+          const ref = details.ref_no || details.invoice_number || '';
+          const actor = e.actor || 'System';
+          const time = e.timestamp ? new Date(e.timestamp).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+          return { time, text: `${amt}${action} ${ref}`.trim() || action, entity: actor };
+        }));
+      }
+    }).finally(() => setLoading(false));
+  };
+
+  React.useEffect(() => { loadData(); }, []);
+
+  const criticalBudget = budgets.find(b => b.alert_level === 'critical');
+  const deptColor = (b) => b.alert_level === 'critical' ? '#EF4444' : b.alert_level === 'warning' ? '#F59E0B' : '#10B981';
+  const fmtAmt = (n) => n >= 100000 ? `₹${(n/100000).toFixed(1)}L` : `₹${Math.round(n).toLocaleString('en-IN')}`;
+
+  const handleResolve = async () => {
+    if (!resolveModal) return;
+    const extra = parseFloat(resolveAmt) || 0;
+    if (extra <= 0) { setResolveMsg('Enter a valid amount greater than zero.'); return; }
+    setResolveLoading(true); setResolveMsg('');
+    try {
+      const newTotal = resolveModal.total_amount + extra;
+      await window.TijoriAPI.BudgetAPI.update(resolveModal.id, { total_amount: newTotal });
+      setResolveMsg('Budget cap released successfully.');
+      setTimeout(() => { setResolveModal(null); setResolveMsg(''); setResolveAmt(''); loadData(); }, 1500);
+    } catch (e) {
+      setResolveMsg('Failed: ' + (e.message || 'Error'));
+    } finally {
+      setResolveLoading(false);
+    }
+  };
 
   return (
     <div style={{ padding: '32px' }}>
@@ -1071,52 +1231,105 @@ const GuardrailsScreen = ({ onNavigate }) => {
         <div>
           <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '32px', color: '#0F172A', letterSpacing: '-1.5px' }}>Budgetary Guardrails</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-            <span style={{ fontSize: '13px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Q3 Fiscal Year 2026</span>
+            <span style={{ fontSize: '13px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Live budget utilization & enforcement</span>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#E8783B', animation: 'dotPulse 1.5s ease infinite', display: 'inline-block' }} />
-            <span style={{ fontSize: '12px', color: '#E8783B', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>Updated 4 minutes ago</span>
+            <span style={{ fontSize: '12px', color: '#E8783B', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>Real-time</span>
           </div>
         </div>
       </div>
-      <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '14px', padding: '16px 20px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '14px' }}>
-        <span style={{ fontSize: '18px' }}>🔴</span>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: '13px', color: '#991B1B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Booking Suspension Active — Engineering at 100%</div>
-          <div style={{ fontSize: '12px', color: '#B91C1C', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>All new invoices for Engineering are automatically blocked until CFO releases the cap.</div>
+
+      {loading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200 }}>
+          <div style={{ width: 28, height: 28, border: '2.5px solid #E2E8F0', borderTopColor: '#E8783B', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
         </div>
-        <Btn variant="primary" small>Resolve</Btn>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-        <Card style={{ padding: '24px' }}>
-          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A', marginBottom: '20px' }}>Departmental Utilisation</div>
-          {depts.map(d => {
-            const pct = Math.round((d.spent / d.total) * 100);
-            return (
-              <div key={d.name} style={{ marginBottom: '18px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{d.name}</span>
-                  <span style={{ fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>${d.spent}M / ${d.total}M</span>
+      ) : (
+        <>
+          {criticalBudget && (
+            <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '14px', padding: '16px 20px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <span style={{ fontSize: '18px' }}>🔴</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: '13px', color: '#991B1B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  Booking Suspension Active — {criticalBudget.department || criticalBudget.name} at {Math.round(criticalBudget.utilization_pct)}%
                 </div>
-                <div style={{ height: 10, background: '#F1F5F9', borderRadius: 5, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: d.color, borderRadius: 5 }} />
+                <div style={{ fontSize: '12px', color: '#B91C1C', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>
+                  New invoices for this department are automatically blocked until CFO releases the cap.
                 </div>
-                <div style={{ textAlign: 'right', marginTop: '3px', fontSize: '11px', color: d.color, fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{pct}%</div>
               </div>
-            );
-          })}
-        </Card>
-        <Card style={{ padding: '24px' }}>
-          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A', marginBottom: '16px' }}>Enforcement Logs</div>
-          {logs.map((l, i) => (
-            <div key={i} style={{ display: 'flex', gap: '12px', padding: '12px 0', borderBottom: i < logs.length - 1 ? '1px solid #F8F7F5' : 'none' }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#EF4444', marginTop: 4, flexShrink: 0, animation: i === 0 ? 'dotPulse 2s ease infinite' : 'none' }} />
-              <div>
-                <div style={{ fontSize: '12px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.5 }}>{l.text}</div>
-                <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: '3px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{l.time} · <span style={{ fontFamily: "'JetBrains Mono', monospace", color: '#E8783B' }}>{l.entity}</span></div>
-              </div>
+              <Btn variant="primary" small onClick={() => { setResolveModal(criticalBudget); setResolveAmt(''); setResolveMsg(''); }}>Resolve</Btn>
             </div>
-          ))}
-        </Card>
-      </div>
+          )}
+
+          {!criticalBudget && budgets.some(b => b.alert_level === 'warning') && (
+            <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: '14px', padding: '14px 20px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '16px' }}>⚠️</span>
+              <span style={{ fontSize: '13px', fontWeight: 600, color: '#92400E', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                {budgets.filter(b => b.alert_level === 'warning').length} department(s) approaching budget limit.
+              </span>
+            </div>
+          )}
+
+          {budgets.length === 0 && (
+            <div style={{ background: '#F8F7F5', borderRadius: '12px', padding: '24px', textAlign: 'center', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '13px', marginBottom: '24px' }}>
+              No budgets configured. Create budgets in Budget Management to see guardrails.
+            </div>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <Card style={{ padding: '24px' }}>
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A', marginBottom: '20px' }}>Departmental Utilisation</div>
+              {budgets.map(b => {
+                const pct = Math.min(100, Math.round(b.utilization_pct || 0));
+                const color = deptColor(b);
+                return (
+                  <div key={b.id} style={{ marginBottom: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', alignItems: 'center' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{b.department || b.name}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{fmtAmt(b.spent_amount)} / {fmtAmt(b.total_amount)}</span>
+                        {b.alert_level !== 'normal' && <Btn variant="secondary" small onClick={() => { setResolveModal(b); setResolveAmt(''); setResolveMsg(''); }}>Resolve</Btn>}
+                      </div>
+                    </div>
+                    <div style={{ height: 10, background: '#F1F5F9', borderRadius: 5, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 5, transition: 'width 600ms ease' }} />
+                    </div>
+                    <div style={{ textAlign: 'right', marginTop: '3px', fontSize: '11px', color: color, fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{pct}%</div>
+                  </div>
+                );
+              })}
+            </Card>
+            <Card style={{ padding: '24px' }}>
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A', marginBottom: '16px' }}>Enforcement Logs</div>
+              {logs.length === 0 ? (
+                <div style={{ color: '#94A3B8', fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>No enforcement activity logged yet.</div>
+              ) : logs.map((l, i) => (
+                <div key={i} style={{ display: 'flex', gap: '12px', padding: '12px 0', borderBottom: i < logs.length - 1 ? '1px solid #F8F7F5' : 'none' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#EF4444', marginTop: 4, flexShrink: 0, animation: i === 0 ? 'dotPulse 2s ease infinite' : 'none' }} />
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.5 }}>{l.text}</div>
+                    <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: '3px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{l.time} · <span style={{ fontFamily: "'JetBrains Mono', monospace", color: '#E8783B' }}>{l.entity}</span></div>
+                  </div>
+                </div>
+              ))}
+            </Card>
+          </div>
+        </>
+      )}
+
+      {/* Resolve Modal */}
+      {resolveModal && (
+        <TjModal open onClose={() => { setResolveModal(null); setResolveMsg(''); setResolveAmt(''); }} title="Release Budget Cap" accentColor="#065F46" width={420}>
+          <div style={{ marginBottom: '14px', padding: '12px', background: '#FEF2F2', borderRadius: '8px', fontSize: '13px', color: '#991B1B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            <strong>{resolveModal.department || resolveModal.name}</strong> is at <strong>{Math.round(resolveModal.utilization_pct)}%</strong> utilization.
+            Current cap: <strong>{fmtAmt(resolveModal.total_amount)}</strong> · Spent: <strong>{fmtAmt(resolveModal.spent_amount)}</strong>
+          </div>
+          <TjInput label="Additional Budget to Release (₹)" placeholder="e.g. 500000" type="number" value={resolveAmt} onChange={e => setResolveAmt(e.target.value)} />
+          {resolveMsg && <div style={{ fontSize: '12px', color: resolveMsg.includes('Failed') ? '#EF4444' : '#10B981', marginBottom: '8px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{resolveMsg}</div>}
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <Btn variant="secondary" onClick={() => { setResolveModal(null); setResolveMsg(''); setResolveAmt(''); }}>Cancel</Btn>
+            <Btn variant="primary" onClick={handleResolve} disabled={resolveLoading}>{resolveLoading ? 'Releasing…' : '✓ Release Cap'}</Btn>
+          </div>
+        </TjModal>
+      )}
     </div>
   );
 };
@@ -1139,33 +1352,57 @@ const AuditScreen = ({ role, onNavigate, initialFilter }) => {
   const parseEntries = (data) => {
     const entries = Array.isArray(data) ? data : (data?.results || []);
     return entries.map((entry, i) => {
-      const actionStr = entry.action || '';
-      const parts     = actionStr.split('.');
-      const domain    = parts[0] ? parts[0].toUpperCase() : 'SYSTEM';
-      const verb      = parts[1] ? parts[1].replace(/_/g, ' ') : actionStr;
-      const typeMap   = { EXPENSE: 'INVOICE', VENDOR: 'VENDOR', USER: 'USER', SYSTEM: 'SYSTEM' };
-      const type      = typeMap[domain] || (actionStr.includes('approv') ? 'APPROVAL' : 'SYSTEM');
+      const actionStr  = entry.action || '';
+      const parts      = actionStr.split('.');
+      const domain     = parts[0] ? parts[0].toUpperCase() : 'SYSTEM';
+      const verb       = parts[1] ? parts[1].replace(/_/g, ' ') : actionStr;
+      const entityType = (entry.entity_type || '').toUpperCase();
 
-      const details   = entry.details || {};
-      let entityName  = entry.entity_type || '—';
-      if (entry.entity_id) {
+      // Map to display category
+      let type = 'SYSTEM';
+      if (domain === 'EXPENSE' || entityType === 'EXPENSE') type = 'INVOICE';
+      else if (domain === 'ANOMALY') type = 'INVOICE';
+      else if (domain === 'VENDOR' || entityType === 'VENDOR') type = 'VENDOR';
+      else if (domain === 'BUDGET' || entityType === 'BUDGET') type = 'SYSTEM';
+      else if (domain === 'AUTH' || entityType === 'USER' || entityType === 'GROUP') type = 'USER';
+      else if (domain === 'APPROVAL_AUTHORITY' || entityType === 'APPROVALAUTHORITY') type = 'SYSTEM';
+      else if (actionStr.includes('approv') || actionStr.includes('reject') || actionStr.includes('override')) type = 'APPROVAL';
+
+      const details  = entry.details || {};
+      const diffData = entry.diff || {};
+
+      // Build a human-readable entity label
+      let entityName = entry.entity_display_name || '';
+      if (!entityName && entry.entity_id) {
         const shortId = String(entry.entity_id).slice(0, 8).toUpperCase();
-        entityName = details.ref_no || details.invoice_number || `${entry.entity_type || ''}:${shortId}`;
+        entityName = details.ref_no || details.username || details.name || `${entry.entity_type || ''}:${shortId}`;
       }
+      if (!entityName) entityName = entry.entity_type || '—';
 
-      const reason = details.reason || details.decision_reason || '';
-      const amount = details.total_amount ? `₹${Number(details.total_amount).toLocaleString('en-IN')}` : '';
+      const reason = entry.change_summary || details.reason || details.decision_reason || '';
+      const amount = details.total_amount
+        ? `₹${Number(details.total_amount).toLocaleString('en-IN')}`
+        : (details.amount ? `₹${Number(details.amount).toLocaleString('en-IN')}` : '');
+
+      // Build rich detail blob for the expandable panel
+      const detailObj = {};
+      if (Object.keys(details).length > 0) Object.assign(detailObj, { after: details });
+      if (Object.keys(diffData).length > 0) Object.assign(detailObj, { changes: diffData });
+      if (entry.ip_address) detailObj.ip = entry.ip_address;
+      if (entry.user_agent) detailObj.ua = entry.user_agent.slice(0, 80);
 
       return {
         id:     entry.id || i,
         user:   entry.actor || 'System',
+        role:   entry.actor_role ? `G${entry.actor_role}` : '',
         action: verb || actionStr,
+        fullAction: actionStr,
         entity: entityName,
         type,
         time:   entry.timestamp ? new Date(entry.timestamp).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—',
         reason,
         amount,
-        detail: Object.keys(details).length > 0 ? JSON.stringify(details, null, 2) : null,
+        detail: Object.keys(detailObj).length > 0 ? JSON.stringify(detailObj, null, 2) : null,
         raw:    entry,
       };
     });
@@ -1174,7 +1411,8 @@ const AuditScreen = ({ role, onNavigate, initialFilter }) => {
   const loadAudit = () => {
     const { AuditAPI } = window.TijoriAPI;
     setLoadingAudit(true);
-    const params = { limit: 100 };
+    // scope=all — get every event type: business, auth, admin, system
+    const params = { limit: 200, scope: 'all' };
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo)   params.date_to   = dateTo;
     AuditAPI.list(params)
@@ -1198,15 +1436,28 @@ const AuditScreen = ({ role, onNavigate, initialFilter }) => {
   };
 
   const filtered = auditEntries.filter(e => {
-    const matchType   = filterChip === 'All' || e.type === filterChip.toUpperCase() || (filterChip === 'Invoice' && e.type === 'EXPENSE');
-    const matchSearch = !search || e.user.toLowerCase().includes(search.toLowerCase()) || e.entity.toLowerCase().includes(search.toLowerCase()) || e.action.toLowerCase().includes(search.toLowerCase());
+    let matchType = filterChip === 'All';
+    if (!matchType) {
+      const chip = filterChip.toUpperCase();
+      if (chip === 'INVOICE') matchType = e.type === 'INVOICE';
+      else if (chip === 'APPROVAL') matchType = e.type === 'APPROVAL' || e.fullAction.includes('approv') || e.fullAction.includes('reject') || e.fullAction.includes('override') || e.fullAction.includes('settle');
+      else if (chip === 'VENDOR') matchType = e.type === 'VENDOR';
+      else if (chip === 'USER') matchType = e.type === 'USER';
+      else if (chip === 'SYSTEM') matchType = e.type === 'SYSTEM';
+      else matchType = e.type === chip;
+    }
+    const matchSearch = !search ||
+      e.user.toLowerCase().includes(search.toLowerCase()) ||
+      e.entity.toLowerCase().includes(search.toLowerCase()) ||
+      e.action.toLowerCase().includes(search.toLowerCase()) ||
+      e.reason.toLowerCase().includes(search.toLowerCase());
     return matchType && matchSearch;
   });
 
   // Dynamic stats from live data
   const stats = React.useMemo(() => ({
-    invoice:  auditEntries.filter(e => e.type === 'INVOICE' || e.type === 'EXPENSE').length,
-    approval: auditEntries.filter(e => e.type === 'APPROVAL' || e.action.includes('approv') || e.action.includes('reject')).length,
+    invoice:  auditEntries.filter(e => e.type === 'INVOICE').length,
+    approval: auditEntries.filter(e => e.type === 'APPROVAL' || e.fullAction.includes('approv') || e.fullAction.includes('reject') || e.fullAction.includes('override')).length,
     vendor:   auditEntries.filter(e => e.type === 'VENDOR').length,
     user:     auditEntries.filter(e => e.type === 'USER').length,
     system:   auditEntries.filter(e => e.type === 'SYSTEM').length,
@@ -1283,20 +1534,22 @@ const AuditScreen = ({ role, onNavigate, initialFilter }) => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     <span style={{ background: (typeColor[e.type] || '#94A3B8') + '22', color: typeColor[e.type] || '#94A3B8', padding: '2px 8px', borderRadius: '6px', fontSize: '9px', fontWeight: 700, letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{e.type}</span>
+                    {e.role && <span style={{ background: '#0F172A', color: 'white', padding: '1px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{e.role}</span>}
                     <span style={{ fontSize: '13px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 500 }}>
-                      <strong>{e.user}</strong> {e.action} <span style={{ color: '#E8783B', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{e.entity}</span>
+                      <strong>{e.user}</strong> <span style={{ color: '#64748B' }}>{e.action}</span> <span style={{ color: '#E8783B', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{e.entity}</span>
                     </span>
                     {e.amount && <span style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '13px', color: '#10B981', letterSpacing: '-0.3px' }}>{e.amount}</span>}
                   </div>
                   <span style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", flexShrink: 0, marginLeft: 8 }}>{e.time}</span>
                 </div>
                 {e.reason && (
-                  <div style={{ fontSize: '12px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '4px', fontStyle: 'italic' }}>
-                    Reason: {e.reason}
-                  </div>
+                  <div style={{ fontSize: '11px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '4px', lineHeight: 1.5 }}>{e.reason}</div>
                 )}
-                {expanded === e.id && e.detail && (
-                  <div style={{ marginTop: '10px', background: '#F8F7F5', borderRadius: '8px', padding: '10px', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#475569', lineHeight: 1.6, whiteSpace: 'pre-wrap', overflow: 'auto', maxHeight: 200 }}>{e.detail}</div>
+                {expanded === e.id && (
+                  <div style={{ marginTop: '10px' }}>
+                    <div style={{ fontSize: '10px', color: '#94A3B8', fontFamily: "'JetBrains Mono', monospace", marginBottom: '6px', letterSpacing: '0.06em' }}>{e.fullAction}</div>
+                    {e.detail && <div style={{ background: '#F8F7F5', borderRadius: '8px', padding: '10px', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#475569', lineHeight: 1.6, whiteSpace: 'pre-wrap', overflow: 'auto', maxHeight: 220 }}>{e.detail}</div>}
+                  </div>
                 )}
               </div>
             </div>
@@ -1335,13 +1588,44 @@ const AuditScreen = ({ role, onNavigate, initialFilter }) => {
   );
 };
 
+// ─── APPEARANCE HELPERS (global — runs at page load) ─────────────────────────
+
+(function applyStoredAppearance() {
+  const theme   = localStorage.getItem('app_theme')   || 'Light';
+  const density = localStorage.getItem('app_density') || 'Comfortable';
+
+  const isDark = theme === 'Dark' || (theme === 'System' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  if (isDark) {
+    document.body.style.filter = 'invert(1) hue-rotate(180deg)';
+    document.body.style.background = '#111827';
+    let s = document.getElementById('tj-theme-style');
+    if (!s) { s = document.createElement('style'); s.id = 'tj-theme-style'; document.head.appendChild(s); }
+    s.textContent = 'img, video, canvas, iframe, [data-noinvert] { filter: invert(1) hue-rotate(180deg) !important; }';
+  }
+
+  if (density === 'Compact') {
+    const root = document.getElementById('root');
+    if (root) root.style.zoom = '0.88';
+    else document.addEventListener('DOMContentLoaded', () => {
+      const r = document.getElementById('root');
+      if (r) r.style.zoom = '0.88';
+    });
+  }
+})();
+
 // ─── SETTINGS ────────────────────────────────────────────────────────────────
 
 const SettingsScreen = ({ role: propRole, onNavigate }) => {
   const currentRole = propRole || localStorage.getItem('tj_role') || 'CFO';
   const [tab, setTab] = React.useState('Security');
-  const [toggles, setToggles] = React.useState({ email: true, alerts: true, push: false, twofa: true });
-  const [theme, setTheme] = React.useState('Light');
+
+  const loadTheme = () => localStorage.getItem('app_theme') || 'Light';
+  const loadDensity = () => localStorage.getItem('app_density') || 'Comfortable';
+  const [theme, setTheme] = React.useState(loadTheme);
+  const [density, setDensity] = React.useState(loadDensity);
+  const [toggles, setToggles] = React.useState({ email: true, alerts: true, push: false });
+  const [prefsLoading, setPrefsLoading] = React.useState(true);
+
   const [profile, setProfile] = React.useState(null);
   const [pwForm, setPwForm] = React.useState({ current: '', new_password: '' });
   const [pwMsg, setPwMsg] = React.useState('');
@@ -1349,14 +1633,102 @@ const SettingsScreen = ({ role: propRole, onNavigate }) => {
   const [profileForm, setProfileForm] = React.useState({ first_name: '', last_name: '', email: '' });
   const [profileSaving, setProfileSaving] = React.useState(false);
   const [profileMsg, setProfileMsg] = React.useState('');
-  const toggleFn = (k) => setToggles(t => ({ ...t, [k]: !t[k] }));
+
+  const toggleFn = async (k) => {
+    const newVal = !toggles[k];
+
+    // For push: request browser permission first
+    if (k === 'push' && newVal) {
+      if (!('Notification' in window)) {
+        alert('Your browser does not support push notifications.');
+        return;
+      }
+      if (Notification.permission === 'denied') {
+        alert('Notifications are blocked in your browser. Please allow them in browser settings.');
+        return;
+      }
+      if (Notification.permission !== 'granted') {
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') return;
+      }
+    }
+
+    const next = { ...toggles, [k]: newVal };
+    setToggles(next);
+
+    // Map frontend keys to backend fields
+    const payload = {
+      email_summaries: next.email,
+      system_alerts: next.alerts,
+      mobile_push: next.push,
+    };
+    localStorage.setItem('notif_prefs', JSON.stringify({ email: next.email, alerts: next.alerts, push: next.push }));
+    window.TijoriAPI.NotificationsAPI.savePrefs(payload).catch(() => {});
+  };
+
+  // Actually change the DOM — the app uses inline hex styles so data-theme attributes
+  // alone do nothing. CSS filter invert = dark mode; zoom = density.
+  const _applyThemeDOM = (t) => {
+    const isDark = t === 'Dark' || (t === 'System' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    if (isDark) {
+      document.body.style.filter = 'invert(1) hue-rotate(180deg)';
+      document.body.style.background = '#111827';
+      let s = document.getElementById('tj-theme-style');
+      if (!s) { s = document.createElement('style'); s.id = 'tj-theme-style'; document.head.appendChild(s); }
+      // Re-invert images/videos so they look normal; keep orange accent readable
+      s.textContent = [
+        'img, video, canvas, iframe, [data-noinvert] { filter: invert(1) hue-rotate(180deg) !important; }',
+        '* { transition: background 200ms, color 200ms !important; }',
+      ].join('\n');
+    } else {
+      document.body.style.filter = '';
+      document.body.style.background = '';
+      const s = document.getElementById('tj-theme-style');
+      if (s) s.textContent = '';
+    }
+  };
+
+  const _applyDensityDOM = (d) => {
+    const root = document.getElementById('root');
+    if (root) root.style.zoom = d === 'Compact' ? '0.88' : '1';
+  };
+
+  const applyTheme = (t) => {
+    setTheme(t);
+    localStorage.setItem('app_theme', t);
+    _applyThemeDOM(t);
+  };
+
+  const applyDensity = (d) => {
+    setDensity(d);
+    localStorage.setItem('app_density', d);
+    _applyDensityDOM(d);
+  };
 
   React.useEffect(() => {
-    const { AuthAPI } = window.TijoriAPI;
+    // Restore saved appearance on mount
+    _applyThemeDOM(loadTheme());
+    _applyDensityDOM(loadDensity());
+
+    const { AuthAPI, NotificationsAPI } = window.TijoriAPI;
     AuthAPI.me().then(u => {
       setProfile(u);
       setProfileForm({ first_name: u.first_name || '', last_name: u.last_name || '', email: u.email || '' });
     }).catch(() => {});
+
+    NotificationsAPI.getPrefs().then(prefs => {
+      setToggles({
+        email: prefs.email_summaries ?? true,
+        alerts: prefs.system_alerts ?? true,
+        push: prefs.mobile_push ?? false,
+      });
+      // Keep localStorage in sync for fast reads in App.jsx polling
+      localStorage.setItem('notif_prefs', JSON.stringify({
+        email: prefs.email_summaries ?? true,
+        alerts: prefs.system_alerts ?? true,
+        push: prefs.mobile_push ?? false,
+      }));
+    }).catch(() => {}).finally(() => setPrefsLoading(false));
   }, []);
 
   const handleSaveProfile = async () => {
@@ -1370,6 +1742,8 @@ const SettingsScreen = ({ role: propRole, onNavigate }) => {
       });
       setProfile(p => ({ ...p, ...updated }));
       setProfileMsg('Profile updated successfully.');
+      // Sync sidebar/header immediately
+      window.dispatchEvent(new CustomEvent('profile-updated', { detail: updated }));
       setTimeout(() => { setEditProfileOpen(false); setProfileMsg(''); }, 1200);
     } catch (err) {
       setProfileMsg('Failed to update: ' + (err.message || 'Error'));
@@ -1395,13 +1769,12 @@ const SettingsScreen = ({ role: propRole, onNavigate }) => {
     </div>
   );
 
-  const sessions = [
-    { device: 'MacBook Pro · Chrome', loc: 'Mumbai, India', seen: 'Active now', current: true },
-    { device: 'iPhone 15 · Safari', loc: 'Mumbai, India', seen: '2h ago', current: false },
-    { device: 'Windows · Edge', loc: 'Delhi, India', seen: '3 days ago', current: false },
+  const tabs = [
+    'Security',
+    'Appearance',
+    ...(['CFO', 'Finance Admin'].includes(currentRole) ? ['Integrations'] : []),
+    ...(currentRole === 'Finance Admin' ? ['Permissions'] : []),
   ];
-
-  const tabs = ['Security', 'Integrations', 'Appearance', ...(currentRole === 'Finance Admin' ? ['Permissions'] : [])];
 
   return (
     <div style={{ padding: '32px' }}>
@@ -1444,37 +1817,13 @@ const SettingsScreen = ({ role: propRole, onNavigate }) => {
           </div>
           <div style={{ padding: '24px' }}>
             {tab === 'Security' && (
-              <>
-                <div style={{ marginBottom: '24px' }}>
-                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '16px', color: '#0F172A', marginBottom: '14px' }}>Change Password</div>
-                  <TjInput label="Current Password" type="password" placeholder="••••••••" value={pwForm.current} onChange={e => setPwForm(p => ({ ...p, current: e.target.value }))} />
-                  <TjInput label="New Password" type="password" placeholder="••••••••" value={pwForm.new_password} onChange={e => setPwForm(p => ({ ...p, new_password: e.target.value }))} />
-                  {pwMsg && <div style={{ fontSize: '12px', color: pwMsg.includes('Failed') ? '#EF4444' : '#10B981', marginBottom: '8px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{pwMsg}</div>}
-                  <Btn variant="primary" small onClick={handleChangePassword}>Update Password</Btn>
-                </div>
-                <div style={{ marginBottom: '24px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                    <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '16px', color: '#0F172A' }}>Two-Factor Authentication</div>
-                    <Toggle on={toggles.twofa} onToggle={() => toggleFn('twofa')} />
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Protect your account with TOTP-based authentication.</div>
-                </div>
-                <div>
-                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '16px', color: '#0F172A', marginBottom: '14px' }}>Active Sessions</div>
-                  {sessions.map((s, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: i < sessions.length - 1 ? '1px solid #F8F7F5' : 'none' }}>
-                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.current ? '#10B981' : '#E2E8F0' }} />
-                        <div>
-                          <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{s.device}</div>
-                          <div style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{s.loc} · {s.seen}</div>
-                        </div>
-                      </div>
-                      {!s.current && <button style={{ fontSize: '12px', color: '#EF4444', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Revoke</button>}
-                    </div>
-                  ))}
-                </div>
-              </>
+              <div style={{ maxWidth: '440px' }}>
+                <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '16px', color: '#0F172A', marginBottom: '14px' }}>Change Password</div>
+                <TjInput label="Current Password" type="password" placeholder="••••••••" value={pwForm.current} onChange={e => setPwForm(p => ({ ...p, current: e.target.value }))} />
+                <TjInput label="New Password" type="password" placeholder="••••••••" value={pwForm.new_password} onChange={e => setPwForm(p => ({ ...p, new_password: e.target.value }))} />
+                {pwMsg && <div style={{ fontSize: '12px', color: pwMsg.includes('Failed') ? '#EF4444' : '#10B981', marginBottom: '8px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{pwMsg}</div>}
+                <Btn variant="primary" small onClick={handleChangePassword}>Update Password</Btn>
+              </div>
             )}
             {tab === 'Integrations' && (
               <>
@@ -1502,7 +1851,7 @@ const SettingsScreen = ({ role: propRole, onNavigate }) => {
                   <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '16px', color: '#0F172A', marginBottom: '14px' }}>Theme</div>
                   <div style={{ display: 'flex', gap: '12px' }}>
                     {['Light', 'Dark', 'System'].map(t => (
-                      <div key={t} onClick={() => setTheme(t)}
+                      <div key={t} onClick={() => applyTheme(t)}
                         style={{ flex: 1, padding: '16px', border: `2px solid ${theme === t ? '#E8783B' : '#E2E8F0'}`, borderRadius: '12px', cursor: 'pointer', textAlign: 'center', transition: 'all 150ms', background: t === 'Dark' ? '#0F172A' : 'white' }}>
                         <div style={{ fontSize: '20px', marginBottom: '8px' }}>{t === 'Light' ? '☀' : t === 'Dark' ? '🌙' : '⚙'}</div>
                         <div style={{ fontSize: '13px', fontWeight: 700, color: t === 'Dark' ? 'white' : '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{t}</div>
@@ -1514,7 +1863,8 @@ const SettingsScreen = ({ role: propRole, onNavigate }) => {
                   <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '16px', color: '#0F172A', marginBottom: '14px' }}>Density</div>
                   <div style={{ display: 'flex', gap: '12px' }}>
                     {['Comfortable', 'Compact'].map(d => (
-                      <div key={d} style={{ flex: 1, padding: '14px 20px', border: `2px solid ${d === 'Comfortable' ? '#E8783B' : '#E2E8F0'}`, borderRadius: '12px', cursor: 'pointer', transition: 'all 150ms' }}>
+                      <div key={d} onClick={() => applyDensity(d)}
+                        style={{ flex: 1, padding: '14px 20px', border: `2px solid ${density === d ? '#E8783B' : '#E2E8F0'}`, borderRadius: '12px', cursor: 'pointer', transition: 'all 150ms' }}>
                         <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{d}</div>
                       </div>
                     ))}

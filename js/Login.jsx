@@ -1,8 +1,8 @@
 // Tijori AI — Login Screen
 
 const LoginScreen = ({ onLogin }) => {
-  const [username, setUsername] = React.useState('fin_admin');
-  const [password, setPassword] = React.useState('demo1234');
+  const [username, setUsername] = React.useState('');
+  const [password, setPassword] = React.useState('');
   const [showPass, setShowPass] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
@@ -156,7 +156,7 @@ const LoginScreen = ({ onLogin }) => {
           </div>
 
           {/* Username */}
-          <TjInput label="Username" placeholder="e.g. fin_admin" type="text" value={username} onChange={e => setUsername(e.target.value)} onKeyDown={handleKeyDown} icon="✉" />
+          <TjInput label="Username" placeholder="Enter your username" type="text" value={username} onChange={e => setUsername(e.target.value)} onKeyDown={handleKeyDown} icon="✉" />
 
           {/* Password */}
           <div style={{ marginBottom: '8px' }}>
@@ -171,7 +171,7 @@ const LoginScreen = ({ onLogin }) => {
           )}
 
           <div style={{ textAlign: 'right', marginBottom: '14px', marginTop: '-4px' }}>
-            <span style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Demo: fin_admin / demo1234 | vendor1 / demo1234</span>
+            <span style={{ fontSize: '11px', color: '#94A3B8', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Forgot password?</span>
           </div>
 
           {/* CTA */}

@@ -14,7 +14,7 @@ from .serializers import (
     ApprovalActionSerializer,
     VendorSerializer,
 )
-from .services import transition_expense, InvalidTransition, SoDViolation
+from .services import transition_expense, InvalidTransition, SoDViolation, can_user_take_step_action
 
 
 class ExpenseSubmitView(APIView):
@@ -127,6 +127,13 @@ class ApprovalActionView(APIView):
 
     def post(self, request, pk):
         expense = get_object_or_404(Expense, pk=pk)
+        
+        if not can_user_take_step_action(request.user, expense):
+            return Response(
+                {"error": "You are not authorized to take action on this invoice at its current step."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         serializer = ApprovalActionSerializer(data=request.data, context={"expense": expense})
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -134,11 +141,18 @@ class ApprovalActionView(APIView):
         decision = serializer.validated_data["decision"]
         reason = serializer.validated_data.get("reason", "")
 
-        # Map decision to FSM transition
         if decision == "APPROVED":
             current_step = expense.current_step or 1
             next_step = current_step + 1
             new_status = STEP_TO_STATUS.get(next_step, "APPROVED")
+            
+            # --- New Feature: TDS/GST Policy Compliance Check ---
+            # If the vendor has a TDS section, the invoice should have TDS deducted.
+            if expense.vendor.tds_section and float(expense.tds_amount) <= 0:
+                # TDS is applicable but not deducted! Flag as anomaly.
+                expense.anomaly_severity = "HIGH"
+                expense.save(update_fields=["anomaly_severity"])
+
         elif decision == "REJECTED":
             new_status = "REJECTED"
         else:  # QUERY_RAISED

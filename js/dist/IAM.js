@@ -341,16 +341,38 @@ const RBACMatrixView = () => {
 const AuditLogView = () => {
   const [logs, setLogs] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  const [filtersMeta, setFiltersMeta] = React.useState({
+    entity_types: [],
+    actions: []
+  });
   const [filter, setFilter] = React.useState({
+    scope: 'business',
+    state_change_only: 'true',
     action: '',
-    entity_type: ''
+    entity_type: '',
+    actor: '',
+    search: ''
   });
   const load = React.useCallback(() => {
     setLoading(true);
     const params = {};
+    if (filter.scope) params.scope = filter.scope;
+    if (filter.state_change_only) params.state_change_only = filter.state_change_only;
     if (filter.action) params.action = filter.action;
     if (filter.entity_type) params.entity_type = filter.entity_type;
-    window.TijoriAPI.AuditAPI.list(params).then(data => setLogs(Array.isArray(data) ? data : data.results || [])).catch(() => {}).finally(() => setLoading(false));
+    if (filter.actor) params.actor = filter.actor;
+    if (filter.search) params.search = filter.search;
+    window.TijoriAPI.AuditAPI.list(params).then(data => {
+      const payload = Array.isArray(data) ? {
+        results: data,
+        filters: {}
+      } : data || {};
+      setLogs(payload.results || []);
+      setFiltersMeta(payload.filters || {
+        entity_types: [],
+        actions: []
+      });
+    }).catch(() => {}).finally(() => setLoading(false));
   }, [filter]);
   React.useEffect(() => {
     load();
@@ -366,6 +388,32 @@ const AuditLogView = () => {
       marginBottom: 16
     }
   }, /*#__PURE__*/React.createElement("select", {
+    value: filter.scope,
+    onChange: e => setFilter(f => ({
+      ...f,
+      scope: e.target.value
+    })),
+    style: {
+      padding: '9px 12px',
+      border: '1.5px solid #E2E8F0',
+      borderRadius: 10,
+      fontSize: 13,
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      outline: 'none',
+      background: '#FAFAF8',
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "business"
+  }, "Business Trail"), /*#__PURE__*/React.createElement("option", {
+    value: "all"
+  }, "All Visible Events"), /*#__PURE__*/React.createElement("option", {
+    value: "admin"
+  }, "Admin Changes"), /*#__PURE__*/React.createElement("option", {
+    value: "auth"
+  }, "Auth Events"), /*#__PURE__*/React.createElement("option", {
+    value: "system"
+  }, "System Events")), /*#__PURE__*/React.createElement("select", {
     value: filter.entity_type,
     onChange: e => setFilter(f => ({
       ...f,
@@ -383,16 +431,45 @@ const AuditLogView = () => {
     }
   }, /*#__PURE__*/React.createElement("option", {
     value: ""
-  }, "All Entities"), /*#__PURE__*/React.createElement("option", {
-    value: "EXPENSE"
-  }, "Expense"), /*#__PURE__*/React.createElement("option", {
-    value: "VENDOR"
-  }, "Vendor"), /*#__PURE__*/React.createElement("option", {
-    value: "USER"
-  }, "User"), /*#__PURE__*/React.createElement("option", {
-    value: "BUDGET"
-  }, "Budget")), /*#__PURE__*/React.createElement(TjInput, {
-    placeholder: "Filter by action (e.g. LOGIN)",
+  }, "All Entities"), filtersMeta.entity_types.map(type => /*#__PURE__*/React.createElement("option", {
+    key: type,
+    value: type
+  }, type))), /*#__PURE__*/React.createElement(TjInput, {
+    placeholder: "Actor",
+    value: filter.actor,
+    onChange: e => setFilter(f => ({
+      ...f,
+      actor: e.target.value
+    }))
+  }), /*#__PURE__*/React.createElement(TjInput, {
+    placeholder: "Search summary or object",
+    value: filter.search,
+    onChange: e => setFilter(f => ({
+      ...f,
+      search: e.target.value
+    }))
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 10,
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: filter.state_change_only === 'true',
+    onChange: e => setFilter(f => ({
+      ...f,
+      state_change_only: e.target.checked ? 'true' : 'false'
+    }))
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: '#475569',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      alignSelf: 'center'
+    }
+  }, "State changes only"), /*#__PURE__*/React.createElement(TjInput, {
+    placeholder: "Filter by action (e.g. approved)",
     value: filter.action,
     onChange: e => setFilter(f => ({
       ...f,
@@ -418,7 +495,7 @@ const AuditLogView = () => {
     style: {
       background: '#F8F7F5'
     }
-  }, ['Timestamp', 'User', 'Action', 'Entity', 'Details'].map(h => /*#__PURE__*/React.createElement("th", {
+  }, ['Timestamp', 'Actor', 'Action', 'Entity', 'Summary', 'Details'].map(h => /*#__PURE__*/React.createElement("th", {
     key: h,
     style: {
       padding: '12px 14px',
@@ -447,7 +524,7 @@ const AuditLogView = () => {
       padding: '12px 14px',
       fontWeight: 600
     }
-  }, log.user_full_name || 'System'), /*#__PURE__*/React.createElement("td", {
+  }, log.actor || 'System'), /*#__PURE__*/React.createElement("td", {
     style: {
       padding: '12px 14px'
     }
@@ -464,7 +541,16 @@ const AuditLogView = () => {
       padding: '12px 14px',
       color: '#475569'
     }
-  }, log.entity_type), /*#__PURE__*/React.createElement("td", {
+  }, log.entity_display_name || log.entity_type), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '12px 14px',
+      color: '#334155',
+      maxWidth: 260,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap'
+    }
+  }, log.change_summary || '—'), /*#__PURE__*/React.createElement("td", {
     style: {
       padding: '12px 14px',
       color: '#94A3B8',
@@ -497,7 +583,6 @@ const UserDetailDrawer = ({
         ...user
       });
       setEditing(false);
-      setActionMsg('');
     }
   }, [user]);
   const handleSave = async () => {
@@ -511,7 +596,7 @@ const UserDetailDrawer = ({
         is_active: form.is_active
       });
       setActionMsg('User updated successfully.');
-      onUpdated();
+      onUpdated(user.id);
       setEditing(false);
     } catch (e) {
       setActionMsg('Update failed: ' + (e.message || 'Error'));
@@ -533,7 +618,7 @@ const UserDetailDrawer = ({
         is_active: !user.is_active
       });
       setActionMsg(user.is_active ? 'User suspended.' : 'User activated.');
-      onUpdated();
+      onUpdated(user.id);
     } catch (e) {
       setActionMsg('Action failed: ' + (e.message || 'Error'));
     }
@@ -928,14 +1013,25 @@ const UserDetailDrawer = ({
     style: {
       marginTop: 12,
       padding: '10px 14px',
-      background: actionMsg.includes('failed') || actionMsg.includes('Failed') ? '#FEE2E2' : '#F0FDF4',
-      border: `1px solid ${actionMsg.includes('failed') || actionMsg.includes('Failed') ? '#FECACA' : '#BBF7D0'}`,
+      background: actionMsg.toLowerCase().includes('fail') || actionMsg.toLowerCase().includes('cannot') || actionMsg.toLowerCase().includes('error') ? '#FEE2E2' : '#F0FDF4',
+      border: `1px solid ${actionMsg.toLowerCase().includes('fail') || actionMsg.toLowerCase().includes('cannot') || actionMsg.toLowerCase().includes('error') ? '#FECACA' : '#BBF7D0'}`,
       borderRadius: 8,
       fontSize: 12,
-      color: actionMsg.includes('failed') || actionMsg.includes('Failed') ? '#991B1B' : '#065F46',
-      fontFamily: "'Plus Jakarta Sans', sans-serif"
+      color: actionMsg.toLowerCase().includes('fail') || actionMsg.toLowerCase().includes('cannot') || actionMsg.toLowerCase().includes('error') ? '#991B1B' : '#065F46',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      gap: 8
     }
-  }, actionMsg));
+  }, /*#__PURE__*/React.createElement("span", null, actionMsg), /*#__PURE__*/React.createElement("span", {
+    style: {
+      cursor: 'pointer',
+      flexShrink: 0,
+      opacity: 0.6
+    },
+    onClick: () => setActionMsg('')
+  }, "\u2715")));
 };
 
 // ─── MAIN IAM SCREEN ─────────────────────────────────────────────────────────
@@ -963,21 +1059,46 @@ const IAMScreen = ({
   const [createUserLoading, setCreateUserLoading] = React.useState(false);
   const [createUserError, setCreateUserError] = React.useState('');
   const [newGroupName, setNewGroupName] = React.useState('');
+  const [newGroupMembers, setNewGroupMembers] = React.useState([]);
+  const [addMembersGroup, setAddMembersGroup] = React.useState(null);
+  const [addMembersSelected, setAddMembersSelected] = React.useState([]);
+  const [addMembersLoading, setAddMembersLoading] = React.useState(false);
+  const [editGroupOpen, setEditGroupOpen] = React.useState(false);
+  const [editGroup, setEditGroup] = React.useState(null);
+  const [editGroupName, setEditGroupName] = React.useState('');
   const [search, setSearch] = React.useState('');
   const [gradeFilter, setGradeFilter] = React.useState(0);
   const [statusFilter, setStatusFilter] = React.useState('ALL');
-  const load = React.useCallback(() => {
+  const load = React.useCallback((refreshUserId = null) => {
     setLoading(true);
     Promise.allSettled([window.TijoriAPI.AuthAPI.listUsers(), window.TijoriAPI.AuthAPI.listDepartments(), window.TijoriAPI.AuthAPI.listGroups()]).then(([uRes, dRes, gRes]) => {
-      if (uRes.status === 'fulfilled') setUsers(uRes.value || []);
+      const latestUsers = uRes.status === 'fulfilled' ? uRes.value || [] : [];
+      if (uRes.status === 'fulfilled') setUsers(latestUsers);
       if (dRes.status === 'fulfilled') setDepartments(dRes.value || []);
       if (gRes.status === 'fulfilled') setGroups(gRes.value || []);
+      if (refreshUserId) {
+        const found = latestUsers.find(x => x.id === refreshUserId);
+        if (found) setSelectedUser(found);
+      }
       setLoading(false);
     });
   }, []);
   React.useEffect(() => {
     load();
   }, [load]);
+  const handleExportUsers = async () => {
+    try {
+      const blob = await window.TijoriAPI.AuthAPI.exportUsers();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `financeai_users_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Export failed: ' + e.message);
+    }
+  };
   const filtered = users.filter(u => {
     const mg = gradeFilter === 0 || u.employee_grade === gradeFilter;
     const ms = !search || [u.username, u.first_name, u.last_name, u.email].some(f => f?.toLowerCase().includes(search.toLowerCase()));
@@ -1015,6 +1136,9 @@ const IAMScreen = ({
       variant: "secondary",
       onClick: load
     }, "\u21BB Refresh"), /*#__PURE__*/React.createElement(Btn, {
+      variant: "secondary",
+      onClick: handleExportUsers
+    }, "\u2193 Export Users"), /*#__PURE__*/React.createElement(Btn, {
       variant: "primary",
       icon: /*#__PURE__*/React.createElement("span", null, "+"),
       onClick: () => setCreateOpen(true)
@@ -1344,66 +1468,131 @@ const IAMScreen = ({
       gap: 16,
       animation: 'fadeUp 220ms ease both'
     }
-  }, groups.map(g => /*#__PURE__*/React.createElement(Card, {
-    key: g.id,
-    style: {
-      padding: 20
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      marginBottom: 12
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      width: 40,
-      height: 40,
-      borderRadius: 10,
-      background: '#F5F3FF',
-      color: '#7C3AED',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontSize: 20
-    }
-  }, "\uD83D\uDC65"), /*#__PURE__*/React.createElement(Btn, {
-    variant: "ghost",
-    small: true
-  }, "Edit")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontFamily: "'Bricolage Grotesque', sans-serif",
-      fontWeight: 700,
-      fontSize: 17,
-      color: '#0F172A'
-    }
-  }, g.name), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: '#64748B',
-      marginTop: 4,
-      fontFamily: "'Plus Jakarta Sans', sans-serif"
-    }
-  }, users.filter(u => u.group_names?.includes(g.name)).length, " members"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 16,
-      borderTop: '1px solid #F1F0EE',
-      paddingTop: 12
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      justifyContent: 'flex-end'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      color: '#94A3B8',
-      cursor: 'pointer'
-    }
-  }, "View Members \u2192"))))), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setCreateGroupOpen(true),
+  }, groups.map(g => {
+    const members = users.filter(u => u.group_names?.includes(g.name));
+    return /*#__PURE__*/React.createElement(Card, {
+      key: g.id,
+      style: {
+        padding: 20
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 12
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: 40,
+        height: 40,
+        borderRadius: 10,
+        background: '#F5F3FF',
+        color: '#7C3AED',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: 20
+      }
+    }, "\uD83D\uDC65"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 6
+      }
+    }, /*#__PURE__*/React.createElement(Btn, {
+      variant: "ghost",
+      small: true,
+      onClick: () => {
+        setEditGroup(g);
+        setEditGroupName(g.name);
+        setEditGroupOpen(true);
+      }
+    }, "Edit"), /*#__PURE__*/React.createElement(Btn, {
+      variant: "destructive",
+      small: true,
+      onClick: async () => {
+        if (!window.confirm(`Delete group "${g.name}"? This cannot be undone.`)) return;
+        try {
+          await window.TijoriAPI.AuthAPI.deleteGroup(g.id);
+          load();
+        } catch (e) {
+          alert(e.message || 'Delete failed');
+        }
+      }
+    }, "Delete"))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontFamily: "'Bricolage Grotesque', sans-serif",
+        fontWeight: 700,
+        fontSize: 17,
+        color: '#0F172A'
+      }
+    }, g.name), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        color: '#64748B',
+        marginTop: 4,
+        fontFamily: "'Plus Jakarta Sans', sans-serif"
+      }
+    }, members.length, " member", members.length !== 1 ? 's' : ''), members.length > 0 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 4,
+        marginTop: 10
+      }
+    }, members.slice(0, 4).map(u => /*#__PURE__*/React.createElement("span", {
+      key: u.id,
+      style: {
+        background: '#F1F5F9',
+        color: '#475569',
+        padding: '2px 8px',
+        borderRadius: 4,
+        fontSize: 10,
+        fontWeight: 600
+      }
+    }, u.first_name || u.username)), members.length > 4 && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 10,
+        color: '#94A3B8'
+      }
+    }, "+", members.length - 4, " more")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginTop: 16,
+        borderTop: '1px solid #F1F0EE',
+        paddingTop: 12
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => {
+        setAddMembersGroup(g);
+        setAddMembersSelected(members.map(u => u.id));
+      },
+      style: {
+        width: '100%',
+        padding: '8px',
+        borderRadius: 8,
+        border: '1px solid #E8783B',
+        background: '#FFF8F5',
+        color: '#E8783B',
+        fontSize: 12,
+        fontWeight: 700,
+        cursor: 'pointer',
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        transition: 'all 150ms'
+      },
+      onMouseEnter: e => {
+        e.currentTarget.style.background = '#E8783B';
+        e.currentTarget.style.color = 'white';
+      },
+      onMouseLeave: e => {
+        e.currentTarget.style.background = '#FFF8F5';
+        e.currentTarget.style.color = '#E8783B';
+      }
+    }, "+ Add / Manage Members")));
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setCreateGroupOpen(true);
+      setNewGroupMembers([]);
+    },
     style: {
       background: 'none',
       border: '2px dashed #E2E8F0',
@@ -1620,12 +1809,240 @@ const IAMScreen = ({
   }, createUserLoading ? 'Creating…' : 'Create User'))), /*#__PURE__*/React.createElement(TjModal, {
     open: createGroupOpen,
     onClose: () => setCreateGroupOpen(false),
-    title: "Create Security Group"
+    title: "Create Security Group",
+    width: 480
   }, /*#__PURE__*/React.createElement(TjInput, {
-    label: "Group Name",
+    label: "Group Name *",
     placeholder: "e.g. Finance Approvers",
     value: newGroupName,
     onChange: e => setNewGroupName(e.target.value)
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 600,
+      color: '#475569',
+      marginBottom: 8,
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Add Members (optional)"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      maxHeight: 200,
+      overflowY: 'auto',
+      border: '1.5px solid #E2E8F0',
+      borderRadius: 10,
+      background: '#FAFAF8'
+    }
+  }, users.filter(u => u.is_active).map(u => {
+    const selected = newGroupMembers.includes(u.id);
+    return /*#__PURE__*/React.createElement("div", {
+      key: u.id,
+      onClick: () => setNewGroupMembers(prev => selected ? prev.filter(id => id !== u.id) : [...prev, u.id]),
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '10px 12px',
+        cursor: 'pointer',
+        borderBottom: '1px solid #F1F0EE',
+        background: selected ? '#FFF8F5' : 'transparent',
+        transition: 'background 150ms'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: 18,
+        height: 18,
+        borderRadius: 4,
+        border: `2px solid ${selected ? '#E8783B' : '#CBD5E1'}`,
+        background: selected ? '#E8783B' : 'white',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        transition: 'all 150ms'
+      }
+    }, selected && /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: 'white',
+        fontSize: 11,
+        lineHeight: 1
+      }
+    }, "\u2713")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        fontWeight: 600,
+        color: '#0F172A'
+      }
+    }, u.first_name, " ", u.last_name), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        color: '#94A3B8'
+      }
+    }, u.username, " \xB7 G", u.employee_grade, " ", GRADE_LABELS[u.employee_grade] || '')));
+  })), newGroupMembers.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: '#E8783B',
+      marginTop: 6,
+      fontWeight: 600
+    }
+  }, newGroupMembers.length, " user", newGroupMembers.length !== 1 ? 's' : '', " selected")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 10,
+      justifyContent: 'flex-end',
+      marginTop: 10
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    onClick: () => {
+      setCreateGroupOpen(false);
+      setNewGroupName('');
+      setNewGroupMembers([]);
+    }
+  }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
+    variant: "primary",
+    onClick: async () => {
+      if (!newGroupName) return;
+      try {
+        await window.TijoriAPI.AuthAPI.createGroup(newGroupName, newGroupMembers);
+      } catch (e) {
+        alert(e.message || 'Group creation failed');
+        return;
+      }
+      setCreateGroupOpen(false);
+      setNewGroupName('');
+      setNewGroupMembers([]);
+      load();
+    }
+  }, "Create Group"))), /*#__PURE__*/React.createElement(TjModal, {
+    open: !!addMembersGroup,
+    onClose: () => setAddMembersGroup(null),
+    title: `Members — ${addMembersGroup?.name || ''}`,
+    width: 480
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: '#64748B',
+      marginBottom: 10,
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Toggle active users to add or remove them from this group."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      maxHeight: 320,
+      overflowY: 'auto',
+      border: '1.5px solid #E2E8F0',
+      borderRadius: 10,
+      background: '#FAFAF8'
+    }
+  }, users.filter(u => u.is_active).map(u => {
+    const selected = addMembersSelected.includes(u.id);
+    return /*#__PURE__*/React.createElement("div", {
+      key: u.id,
+      onClick: () => setAddMembersSelected(prev => selected ? prev.filter(id => id !== u.id) : [...prev, u.id]),
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '10px 12px',
+        cursor: 'pointer',
+        borderBottom: '1px solid #F1F0EE',
+        background: selected ? '#FFF8F5' : 'transparent',
+        transition: 'background 150ms'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: 18,
+        height: 18,
+        borderRadius: 4,
+        border: `2px solid ${selected ? '#E8783B' : '#CBD5E1'}`,
+        background: selected ? '#E8783B' : 'white',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        transition: 'all 150ms'
+      }
+    }, selected && /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: 'white',
+        fontSize: 11,
+        lineHeight: 1
+      }
+    }, "\u2713")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        fontWeight: 600,
+        color: '#0F172A'
+      }
+    }, u.first_name, " ", u.last_name), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        color: '#94A3B8'
+      }
+    }, u.username, " \xB7 G", u.employee_grade, " ", GRADE_LABELS[u.employee_grade] || '', " \xB7 ", u.department_name || 'No dept')), selected && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 10,
+        fontWeight: 700,
+        color: '#E8783B',
+        background: '#FFF8F5',
+        padding: '2px 6px',
+        borderRadius: 4
+      }
+    }, "MEMBER"));
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: '#94A3B8',
+      marginTop: 8
+    }
+  }, addMembersSelected.length, " member", addMembersSelected.length !== 1 ? 's' : '', " selected"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 10,
+      justifyContent: 'flex-end',
+      marginTop: 16
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    onClick: () => setAddMembersGroup(null)
+  }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
+    variant: "primary",
+    disabled: addMembersLoading,
+    onClick: async () => {
+      if (!addMembersGroup) return;
+      setAddMembersLoading(true);
+      try {
+        await window.TijoriAPI.AuthAPI.updateGroup(addMembersGroup.id, {
+          user_ids: addMembersSelected
+        });
+        setAddMembersGroup(null);
+        load();
+      } catch (e) {
+        alert(e.message || 'Failed to update members');
+      } finally {
+        setAddMembersLoading(false);
+      }
+    }
+  }, addMembersLoading ? 'Saving…' : 'Save Members'))), /*#__PURE__*/React.createElement(TjModal, {
+    open: editGroupOpen,
+    onClose: () => setEditGroupOpen(false),
+    title: "Edit Group"
+  }, /*#__PURE__*/React.createElement(TjInput, {
+    label: "Group Name",
+    value: editGroupName,
+    onChange: e => setEditGroupName(e.target.value)
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
@@ -1635,42 +2052,30 @@ const IAMScreen = ({
     }
   }, /*#__PURE__*/React.createElement(Btn, {
     variant: "secondary",
-    onClick: () => setCreateGroupOpen(false)
+    onClick: () => setEditGroupOpen(false)
   }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
     variant: "primary",
     onClick: async () => {
-      if (!newGroupName) return;
+      if (!editGroup || !editGroupName) return;
       try {
-        // POST to groups endpoint
-        const token = window.TijoriAPI.Auth.getAccess();
-        const res = await fetch('/api/v1/auth/groups/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token
-          },
-          body: JSON.stringify({
-            name: newGroupName
-          })
+        await window.TijoriAPI.AuthAPI.updateGroup(editGroup.id, {
+          name: editGroupName
         });
-        if (!res.ok) throw new Error('Failed to create group');
       } catch (e) {
-        alert(e.message || 'Group creation failed');
+        alert(e.message || 'Update failed');
         return;
       }
-      setCreateGroupOpen(false);
-      setNewGroupName('');
+      setEditGroupOpen(false);
       load();
     }
-  }, "Create Group"))), /*#__PURE__*/React.createElement(UserDetailDrawer, {
+  }, "Save Changes"))), /*#__PURE__*/React.createElement(UserDetailDrawer, {
     user: selectedUser,
     departments: departments,
     groups: groups,
     open: !!selectedUser,
     onClose: () => setSelectedUser(null),
-    onUpdated: () => {
-      load();
-      setSelectedUser(null);
+    onUpdated: id => {
+      load(id);
     }
   }));
 };

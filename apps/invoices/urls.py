@@ -1,6 +1,6 @@
 # apps/invoices/urls.py
 from django.urls import path
-from . import views, vendor_views, employee_views, budget_views, analytics_views
+from . import views, vendor_views, employee_views, budget_views, analytics_views, feedback_views
 
 urlpatterns = [
     # ─── Original expense endpoints ──────────────────────────────
@@ -77,6 +77,7 @@ urlpatterns = [
         name="finance-expenses",
     ),
     path("finance/anomalies/", employee_views.AnomalyListView.as_view(), name="finance-anomalies"),
+    path("finance/vendor-bills/", employee_views.VendorBillsAllView.as_view(), name="finance-vendor-bills"),
     path(
         "finance/approval-authority/",
         employee_views.ApprovalAuthorityView.as_view(),
@@ -112,6 +113,16 @@ urlpatterns = [
         name="finance-superior-approve",
     ),
     path("risk-watch/", employee_views.RiskWatchView.as_view(), name="risk-watch"),
+    path(
+        "finance/bills/<uuid:pk>/remind/",
+        employee_views.ARRemindView.as_view(),
+        name="finance-remind",
+    ),
+    path(
+        "finance/bills/<uuid:pk>/schedule/",
+        employee_views.SchedulePaymentView.as_view(),
+        name="finance-schedule-payment",
+    ),
     # ─── New Finance Automation Analytics ────────────────────────
     path("analytics/spend-intelligence/", analytics_views.SpendIntelligenceView.as_view(), name="spend-intelligence"),
     path("analytics/vendor-risk/",        analytics_views.VendorRiskScoreView.as_view(),   name="vendor-risk"),
@@ -128,4 +139,6 @@ urlpatterns = [
     path("analytics/command-center/",     analytics_views.CommandCenterIntelligenceView.as_view(), name="command-center"),
     path("analytics/audit-sweep/",        analytics_views.AuditSweepView.as_view(),        name="audit-sweep"),
     path("analytics/generate-10q/",       analytics_views.Generate10QView.as_view(),       name="generate-10q"),
+    # ─── AI Feedback Loop ────────────────────────────────────────────────────
+    path("ai-feedback/", feedback_views.AIFeedbackView.as_view(), name="ai-feedback"),
 ]

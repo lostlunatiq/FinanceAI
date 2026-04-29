@@ -119,6 +119,34 @@ def pdf_to_images(file_path: str) -> list[tuple[bytes, str]]:
         return []
 
 
+def _get_ocr_feedback_context(vendor_name: str) -> str:
+    """Return a prompt block of past user corrections for this vendor, or empty string."""
+    if not vendor_name:
+        return ""
+    try:
+        from apps.invoices.models import AIFeedback
+        feedbacks = AIFeedback.objects.filter(
+            task_type=AIFeedback.TASK_OCR,
+            vendor_name__iexact=vendor_name,
+        ).order_by("-created_at")[:10]
+        if not feedbacks:
+            return ""
+        lines = []
+        for fb in feedbacks:
+            date_str = fb.created_at.strftime("%Y-%m-%d")
+            if fb.field_corrections:
+                for field, correct_val in fb.field_corrections.items():
+                    lines.append(f"- [{date_str}] Field '{field}' was extracted incorrectly → correct value: {correct_val!r}")
+            if fb.comment:
+                lines.append(f"- [{date_str}] User note: {fb.comment}")
+        if not lines:
+            return ""
+        return "\n\nPAST USER CORRECTIONS FOR THIS VENDOR (apply these learnings):\n" + "\n".join(lines)
+    except Exception as e:
+        logger.warning(f"Could not load OCR feedback context: {e}")
+        return ""
+
+
 def run(file_path: str, media_type: str = "image/jpeg", process_all_pages: bool = True) -> OCRResult:
     """
     Main OCR pipeline entry point.
@@ -165,9 +193,14 @@ def run(file_path: str, media_type: str = "image/jpeg", process_all_pages: bool 
         best_confidence = 0.0
         best_result = None
 
+        # Build base prompt with any past user corrections for this vendor.
+        # vendor_name is unknown at this stage (pre-extraction), so we do a
+        # best-effort lookup using the filename as a hint on first pass.
+        feedback_context = ""  # populated after first page extraction below
+
         for page_num, (img_bytes, img_media_type) in enumerate(images):
             image_b64 = base64.b64encode(img_bytes).decode("utf-8")
-            page_prompt = EXTRACTION_PROMPT
+            page_prompt = EXTRACTION_PROMPT + feedback_context
             if len(images) > 1:
                 page_prompt += f"\n\nNote: This is page {page_num + 1} of {len(images)}."
 
@@ -184,6 +217,11 @@ def run(file_path: str, media_type: str = "image/jpeg", process_all_pages: bool 
                 c1 = _calc_field_confidence(extracted)
                 c2 = _calc_cross_validation(extracted)
                 conf = round(0.4 * c1 + 0.4 * c2 + 0.2 * 0.85, 4)
+
+                # After first page, load feedback context for this vendor
+                if page_num == 0 and not feedback_context:
+                    vendor_name = extracted.get("vendor_name", "")
+                    feedback_context = _get_ocr_feedback_context(vendor_name)
 
                 all_extracted.append(extracted)
 

@@ -98,6 +98,7 @@ class Expense(models.Model):
     sgst = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     igst = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     total_amount = models.DecimalField(max_digits=18, decimal_places=2)
+    gstin = models.CharField(max_length=15, blank=True)
     tds_section = models.CharField(max_length=10, blank=True)
     tds_amount = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     business_purpose = models.TextField(blank=True)
@@ -225,6 +226,42 @@ class ExpenseQuery(models.Model):
     responded_at = models.DateTimeField(null=True)
     attachments = models.ManyToManyField(FileRef, blank=True)
     ai_suggestion = models.TextField(blank=True)
+
+
+class AIFeedback(models.Model):
+    TASK_OCR = "OCR"
+    TASK_ANOMALY = "ANOMALY"
+    TASK_FORECAST = "FORECAST"
+    TASK_CHOICES = [
+        (TASK_OCR, "OCR Extraction"),
+        (TASK_ANOMALY, "Anomaly Detection"),
+        (TASK_FORECAST, "Cash Flow Forecast"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    task_type = models.CharField(max_length=10, choices=TASK_CHOICES)
+    expense = models.ForeignKey(
+        "Expense", null=True, blank=True, on_delete=models.SET_NULL, related_name="ai_feedbacks"
+    )
+    vendor_name = models.CharField(max_length=255, blank=True)
+    is_positive = models.BooleanField()
+    comment = models.TextField(blank=True)
+    field_corrections = models.JSONField(null=True, blank=True)
+    disputed_flags = models.JSONField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="ai_feedbacks"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["task_type", "vendor_name"]),
+            models.Index(fields=["task_type", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.task_type} feedback by {self.created_by} on {self.created_at:%Y-%m-%d}"
 
 
 class ApprovalAuthority(models.Model):

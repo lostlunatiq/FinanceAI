@@ -50,7 +50,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "group_names",
             "groups",
         ]
-        read_only_fields = ["id", "username", "last_login"]
+        read_only_fields = ["id", "username", "last_login", "is_superuser"]
 
     def get_full_name(self, obj):
         return obj.get_full_name() or obj.username
