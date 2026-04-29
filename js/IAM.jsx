@@ -222,7 +222,7 @@ const UserDetailDrawer = ({ user, departments, groups, open, onClose, onUpdated 
   const [actionMsg, setActionMsg] = React.useState('');
 
   React.useEffect(() => {
-    if (user) { setEditForm({ ...user }); setEditing(false); setActionMsg(''); }
+    if (user) { setEditForm({ ...user }); setEditing(false); }
   }, [user]);
 
   const handleSave = async () => {
@@ -386,8 +386,9 @@ const UserDetailDrawer = ({ user, departments, groups, open, onClose, onUpdated 
       )}
 
       {actionMsg && (
-        <div style={{ marginTop: 12, padding: '10px 14px', background: actionMsg.includes('failed') || actionMsg.includes('Failed') ? '#FEE2E2' : '#F0FDF4', border: `1px solid ${actionMsg.includes('failed') || actionMsg.includes('Failed') ? '#FECACA' : '#BBF7D0'}`, borderRadius: 8, fontSize: 12, color: actionMsg.includes('failed') || actionMsg.includes('Failed') ? '#991B1B' : '#065F46', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-          {actionMsg}
+        <div style={{ marginTop: 12, padding: '10px 14px', background: actionMsg.toLowerCase().includes('fail') || actionMsg.toLowerCase().includes('cannot') || actionMsg.toLowerCase().includes('error') ? '#FEE2E2' : '#F0FDF4', border: `1px solid ${actionMsg.toLowerCase().includes('fail') || actionMsg.toLowerCase().includes('cannot') || actionMsg.toLowerCase().includes('error') ? '#FECACA' : '#BBF7D0'}`, borderRadius: 8, fontSize: 12, color: actionMsg.toLowerCase().includes('fail') || actionMsg.toLowerCase().includes('cannot') || actionMsg.toLowerCase().includes('error') ? '#991B1B' : '#065F46', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+          <span>{actionMsg}</span>
+          <span style={{ cursor: 'pointer', flexShrink: 0, opacity: 0.6 }} onClick={() => setActionMsg('')}>✕</span>
         </div>
       )}
     </SidePanel>
@@ -427,23 +428,19 @@ const IAMScreen = ({ onNavigate }) => {
       window.TijoriAPI.AuthAPI.listDepartments(),
       window.TijoriAPI.AuthAPI.listGroups(),
     ]).then(([uRes, dRes, gRes]) => {
-      let latestUsers = users;
-      if (uRes.status === 'fulfilled') {
-        latestUsers = uRes.value || [];
-        setUsers(latestUsers);
-      }
+      const latestUsers = uRes.status === 'fulfilled' ? (uRes.value || []) : [];
+      if (uRes.status === 'fulfilled') setUsers(latestUsers);
       if (dRes.status === 'fulfilled') setDepartments(dRes.value || []);
       if (gRes.status === 'fulfilled') setGroups(gRes.value || []);
-      
-      setSelectedUser(prev => {
-        const targetId = refreshUserId || (prev ? prev.id : null);
-        if (!targetId) return prev;
-        return latestUsers.find(x => x.id === targetId) || prev;
-      });
-      
+
+      if (refreshUserId) {
+        const found = latestUsers.find(x => x.id === refreshUserId);
+        if (found) setSelectedUser(found);
+      }
+
       setLoading(false);
     });
-  }, [users]);
+  }, []);
 
   React.useEffect(() => { load(); }, [load]);
 
@@ -605,7 +602,16 @@ const IAMScreen = ({ onNavigate }) => {
               <Card key={g.id} style={{ padding: 20 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                   <div style={{ width: 40, height: 40, borderRadius: 10, background: '#F5F3FF', color: '#7C3AED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>👥</div>
-                  <Btn variant="ghost" small onClick={() => { setEditGroup(g); setEditGroupName(g.name); setEditGroupOpen(true); }}>Edit</Btn>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <Btn variant="ghost" small onClick={() => { setEditGroup(g); setEditGroupName(g.name); setEditGroupOpen(true); }}>Edit</Btn>
+                    <Btn variant="destructive" small onClick={async () => {
+                      if (!window.confirm(`Delete group "${g.name}"? This cannot be undone.`)) return;
+                      try {
+                        await window.TijoriAPI.AuthAPI.deleteGroup(g.id);
+                        load();
+                      } catch(e) { alert(e.message || 'Delete failed'); }
+                    }}>Delete</Btn>
+                  </div>
                 </div>
                 <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: 17, color: '#0F172A' }}>{g.name}</div>
                 <div style={{ fontSize: 12, color: '#64748B', marginTop: 4, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
@@ -774,18 +780,7 @@ const IAMScreen = ({ onNavigate }) => {
             if (!addMembersGroup) return;
             setAddMembersLoading(true);
             try {
-              // For each active user, update their groups to include/exclude this group
-              await Promise.all(users.filter(u => u.is_active).map(u => {
-                const shouldBeMember = addMembersSelected.includes(u.id);
-                const currentGroupIds = u.groups || [];
-                const hasGroup = currentGroupIds.includes(addMembersGroup.id);
-                if (shouldBeMember && !hasGroup) {
-                  return window.TijoriAPI.AuthAPI.updateUser(u.id, { groups: [...currentGroupIds, addMembersGroup.id] });
-                } else if (!shouldBeMember && hasGroup) {
-                  return window.TijoriAPI.AuthAPI.updateUser(u.id, { groups: currentGroupIds.filter(id => id !== addMembersGroup.id) });
-                }
-                return Promise.resolve();
-              }));
+              await window.TijoriAPI.AuthAPI.updateGroup(addMembersGroup.id, { user_ids: addMembersSelected });
               setAddMembersGroup(null);
               load();
             } catch(e) { alert(e.message || 'Failed to update members'); }

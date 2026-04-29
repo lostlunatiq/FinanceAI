@@ -218,6 +218,7 @@ const BILL_DATA_FALLBACK = {
 };
 const BillDetailScreen = ({
   onNavigate,
+  onBack,
   role: propRole,
   billId
 }) => {
@@ -504,7 +505,7 @@ const BillDetailScreen = ({
       gap: '16px'
     }
   }, /*#__PURE__*/React.createElement("button", {
-    onClick: () => onNavigate && onNavigate('ap-hub'),
+    onClick: () => onBack ? onBack() : onNavigate && onNavigate('ap-hub'),
     style: {
       fontSize: '13px',
       color: '#94A3B8',
@@ -521,7 +522,7 @@ const BillDetailScreen = ({
     },
     onMouseEnter: e => e.currentTarget.style.background = '#F8F7F5',
     onMouseLeave: e => e.currentTarget.style.background = 'none'
-  }, "\u2190 AP Hub"), /*#__PURE__*/React.createElement("div", {
+  }, "\u2190 Back"), /*#__PURE__*/React.createElement("div", {
     style: {
       flex: 1,
       display: 'flex',

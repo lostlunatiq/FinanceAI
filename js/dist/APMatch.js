@@ -2,6 +2,7 @@
 
 const APMatchScreen = ({
   onNavigate,
+  onBack,
   invoice: passedInvoice,
   role: propRole
 }) => {
@@ -126,8 +127,8 @@ const APMatchScreen = ({
     style: {
       marginTop: 16
     },
-    onClick: () => onNavigate && onNavigate('ap-hub')
-  }, "\u2190 Back to Hub"));
+    onClick: () => onBack ? onBack() : onNavigate && onNavigate('ap-hub')
+  }, "\u2190 Back"));
   const ocr = bill.ocr_raw || {};
   const fields = ocr.extracted_fields || {};
   const anomalyFlags = ocr.anomaly_flags || [];
@@ -179,8 +180,8 @@ const APMatchScreen = ({
       cursor: 'pointer',
       color: '#E8783B'
     },
-    onClick: () => onNavigate && onNavigate('ap-hub')
-  }, "\u2190 Accounts Payable Hub"), /*#__PURE__*/React.createElement("span", null, "\u203A"), /*#__PURE__*/React.createElement("span", {
+    onClick: () => onBack ? onBack() : onNavigate && onNavigate('ap-hub')
+  }, "\u2190 Back"), /*#__PURE__*/React.createElement("span", null, "\u203A"), /*#__PURE__*/React.createElement("span", {
     style: {
       color: '#0F172A',
       fontWeight: 600
@@ -253,7 +254,7 @@ const APMatchScreen = ({
     }
   }, /*#__PURE__*/React.createElement(Btn, {
     variant: "secondary",
-    onClick: () => onNavigate && onNavigate('ap-hub')
+    onClick: () => onBack ? onBack() : onNavigate && onNavigate('ap-hub')
   }, "\u2190 Back"), canAct && /*#__PURE__*/React.createElement(React.Fragment, null, bill.anomaly_severity && bill.anomaly_severity !== 'NONE' && /*#__PURE__*/React.createElement(Btn, {
     variant: "secondary",
     onClick: () => {

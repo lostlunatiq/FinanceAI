@@ -3447,25 +3447,40 @@ const AuditScreen = ({
       const parts = actionStr.split('.');
       const domain = parts[0] ? parts[0].toUpperCase() : 'SYSTEM';
       const verb = parts[1] ? parts[1].replace(/_/g, ' ') : actionStr;
-      const typeMap = {
-        EXPENSE: 'INVOICE',
-        VENDOR: 'VENDOR',
-        USER: 'USER',
-        SYSTEM: 'SYSTEM'
-      };
-      const type = typeMap[domain] || (actionStr.includes('approv') ? 'APPROVAL' : 'SYSTEM');
+      const entityType = (entry.entity_type || '').toUpperCase();
+
+      // Map to display category
+      let type = 'SYSTEM';
+      if (domain === 'EXPENSE' || entityType === 'EXPENSE') type = 'INVOICE';else if (domain === 'ANOMALY') type = 'INVOICE';else if (domain === 'VENDOR' || entityType === 'VENDOR') type = 'VENDOR';else if (domain === 'BUDGET' || entityType === 'BUDGET') type = 'SYSTEM';else if (domain === 'AUTH' || entityType === 'USER' || entityType === 'GROUP') type = 'USER';else if (domain === 'APPROVAL_AUTHORITY' || entityType === 'APPROVALAUTHORITY') type = 'SYSTEM';else if (actionStr.includes('approv') || actionStr.includes('reject') || actionStr.includes('override')) type = 'APPROVAL';
       const details = entry.details || {};
-      let entityName = entry.entity_type || '—';
-      if (entry.entity_id) {
+      const diffData = entry.diff || {};
+
+      // Build a human-readable entity label
+      let entityName = entry.entity_display_name || '';
+      if (!entityName && entry.entity_id) {
         const shortId = String(entry.entity_id).slice(0, 8).toUpperCase();
-        entityName = details.ref_no || details.invoice_number || `${entry.entity_type || ''}:${shortId}`;
+        entityName = details.ref_no || details.username || details.name || `${entry.entity_type || ''}:${shortId}`;
       }
-      const reason = details.reason || details.decision_reason || '';
-      const amount = details.total_amount ? `₹${Number(details.total_amount).toLocaleString('en-IN')}` : '';
+      if (!entityName) entityName = entry.entity_type || '—';
+      const reason = entry.change_summary || details.reason || details.decision_reason || '';
+      const amount = details.total_amount ? `₹${Number(details.total_amount).toLocaleString('en-IN')}` : details.amount ? `₹${Number(details.amount).toLocaleString('en-IN')}` : '';
+
+      // Build rich detail blob for the expandable panel
+      const detailObj = {};
+      if (Object.keys(details).length > 0) Object.assign(detailObj, {
+        after: details
+      });
+      if (Object.keys(diffData).length > 0) Object.assign(detailObj, {
+        changes: diffData
+      });
+      if (entry.ip_address) detailObj.ip = entry.ip_address;
+      if (entry.user_agent) detailObj.ua = entry.user_agent.slice(0, 80);
       return {
         id: entry.id || i,
         user: entry.actor || 'System',
+        role: entry.actor_role ? `G${entry.actor_role}` : '',
         action: verb || actionStr,
+        fullAction: actionStr,
         entity: entityName,
         type,
         time: entry.timestamp ? new Date(entry.timestamp).toLocaleString('en-IN', {
@@ -3476,7 +3491,7 @@ const AuditScreen = ({
         }) : '—',
         reason,
         amount,
-        detail: Object.keys(details).length > 0 ? JSON.stringify(details, null, 2) : null,
+        detail: Object.keys(detailObj).length > 0 ? JSON.stringify(detailObj, null, 2) : null,
         raw: entry
       };
     });
@@ -3486,8 +3501,10 @@ const AuditScreen = ({
       AuditAPI
     } = window.TijoriAPI;
     setLoadingAudit(true);
+    // scope=all — get every event type: business, auth, admin, system
     const params = {
-      limit: 100
+      limit: 200,
+      scope: 'all'
     };
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;
@@ -3508,15 +3525,19 @@ const AuditScreen = ({
     a.click();
   };
   const filtered = auditEntries.filter(e => {
-    const matchType = filterChip === 'All' || e.type === filterChip.toUpperCase() || filterChip === 'Invoice' && e.type === 'EXPENSE';
-    const matchSearch = !search || e.user.toLowerCase().includes(search.toLowerCase()) || e.entity.toLowerCase().includes(search.toLowerCase()) || e.action.toLowerCase().includes(search.toLowerCase());
+    let matchType = filterChip === 'All';
+    if (!matchType) {
+      const chip = filterChip.toUpperCase();
+      if (chip === 'INVOICE') matchType = e.type === 'INVOICE';else if (chip === 'APPROVAL') matchType = e.type === 'APPROVAL' || e.fullAction.includes('approv') || e.fullAction.includes('reject') || e.fullAction.includes('override') || e.fullAction.includes('settle');else if (chip === 'VENDOR') matchType = e.type === 'VENDOR';else if (chip === 'USER') matchType = e.type === 'USER';else if (chip === 'SYSTEM') matchType = e.type === 'SYSTEM';else matchType = e.type === chip;
+    }
+    const matchSearch = !search || e.user.toLowerCase().includes(search.toLowerCase()) || e.entity.toLowerCase().includes(search.toLowerCase()) || e.action.toLowerCase().includes(search.toLowerCase()) || e.reason.toLowerCase().includes(search.toLowerCase());
     return matchType && matchSearch;
   });
 
   // Dynamic stats from live data
   const stats = React.useMemo(() => ({
-    invoice: auditEntries.filter(e => e.type === 'INVOICE' || e.type === 'EXPENSE').length,
-    approval: auditEntries.filter(e => e.type === 'APPROVAL' || e.action.includes('approv') || e.action.includes('reject')).length,
+    invoice: auditEntries.filter(e => e.type === 'INVOICE').length,
+    approval: auditEntries.filter(e => e.type === 'APPROVAL' || e.fullAction.includes('approv') || e.fullAction.includes('reject') || e.fullAction.includes('override')).length,
     vendor: auditEntries.filter(e => e.type === 'VENDOR').length,
     user: auditEntries.filter(e => e.type === 'USER').length,
     system: auditEntries.filter(e => e.type === 'SYSTEM').length
@@ -3789,14 +3810,28 @@ const AuditScreen = ({
       letterSpacing: '0.08em',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, e.type), /*#__PURE__*/React.createElement("span", {
+  }, e.type), e.role && /*#__PURE__*/React.createElement("span", {
+    style: {
+      background: '#0F172A',
+      color: 'white',
+      padding: '1px 6px',
+      borderRadius: '4px',
+      fontSize: '9px',
+      fontWeight: 700,
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, e.role), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: '13px',
       color: '#0F172A',
       fontFamily: "'Plus Jakarta Sans', sans-serif",
       fontWeight: 500
     }
-  }, /*#__PURE__*/React.createElement("strong", null, e.user), " ", e.action, " ", /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement("strong", null, e.user), " ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: '#64748B'
+    }
+  }, e.action), " ", /*#__PURE__*/React.createElement("span", {
     style: {
       color: '#E8783B',
       fontFamily: "'JetBrains Mono', monospace",
@@ -3820,15 +3855,26 @@ const AuditScreen = ({
     }
   }, e.time)), e.reason && /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: '12px',
+      fontSize: '11px',
       color: '#475569',
       fontFamily: "'Plus Jakarta Sans', sans-serif",
       marginTop: '4px',
-      fontStyle: 'italic'
+      lineHeight: 1.5
     }
-  }, "Reason: ", e.reason), expanded === e.id && e.detail && /*#__PURE__*/React.createElement("div", {
+  }, e.reason), expanded === e.id && /*#__PURE__*/React.createElement("div", {
     style: {
-      marginTop: '10px',
+      marginTop: '10px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '10px',
+      color: '#94A3B8',
+      fontFamily: "'JetBrains Mono', monospace",
+      marginBottom: '6px',
+      letterSpacing: '0.06em'
+    }
+  }, e.fullAction), e.detail && /*#__PURE__*/React.createElement("div", {
+    style: {
       background: '#F8F7F5',
       borderRadius: '8px',
       padding: '10px',
@@ -3838,9 +3884,9 @@ const AuditScreen = ({
       lineHeight: 1.6,
       whiteSpace: 'pre-wrap',
       overflow: 'auto',
-      maxHeight: 200
+      maxHeight: 220
     }
-  }, e.detail))))) : !loadingAudit && filtered.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, e.detail)))))) : !loadingAudit && filtered.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       background: 'white',
       borderRadius: '16px',
@@ -3944,6 +3990,32 @@ const AuditScreen = ({
   }, e.time)))))));
 };
 
+// ─── APPEARANCE HELPERS (global — runs at page load) ─────────────────────────
+
+(function applyStoredAppearance() {
+  const theme = localStorage.getItem('app_theme') || 'Light';
+  const density = localStorage.getItem('app_density') || 'Comfortable';
+  const isDark = theme === 'Dark' || theme === 'System' && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  if (isDark) {
+    document.body.style.filter = 'invert(1) hue-rotate(180deg)';
+    document.body.style.background = '#111827';
+    let s = document.getElementById('tj-theme-style');
+    if (!s) {
+      s = document.createElement('style');
+      s.id = 'tj-theme-style';
+      document.head.appendChild(s);
+    }
+    s.textContent = 'img, video, canvas, iframe, [data-noinvert] { filter: invert(1) hue-rotate(180deg) !important; }';
+  }
+  if (density === 'Compact') {
+    const root = document.getElementById('root');
+    if (root) root.style.zoom = '0.88';else document.addEventListener('DOMContentLoaded', () => {
+      const r = document.getElementById('root');
+      if (r) r.style.zoom = '0.88';
+    });
+  }
+})();
+
 // ─── SETTINGS ────────────────────────────────────────────────────────────────
 
 const SettingsScreen = ({
@@ -3952,13 +4024,16 @@ const SettingsScreen = ({
 }) => {
   const currentRole = propRole || localStorage.getItem('tj_role') || 'CFO';
   const [tab, setTab] = React.useState('Security');
+  const loadTheme = () => localStorage.getItem('app_theme') || 'Light';
+  const loadDensity = () => localStorage.getItem('app_density') || 'Comfortable';
+  const [theme, setTheme] = React.useState(loadTheme);
+  const [density, setDensity] = React.useState(loadDensity);
   const [toggles, setToggles] = React.useState({
     email: true,
     alerts: true,
-    push: false,
-    twofa: true
+    push: false
   });
-  const [theme, setTheme] = React.useState('Light');
+  const [prefsLoading, setPrefsLoading] = React.useState(true);
   const [profile, setProfile] = React.useState(null);
   const [pwForm, setPwForm] = React.useState({
     current: '',
@@ -3973,13 +4048,87 @@ const SettingsScreen = ({
   });
   const [profileSaving, setProfileSaving] = React.useState(false);
   const [profileMsg, setProfileMsg] = React.useState('');
-  const toggleFn = k => setToggles(t => ({
-    ...t,
-    [k]: !t[k]
-  }));
+  const toggleFn = async k => {
+    const newVal = !toggles[k];
+
+    // For push: request browser permission first
+    if (k === 'push' && newVal) {
+      if (!('Notification' in window)) {
+        alert('Your browser does not support push notifications.');
+        return;
+      }
+      if (Notification.permission === 'denied') {
+        alert('Notifications are blocked in your browser. Please allow them in browser settings.');
+        return;
+      }
+      if (Notification.permission !== 'granted') {
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') return;
+      }
+    }
+    const next = {
+      ...toggles,
+      [k]: newVal
+    };
+    setToggles(next);
+
+    // Map frontend keys to backend fields
+    const payload = {
+      email_summaries: next.email,
+      system_alerts: next.alerts,
+      mobile_push: next.push
+    };
+    localStorage.setItem('notif_prefs', JSON.stringify({
+      email: next.email,
+      alerts: next.alerts,
+      push: next.push
+    }));
+    window.TijoriAPI.NotificationsAPI.savePrefs(payload).catch(() => {});
+  };
+
+  // Actually change the DOM — the app uses inline hex styles so data-theme attributes
+  // alone do nothing. CSS filter invert = dark mode; zoom = density.
+  const _applyThemeDOM = t => {
+    const isDark = t === 'Dark' || t === 'System' && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (isDark) {
+      document.body.style.filter = 'invert(1) hue-rotate(180deg)';
+      document.body.style.background = '#111827';
+      let s = document.getElementById('tj-theme-style');
+      if (!s) {
+        s = document.createElement('style');
+        s.id = 'tj-theme-style';
+        document.head.appendChild(s);
+      }
+      // Re-invert images/videos so they look normal; keep orange accent readable
+      s.textContent = ['img, video, canvas, iframe, [data-noinvert] { filter: invert(1) hue-rotate(180deg) !important; }', '* { transition: background 200ms, color 200ms !important; }'].join('\n');
+    } else {
+      document.body.style.filter = '';
+      document.body.style.background = '';
+      const s = document.getElementById('tj-theme-style');
+      if (s) s.textContent = '';
+    }
+  };
+  const _applyDensityDOM = d => {
+    const root = document.getElementById('root');
+    if (root) root.style.zoom = d === 'Compact' ? '0.88' : '1';
+  };
+  const applyTheme = t => {
+    setTheme(t);
+    localStorage.setItem('app_theme', t);
+    _applyThemeDOM(t);
+  };
+  const applyDensity = d => {
+    setDensity(d);
+    localStorage.setItem('app_density', d);
+    _applyDensityDOM(d);
+  };
   React.useEffect(() => {
+    // Restore saved appearance on mount
+    _applyThemeDOM(loadTheme());
+    _applyDensityDOM(loadDensity());
     const {
-      AuthAPI
+      AuthAPI,
+      NotificationsAPI
     } = window.TijoriAPI;
     AuthAPI.me().then(u => {
       setProfile(u);
@@ -3989,6 +4138,19 @@ const SettingsScreen = ({
         email: u.email || ''
       });
     }).catch(() => {});
+    NotificationsAPI.getPrefs().then(prefs => {
+      setToggles({
+        email: prefs.email_summaries ?? true,
+        alerts: prefs.system_alerts ?? true,
+        push: prefs.mobile_push ?? false
+      });
+      // Keep localStorage in sync for fast reads in App.jsx polling
+      localStorage.setItem('notif_prefs', JSON.stringify({
+        email: prefs.email_summaries ?? true,
+        alerts: prefs.system_alerts ?? true,
+        push: prefs.mobile_push ?? false
+      }));
+    }).catch(() => {}).finally(() => setPrefsLoading(false));
   }, []);
   const handleSaveProfile = async () => {
     setProfileSaving(true);
@@ -4007,6 +4169,10 @@ const SettingsScreen = ({
         ...updated
       }));
       setProfileMsg('Profile updated successfully.');
+      // Sync sidebar/header immediately
+      window.dispatchEvent(new CustomEvent('profile-updated', {
+        detail: updated
+      }));
       setTimeout(() => {
         setEditProfileOpen(false);
         setProfileMsg('');
@@ -4067,23 +4233,7 @@ const SettingsScreen = ({
       boxShadow: '0 1px 4px rgba(0,0,0,0.15)'
     }
   }));
-  const sessions = [{
-    device: 'MacBook Pro · Chrome',
-    loc: 'Mumbai, India',
-    seen: 'Active now',
-    current: true
-  }, {
-    device: 'iPhone 15 · Safari',
-    loc: 'Mumbai, India',
-    seen: '2h ago',
-    current: false
-  }, {
-    device: 'Windows · Edge',
-    loc: 'Delhi, India',
-    seen: '3 days ago',
-    current: false
-  }];
-  const tabs = ['Security', 'Integrations', 'Appearance', ...(currentRole === 'Finance Admin' ? ['Permissions'] : [])];
+  const tabs = ['Security', 'Appearance', ...(['CFO', 'Finance Admin'].includes(currentRole) ? ['Integrations'] : []), ...(currentRole === 'Finance Admin' ? ['Permissions'] : [])];
   return /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '32px'
@@ -4234,9 +4384,9 @@ const SettingsScreen = ({
     style: {
       padding: '24px'
     }
-  }, tab === 'Security' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }, tab === 'Security' && /*#__PURE__*/React.createElement("div", {
     style: {
-      marginBottom: '24px'
+      maxWidth: '440px'
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -4275,87 +4425,7 @@ const SettingsScreen = ({
     variant: "primary",
     small: true,
     onClick: handleChangePassword
-  }, "Update Password")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: '24px'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: '14px'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontFamily: "'Bricolage Grotesque', sans-serif",
-      fontWeight: 700,
-      fontSize: '16px',
-      color: '#0F172A'
-    }
-  }, "Two-Factor Authentication"), /*#__PURE__*/React.createElement(Toggle, {
-    on: toggles.twofa,
-    onToggle: () => toggleFn('twofa')
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: '12px',
-      color: '#64748B',
-      fontFamily: "'Plus Jakarta Sans', sans-serif"
-    }
-  }, "Protect your account with TOTP-based authentication.")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontFamily: "'Bricolage Grotesque', sans-serif",
-      fontWeight: 700,
-      fontSize: '16px',
-      color: '#0F172A',
-      marginBottom: '14px'
-    }
-  }, "Active Sessions"), sessions.map((s, i) => /*#__PURE__*/React.createElement("div", {
-    key: i,
-    style: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: '12px 0',
-      borderBottom: i < sessions.length - 1 ? '1px solid #F8F7F5' : 'none'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      gap: '10px',
-      alignItems: 'center'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      width: 8,
-      height: 8,
-      borderRadius: '50%',
-      background: s.current ? '#10B981' : '#E2E8F0'
-    }
-  }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: '13px',
-      fontWeight: 600,
-      color: '#0F172A',
-      fontFamily: "'Plus Jakarta Sans', sans-serif"
-    }
-  }, s.device), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: '11px',
-      color: '#94A3B8',
-      fontFamily: "'Plus Jakarta Sans', sans-serif"
-    }
-  }, s.loc, " \xB7 ", s.seen))), !s.current && /*#__PURE__*/React.createElement("button", {
-    style: {
-      fontSize: '12px',
-      color: '#EF4444',
-      background: 'none',
-      border: 'none',
-      cursor: 'pointer',
-      fontWeight: 600,
-      fontFamily: "'Plus Jakarta Sans', sans-serif"
-    }
-  }, "Revoke"))))), tab === 'Integrations' && /*#__PURE__*/React.createElement(React.Fragment, null, [{
+  }, "Update Password")), tab === 'Integrations' && /*#__PURE__*/React.createElement(React.Fragment, null, [{
     name: 'Microsoft Dynamics 365',
     desc: 'ERP sync for GL entries and PO matching',
     status: 'LIVE'
@@ -4422,7 +4492,7 @@ const SettingsScreen = ({
     }
   }, ['Light', 'Dark', 'System'].map(t => /*#__PURE__*/React.createElement("div", {
     key: t,
-    onClick: () => setTheme(t),
+    onClick: () => applyTheme(t),
     style: {
       flex: 1,
       padding: '16px',
@@ -4460,10 +4530,11 @@ const SettingsScreen = ({
     }
   }, ['Comfortable', 'Compact'].map(d => /*#__PURE__*/React.createElement("div", {
     key: d,
+    onClick: () => applyDensity(d),
     style: {
       flex: 1,
       padding: '14px 20px',
-      border: `2px solid ${d === 'Comfortable' ? '#E8783B' : '#E2E8F0'}`,
+      border: `2px solid ${density === d ? '#E8783B' : '#E2E8F0'}`,
       borderRadius: '12px',
       cursor: 'pointer',
       transition: 'all 150ms'

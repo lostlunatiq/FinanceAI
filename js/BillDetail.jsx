@@ -92,7 +92,7 @@ const BILL_DATA_FALLBACK = {
   utr: null,
 };
 
-const BillDetailScreen = ({ onNavigate, role: propRole, billId }) => {
+const BillDetailScreen = ({ onNavigate, onBack, role: propRole, billId }) => {
   const [approveOpen, setApproveOpen] = React.useState(false);
   const [rejectOpen, setRejectOpen] = React.useState(false);
   const [queryOpen, setQueryOpen] = React.useState(false);
@@ -315,11 +315,11 @@ const BillDetailScreen = ({ onNavigate, role: propRole, billId }) => {
     <div style={{ padding: '0', position: 'relative' }}>
       {/* Sticky header */}
       <div style={{ position: 'sticky', top: 0, zIndex: 50, background: 'white', borderBottom: '1px solid #E2E8F0', padding: '14px 28px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-        <button onClick={() => onNavigate && onNavigate('ap-hub')}
+        <button onClick={() => onBack ? onBack() : onNavigate && onNavigate('ap-hub')}
           style={{ fontSize: '13px', color: '#94A3B8', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 10px', borderRadius: '8px', transition: 'background 150ms' }}
           onMouseEnter={e => e.currentTarget.style.background = '#F8F7F5'}
           onMouseLeave={e => e.currentTarget.style.background = 'none'}>
-          ← AP Hub
+          ← Back
         </button>
 
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px' }}>

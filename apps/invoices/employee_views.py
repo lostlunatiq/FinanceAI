@@ -156,7 +156,7 @@ class ApproveView(APIView):
             current_status = expense.status
             new_status = STATUS_TO_NEXT_STATUS.get(current_status, "APPROVED")
             try:
-                expense = transition_expense(expense, new_status, request.user, reason, skip_sod=True)
+                expense = transition_expense(expense, new_status, request.user, reason, skip_sod=True, request=request)
             except (InvalidTransition, SoDViolation) as e:
                 return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -258,7 +258,7 @@ class RejectView(APIView):
             )
 
         try:
-            expense = transition_expense(expense, "REJECTED", request.user, reason)
+            expense = transition_expense(expense, "REJECTED", request.user, reason, request=request)
         except (InvalidTransition, SoDViolation) as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -311,7 +311,7 @@ class QueryView(APIView):
             )
 
         try:
-            expense = transition_expense(expense, "QUERY_RAISED", request.user, question)
+            expense = transition_expense(expense, "QUERY_RAISED", request.user, question, request=request)
         except (InvalidTransition, SoDViolation) as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -395,7 +395,7 @@ class RespondQueryView(APIView):
         # Re-route to the step where query was raised
         return_status = STEP_TO_STATUS.get(query.raised_at_step, "PENDING_L1")
         try:
-            expense = transition_expense(expense, return_status, request.user, "Query responded")
+            expense = transition_expense(expense, return_status, request.user, "Query responded", request=request)
         except (InvalidTransition, SoDViolation):
             pass  # Non-critical
         reroute_step = expense.approval_steps.filter(level=query.raised_at_step).first()
@@ -426,6 +426,22 @@ class RespondQueryView(APIView):
                     entity_id=expense.id
                 )
 
+        from apps.core.utils import log_audit_event
+        log_audit_event(
+            user=request.user,
+            action="expense.query_response",
+            entity_type="Expense",
+            entity_id=expense.id,
+            entity_display_name=expense.ref_no or str(expense.id)[:8],
+            masked_after={
+                "ref_no": expense.ref_no,
+                "response": response_text[:200],
+                "responded_by": request.user.get_full_name() or request.user.username,
+                "query_id": str(query_id) if query_id else None,
+            },
+            change_summary=f"{request.user.get_full_name() or request.user.username} responded to query on {expense.ref_no}",
+            request=request,
+        )
         return Response(VendorBillDetailSerializer(expense, context={"request": request}).data)
 
 
@@ -450,6 +466,23 @@ class ScanAnomalyView(APIView):
             else:
                 expense.ocr_raw = {"anomaly_flags": result["flags"]}
             expense.save(update_fields=["anomaly_severity", "ocr_raw"])
+            from apps.core.utils import log_audit_event
+            log_audit_event(
+                user=request.user,
+                action="anomaly.scanned",
+                entity_type="Expense",
+                entity_id=expense.id,
+                entity_display_name=expense.ref_no or str(expense.id)[:8],
+                masked_after={
+                    "ref_no": expense.ref_no,
+                    "severity": result["severity"],
+                    "flags": result.get("flags", []),
+                    "score": result.get("total_score"),
+                    "scanned_by": request.user.get_full_name() or request.user.username,
+                },
+                change_summary=f"Anomaly scan: {expense.ref_no} → severity {result['severity']}",
+                request=request,
+            )
             return Response(
                 {
                     "severity": result["severity"],
@@ -1065,6 +1098,20 @@ class ApprovalAuthorityView(APIView):
                 setattr(authority, field, value or None)
         authority.updated_by = request.user
         authority.save()
+        from apps.core.utils import log_audit_event
+        log_audit_event(
+            user=request.user,
+            action="approval_authority.updated",
+            entity_type="ApprovalAuthority",
+            entity_display_name=f"Grade {grade} Approval Authority",
+            masked_after={
+                "grade": grade,
+                **{f: request.data.get(f) for f in ["label", "approval_limit", "settlement_limit", "monthly_approval_budget", "monthly_settlement_budget"] if f in request.data},
+                "updated_by": request.user.get_full_name() or request.user.username,
+            },
+            change_summary=f"{request.user.get_full_name() or request.user.username} updated approval limits for Grade {grade}",
+            request=request,
+        )
         return Response(get_authority_settings(grade))
 
 
@@ -1097,10 +1144,10 @@ class SettlePaymentView(APIView):
             )
 
         try:
-            expense = transition_expense(expense, "PENDING_D365", user, "Payment settlement started", skip_sod=True)
-            expense = transition_expense(expense, "BOOKED_D365", user, "Payment booked", skip_sod=True)
-            expense = transition_expense(expense, "POSTED_D365", user, "Payment posted", skip_sod=True)
-            expense = transition_expense(expense, "PAID", user, "Payment settled", skip_sod=True)
+            expense = transition_expense(expense, "PENDING_D365", user, "Payment settlement started", skip_sod=True, request=request)
+            expense = transition_expense(expense, "BOOKED_D365", user, "Payment booked", skip_sod=True, request=request)
+            expense = transition_expense(expense, "POSTED_D365", user, "Payment posted", skip_sod=True, request=request)
+            expense = transition_expense(expense, "PAID", user, "Payment settled", skip_sod=True, request=request)
         except InvalidTransition as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1119,6 +1166,26 @@ class SettlePaymentView(APIView):
         expense.ocr_raw = ocr_raw
         expense.save(
             update_fields=["d365_document_no", "d365_posted_at", "d365_paid_at", "d365_payment_utr", "ocr_raw"]
+        )
+
+        from apps.core.utils import log_audit_event
+        log_audit_event(
+            user=request.user,
+            action="expense.payment_settled",
+            entity_type="Expense",
+            entity_id=expense.id,
+            entity_display_name=expense.ref_no or str(expense.id)[:8],
+            masked_after={
+                "ref_no": expense.ref_no,
+                "total_amount": float(expense.total_amount or 0),
+                "payment_method": payment_method,
+                "payment_utr": payment_utr,
+                "payment_notes": payment_notes[:100] if payment_notes else "",
+                "settled_by": request.user.get_full_name() or request.user.username,
+                "vendor": expense.vendor.name if expense.vendor_id else None,
+            },
+            change_summary=f"{request.user.get_full_name() or request.user.username} settled ₹{float(expense.total_amount or 0):,.0f} via {payment_method} (UTR: {payment_utr})",
+            request=request,
         )
         # ─── Notify vendor / submitter via email ──────────────────────────────
         _send_payment_notification(expense, payment_utr, payment_method, float(expense.total_amount or 0), request.user)
@@ -1175,11 +1242,32 @@ class SuperiorOverrideApproveView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        old_status = expense.status
         try:
             expense = superior_override_approve(expense, request.user, reason)
         except (InvalidTransition, InsufficientRole) as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+        from apps.core.utils import log_audit_event
+        log_audit_event(
+            user=request.user,
+            action="expense.superior_override_approved",
+            entity_type="Expense",
+            entity_id=expense.id,
+            entity_display_name=expense.ref_no or str(expense.id)[:8],
+            masked_before={"status": old_status},
+            masked_after={
+                "status": expense.status,
+                "ref_no": expense.ref_no,
+                "total_amount": float(expense.total_amount or 0),
+                "reason": reason,
+                "anomaly_override": anomaly_override or None,
+                "override_by": request.user.get_full_name() or request.user.username,
+                "override_by_grade": request.user.employee_grade,
+            },
+            change_summary=f"OVERRIDE: {request.user.get_full_name() or request.user.username} (G{request.user.employee_grade}) approved {expense.ref_no} directly — {reason[:80]}",
+            request=request,
+        )
         return Response(VendorBillDetailSerializer(expense, context={"request": request}).data)
 
 

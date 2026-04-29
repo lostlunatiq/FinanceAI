@@ -441,7 +441,7 @@ def superior_override_approve(expense: Expense, actor, reason: str = "") -> Expe
 
 
 def transition_expense(
-    expense: Expense, new_status: str, actor, reason: str = "", skip_sod: bool = False
+    expense: Expense, new_status: str, actor, reason: str = "", skip_sod: bool = False, request=None
 ) -> Expense:
     """
     The single gate for all Expense state changes.
@@ -479,7 +479,7 @@ def transition_expense(
 
         expense.save()
 
-        # 6. Write audit log
+        # 6. Write audit log — include request context for IP/UA when available
         log_audit_event(
             user=actor,
             action=f"expense.{new_status.lower()}",
@@ -487,8 +487,16 @@ def transition_expense(
             entity_id=expense.id,
             entity_display_name=expense.ref_no or str(expense.id)[:8],
             masked_before={"status": old_status},
-            masked_after={"status": new_status, "reason": reason},
-            change_summary=f"Status changed from {old_status} to {new_status}",
+            masked_after={
+                "status": new_status,
+                "reason": reason,
+                "actor_name": actor.get_full_name() or actor.username if actor else "System",
+                "actor_grade": actor.employee_grade if actor else None,
+                "amount": float(expense.total_amount or 0),
+                "ref_no": expense.ref_no,
+            },
+            change_summary=f"{actor.get_full_name() or actor.username if actor else 'System'} changed status {old_status} → {new_status}{(' — ' + reason[:80]) if reason else ''}",
+            request=request,
         )
 
     return expense

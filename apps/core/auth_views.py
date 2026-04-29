@@ -219,7 +219,7 @@ def _build_audit_filter_metadata(qs):
     scopes = sorted(
         {
             _classify_audit_entry(entry)["scope"]
-            for entry in qs.only("action", "entity_type")[:200]
+            for entry in qs.defer("masked_before", "masked_after", "metadata", "ip_address", "user_agent")[:200]
         }
     )
     return {
@@ -286,9 +286,29 @@ class MeView(APIView):
         return Response(UserProfileSerializer(request.user).data)
 
     def patch(self, request):
+        before = {
+            "first_name": request.user.first_name,
+            "last_name": request.user.last_name,
+            "email": request.user.email,
+        }
         serializer = UserProfileSerializer(request.user, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        log_audit_event(
+            user=request.user,
+            action="auth.profile_updated",
+            entity_type="User",
+            entity_id=request.user.id,
+            entity_display_name=request.user.get_full_name() or request.user.username,
+            masked_before=before,
+            masked_after={
+                "first_name": request.user.first_name,
+                "last_name": request.user.last_name,
+                "email": request.user.email,
+            },
+            change_summary=f"{request.user.username} updated their own profile",
+            request=request,
+        )
         return Response(serializer.data)
 
 
@@ -394,7 +414,6 @@ class UserDetailView(APIView):
             "email",
             "employee_grade",
             "department",
-            "groups",
         }
         data = {k: v for k, v in request.data.items() if k in allowed_fields}
 
@@ -403,9 +422,18 @@ class UserDetailView(APIView):
             if len(new_pass) >= 6:
                 user.set_password(new_pass)
 
+        # Handle groups separately (M2M — serializer can't set via standard write)
+        new_group_ids = request.data.get("groups")
+
         serializer = UserProfileSerializer(user, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+
+        if isinstance(new_group_ids, list):
+            from django.contrib.auth.models import Group as DjangoGroup
+            groups_qs = DjangoGroup.objects.filter(id__in=new_group_ids)
+            user.groups.set(groups_qs)
+
         user.refresh_from_db()
         after = {
             "is_active": user.is_active,
@@ -433,6 +461,7 @@ class UserDetailView(APIView):
         return Response(serializer.data)
 
     def delete(self, request, pk):
+        from django.db.models import ProtectedError
         user = get_object_or_404(User, pk=pk)
         if user == request.user:
             return Response({"detail": "Cannot delete your own account."}, status=400)
@@ -446,7 +475,19 @@ class UserDetailView(APIView):
             "is_superuser": user.is_superuser,
             "groups": sorted(user.groups.values_list("name", flat=True)),
         }
-        user.delete()
+        try:
+            user.delete()
+        except ProtectedError:
+            return Response(
+                {
+                    "detail": (
+                        f"Cannot delete {user.get_full_name() or user.username} — they have active "
+                        "approval steps or transactions linked to their account. "
+                        "Suspend the user instead to revoke access."
+                    )
+                },
+                status=400,
+            )
         log_audit_event(
             user=request.user,
             action="auth.user_deleted",
@@ -565,8 +606,10 @@ class NLQueryView(APIView):
 def _run_nl_query(question: str, user) -> dict:
     """Run NL query using OpenRouter and real DB data, scoped by user role."""
     from ai.tools.openrouter_client import call_text_model
-    from apps.invoices.models import Expense, Vendor, ExpenseApprovalStep
+    from apps.invoices.models import Expense, Vendor, ExpenseApprovalStep, ExpenseQuery
     from django.db.models import Sum, Count, Avg, Q
+    from django.utils import timezone
+    from datetime import timedelta
 
     # ─── 1. Determine Role ───
     is_vendor = hasattr(user, "vendor_profile") and user.vendor_profile is not None
@@ -615,6 +658,30 @@ def _run_nl_query(question: str, user) -> dict:
         ]
         ctx["anomaly_count"] = Expense.objects.filter(anomaly_severity__in=["HIGH", "CRITICAL"]).count()
         
+        # ─── Deep Intelligence for Queries & Delays ───
+        thirty_days_ago = timezone.now() - timedelta(days=30)
+        query_counts = (
+            ExpenseQuery.objects.filter(raised_at__gte=thirty_days_ago)
+            .values("expense__vendor__name")
+            .annotate(count=Count("id"))
+            .order_by("-count")[:5]
+        )
+        ctx["vendor_queries"] = [
+            {"vendor": q["expense__vendor__name"], "query_count": q["count"]}
+            for q in query_counts
+        ]
+
+        # Delayed Payments (Simplified: Approved but not paid, older than 30 days)
+        delayed_invoices = Expense.objects.filter(
+            _status__in=["APPROVED", "BOOKED_D365", "POSTED_D365"],
+            invoice_date__lt=timezone.now().date() - timedelta(days=30)
+        ).values("vendor__name").annotate(count=Count("id"), total_amt=Sum("total_amount")).order_by("-count")[:5]
+        
+        ctx["delayed_payments"] = [
+            {"vendor": d["vendor__name"], "count": d["count"], "amount": float(d["total_amt"] or 0)}
+            for d in delayed_invoices
+        ]
+
         # ─── Deep Budget Intelligence ───
         from apps.invoices.models import Budget
         budgets = Budget.objects.filter(status="active").select_related("department")
@@ -698,7 +765,7 @@ Format your response as a valid JSON object."""
         parsed["model"] = response.get("model", "")
         return parsed
     except Exception:
-        return _rule_based_answer(question, ctx, user)
+        return _rule_based_answer(question, ctx)
 
 
 def _format_context(ctx: dict) -> str:
@@ -718,6 +785,16 @@ def _format_context(ctx: dict) -> str:
         for v in ctx["top_vendors"]:
             lines.append(f"  - {v['vendor']}: ₹{v['total_spend']:,.0f} ({v['invoice_count']} inv)")
             
+    if "vendor_queries" in ctx:
+        lines.append("Vendors with most Queries (last 30d):")
+        for q in ctx["vendor_queries"]:
+            lines.append(f"  - {q['vendor']}: {q['query_count']} queries")
+
+    if "delayed_payments" in ctx:
+        lines.append("Vendors with Delayed Payments (>30d):")
+        for d in ctx["delayed_payments"]:
+            lines.append(f"  - {d['vendor']}: {d['count']} items (₹{d['amount']:,.0f})")
+
     if "budget_health" in ctx:
         lines.append("Budget Health (Active):")
         for b in ctx["budget_health"]:
@@ -762,6 +839,29 @@ def _rule_based_answer(question: str, ctx: dict) -> dict:
             "insight": "Try: 'What are my top vendors?' or 'Show budget status' or 'Any anomalies?'",
             "context": ctx,
         }
+
+    # ── Queries / Late payments (NEW) ──────────────────────────────────────────
+    if any(w in q for w in ["query", "queries", "question raised"]):
+        vendor_queries = ctx.get("vendor_queries", [])
+        if vendor_queries:
+            lines = "\n".join(f"• {vq['vendor']}: {vq['query_count']} queries" for vq in vendor_queries)
+            answer = f"Vendors with the most queries raised in the last 30 days:\n{lines}"
+            insight = f"Vendor '{vendor_queries[0]['vendor']}' has the highest query volume ({vendor_queries[0]['query_count']})."
+        else:
+            answer = "No significant query volume detected for vendors in the last 30 days."
+            insight = "Query levels are within normal parameters."
+        return {"answer": answer, "insight": insight, "context": ctx}
+
+    if any(w in q for w in ["late", "delay", "overdue", "slow payment"]):
+        delayed = ctx.get("delayed_payments", [])
+        if delayed:
+            lines = "\n".join(f"• {d['vendor']}: {d['count']} delayed items (₹{d['amount']:,.0f})" for d in delayed)
+            answer = f"Vendors with delayed payments (over 30 days old):\n{lines}"
+            insight = f"Total delayed exposure for top flagged vendors: ₹{sum(d['amount'] for d in delayed):,.0f}."
+        else:
+            answer = "No significant payment delays detected (all approved invoices are under 30 days old)."
+            insight = "Payment cycle is performing according to SLA."
+        return {"answer": answer, "insight": insight, "context": ctx}
 
     # ── Vendor / spend questions ────────────────────────────────────────────────
     if any(w in q for w in ["vendor", "supplier", "spend", "top vendor", "purchase", "procurement"]):
@@ -931,6 +1031,23 @@ class GroupDetailView(APIView):
             request=request,
         )
         return Response(GroupSerializer(group).data)
+
+    def delete(self, request, pk):
+        group = get_object_or_404(Group, pk=pk)
+        group_name = group.name
+        group_id = group.id
+        group.delete()
+        log_audit_event(
+            user=request.user,
+            action="auth.group_deleted",
+            entity_type="Group",
+            entity_display_name=group_name,
+            masked_before={"name": group_name, "group_id": group_id},
+            masked_after={"deleted": True},
+            change_summary=f"Deleted group {group_name}",
+            request=request,
+        )
+        return Response({"detail": "Group deleted."}, status=204)
 
 
 from rest_framework.permissions import IsAdminUser
