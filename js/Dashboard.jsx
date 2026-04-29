@@ -362,11 +362,56 @@ const DashboardScreen = ({ role, onNavigate }) => {
           </div>
         </Card>
 
-        {/* AI Action Cards */}
-        {[
-          { icon: '✦', title: 'Generate 10-Q', sub: 'AI-compiled regulatory filing draft', action: handleGenerate10Q, loading: runLoading.q },
-          { icon: '⬡', title: 'Audit Sweep', sub: 'Full-spectrum transaction scan', action: handleAuditSweep, loading: runLoading.sweep },
-        ].map((ac, i) => <AIActionCard key={i} ac={ac} />)}
+        {/* AI Action Cards with inline output */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div onClick={runLoading.q ? undefined : handleGenerate10Q}
+            style={{ background: runLoading.q ? '#F8F7F5' : 'white', borderRadius: '16px', padding: '22px 20px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', cursor: runLoading.q ? 'wait' : 'pointer', opacity: runLoading.q ? 0.7 : 1, transition: 'all 200ms' }}
+            onMouseEnter={e => { if (!runLoading.q) e.currentTarget.style.boxShadow = '0 8px 32px rgba(232,120,59,0.25)'; }}
+            onMouseLeave={e => e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.06)'}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '15px', color: '#0F172A' }}>✦ Generate 10-Q</div>
+              <AIBadge />
+            </div>
+            <div style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>AI-compiled regulatory filing draft</div>
+            <div style={{ fontSize: '12px', color: '#E8783B', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '8px' }}>{runLoading.q ? 'Generating…' : 'Run now →'}</div>
+          </div>
+          {modal10Q && (
+            <div style={{ background: modal10Q.error ? '#FEF2F2' : '#F0FDF4', border: `1px solid ${modal10Q.error ? '#FECACA' : '#A7F3D0'}`, borderRadius: '12px', padding: '14px 16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: modal10Q.error ? '#991B1B' : '#065F46', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{modal10Q.title || '10-Q Draft'}</span>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {!modal10Q.error && <button onClick={e => { e.stopPropagation(); const blob = new Blob([modal10Q.content || ''], { type: 'text/plain' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = '10Q_Draft.txt'; a.click(); }} style={{ fontSize: '11px', color: '#065F46', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Download ↓</button>}
+                  <button onClick={e => { e.stopPropagation(); setModal10Q(null); }} style={{ fontSize: '16px', color: '#94A3B8', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1 }}>×</button>
+                </div>
+              </div>
+              <div style={{ fontSize: '12px', color: modal10Q.error ? '#991B1B' : '#065F46', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.6, maxHeight: 160, overflowY: 'auto', whiteSpace: 'pre-wrap' }}>{modal10Q.content || JSON.stringify(modal10Q, null, 2)}</div>
+            </div>
+          )}
+
+          <div onClick={runLoading.sweep ? undefined : handleAuditSweep}
+            style={{ background: runLoading.sweep ? '#F8F7F5' : 'white', borderRadius: '16px', padding: '22px 20px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', cursor: runLoading.sweep ? 'wait' : 'pointer', opacity: runLoading.sweep ? 0.7 : 1, transition: 'all 200ms' }}
+            onMouseEnter={e => { if (!runLoading.sweep) e.currentTarget.style.boxShadow = '0 8px 32px rgba(232,120,59,0.25)'; }}
+            onMouseLeave={e => e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.06)'}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '15px', color: '#0F172A' }}>⬡ Audit Sweep</div>
+              <AIBadge />
+            </div>
+            <div style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Full-spectrum transaction scan</div>
+            <div style={{ fontSize: '12px', color: '#E8783B', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '8px' }}>{runLoading.sweep ? 'Scanning…' : 'Run now →'}</div>
+          </div>
+          {sweepResult && (
+            <div style={{ background: sweepResult.error ? '#FEF2F2' : '#F0FDF4', border: `1px solid ${sweepResult.error ? '#FECACA' : '#A7F3D0'}`, borderRadius: '12px', padding: '14px 16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: sweepResult.error ? '#991B1B' : '#065F46', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Sweep Results</span>
+                <button onClick={e => { e.stopPropagation(); setSweepResult(null); }} style={{ fontSize: '16px', color: '#94A3B8', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1 }}>×</button>
+              </div>
+              <div style={{ fontSize: '12px', color: sweepResult.error ? '#991B1B' : '#065F46', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.6 }}>{sweepResult.message || JSON.stringify(sweepResult)}</div>
+              {!sweepResult.error && (sweepResult.flagged || sweepResult.flagged_count) > 0 && (
+                <button onClick={e => { e.stopPropagation(); setSweepResult(null); onNavigate && onNavigate('anomaly'); }} style={{ marginTop: '8px', fontSize: '11px', color: '#065F46', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>View Flagged Items →</button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Floating Copilot FAB */}

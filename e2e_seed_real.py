@@ -3,11 +3,13 @@ import os
 import json
 import time
 
-BASE_URL = "http://localhost:8000/api/v1"
-DEP_OPS = "d64b7880-6c79-4aaa-b2e4-68d7c4ffbbc7"
+BASE_URL = "http://localhost:8008/api/v1"
+DEP_OPS = "b510518b-8771-4a85-a79b-1182105876f5"
 
 def login(username, password):
     r = requests.post(f"{BASE_URL}/auth/login/", json={"username": username, "password": password})
+    if r.status_code != 200:
+        print(f"Login failed for {username}: {r.text}")
     return r.json().get("access")
 
 fin_token = login("fin_admin", "demo1234")
@@ -20,7 +22,10 @@ emp_data = [
 ]
 for d in emp_data:
     r = requests.post(f"{BASE_URL}/auth/register/", json=d, headers=headers)
-    print(d["username"], r.status_code)
+    if r.status_code == 201:
+        print(d["username"], "created")
+    else:
+        print(d["username"], "failed", r.status_code, r.text)
 
 print("Creating Vendors...")
 vendor_data = [
@@ -70,10 +75,26 @@ def upload_and_submit(username, file_paths):
         
         extr = ocr_r.json().get("extracted_fields", {})
         
+        def fmt_date(d):
+            if not d: return None
+            # If already YYYY-MM-DD
+            if len(d) == 10 and d[4] == '-' and d[7] == '-': return d
+            # Try DD/MM/YYYY or DD-MM-YYYY
+            for sep in ['/', '-']:
+                parts = d.split(sep)
+                if len(parts) == 3:
+                    if len(parts[2]) == 4: # DD/MM/YYYY
+                        return f"{parts[2]}-{parts[1].zfill(2)}-{parts[0].zfill(2)}"
+                    if len(parts[0]) == 4: # YYYY/MM/DD
+                        return f"{parts[0]}-{parts[1].zfill(2)}-{parts[2].zfill(2)}"
+            return None
+
+        invoice_date = fmt_date(extr.get("invoice_date")) or "2026-04-10"
+
         submit_data = {
             "invoice_file": file_id,
             "invoice_number": extr.get("invoice_number") or f"INV-{int(time.time())}",
-            "invoice_date": extr.get("invoice_date") or "2026-04-10",
+            "invoice_date": invoice_date,
             "total_amount": extr.get("total_amount") or 100.0,
             "cgst": extr.get("cgst") or 0.0,
             "sgst": extr.get("sgst") or 0.0,

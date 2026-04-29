@@ -226,37 +226,67 @@ const AppShell = ({
 }) => {
   const [notifOpen, setNotifOpen] = React.useState(false);
   const [notifs, setNotifs] = React.useState([]);
+  const [unreadCount, setUnreadCount] = React.useState(0);
+  const [popup, setPopup] = React.useState(null); // HIGH priority popup
+  const [popupDismissed, setPopupDismissed] = React.useState(false);
   const navBadges = useLiveBadges();
   const config = ROLE_CONFIG[roleKey] || ROLE_CONFIG['AP Clerk'];
   const navItems = config.nav;
-  const loadNotifs = () => {
-    window.TijoriAPI.AuditAPI.list({
-      limit: 8
-    }).then(data => {
-      const items = (data?.results || []).map(e => {
-        const actionParts = (e.action || '').split('.');
-        const entity = actionParts[0] || '';
-        const verb = (actionParts[1] || e.action || '').replace(/_/g, ' ');
-        const who = e.actor || 'System';
-        const ref = e.details?.ref_no || (e.entity_id ? e.entity_id.slice(0, 8).toUpperCase() : '');
-        const navTarget = entity === 'expense' ? 'ap-hub' : entity === 'vendor' ? 'vendors' : entity === 'user' ? 'iam' : 'audit';
-        return {
-          text: `${who} ${verb}${ref ? ' · ' + ref : ''}`,
-          sub: e.entity_type || '',
-          time: e.timestamp ? new Date(e.timestamp).toLocaleTimeString('en-IN', {
-            hour: '2-digit',
-            minute: '2-digit'
-          }) : '',
-          dot: e.action.includes('reject') ? '#EF4444' : e.action.includes('approv') ? '#10B981' : e.action.includes('paid') ? '#8B5CF6' : '#F59E0B',
-          navTarget,
-          entityId: e.entity_id
-        };
-      });
+  const loadNotifs = (showPopup = false) => {
+    window.TijoriAPI.NotificationsAPI.list().then(data => {
+      const items = (data?.notifications || []).map(n => ({
+        text: n.message,
+        sub: n.title,
+        time: n.timestamp ? new Date(n.timestamp).toLocaleTimeString('en-IN', {
+          hour: '2-digit',
+          minute: '2-digit'
+        }) : '',
+        dot: n.dot || '#F59E0B',
+        navTarget: n.nav_target || 'audit',
+        priority: n.priority || 'LOW',
+        type: n.type,
+        ref_no: n.ref_no,
+        amount: n.amount
+      }));
       setNotifs(items);
-    }).catch(() => {});
+      setUnreadCount(data?.unread_count || 0);
+
+      // Show popup for HIGH priority on first load or on dashboard
+      if (showPopup && !popupDismissed) {
+        const highItems = items.filter(i => i.priority === 'HIGH').slice(0, 3);
+        if (highItems.length > 0) setPopup(highItems);
+      }
+    }).catch(() => {
+      // Fallback to audit log if notifications endpoint fails
+      window.TijoriAPI.AuditAPI.list({
+        limit: 8
+      }).then(data => {
+        const items = (data?.results || []).map(e => {
+          const verb = (e.action || '').split('.').pop()?.replace(/_/g, ' ') || '';
+          return {
+            text: `${e.actor || 'System'}: ${verb}${e.details?.ref_no ? ' · ' + e.details.ref_no : ''}`,
+            sub: e.entity_type || '',
+            time: e.timestamp ? new Date(e.timestamp).toLocaleTimeString('en-IN', {
+              hour: '2-digit',
+              minute: '2-digit'
+            }) : '',
+            dot: e.action?.includes('reject') ? '#EF4444' : e.action?.includes('approv') ? '#10B981' : '#F59E0B',
+            navTarget: 'audit',
+            priority: 'LOW'
+          };
+        });
+        setNotifs(items);
+      }).catch(() => {});
+    });
   };
   React.useEffect(() => {
-    loadNotifs();
+    loadNotifs(true);
+  }, []);
+
+  // Auto-refresh every 60 seconds
+  React.useEffect(() => {
+    const interval = setInterval(() => loadNotifs(false), 60000);
+    return () => clearInterval(interval);
   }, []);
   return /*#__PURE__*/React.createElement("div", {
     style: {
@@ -605,7 +635,7 @@ const AppShell = ({
       height: 36,
       borderRadius: '10px',
       background: notifOpen ? '#FFF8F5' : '#F8F7F5',
-      border: '1.5px solid #E2E8F0',
+      border: `1.5px solid ${unreadCount > 0 ? '#EF4444' : '#E2E8F0'}`,
       cursor: 'pointer',
       display: 'flex',
       alignItems: 'center',
@@ -613,24 +643,26 @@ const AppShell = ({
       fontSize: '15px',
       position: 'relative'
     }
-  }, "\uD83D\uDD14", notifs.length > 0 && /*#__PURE__*/React.createElement("span", {
+  }, "\uD83D\uDD14", unreadCount > 0 && /*#__PURE__*/React.createElement("span", {
     style: {
       position: 'absolute',
-      top: -3,
-      right: -3,
-      width: 14,
-      height: 14,
+      top: -4,
+      right: -4,
+      minWidth: 16,
+      height: 16,
       background: '#EF4444',
-      borderRadius: '50%',
+      borderRadius: '999px',
       border: '2px solid white',
       fontSize: '8px',
       color: 'white',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      fontWeight: 700
+      fontWeight: 700,
+      padding: '0 3px',
+      animation: 'dotPulse 2s ease infinite'
     }
-  }, notifs.length)), notifOpen && /*#__PURE__*/React.createElement("div", {
+  }, unreadCount)), notifOpen && /*#__PURE__*/React.createElement("div", {
     style: {
       position: 'absolute',
       top: 44,
@@ -683,7 +715,30 @@ const AppShell = ({
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     },
     onClick: () => setNotifOpen(false)
-  }, "\u2715"))), notifs.length === 0 ? /*#__PURE__*/React.createElement("div", {
+  }, "\u2715"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '8px 16px 4px',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '10px',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, notifs.length, " notifications \xB7 ", unreadCount, " urgent"), unreadCount > 0 && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '9px',
+      fontWeight: 700,
+      color: '#EF4444',
+      background: '#FEF2F2',
+      padding: '1px 6px',
+      borderRadius: '999px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, unreadCount, " HIGH")), notifs.length === 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '20px 16px',
       textAlign: 'center',
@@ -691,63 +746,106 @@ const AppShell = ({
       fontSize: '12px',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "No recent activity") : notifs.map((n, i) => /*#__PURE__*/React.createElement("div", {
-    key: i,
-    style: {
-      padding: '11px 16px',
-      borderBottom: '1px solid #F8F7F5',
-      display: 'flex',
-      gap: '10px',
-      cursor: 'pointer',
-      transition: 'background 150ms'
-    },
-    onClick: () => {
-      setNotifOpen(false);
-      onNavigate(n.navTarget);
-    },
-    onMouseEnter: e => e.currentTarget.style.background = '#FFF8F5',
-    onMouseLeave: e => e.currentTarget.style.background = 'transparent'
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      width: 8,
-      height: 8,
-      borderRadius: '50%',
-      background: n.dot,
-      marginTop: 4,
-      flexShrink: 0
-    }
+  }, "No recent activity") : notifs.slice(0, 8).map((n, i) => {
+    const priorityStyle = n.priority === 'HIGH' ? {
+      border: '1px solid #FEE2E2',
+      background: '#FFF5F5',
+      borderRadius: '8px',
+      margin: '2px 8px'
+    } : n.priority === 'MEDIUM' ? {
+      border: '1px solid #FEF3C7',
+      background: '#FFFBEB',
+      borderRadius: '8px',
+      margin: '2px 8px'
+    } : {};
+    return /*#__PURE__*/React.createElement("div", {
+      key: i,
+      style: {
+        padding: '10px 16px',
+        borderBottom: '1px solid #F8F7F5',
+        display: 'flex',
+        gap: '10px',
+        cursor: 'pointer',
+        transition: 'background 150ms',
+        ...priorityStyle
+      },
+      onClick: () => {
+        setNotifOpen(false);
+        onNavigate(n.navTarget);
+      },
+      onMouseEnter: e => e.currentTarget.style.background = '#FFF8F5',
+      onMouseLeave: e => e.currentTarget.style.background = priorityStyle.background || 'transparent'
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        width: 8,
+        height: 8,
+        borderRadius: '50%',
+        background: n.dot,
+        marginTop: 4,
+        flexShrink: 0
+      }
+    }), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1,
+        minWidth: 0
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        marginBottom: '2px'
+      }
+    }, n.priority === 'HIGH' && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: '8px',
+        fontWeight: 700,
+        color: 'white',
+        background: '#EF4444',
+        padding: '1px 4px',
+        borderRadius: '3px',
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        flexShrink: 0
+      }
+    }, "URGENT"), n.priority === 'MEDIUM' && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: '8px',
+        fontWeight: 700,
+        color: '#92400E',
+        background: '#FDE68A',
+        padding: '1px 4px',
+        borderRadius: '3px',
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        flexShrink: 0
+      }
+    }, "INFO")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '12px',
+        color: '#0F172A',
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        fontWeight: n.priority === 'HIGH' ? 700 : 600,
+        lineHeight: 1.4,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap'
+      }
+    }, n.text), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '10px',
+        color: '#94A3B8',
+        marginTop: 2,
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        display: 'flex',
+        gap: '6px'
+      }
+    }, /*#__PURE__*/React.createElement("span", null, n.sub), n.sub && n.time && /*#__PURE__*/React.createElement("span", null, "\xB7"), /*#__PURE__*/React.createElement("span", null, n.time), n.amount && /*#__PURE__*/React.createElement("span", null, "\xB7 \u20B9", parseFloat(n.amount).toLocaleString('en-IN')))), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: '10px',
+        color: '#CBD5E1',
+        alignSelf: 'center'
+      }
+    }, "\u203A"));
   }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      flex: 1,
-      minWidth: 0
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: '12px',
-      color: '#0F172A',
-      fontFamily: "'Plus Jakarta Sans', sans-serif",
-      fontWeight: 600,
-      lineHeight: 1.4,
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
-      whiteSpace: 'nowrap'
-    }
-  }, n.text), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: '10px',
-      color: '#94A3B8',
-      marginTop: 2,
-      fontFamily: "'Plus Jakarta Sans', sans-serif",
-      display: 'flex',
-      gap: '6px'
-    }
-  }, /*#__PURE__*/React.createElement("span", null, n.sub), n.sub && n.time && /*#__PURE__*/React.createElement("span", null, "\xB7"), /*#__PURE__*/React.createElement("span", null, n.time))), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: '10px',
-      color: '#CBD5E1',
-      alignSelf: 'center'
-    }
-  }, "\u203A"))), /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '10px 16px',
       borderTop: '1px solid #F1F0EE'
@@ -792,7 +890,181 @@ const AppShell = ({
       background: '#F8FAFC'
     },
     onClick: () => setNotifOpen(false)
-  }, children)));
+  }, children)), popup && !popupDismissed && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'fixed',
+      bottom: 24,
+      right: 24,
+      width: 360,
+      zIndex: 9999,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '10px',
+      pointerEvents: 'auto'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'white',
+      borderRadius: '16px',
+      boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
+      border: '1px solid #FEE2E2',
+      overflow: 'hidden'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'linear-gradient(135deg, #EF4444, #DC2626)',
+      padding: '12px 16px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '14px'
+    }
+  }, "\uD83D\uDEA8"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '13px',
+      color: 'white'
+    }
+  }, "Urgent Attention Required"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '10px',
+      color: 'rgba(255,255,255,0.7)',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, popup.length, " high-priority notification", popup.length !== 1 ? 's' : ''))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setPopupDismissed(true);
+      setPopup(null);
+    },
+    style: {
+      background: 'rgba(255,255,255,0.2)',
+      border: 'none',
+      borderRadius: '6px',
+      color: 'white',
+      cursor: 'pointer',
+      fontSize: '13px',
+      width: 24,
+      height: 24,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontWeight: 700
+    }
+  }, "\u2715")), popup.map((n, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      padding: '12px 16px',
+      borderBottom: i < popup.length - 1 ? '1px solid #FEF2F2' : 'none',
+      display: 'flex',
+      gap: '10px'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 10,
+      height: 10,
+      borderRadius: '50%',
+      background: n.dot || '#EF4444',
+      flexShrink: 0,
+      marginTop: 3
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      minWidth: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontWeight: 700,
+      color: '#0F172A',
+      marginBottom: '2px'
+    }
+  }, n.text), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#64748B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, n.sub), n.amount && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#EF4444',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontWeight: 600,
+      marginTop: '2px'
+    }
+  }, "\u20B9", parseFloat(n.amount).toLocaleString('en-IN'))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setPopupDismissed(true);
+      setPopup(null);
+      onNavigate(n.navTarget || 'anomaly');
+    },
+    style: {
+      background: '#EF4444',
+      border: 'none',
+      borderRadius: '8px',
+      color: 'white',
+      cursor: 'pointer',
+      fontSize: '10px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontWeight: 700,
+      padding: '5px 10px',
+      flexShrink: 0,
+      alignSelf: 'center'
+    }
+  }, "View \u2192"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '10px 16px',
+      background: '#FFF5F5',
+      display: 'flex',
+      gap: '8px'
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setPopupDismissed(true);
+      setPopup(null);
+      setNotifOpen(true);
+    },
+    style: {
+      flex: 1,
+      padding: '8px',
+      background: 'white',
+      border: '1.5px solid #EF4444',
+      borderRadius: '8px',
+      fontSize: '11px',
+      color: '#EF4444',
+      cursor: 'pointer',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontWeight: 700
+    }
+  }, "View All Notifications"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setPopupDismissed(true);
+      setPopup(null);
+    },
+    style: {
+      padding: '8px 14px',
+      background: '#F1F5F9',
+      border: 'none',
+      borderRadius: '8px',
+      fontSize: '11px',
+      color: '#64748B',
+      cursor: 'pointer',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontWeight: 600
+    }
+  }, "Dismiss")))));
 };
 
 // ─── SCREEN MAP ───────────────────────────────────────────────────────────────
@@ -871,15 +1143,15 @@ const SCREEN_MAP = {
     role: roleKey,
     onNavigate: nav
   }),
-  'ar-raise': (nav, roleKey, ctx) => React.createElement(ARRaiseScreen, {
+  'ar-raise': (nav, roleKey, ctx) => React.createElement(ARLiveRaiseScreen, {
     role: roleKey,
     onNavigate: nav
   }),
-  'ar-customer': (nav, roleKey, ctx) => React.createElement(ARCustomerScreen, {
+  'ar-customer': (nav, roleKey, ctx) => React.createElement(ARLiveCustomerScreen, {
     role: roleKey,
     onNavigate: nav
   }),
-  'reports': (nav, roleKey, ctx) => React.createElement(ReportsScreen, {
+  'reports': (nav, roleKey, ctx) => React.createElement(LiveReportsScreen, {
     role: roleKey,
     onNavigate: nav
   }),

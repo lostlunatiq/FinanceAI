@@ -140,43 +140,68 @@ const useLiveBadges = () => {
 // ─── APP SHELL ────────────────────────────────────────────────────────────────
 
 const AppShell = ({ roleKey, screen, onNavigate, onBack, canGoBack, onLogout, user, children }) => {
-  const [notifOpen, setNotifOpen]     = React.useState(false);
-  const [notifs, setNotifs]           = React.useState([]);
-  const navBadges                     = useLiveBadges();
-  const config                        = ROLE_CONFIG[roleKey] || ROLE_CONFIG['AP Clerk'];
-  const navItems                      = config.nav;
+  const [notifOpen, setNotifOpen]       = React.useState(false);
+  const [notifs, setNotifs]             = React.useState([]);
+  const [unreadCount, setUnreadCount]   = React.useState(0);
+  const [popup, setPopup]               = React.useState(null); // HIGH priority popup
+  const [popupDismissed, setPopupDismissed] = React.useState(false);
+  const navBadges                       = useLiveBadges();
+  const config                          = ROLE_CONFIG[roleKey] || ROLE_CONFIG['AP Clerk'];
+  const navItems                        = config.nav;
 
-  const loadNotifs = () => {
-    window.TijoriAPI.AuditAPI.list({ limit: 8 })
+  const loadNotifs = (showPopup = false) => {
+    window.TijoriAPI.NotificationsAPI.list()
       .then(data => {
-        const items = (data?.results || []).map(e => {
-          const actionParts = (e.action || '').split('.');
-          const entity = actionParts[0] || '';
-          const verb   = (actionParts[1] || e.action || '').replace(/_/g, ' ');
-          const who    = e.actor || 'System';
-          const ref    = e.details?.ref_no || (e.entity_id ? e.entity_id.slice(0,8).toUpperCase() : '');
-          const navTarget = entity === 'expense' ? 'ap-hub'
-                          : entity === 'vendor'  ? 'vendors'
-                          : entity === 'user'    ? 'iam'
-                          : 'audit';
-          return {
-            text: `${who} ${verb}${ref ? ' · ' + ref : ''}`,
-            sub:  e.entity_type || '',
-            time: e.timestamp ? new Date(e.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '',
-            dot:  e.action.includes('reject') ? '#EF4444'
-                : e.action.includes('approv') ? '#10B981'
-                : e.action.includes('paid')   ? '#8B5CF6'
-                : '#F59E0B',
-            navTarget,
-            entityId: e.entity_id,
-          };
-        });
+        const items = (data?.notifications || []).map(n => ({
+          id: n.id,
+          text: n.message,
+          sub: n.title,
+          time: n.timestamp ? new Date(n.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '',
+          dot: n.dot_color || '#F59E0B',
+          navTarget: n.nav_target || 'audit',
+          priority: n.priority || 'LOW',
+          type: n.type,
+          ref_no: n.ref_no,
+          amount: n.amount,
+          isRead: n.is_read,
+        }));
         setNotifs(items);
+        setUnreadCount(data?.unread_count || 0);
+
+        // Show popup for HIGH priority on first load or on dashboard
+        if (showPopup && !popupDismissed) {
+          const highItems = items.filter(i => (i.priority === 'HIGH' || i.priority === 'CRITICAL') && !i.isRead).slice(0, 3);
+          if (highItems.length > 0) setPopup(highItems);
+        }
       })
-      .catch(() => {});
+      .catch(() => {
+        // Fallback removed — we have a real API now
+      });
   };
 
-  React.useEffect(() => { loadNotifs(); }, []);
+  const markAllRead = async () => {
+    try {
+      await window.TijoriAPI.NotificationsAPI.markRead();
+      setUnreadCount(0);
+      setNotifs(prev => prev.map(n => ({ ...n, isRead: true })));
+    } catch (e) {}
+  };
+
+  const markSingleRead = async (id) => {
+    try {
+      await window.TijoriAPI.NotificationsAPI.markRead(id);
+      setUnreadCount(prev => Math.max(0, prev - 1));
+      setNotifs(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+    } catch (e) {}
+  };
+
+  React.useEffect(() => { loadNotifs(true); }, []);
+
+  // Auto-refresh every 60 seconds
+  React.useEffect(() => {
+    const interval = setInterval(() => loadNotifs(false), 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#F8FAFC' }}>
@@ -293,46 +318,50 @@ const AppShell = ({ roleKey, screen, onNavigate, onBack, canGoBack, onLogout, us
           {/* Notification bell */}
           <div style={{ position: 'relative' }}>
             <button onClick={() => { setNotifOpen(!notifOpen); if (!notifOpen) loadNotifs(); }}
-              style={{ width: 36, height: 36, borderRadius: '10px', background: notifOpen ? '#FFF8F5' : '#F8F7F5', border: '1.5px solid #E2E8F0', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px', position: 'relative' }}>
+              style={{ width: 36, height: 36, borderRadius: '10px', background: notifOpen ? '#FFF8F5' : '#F8F7F5', border: `1.5px solid ${unreadCount > 0 ? '#EF4444' : '#E2E8F0'}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px', position: 'relative' }}>
               🔔
-              {notifs.length > 0 && (
-                <span style={{ position: 'absolute', top: -3, right: -3, width: 14, height: 14, background: '#EF4444', borderRadius: '50%', border: '2px solid white', fontSize: '8px', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>
-                  {notifs.length}
+              {unreadCount > 0 && (
+                <span style={{ position: 'absolute', top: -4, right: -4, minWidth: 16, height: 16, background: '#EF4444', borderRadius: '999px', border: '2px solid white', fontSize: '8px', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, padding: '0 3px', animation: 'dotPulse 2s ease infinite' }}>
+                  {unreadCount}
                 </span>
               )}
             </button>
             {notifOpen && (
-              <div style={{ position: 'absolute', top: 44, right: 0, width: 320, background: 'white', borderRadius: '14px', boxShadow: '0 16px 48px rgba(0,0,0,0.14)', border: '1px solid #F1F0EE', zIndex: 100 }}>
-                <div style={{ padding: '14px 16px', borderBottom: '1px solid #F1F0EE', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '14px', color: '#0F172A' }}>Live Activity</div>
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                    <span style={{ fontSize: '11px', color: '#E8783B', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }} onClick={() => { setNotifOpen(false); onNavigate('audit'); }}>View All →</span>
-                    <span style={{ fontSize: '11px', color: '#94A3B8', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }} onClick={() => setNotifOpen(false)}>✕</span>
+              <div style={{ position: 'absolute', top: 44, right: 0, width: 340, background: 'white', borderRadius: '16px', boxShadow: '0 16px 48px rgba(0,0,0,0.18)', border: '1px solid #F1F0EE', zIndex: 100, overflow: 'hidden' }}>
+                <div style={{ padding: '16px', borderBottom: '1px solid #F1F0EE', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC' }}>
+                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '15px', color: '#0F172A' }}>Notifications</div>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <button onClick={markAllRead} style={{ fontSize: '11px', color: '#E8783B', border: 'none', background: 'none', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700 }}>Mark all read</button>
+                    <span style={{ fontSize: '14px', color: '#94A3B8', cursor: 'pointer' }} onClick={() => setNotifOpen(false)}>✕</span>
                   </div>
                 </div>
-                {notifs.length === 0 ? (
-                  <div style={{ padding: '20px 16px', textAlign: 'center', color: '#94A3B8', fontSize: '12px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>No recent activity</div>
-                ) : notifs.map((n, i) => (
-                  <div key={i} style={{ padding: '11px 16px', borderBottom: '1px solid #F8F7F5', display: 'flex', gap: '10px', cursor: 'pointer', transition: 'background 150ms' }}
-                    onClick={() => { setNotifOpen(false); onNavigate(n.navTarget); }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#FFF8F5'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: n.dot, marginTop: 4, flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '12px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.text}</div>
-                      <div style={{ fontSize: '10px', color: '#94A3B8', marginTop: 2, fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'flex', gap: '6px' }}>
-                        <span>{n.sub}</span>
-                        {n.sub && n.time && <span>·</span>}
-                        <span>{n.time}</span>
+                <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                  {notifs.length === 0 ? (
+                    <div style={{ padding: '40px 20px', textAlign: 'center', color: '#94A3B8', fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>🔔 All caught up!</div>
+                  ) : notifs.map((n, i) => (
+                    <div key={i} style={{ padding: '14px 16px', borderBottom: '1px solid #F8F7F5', display: 'flex', gap: '12px', cursor: 'pointer', transition: 'background 150ms', background: n.isRead ? 'transparent' : '#FFF8F5' }}
+                      onClick={() => { markSingleRead(n.id); setNotifOpen(false); onNavigate(n.navTarget); }}
+                      onMouseEnter={e => e.currentTarget.style.background = n.isRead ? '#F8F7F5' : '#FFF5F0'}
+                      onMouseLeave={e => e.currentTarget.style.background = n.isRead ? 'transparent' : '#FFF8F5'}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: n.dot, marginTop: 6, flexShrink: 0, boxShadow: `0 0 8px ${n.dot}55` }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                          <span style={{ fontSize: '10px', fontWeight: 800, color: n.dot, textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{n.sub}</span>
+                          {!n.isRead && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#E8783B' }} />}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: n.isRead ? 500 : 700, lineHeight: 1.4 }}>{n.text}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                          <div style={{ fontSize: '10px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{n.time}</div>
+                          {n.amount && <div style={{ fontSize: '11px', fontWeight: 700, color: '#0F172A', fontFamily: "'JetBrains Mono', monospace" }}>₹{Number(n.amount).toLocaleString('en-IN')}</div>}
+                        </div>
                       </div>
                     </div>
-                    <span style={{ fontSize: '10px', color: '#CBD5E1', alignSelf: 'center' }}>›</span>
-                  </div>
-                ))}
-                <div style={{ padding: '10px 16px', borderTop: '1px solid #F1F0EE' }}>
+                  ))}
+                </div>
+                <div style={{ padding: '12px', textAlign: 'center', borderTop: '1px solid #F1F0EE', background: '#F8FAFC' }}>
                   <button onClick={() => { setNotifOpen(false); onNavigate('audit'); }}
-                    style={{ width: '100%', padding: '8px', background: '#F8F7F5', border: 'none', borderRadius: '8px', fontSize: '12px', color: '#475569', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>
-                    View Full Audit Log →
+                    style={{ background: 'none', border: 'none', fontSize: '12px', color: '#64748B', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>
+                    View Full Audit Trail →
                   </button>
                 </div>
               </div>
@@ -351,6 +380,60 @@ const AppShell = ({ roleKey, screen, onNavigate, onBack, canGoBack, onLogout, us
           {children}
         </div>
       </div>
+
+      {/* ── HIGH PRIORITY POPUP OVERLAY ── */}
+      {popup && !popupDismissed && (
+        <div style={{ position: 'fixed', bottom: 24, right: 24, width: 360, zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '10px', pointerEvents: 'auto' }}>
+          <div style={{ background: 'white', borderRadius: '16px', boxShadow: '0 20px 60px rgba(0,0,0,0.18)', border: '1px solid #FEE2E2', overflow: 'hidden' }}>
+            {/* Header */}
+            <div style={{ background: 'linear-gradient(135deg, #EF4444, #DC2626)', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '14px' }}>🚨</span>
+                <div>
+                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '13px', color: 'white' }}>Urgent Attention Required</div>
+                  <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.7)', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{popup.length} high-priority notification{popup.length !== 1 ? 's' : ''}</div>
+                </div>
+              </div>
+              <button onClick={() => { setPopupDismissed(true); setPopup(null); }}
+                style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '6px', color: 'white', cursor: 'pointer', fontSize: '13px', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>
+                ✕
+              </button>
+            </div>
+
+            {/* Notification items */}
+            {popup.map((n, i) => (
+              <div key={i} style={{ padding: '12px 16px', borderBottom: i < popup.length - 1 ? '1px solid #FEF2F2' : 'none', display: 'flex', gap: '10px' }}>
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: n.dot || '#EF4444', flexShrink: 0, marginTop: 3 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '12px', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, color: '#0F172A', marginBottom: '2px' }}>{n.text}</div>
+                  <div style={{ fontSize: '11px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{n.sub}</div>
+                  {n.amount && (
+                    <div style={{ fontSize: '11px', color: '#EF4444', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600, marginTop: '2px' }}>
+                      ₹{parseFloat(n.amount).toLocaleString('en-IN')}
+                    </div>
+                  )}
+                </div>
+                <button onClick={() => { setPopupDismissed(true); setPopup(null); onNavigate(n.navTarget || 'anomaly'); }}
+                  style={{ background: '#EF4444', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer', fontSize: '10px', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, padding: '5px 10px', flexShrink: 0, alignSelf: 'center' }}>
+                  View →
+                </button>
+              </div>
+            ))}
+
+            {/* Footer */}
+            <div style={{ padding: '10px 16px', background: '#FFF5F5', display: 'flex', gap: '8px' }}>
+              <button onClick={() => { setPopupDismissed(true); setPopup(null); setNotifOpen(true); }}
+                style={{ flex: 1, padding: '8px', background: 'white', border: '1.5px solid #EF4444', borderRadius: '8px', fontSize: '11px', color: '#EF4444', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700 }}>
+                View All Notifications
+              </button>
+              <button onClick={() => { setPopupDismissed(true); setPopup(null); }}
+                style={{ padding: '8px 14px', background: '#F1F5F9', border: 'none', borderRadius: '8px', fontSize: '11px', color: '#64748B', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

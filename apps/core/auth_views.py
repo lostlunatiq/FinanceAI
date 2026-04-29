@@ -413,23 +413,29 @@ def _run_nl_query(question: str, user) -> dict:
     elif grade < 3 and not is_cfo: role_title = "Personal Expense Assistant"
     else: role_title = "Finance Intelligence Copilot"
 
-    system_prompt = f"""You are FinanceAI's {role_title} — a strict financial intelligence engine.
-You MUST provide answers based ONLY on the database context provided below.
-DO NOT guess or use outside information. If the data is not in the context, say "I don't have that specific data in my records."
-Always format currency as ₹ with Indian numbering (e.g., ₹1,42,500).
+    system_prompt = f"""You are FinanceAI's {role_title} — a pro-active financial intelligence agent.
+You have access to the financial data context provided below.
+You MUST provide answers based ONLY on this context. 
 Your tone should be professional, data-driven, and highly detailed.
-Explain the numbers you are providing.
-IMPORTANT: You are restricted to the context of the current user: {ctx['user_role']}."""
+Format currency as ₹ with Indian numbering.
+
+TOOLS & ACTIONS:
+You can suggest actions the user can take. If the user asks to "do" something, check if it matches these actions:
+- nav_to(screen): Suggest navigating to a screen (dashboard, ap-hub, expenses, anomaly, budget, reports, vendors).
+- approve(ref_no): Suggest approving a specific bill.
+- schedule(ref_no): Suggest scheduling a payment.
+- remind(ref_no): Suggest sending a reminder to a vendor.
+- scan(ref_no): Suggest running an anomaly scan.
+
+IMPORTANT: You are restricted to the context of the current user: {ctx['user_role']}.
+Return JSON with 'answer', 'insight', 'data_used', and an optional 'actions' list of objects like {{"label": "...", "type": "...", "payload": {{...}}}}."""
 
     user_prompt = f"""Financial Data Context:
 {_format_context(ctx)}
 
 User Question: {question}
 
-Provide a clear, direct answer. Include specific numbers from the data above.
-Also provide a brief "insight" (one actionable observation based on the user's role).
-Format your response as JSON:
-{{"answer": "...", "insight": "...", "data_used": ["list of data points used"]}}"""
+Format your response as a valid JSON object."""
 
     try:
         response = call_text_model(prompt=user_prompt, system_prompt=system_prompt)
@@ -488,25 +494,133 @@ def _format_context(ctx: dict) -> str:
 
 def _rule_based_answer(question: str, ctx: dict) -> dict:
     q = question.lower()
-    if any(w in q for w in ["vendor", "supplier", "spend", "top"]):
+    role = ctx.get("user_role", "Finance User")
+
+    # ── Greetings / identity questions ──────────────────────────────────────────
+    greeting_words = ["hi", "hello", "hey", "who are you", "what are you", "what can you do", "help me", "help"]
+    finance_words = ["audit", "budget", "vendor", "invoice", "payment", "expense", "anomaly", "cash", "outstanding", "pending", "queue"]
+    if any(w in q for w in greeting_words) and not any(w in q for w in finance_words):
+        answer = (
+            f"Hello! I'm your {role} Copilot — an AI-powered finance intelligence assistant.\n\n"
+            "I can help you with:\n"
+            "• Outstanding invoices and payment status\n"
+            "• Vendor spend analysis and top vendors\n"
+            "• Budget utilization and alerts\n"
+            "• Anomaly & fraud detection summary\n"
+            "• Cash flow insights and treasury health\n\n"
+            "I'm restricted to financial data only. What would you like to know?"
+        )
+        return {"answer": answer, "insight": "Ask me about vendors, invoices, budget, or anomalies for real-time insights.", "context": ctx}
+
+    # ── Non-finance domain block ────────────────────────────────────────────────
+    non_finance = ["weather", "news", "sports", "movie", "music", "food recipe", "travel plan", "joke", "poem", "programming", "history lesson", "science", "geography"]
+    if any(w in q for w in non_finance):
+        return {
+            "answer": "I'm strictly a finance intelligence assistant. I can only answer questions about your financial data — invoices, vendors, budgets, expenses, and anomalies. Please ask me a finance-related question.",
+            "insight": "Try: 'What are my top vendors?' or 'Show budget status' or 'Any anomalies?'",
+            "context": ctx,
+        }
+
+    # ── Vendor / spend questions ────────────────────────────────────────────────
+    if any(w in q for w in ["vendor", "supplier", "spend", "top vendor", "purchase", "procurement"]):
         vendors = ctx.get("top_vendors", [])[:5]
-        answer = "Top vendors by total spend:\n" + "\n".join(
-            f"{i + 1}. {v['vendor']}: ₹{v['total_spend']:,.0f}" for i, v in enumerate(vendors)
+        if vendors:
+            lines = "\n".join(f"{i+1}. {v['vendor']}: ₹{v['total_spend']:,.0f} ({v['invoice_count']} invoices)" for i, v in enumerate(vendors))
+            answer = f"Top vendors by total spend:\n{lines}"
+            insight = f"Your top vendor '{vendors[0]['vendor']}' accounts for ₹{vendors[0]['total_spend']:,.0f} in spend."
+        else:
+            answer = "No vendor spend data available for your access scope."
+            insight = "Contact Finance Admin for vendor data access."
+        return {"answer": answer, "insight": insight, "context": ctx}
+
+    # ── Budget questions ────────────────────────────────────────────────────────
+    if any(w in q for w in ["budget", "over budget", "utilization", "guardrail", "limit", "dept budget", "department budget"]):
+        budgets = ctx.get("budget_health", [])
+        if budgets:
+            critical = [b for b in budgets if "OVER_BUDGET" in b["status"]]
+            warning = [b for b in budgets if "NEAR_LIMIT" in b["status"]]
+            lines = "\n".join(f"• {b['dept']}: {b['util_pct']}% used (₹{b['spent']:,.0f} of ₹{b['total']:,.0f}) — {b['status']}" for b in budgets)
+            answer = f"Budget Health Summary:\n{lines}"
+            insight = f"{len(critical)} department(s) OVER budget, {len(warning)} near limit. Immediate action required: {', '.join(b['dept'] for b in critical) or 'None'}."
+        else:
+            answer = "No active budget data found. Please configure budgets in the Budgetary Guardrails module."
+            insight = "Set up department budgets to enable this feature."
+        return {"answer": answer, "insight": insight, "context": ctx}
+
+    # ── Anomaly / fraud / risk questions ────────────────────────────────────────
+    if any(w in q for w in ["anomal", "fraud", "suspicious", "flag", "risk", "duplicate"]):
+        count = ctx.get("anomaly_count", 0)
+        answer = f"There are currently {count} HIGH/CRITICAL anomaly flag(s) in the system requiring immediate review.\n\nThese include duplicate invoices, inflated values, and abnormal patterns detected by the AI engine."
+        insight = "Navigate to AI Fraud & Anomaly Engine to investigate and take action on flagged items."
+        return {"answer": answer, "insight": insight, "context": ctx}
+
+    # ── Outstanding / payable / receivable questions ─────────────────────────────
+    if any(w in q for w in ["outstanding", "payable", "receivable", "unpaid", "overdue", "due"]):
+        total = ctx.get("total_outstanding", 0)
+        queue = ctx.get("pending_my_queue", 0)
+        dist = ctx.get("expense_status", [])
+        overdue = next((s for s in dist if s["status"] in ("OVERDUE", "APPROVED")), None)
+        answer = f"Total Outstanding Amount: ₹{total:,.0f}\nYour Pending Queue: {queue} items"
+        if overdue:
+            answer += f"\nApproved & Awaiting Payment: {overdue['count']} items (₹{overdue['amount']:,.0f})"
+        insight = "Prioritize clearing overdue items to avoid late payment penalties and interest."
+        return {"answer": answer, "insight": insight, "context": ctx}
+
+    # ── Pending queue / my tasks ────────────────────────────────────────────────
+    if any(w in q for w in ["queue", "my task", "my approval", "my invoice", "my expense", "my reimbursement", "pending approval"]):
+        queue = ctx.get("pending_my_queue", 0)
+        answer = f"You have {queue} item(s) pending in your approval queue."
+        if queue > 0:
+            answer += "\nPlease review these promptly to avoid SLA breaches."
+        insight = "Access the AP Hub or your dashboard to process pending items."
+        return {"answer": answer, "insight": insight, "context": ctx}
+
+    # ── Audit / activity log ────────────────────────────────────────────────────
+    if any(w in q for w in ["audit", "log", "activity", "history", "24h", "last 24", "audit log"]):
+        anomaly_count = ctx.get("anomaly_count", 0)
+        total = ctx.get("total_outstanding", 0)
+        queue = ctx.get("pending_my_queue", 0)
+        answer = (
+            f"Audit Summary:\n"
+            f"• Active Anomaly Flags (HIGH/CRITICAL): {anomaly_count}\n"
+            f"• Total Outstanding: ₹{total:,.0f}\n"
+            f"• Pending Approvals in Queue: {queue}\n\n"
+            "For a full activity log, use Dashboard → Audit Sweep."
         )
-        insight = (
-            f"Your top vendor accounts for ₹{vendors[0]['total_spend']:,.0f} in spend."
-            if vendors
-            else "No vendor data available."
-        )
-    elif any(w in q for w in ["outstanding", "pending", "due"]):
-        answer = f"Total outstanding amount: ₹{ctx['total_outstanding']:,.0f}"
-        insight = "Prioritize clearing the oldest pending invoices first."
-    elif any(w in q for w in ["anomal", "fraud", "suspicious"]):
-        answer = f"There are {ctx.get('anomaly_count', 'N/A')} HIGH/CRITICAL anomalies requiring review."
-        insight = "Review flagged invoices immediately to prevent potential fraud."
-    else:
-        answer = f"Outstanding: ₹{ctx['total_outstanding']:,.0f} | Anomalies: {ctx.get('anomaly_count', 'N/A')} | Your queue: {ctx['pending_my_queue']}"
-        insight = "Review the dashboard for full financial overview."
+        insight = "Regular audit log reviews help catch fraud patterns early."
+        return {"answer": answer, "insight": insight, "context": ctx}
+
+    # ── Cash flow / treasury ────────────────────────────────────────────────────
+    if any(w in q for w in ["cash", "cashflow", "cash flow", "forecast", "projection", "treasury"]):
+        treasury = ctx.get("treasury_index", "N/A")
+        outstanding = ctx.get("total_outstanding", 0)
+        answer = f"Treasury Health Index: {treasury}%\nTotal Outstanding Payables: ₹{outstanding:,.0f}"
+        insight = "Navigate to AI Intelligence → Cash Flow Forecasting for detailed 90-day projections."
+        return {"answer": answer, "insight": insight, "context": ctx}
+
+    # ── Status distribution / overview ─────────────────────────────────────────
+    if any(w in q for w in ["status", "distribution", "summary", "overview", "dashboard", "report"]):
+        dist = ctx.get("expense_status", [])
+        if dist:
+            lines = "\n".join(f"• {s['status']}: {s['count']} items (₹{s['amount']:,.0f})" for s in dist)
+            answer = f"Expense & Invoice Status Distribution:\n{lines}"
+        else:
+            answer = f"Total Outstanding: ₹{ctx.get('total_outstanding', 0):,.0f}"
+        insight = "Visit the Dashboard for a complete visual breakdown of all financial metrics."
+        return {"answer": answer, "insight": insight, "context": ctx}
+
+    # ── Default: comprehensive financial summary ────────────────────────────────
+    dist = ctx.get("expense_status", [])
+    status_lines = "\n".join(f"  • {s['status']}: {s['count']} items (₹{s['amount']:,.0f})" for s in dist[:5])
+    answer = (
+        f"Financial Summary for {role}:\n"
+        f"• Total Outstanding: ₹{ctx.get('total_outstanding', 0):,.0f}\n"
+        f"• Anomalies (HIGH/CRITICAL): {ctx.get('anomaly_count', 'N/A')}\n"
+        f"• Your Pending Queue: {ctx.get('pending_my_queue', 0)}\n"
+        f"{'Status Breakdown:\n' + status_lines if status_lines else ''}\n\n"
+        "I can answer questions about vendors, budgets, anomalies, cash flow, and outstanding invoices."
+    )
+    insight = "Ask me a specific question for deeper analysis — e.g. 'top vendors', 'budget status', or 'anomalies'."
     return {"answer": answer, "insight": insight, "context": ctx}
 
 from django.contrib.auth.models import Group
@@ -585,3 +699,252 @@ class UserExportView(APIView):
             
         return response
 
+
+
+class NotificationsView(APIView):
+    """
+    GET /api/v1/notifications/
+    Returns role-appropriate, prioritised notifications for the current user.
+    Sources: AuditLog, Expense.ocr_raw (escalations/schedules), ExpenseApprovalStep (pending queue).
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from django.utils import timezone
+        from datetime import timedelta
+        from apps.invoices.models import Expense, ExpenseApprovalStep
+
+        user = request.user
+        grade = getattr(user, 'employee_grade', 1) or 1
+        is_cfo = user.is_superuser or grade >= 5
+        is_finance_admin = grade >= 4
+        is_manager = grade >= 2
+        since = timezone.now() - timedelta(hours=72)
+
+        notifs = []
+        seen = set()
+
+        def add(nid, ntype, priority, title, message, timestamp, nav_target, dot='#F59E0B', amount=None, ref_no=None):
+            if nid in seen:
+                return
+            seen.add(nid)
+            notifs.append({
+                'id': nid, 'type': ntype, 'priority': priority,
+                'title': title, 'message': message,
+                'timestamp': timestamp if isinstance(timestamp, str) else timestamp.isoformat(),
+                'nav_target': nav_target, 'dot': dot,
+                'amount': amount, 'ref_no': ref_no,
+            })
+
+        # ── 1. ESCALATED ANOMALIES → CFO and Finance Admin ────────────────
+        if is_cfo or is_finance_admin:
+            escalated_qs = Expense.objects.filter(
+                anomaly_severity__in=['CRITICAL', 'HIGH'],
+                updated_at__gte=since,
+            ).order_by('-updated_at')[:20]
+            for exp in escalated_qs:
+                ocr = exp.ocr_raw or {}
+                if 'escalated_by' not in ocr:
+                    continue
+                # Self-filter: check both username field and display name field
+                by_uname = ocr.get('escalated_by_username') or ocr.get('escalated_by', '')
+                if by_uname and (by_uname == user.username or by_uname == user.get_full_name()):
+                    continue  # don't notify self
+                add(
+                    nid=f'escalate-{exp.id}',
+                    ntype='ESCALATION',
+                    priority='HIGH',
+                    title='Anomaly Escalated to CFO',
+                    message=f'{ocr["escalated_by"]} escalated {exp.ref_no} as CRITICAL — immediate review required',
+                    timestamp=ocr.get('escalated_at', exp.updated_at.isoformat()),
+                    nav_target='anomaly',
+                    dot='#EF4444',
+                    amount=float(exp.total_amount or 0),
+                    ref_no=exp.ref_no,
+                )
+
+        # ── 2. PAYMENT SCHEDULED → CFO and Finance Admin ──────────────────
+        if is_cfo or is_finance_admin:
+            sched_qs = Expense.objects.filter(
+                updated_at__gte=since,
+            ).exclude(ocr_raw=None).order_by('-updated_at')[:50]
+            for exp in sched_qs:
+                ocr = exp.ocr_raw or {}
+                if 'scheduled_payment_date' not in ocr:
+                    continue
+                if ocr.get('scheduled_by') == user.username:
+                    continue
+                add(
+                    nid=f'sched-{exp.id}',
+                    ntype='PAYMENT_SCHEDULED',
+                    priority='MEDIUM',
+                    title='Payment Scheduled',
+                    message=f'{ocr.get("scheduled_by","Finance")} scheduled ₹{float(exp.total_amount or 0):,.0f} payment for {exp.ref_no} on {ocr.get("scheduled_payment_date","—")}',
+                    timestamp=exp.updated_at.isoformat(),
+                    nav_target='ai-hub',
+                    dot='#F59E0B',
+                    amount=float(exp.total_amount or 0),
+                    ref_no=exp.ref_no,
+                )
+
+        # ── 3. PAYMENT SETTLED → Finance Admin and CFO ────────────────────
+        if is_cfo or is_finance_admin:
+            paid_qs = Expense.objects.filter(
+                _status__in=['PAID', 'POSTED_D365'],
+                updated_at__gte=since,
+            ).exclude(ocr_raw=None).order_by('-updated_at')[:15]
+            for exp in paid_qs:
+                ocr = exp.ocr_raw or {}
+                if ocr.get('paid_by') == user.username:
+                    continue
+                if 'paid_by' not in ocr:
+                    continue
+                add(
+                    nid=f'paid-{exp.id}',
+                    ntype='PAYMENT_DONE',
+                    priority='LOW',
+                    title='Payment Processed',
+                    message=f'{exp.ref_no} settled via {ocr.get("payment_method","NEFT")} — ₹{float(exp.total_amount or 0):,.0f} by {ocr.get("paid_by","Finance")}',
+                    timestamp=ocr.get('paid_at', exp.updated_at.isoformat()),
+                    nav_target='ar',
+                    dot='#10B981',
+                    amount=float(exp.total_amount or 0),
+                    ref_no=exp.ref_no,
+                )
+
+        # ── 4. ANOMALY MARKED SAFE → CFO and Finance Admin ────────────────
+        if is_cfo or is_finance_admin:
+            safe_qs = Expense.objects.filter(
+                anomaly_severity='NONE',
+                updated_at__gte=since,
+            ).exclude(ocr_raw=None).order_by('-updated_at')[:10]
+            for exp in safe_qs:
+                ocr = exp.ocr_raw or {}
+                if 'marked_safe_by' not in ocr:
+                    continue
+                if ocr.get('marked_safe_by') == user.username:
+                    continue
+                add(
+                    nid=f'safe-{exp.id}',
+                    ntype='ANOMALY_CLEARED',
+                    priority='LOW',
+                    title='Anomaly Cleared',
+                    message=f'{ocr.get("marked_safe_by","Finance")} cleared anomaly on {exp.ref_no}: "{ocr.get("marked_safe_note","")[:60]}"',
+                    timestamp=ocr.get('marked_safe_at', exp.updated_at.isoformat()),
+                    nav_target='anomaly',
+                    dot='#10B981',
+                    ref_no=exp.ref_no,
+                )
+
+        # ── 5. PENDING APPROVALS IN USER'S QUEUE ──────────────────────────
+        pending_steps = ExpenseApprovalStep.objects.filter(
+            assigned_to=user,
+            status='PENDING',
+        ).select_related('expense', 'expense__submitted_by').order_by('-expense__created_at')[:15]
+        for step in pending_steps:
+            exp = step.expense
+            submitter = exp.submitted_by.get_full_name() if exp.submitted_by else 'Employee'
+            add(
+                nid=f'approval-{step.id}',
+                ntype='APPROVAL_NEEDED',
+                priority='HIGH',
+                title='Approval Required',
+                message=f'{submitter} submitted {exp.ref_no} — ₹{float(exp.total_amount or 0):,.0f} — awaiting your approval (Level {step.level})',
+                timestamp=exp.created_at.isoformat(),
+                nav_target='ap-hub',
+                dot='#F59E0B',
+                amount=float(exp.total_amount or 0),
+                ref_no=exp.ref_no,
+            )
+
+        # ── 6. MY EXPENSE STATUS CHANGES (for submitter) ──────────────────
+        my_exps = Expense.objects.filter(
+            submitted_by=user,
+            updated_at__gte=since,
+        ).exclude(_status__in=['SUBMITTED', 'PENDING_L1', 'PENDING_L2', 'PENDING_HOD',
+                               'PENDING_FIN_L1', 'PENDING_FIN_L2', 'PENDING_FIN_HEAD', 'PENDING_CFO']).order_by('-updated_at')[:10]
+        for exp in my_exps:
+            status_map = {
+                'APPROVED': ('Expense Approved', '✓ Your expense {ref} has been approved and will be reimbursed.', '#10B981', 'MEDIUM'),
+                'PAID': ('Expense Paid', '✓ Your expense {ref} has been reimbursed — ₹{amt:,.0f} settled.', '#10B981', 'MEDIUM'),
+                'REJECTED': ('Expense Rejected', '⚠ Your expense {ref} was rejected. Check notes in Expense Management.', '#EF4444', 'HIGH'),
+                'QUERY_RAISED': ('Query on Your Expense', 'A query was raised on {ref} — please respond in the AP Hub.', '#F59E0B', 'HIGH'),
+            }
+            st = exp._status
+            if st not in status_map:
+                continue
+            title, msg_tpl, dot, priority = status_map[st]
+            msg = msg_tpl.format(ref=exp.ref_no or str(exp.id)[:8], amt=float(exp.total_amount or 0))
+            add(
+                nid=f'my-{exp.id}-{st}',
+                ntype='MY_EXPENSE',
+                priority=priority,
+                title=title,
+                message=msg,
+                timestamp=exp.updated_at.isoformat(),
+                nav_target='expenses',
+                dot=dot,
+                amount=float(exp.total_amount or 0),
+                ref_no=exp.ref_no,
+            )
+
+        # ── 7. AUDIT LOG: recent key events not captured above ─────────────
+        action_priority_map = {
+            'anomaly.escalated': ('HIGH', '#EF4444', 'anomaly'),
+            'anomaly.marked_safe': ('LOW', '#10B981', 'anomaly'),
+            'invoice.payment_scheduled': ('MEDIUM', '#F59E0B', 'ai-hub'),
+            'expense.submitted': ('MEDIUM', '#F59E0B', 'ap-hub'),
+            'expense.approved': ('LOW', '#10B981', 'ap-hub'),
+            'expense.rejected': ('MEDIUM', '#EF4444', 'ap-hub'),
+        }
+        visible_actions = list(action_priority_map.keys())
+        audit_qs = AuditLog.objects.filter(
+            action__in=visible_actions,
+            created_at__gte=since,
+        ).exclude(user=user).select_related('user').order_by('-created_at')[:30]
+        for log in audit_qs:
+            nid = f'audit-{log.id}'
+            if nid in seen:
+                continue
+            action = log.action
+            priority, dot, nav = action_priority_map.get(action, ('LOW', '#94A3B8', 'audit'))
+            details = log.masked_after or {}
+            actor = log.user.get_full_name() if log.user else 'System'
+            ref = details.get('ref_no', str(log.entity_id)[:8] if log.entity_id else '')
+            amt = details.get('amount', '')
+            amt_str = f' — ₹{float(amt):,.0f}' if amt else ''
+
+            # Role filtering: non-CFO should only see submissions/approvals relevant to them
+            if not (is_cfo or is_finance_admin) and action in ('anomaly.escalated', 'invoice.payment_scheduled'):
+                continue
+
+            human_action = {
+                'anomaly.escalated': 'escalated anomaly',
+                'anomaly.marked_safe': 'cleared anomaly',
+                'invoice.payment_scheduled': 'scheduled payment',
+                'expense.submitted': 'submitted expense',
+                'expense.approved': 'approved expense',
+                'expense.rejected': 'rejected expense',
+            }.get(action, action.replace('.', ' ').replace('_', ' '))
+
+            add(
+                nid=nid,
+                ntype=action.upper().replace('.', '_'),
+                priority=priority,
+                title=human_action.title(),
+                message=f'{actor} {human_action} {ref}{amt_str}',
+                timestamp=log.created_at.isoformat(),
+                nav_target=nav,
+                dot=dot,
+                ref_no=ref,
+            )
+
+        # Sort and deduplicate
+        notifs.sort(key=lambda x: x['timestamp'], reverse=True)
+        high_count = sum(1 for n in notifs if n['priority'] == 'HIGH')
+
+        return Response({
+            'notifications': notifs[:25],
+            'unread_count': high_count,
+            'total': len(notifs),
+        })

@@ -55,20 +55,20 @@ const APHubScreen = ({ role: propRole, onNavigate }) => {
   const [aiAccepted, setAiAccepted] = React.useState(false);
   const [stats, setStats] = React.useState(null);
 
-  // Load queue (pending bills) + historical expenses
+  // Load queue (pending vendor bills) + full vendor bill history for filter views
   const loadBills = () => {
     const { BillsAPI, DashboardAPI } = window.TijoriAPI;
     setLoadingBills(true);
     Promise.all([
       BillsAPI.queue(),
       DashboardAPI.stats({ type: 'vendor' }),
-      BillsAPI.listExpenses({ limit: 200 }),
+      BillsAPI.listVendorBills({ limit: 200 }),
     ])
-      .then(([bills, s, allExp]) => {
+      .then(([bills, s, allBills]) => {
         setInvoices((bills || []).map(expenseToRow));
         setStats(s);
-        // Build historical list from all expenses (includes APPROVED, PAID, REJECTED)
-        const allRows = (Array.isArray(allExp) ? allExp : (allExp?.results || [])).map(expenseToRow);
+        // Full vendor bill history (APPROVED, PAID, REJECTED, etc.)
+        const allRows = (Array.isArray(allBills) ? allBills : (allBills?.results || [])).map(expenseToRow);
         setHistoryInvoices(allRows);
       })
       .catch(() => {})

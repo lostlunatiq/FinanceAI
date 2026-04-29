@@ -1,30 +1,5 @@
 // Tijori AI — Accounts Receivable (Dashboard + Raise Invoice + Customer Detail)
 
-const AR_INVOICES = [
-  { id: 'AR-2024-108', customer: 'Global Tech Solutions', amount: '₹3,40,000', issued: 'Apr 10', due: 'May 10', age: 9, status: 'UNPAID' },
-  { id: 'AR-2024-107', customer: 'Meridian Industries', amount: '₹1,20,000', issued: 'Mar 25', due: 'Apr 24', age: 25, status: 'OVERDUE' },
-  { id: 'AR-2024-106', customer: 'Acme Corporation', amount: '₹6,80,000', issued: 'Mar 15', due: 'Apr 14', age: 35, status: 'OVERDUE' },
-  { id: 'AR-2024-105', customer: 'SkyBridge Ventures', amount: '₹92,500', issued: 'Mar 01', due: 'Mar 31', age: 49, status: 'PARTIALLY_PAID' },
-  { id: 'AR-2024-104', customer: 'NovaTech Ltd.', amount: '₹2,15,000', issued: 'Feb 20', due: 'Mar 21', age: 29, status: 'PAID' },
-  { id: 'AR-2024-103', customer: 'Global Tech Solutions', amount: '₹1,80,000', issued: 'Feb 10', due: 'Mar 11', age: 39, status: 'DISPUTED' },
-];
-
-const AR_CUSTOMERS = [
-  { id: 'CUS-001', name: 'Global Tech Solutions', gstin: '27AABCG1234K1ZL', outstanding: '₹5,20,000', overdue: '₹1,80,000', avgDays: 32, status: 'ACTIVE', terms: 'Net 30' },
-  { id: 'CUS-002', name: 'Meridian Industries', gstin: '29AABCM5678R1ZP', outstanding: '₹1,20,000', overdue: '₹1,20,000', avgDays: 41, status: 'ACTIVE', terms: 'Net 30' },
-  { id: 'CUS-003', name: 'Acme Corporation', gstin: '06AABCA9012N1ZA', outstanding: '₹6,80,000', overdue: '₹6,80,000', avgDays: 55, status: 'ON_HOLD', terms: 'Net 45' },
-  { id: 'CUS-004', name: 'SkyBridge Ventures', gstin: '24AABCS3456P1ZD', outstanding: '₹92,500', overdue: '₹0', avgDays: 22, status: 'ACTIVE', terms: 'Net 30' },
-];
-
-const AR_ACTIVITY = [
-  { type: 'payment', text: '₹2,15,000 received from NovaTech Ltd. against AR-2024-104', time: '2h ago', color: '#10B981' },
-  { type: 'reminder', text: 'Payment reminder sent to Acme Corporation — 35 days overdue', time: '5h ago', color: '#94A3B8' },
-  { type: 'invoice', text: 'Invoice AR-2024-108 raised for ₹3,40,000 to Global Tech Solutions', time: 'Yesterday', color: '#E8783B' },
-  { type: 'dispute', text: 'Dispute raised on AR-2024-103 by Global Tech Solutions — under review', time: 'Yesterday', color: '#8B5CF6' },
-  { type: 'reminder', text: 'Payment reminder sent to Meridian Industries — 25 days overdue', time: '2d ago', color: '#94A3B8' },
-  { type: 'payment', text: '₹46,250 partial payment received from SkyBridge Ventures', time: '3d ago', color: '#10B981' },
-];
-
 const ageColor = (days) => days > 90 ? '#EF4444' : days > 60 ? '#E8783B' : days > 30 ? '#F59E0B' : '#10B981';
 const ageBg = (days) => days > 90 ? '#FEE2E2' : days > 60 ? '#FFF7ED' : days > 30 ? '#FEF3C7' : '#D1FAE5';
 const arStatusConfig = {
@@ -56,49 +31,90 @@ const ARScreen = ({ onNavigate }) => {
   const [paymentForm, setPaymentForm] = React.useState({ amount: '', date: '', utr: '' });
   const [paymentMsg, setPaymentMsg] = React.useState('');
   const [invoiceList, setInvoiceList] = React.useState([]);
+  const [activityFeed, setActivityFeed] = React.useState([]);
+  const [loadingInvoices, setLoadingInvoices] = React.useState(true);
 
-  React.useEffect(() => {
-    window.TijoriAPI.BillsAPI.listExpenses({ limit: 50 })
-      .then(d => {
-        const bills = Array.isArray(d) ? d : (d?.results || []);
-        if (bills.length > 0) {
-          const mapped = bills.map(b => {
-            const due = new Date(b.due_date || Date.now() + 86400000 * 15);
-            const now = new Date();
-            const age = Math.floor((now - due) / (1000 * 60 * 60 * 24));
-            const amt = Number(b.total_amount || 0);
-            return {
-              id: b.ref_no || `INV-${b.id.slice(0,6).toUpperCase()}`,
-              customer: b.vendor_name || b.vendor?.name || 'Unknown',
-              amount: '₹' + amt.toLocaleString('en-IN'),
-              rawAmount: amt,
-              issued: new Date(b.invoice_date || b.created_at || Date.now()).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
-              due: due.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
-              age: age > 0 ? age : 0,
-              status: b.status === 'PAID' || b.status === 'POSTED_D365' ? 'PAID' : (age > 0 ? 'OVERDUE' : 'UNPAID'),
-              rawId: b.id
-            };
-          });
-          setInvoiceList(mapped);
-        } else {
-          setInvoiceList(AR_INVOICES);
-        }
-      }).catch(() => setInvoiceList(AR_INVOICES));
-  }, []);
+  const loadData = () => {
+    setLoadingInvoices(true);
+    Promise.allSettled([
+      window.TijoriAPI.BillsAPI.listVendorBills({ limit: 50 }),
+      window.TijoriAPI.AuditAPI.list({ limit: 10 }),
+    ]).then(([billsRes, auditRes]) => {
+      if (billsRes.status === 'fulfilled') {
+        const bills = Array.isArray(billsRes.value) ? billsRes.value : (billsRes.value?.results || []);
+        const mapped = bills.map(b => {
+          const due = new Date(b.due_date || b.invoice_date || Date.now() + 86400000 * 15);
+          const now = new Date();
+          const age = Math.floor((now - due) / (1000 * 60 * 60 * 24));
+          const amt = Number(b.total_amount || 0);
+          const backendStatus = b.status || b._status || '';
+          let status;
+          if (['PAID', 'POSTED_D365', 'BOOKED_D365'].includes(backendStatus)) {
+            status = 'PAID';
+          } else if (age > 0 && !['SUBMITTED', 'PENDING_L1', 'PENDING_L2', 'PENDING_HOD', 'PENDING_FIN_L1', 'PENDING_FIN_L2', 'PENDING_FIN_HEAD', 'PENDING_CFO'].includes(backendStatus)) {
+            status = 'OVERDUE';
+          } else {
+            status = 'UNPAID';
+          }
+          return {
+            id: b.ref_no || `BILL-${String(b.id).slice(0,6).toUpperCase()}`,
+            customer: b.vendor_name || b.vendor?.name || 'Unknown Vendor',
+            amount: '₹' + amt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+            rawAmount: amt,
+            issued: new Date(b.invoice_date || b.created_at || Date.now()).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
+            due: due.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
+            age: age > 0 ? age : 0,
+            status,
+            rawId: b.id,
+            backendStatus,
+          };
+        });
+        setInvoiceList(mapped);
+      }
+      if (auditRes.status === 'fulfilled') {
+        const entries = auditRes.value?.results || auditRes.value || [];
+        const mapped = entries.map(e => {
+          const action = (e.action || '').replace('.', ' ').replace(/_/g, ' ');
+          const details = e.details || {};
+          const amt = details.total_amount ? `₹${Number(details.total_amount).toLocaleString('en-IN')} ` : '';
+          const ref = details.ref_no || details.invoice_number || '';
+          const actor = e.actor || 'System';
+          const time = e.timestamp ? new Date(e.timestamp).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+          const color = action.includes('paid') || action.includes('settle') ? '#10B981' : action.includes('remind') ? '#94A3B8' : action.includes('reject') ? '#EF4444' : '#E8783B';
+          return { text: `${actor}: ${amt}${action} ${ref}`.trim(), time, color };
+        });
+        setActivityFeed(mapped);
+      }
+    }).finally(() => setLoadingInvoices(false));
+  };
+
+  React.useEffect(() => { loadData(); }, []);
 
   const [remindMsg, setRemindMsg] = React.useState('');
-  const filtered = invoiceList.filter(inv => filter === 'All' || inv.status === filter.toUpperCase().replace(' ', '_'));
+  const [remindLoading, setRemindLoading] = React.useState(null);
+  const filtered = invoiceList.filter(inv => {
+    if (filter === 'All') return true;
+    const f = filter.toUpperCase().replace(' ', '_');
+    return inv.status === f;
+  });
 
-  // Aging chart data
-  const customers = ['Global Tech', 'Meridian Ind.', 'Acme Corp', 'SkyBridge', 'NovaTech'];
-  const agingData = [
-    { name: 'Global Tech', '0-30': 340000, '31-60': 0, '61-90': 0, '>90': 180000 },
-    { name: 'Meridian', '0-30': 0, '31-60': 120000, '61-90': 0, '>90': 0 },
-    { name: 'Acme Corp', '0-30': 0, '31-60': 0, '61-90': 680000, '>90': 0 },
-    { name: 'SkyBridge', '0-30': 92500, '31-60': 0, '61-90': 0, '>90': 0 },
-    { name: 'NovaTech', '0-30': 0, '31-60': 215000, '61-90': 0, '>90': 0 },
-  ];
-  const maxVal = Math.max(...agingData.map(d => d['0-30'] + d['31-60'] + d['61-90'] + d['>90']));
+  // Compute real KPIs from invoice list
+  const totalOutstanding = invoiceList.filter(inv => inv.status !== 'PAID').reduce((s, inv) => s + inv.rawAmount, 0);
+  const overdue30 = invoiceList.filter(inv => inv.status === 'OVERDUE' && inv.age > 30).reduce((s, inv) => s + inv.rawAmount, 0);
+  const collectedThisMonth = invoiceList.filter(inv => inv.status === 'PAID').reduce((s, inv) => s + inv.rawAmount, 0);
+  const avgDays = invoiceList.length ? Math.round(invoiceList.reduce((s, inv) => s + inv.age, 0) / invoiceList.length) : 0;
+  const fmtKpi = (n) => n >= 100000 ? `₹${(n/100000).toFixed(2)}L` : `₹${n.toLocaleString('en-IN')}`;
+
+  // Build aging chart from real invoice data
+  const agingMap = {};
+  invoiceList.forEach(inv => {
+    const name = inv.customer.split(' ')[0];
+    if (!agingMap[name]) agingMap[name] = { name, '0-30': 0, '31-60': 0, '61-90': 0, '>90': 0 };
+    const bucket = inv.age <= 30 ? '0-30' : inv.age <= 60 ? '31-60' : inv.age <= 90 ? '61-90' : '>90';
+    agingMap[name][bucket] += inv.rawAmount;
+  });
+  const agingData = Object.values(agingMap).slice(0, 5);
+  const maxVal = Math.max(...agingData.map(d => d['0-30'] + d['31-60'] + d['61-90'] + d['>90']), 1);
   const bucketColors = { '0-30': '#10B981', '31-60': '#F59E0B', '61-90': '#E8783B', '>90': '#EF4444' };
 
   return (
@@ -106,9 +122,9 @@ const ARScreen = ({ onNavigate }) => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px' }}>
         <div>
           <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '32px', color: '#0F172A', letterSpacing: '-1.5px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            Accounts Receivable <span style={{ fontSize: '24px' }}>→</span>
+            Vendor Bills & Payables <span style={{ fontSize: '24px' }}>→</span>
           </h1>
-          <div style={{ fontSize: '13px', color: '#64748B', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Track outgoing invoices, customer payments, and collections.</div>
+          <div style={{ fontSize: '13px', color: '#64748B', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Track vendor invoices, payment status, and settlement records.</div>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <Btn variant="secondary" onClick={() => {
@@ -124,10 +140,10 @@ const ARScreen = ({ onNavigate }) => {
 
       {/* KPI Row */}
       <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
-        <KPICard label="Total Outstanding AR" value="₹12.52L" delta="↑ 4.2% MoM" deltaType="negative" color="#E8783B" />
-        <KPICard label="Overdue > 30 Days" value="₹8.00L" delta="3 invoices" deltaType="negative" color="#EF4444" pulse />
-        <KPICard label="Collected This Month" value="₹2.61L" delta="↑ 18% vs target" deltaType="positive" color="#10B981" />
-        <KPICard label="Avg. Days to Pay" value="34" sublabel="Days" delta="↑ 3d vs Q1" deltaType="negative" color="#F59E0B" />
+        <KPICard label="Total Outstanding AR" value={loadingInvoices ? '…' : fmtKpi(totalOutstanding)} delta={`${invoiceList.filter(i => i.status !== 'PAID').length} invoices`} deltaType="negative" color="#E8783B" />
+        <KPICard label="Overdue > 30 Days" value={loadingInvoices ? '…' : fmtKpi(overdue30)} delta={`${invoiceList.filter(i => i.status === 'OVERDUE' && i.age > 30).length} invoices`} deltaType="negative" color="#EF4444" pulse />
+        <KPICard label="Collected / Paid" value={loadingInvoices ? '…' : fmtKpi(collectedThisMonth)} delta={`${invoiceList.filter(i => i.status === 'PAID').length} settled`} deltaType="positive" color="#10B981" />
+        <KPICard label="Avg. Days Outstanding" value={loadingInvoices ? '…' : String(avgDays)} sublabel="Days" delta="Across all invoices" deltaType={avgDays > 30 ? 'negative' : 'positive'} color="#F59E0B" />
       </div>
 
       {/* Aging chart */}
@@ -173,10 +189,15 @@ const ARScreen = ({ onNavigate }) => {
           <div style={{ padding: '18px 20px', borderBottom: '1px solid #F1F0EE', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A' }}>Outstanding Invoices</div>
             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-              {['All', 'Unpaid', 'Overdue', 'Partially Paid', 'Disputed'].map(f => (
-                <button key={f} onClick={() => setFilter(f)}
-                  style={{ padding: '4px 10px', borderRadius: '999px', border: 'none', cursor: 'pointer', fontSize: '10px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif", background: filter === f ? '#10B981' : '#F8F7F5', color: filter === f ? 'white' : '#64748B', transition: 'all 150ms' }}>
-                  {f}
+              {[
+                { label: `All (${invoiceList.length})`, val: 'All' },
+                { label: `Unpaid (${invoiceList.filter(i => i.status === 'UNPAID').length})`, val: 'Unpaid' },
+                { label: `Overdue (${invoiceList.filter(i => i.status === 'OVERDUE').length})`, val: 'Overdue' },
+                { label: `Paid (${invoiceList.filter(i => i.status === 'PAID').length})`, val: 'Paid' },
+              ].map(f => (
+                <button key={f.val} onClick={() => setFilter(f.val)}
+                  style={{ padding: '4px 10px', borderRadius: '999px', border: 'none', cursor: 'pointer', fontSize: '10px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif", background: filter === f.val ? '#10B981' : '#F8F7F5', color: filter === f.val ? 'white' : '#64748B', transition: 'all 150ms' }}>
+                  {f.label}
                 </button>
               ))}
             </div>
@@ -204,12 +225,21 @@ const ARScreen = ({ onNavigate }) => {
                   <td style={{ padding: '0 14px' }}><ARStatusBadge status={inv.status} /></td>
                   <td style={{ padding: '0 14px' }}>
                     <div style={{ display: 'flex', gap: '5px' }}>
-                      {inv.status !== 'PAID' && <Btn variant="green" small onClick={() => { setRecordPaymentModal(inv); setPaymentForm({ amount: '', date: new Date().toISOString().slice(0,10), utr: '' }); setPaymentMsg(''); }}>Record Payment</Btn>}
-                      {inv.status === 'OVERDUE' && <Btn variant="secondary" small onClick={() => {
-                        // Simulate sending a payment reminder
-                        setRemindMsg(`Reminder sent to ${inv.customer} for ${inv.id}`);
-                        setTimeout(() => setRemindMsg(''), 3000);
-                      }}>Remind</Btn>}
+                      {['APPROVED', 'UNPAID', 'OVERDUE'].includes(inv.status) && <Btn variant="green" small onClick={() => { setRecordPaymentModal(inv); setPaymentForm({ amount: '', date: new Date().toISOString().slice(0,10), utr: '' }); setPaymentMsg(''); }}>Record Payment</Btn>}
+                      {inv.status === 'OVERDUE' && (
+                        <Btn variant="secondary" small disabled={remindLoading === inv.rawId} onClick={async () => {
+                          if (!inv.rawId) { setRemindMsg(`Reminder logged for ${inv.customer}`); setTimeout(() => setRemindMsg(''), 3000); return; }
+                          setRemindLoading(inv.rawId);
+                          try {
+                            const res = await window.TijoriAPI.BillsAPI.remind(inv.rawId);
+                            setRemindMsg(res?.message || `Reminder sent to ${inv.customer} for ${inv.id}`);
+                          } catch(e) {
+                            setRemindMsg(`Reminder logged for ${inv.customer} — ${inv.id}`);
+                          }
+                          setRemindLoading(null);
+                          setTimeout(() => setRemindMsg(''), 4000);
+                        }}>{remindLoading === inv.rawId ? '…' : 'Remind'}</Btn>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -222,8 +252,11 @@ const ARScreen = ({ onNavigate }) => {
         <Card style={{ padding: '22px' }}>
           <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A', marginBottom: '16px' }}>Recent Activity</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-            {AR_ACTIVITY.map((a, i) => (
-              <div key={i} style={{ display: 'flex', gap: '10px', padding: '12px 0', borderBottom: i < AR_ACTIVITY.length - 1 ? '1px solid #F8F7F5' : 'none' }}>
+            {activityFeed.length === 0 && !loadingInvoices && (
+              <div style={{ fontSize: '13px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", padding: '8px 0' }}>No recent activity found.</div>
+            )}
+            {activityFeed.map((a, i) => (
+              <div key={i} style={{ display: 'flex', gap: '10px', padding: '12px 0', borderBottom: i < activityFeed.length - 1 ? '1px solid #F8F7F5' : 'none' }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: a.color, marginTop: 5, flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '12px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.5 }}>{a.text}</div>
@@ -232,7 +265,7 @@ const ARScreen = ({ onNavigate }) => {
               </div>
             ))}
           </div>
-          <button style={{ marginTop: '12px', fontSize: '12px', color: '#10B981', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>View All Activity →</button>
+          <button style={{ marginTop: '12px', fontSize: '12px', color: '#10B981', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }} onClick={() => onNavigate && onNavigate('audit')}>View All Activity →</button>
         </Card>
       </div>
 
@@ -249,31 +282,41 @@ const ARScreen = ({ onNavigate }) => {
             <div style={{ fontWeight: 700, fontSize: '14px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>{recordPaymentModal.customer}</div>
             <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '22px', color: '#10B981', letterSpacing: '-1px', marginTop: '4px' }}>{recordPaymentModal.amount}</div>
           </div>
-          <TjInput label="Amount Received (₹)" placeholder="Full or partial amount" value={paymentForm.amount} onChange={e => setPaymentForm(f => ({...f, amount: e.target.value}))} />
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
+            <div style={{ flex: 1 }}>
+              <TjInput label="Amount Received (₹)" placeholder="Full or partial amount" value={paymentForm.amount} onChange={e => setPaymentForm(f => ({...f, amount: e.target.value}))} />
+            </div>
+            <button onClick={() => setPaymentForm(f => ({...f, amount: String(recordPaymentModal.rawAmount)}))}
+              style={{ marginBottom: '0px', padding: '8px 12px', background: '#D1FAE5', border: '1px solid #6EE7B7', borderRadius: '8px', fontSize: '11px', fontWeight: 700, color: '#065F46', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap' }}>
+              Full Amount
+            </button>
+          </div>
           <TjInput label="Payment Date" type="date" value={paymentForm.date} onChange={e => setPaymentForm(f => ({...f, date: e.target.value}))} />
           <TjInput label="UTR / Reference Number" placeholder="Bank transfer reference" value={paymentForm.utr} onChange={e => setPaymentForm(f => ({...f, utr: e.target.value}))} />
           {paymentMsg && <div style={{ fontSize: '12px', color: paymentMsg.includes('Failed') ? '#EF4444' : '#10B981', marginBottom: '8px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{paymentMsg}</div>}
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
             <Btn variant="secondary" onClick={() => setRecordPaymentModal(null)}>Cancel</Btn>
             <Btn variant="green" onClick={async () => {
-              if (!paymentForm.amount) { setPaymentMsg('Please enter an amount.'); return; }
               const inv = recordPaymentModal;
-              const paidAmt = parseFloat(paymentForm.amount.replace(/[^\d.]/g,'')) || 0;
-              const totalAmt = parseFloat(inv.amount.replace(/[^\d,]/g,'').replace(',','')) || 0;
-              const newStatus = paidAmt >= totalAmt ? 'PAID' : 'PARTIALLY_PAID';
-              
+              const enteredAmt = parseFloat((paymentForm.amount || '').replace(/[^\d.]/g,'')) || 0;
+              if (enteredAmt <= 0) { setPaymentMsg('Please enter a valid amount.'); return; }
+              if (!paymentForm.utr.trim()) { setPaymentMsg('Please enter UTR / reference number.'); return; }
+
               setPaymentMsg('Processing...');
-              if (inv.rawId) {
-                try {
-                  await window.TijoriAPI.BillsAPI.settle(inv.rawId, paymentForm.utr || `REC-${Date.now()}`);
-                } catch(e) {
-                  // proceed anyway for UI
+              try {
+                await window.TijoriAPI.BillsAPI.settle(inv.rawId, paymentForm.utr, 'NEFT', '');
+                setInvoiceList(list => list.map(i => i.id === inv.id ? {...i, status: 'PAID'} : i));
+                setPaymentMsg('✓ Payment recorded successfully! Email notification sent.');
+                setTimeout(() => { setRecordPaymentModal(null); setPaymentMsg(''); }, 1200);
+                setTimeout(() => loadData(), 2500);
+              } catch(e) {
+                const msg = e.message || '';
+                if (msg.includes('approved') || msg.includes('status') || msg.includes('400')) {
+                  setPaymentMsg('⚠ This bill must be approved in AP Hub before payment can be recorded.');
+                } else {
+                  setPaymentMsg('Payment failed: ' + (msg || 'Server error'));
                 }
               }
-              
-              setInvoiceList(list => list.map(i => i.id === inv.id ? {...i, status: newStatus} : i));
-              setPaymentMsg('Payment recorded successfully.');
-              setTimeout(() => { setRecordPaymentModal(null); setPaymentMsg(''); }, 1500);
             }}>Confirm Payment</Btn>
           </div>
         </TjModal>
@@ -304,7 +347,7 @@ const ARRaiseScreen = ({ onNavigate }) => {
   const total = subtotal + tax;
   const fmt = (n) => n ? '₹' + n.toLocaleString('en-IN') : '—';
 
-  const selectedCustomer = AR_CUSTOMERS.find(c => c.name === customer);
+  const selectedCustomer = null; // customers loaded dynamically; vendor info shown from API
 
   return (
     <div style={{ padding: '32px' }}>

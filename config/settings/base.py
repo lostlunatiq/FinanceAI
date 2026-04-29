@@ -47,6 +47,7 @@ LOCAL_APPS = [
     "apps.forecast",
     "apps.query",
     "apps.reports",
+    "apps.notifications.apps.NotificationsConfig",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -171,6 +172,16 @@ OPENROUTER_BASE_URL = env("OPENROUTER_BASE_URL", default="https://openrouter.ai/
 OPENROUTER_MODEL_OCR      = env("OPENROUTER_MODEL_OCR", default="anthropic/claude-3-haiku")
 OPENROUTER_MODEL_TEXT     = env("OPENROUTER_MODEL_TEXT", default="anthropic/claude-3-haiku")
 OPENROUTER_MODEL_FALLBACK = env("OPENROUTER_MODEL_FALLBACK", default="anthropic/claude-3-haiku")
+
+# --- Email ---
+EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = env("EMAIL_HOST", default="smtp.gmail.com")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="Tijori Finance <noreply@tijori.ai>")
+FINANCE_NOTIFY_EMAIL = env("FINANCE_NOTIFY_EMAIL", default="finance@tijori.ai")
 
 # --- Azure AD / MSAL ---
 AZURE_CLIENT_ID = env("AZURE_CLIENT_ID", default="")

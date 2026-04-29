@@ -77,6 +77,7 @@ urlpatterns = [
         name="finance-expenses",
     ),
     path("finance/anomalies/", employee_views.AnomalyListView.as_view(), name="finance-anomalies"),
+    path("finance/vendor-bills/", employee_views.VendorBillsAllView.as_view(), name="finance-vendor-bills"),
     path(
         "finance/approval-authority/",
         employee_views.ApprovalAuthorityView.as_view(),
@@ -112,6 +113,16 @@ urlpatterns = [
         name="finance-superior-approve",
     ),
     path("risk-watch/", employee_views.RiskWatchView.as_view(), name="risk-watch"),
+    path(
+        "finance/bills/<uuid:pk>/remind/",
+        employee_views.ARRemindView.as_view(),
+        name="finance-remind",
+    ),
+    path(
+        "finance/bills/<uuid:pk>/schedule/",
+        employee_views.SchedulePaymentView.as_view(),
+        name="finance-schedule-payment",
+    ),
     # ─── New Finance Automation Analytics ────────────────────────
     path("analytics/spend-intelligence/", analytics_views.SpendIntelligenceView.as_view(), name="spend-intelligence"),
     path("analytics/vendor-risk/",        analytics_views.VendorRiskScoreView.as_view(),   name="vendor-risk"),

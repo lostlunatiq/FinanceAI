@@ -2,49 +2,6 @@
 
 // ─── VENDOR MANAGEMENT ───────────────────────────────────────────────────────
 
-const VENDORS = [{
-  id: 'VND-001',
-  name: 'TechLogistics Solutions Global',
-  gst: '27AABCT3518Q1ZL',
-  category: 'Logistics',
-  status: 'ACTIVE',
-  outstanding: '₹3,40,000'
-}, {
-  id: 'VND-002',
-  name: 'NovaBridge Infra Ltd.',
-  gst: '29AACCN2609R1ZP',
-  category: 'Infrastructure',
-  status: 'ACTIVE',
-  outstanding: '₹8,40,000'
-}, {
-  id: 'VND-003',
-  name: 'GlobalSync Technologies',
-  gst: '06AACGG1234K1ZA',
-  category: 'IT Services',
-  status: 'ACTIVE',
-  outstanding: '₹1,22,500'
-}, {
-  id: 'VND-004',
-  name: 'Sigma Electrical Works',
-  gst: '09AACGS5678M1ZB',
-  category: 'Electrical',
-  status: 'PENDING',
-  outstanding: '₹2,15,500'
-}, {
-  id: 'VND-005',
-  name: 'Acme Office Supplies',
-  gst: '24AACGA9012N1ZC',
-  category: 'Supplies',
-  status: 'ACTIVE',
-  outstanding: '₹45,200'
-}, {
-  id: 'VND-006',
-  name: 'ShellBridge Exports',
-  gst: '33AACGS3456P1ZD',
-  category: 'Exports',
-  status: 'SUSPENDED',
-  outstanding: '₹0'
-}];
 const VendorsScreen = ({
   onNavigate
 }) => {
@@ -808,6 +765,8 @@ const ExpensesScreen = ({
   const [expenses, setExpenses] = React.useState([]);
   const [loadingExp, setLoadingExp] = React.useState(true);
   const [selectedInv, setSelectedInv] = React.useState(null);
+  const [selectedInvDetail, setSelectedInvDetail] = React.useState(null);
+  const [selectedInvDetailLoading, setSelectedInvDetailLoading] = React.useState(false);
   const [reviewNotes, setReviewNotes] = React.useState('');
   const [reviewLoading, setReviewLoading] = React.useState(false);
   const [reviewMsg, setReviewMsg] = React.useState('');
@@ -816,11 +775,10 @@ const ExpensesScreen = ({
   const [ocrResult, setOcrResult] = React.useState(null);
   const [submitLoading, setSubmitLoading] = React.useState(false);
   const [submitError, setSubmitError] = React.useState('');
-  const [expVendorName, setExpVendorName] = React.useState('');
   const currentRole = propRole || localStorage.getItem('tj_role') || 'CFO';
   const isVendor = currentRole === 'Vendor';
   const inferredCategory = React.useMemo(() => {
-    const text = [ocrResult?.extracted_fields?.vendor_name, ocrResult?.raw_text, expDesc].filter(Boolean).join(' ').toLowerCase();
+    const text = [ocrResult?.extracted_fields?.merchant_name, ocrResult?.raw_text, expDesc].filter(Boolean).join(' ').toLowerCase();
     if (!text) return {
       name: expCategory,
       confidence: null
@@ -864,12 +822,19 @@ const ExpensesScreen = ({
   }, [ocrResult, expDesc, expCategory]);
   const ocrSucceeded = !!(ocrResult && (ocrResult.status === 'COMPLETE' || (ocrResult.confidence || 0) > 0) && ocrResult.extracted_fields && Object.keys(ocrResult.extracted_fields).length > 0);
   const ocrFailed = !!(uploadDone && ocrResult && !ocrSucceeded);
+  const [stats, setStats] = React.useState(null);
   React.useEffect(() => {
     const {
-      BillsAPI
+      BillsAPI,
+      DashboardAPI
     } = window.TijoriAPI;
     setLoadingExp(true);
-    BillsAPI.listExpenses().then(data => setExpenses(data || [])).catch(() => {}).finally(() => setLoadingExp(false));
+    Promise.allSettled([BillsAPI.listExpenses(), DashboardAPI.stats({
+      type: 'internal'
+    })]).then(([expRes, statsRes]) => {
+      if (expRes.status === 'fulfilled') setExpenses(expRes.value || []);
+      if (statsRes.status === 'fulfilled') setStats(statsRes.value);
+    }).finally(() => setLoadingExp(false));
   }, []);
   const handleExpFileSelect = async file => {
     if (!file) return;
@@ -890,9 +855,9 @@ const ExpensesScreen = ({
         const f = ocr.extracted_fields;
         if (f.total_amount) setExpAmount(String(f.total_amount));
         if (f.invoice_date) setExpDate(f.invoice_date);
-        if (f.vendor_name) {
-          setExpVendorName(f.vendor_name);
-          setExpDesc(`Services from ${f.vendor_name}`);
+        const merchantName = f.merchant_name || f.vendor_name || f.supplier_name;
+        if (merchantName && !expDesc) {
+          setExpDesc(`Receipt from ${merchantName}`);
         }
       }
       if (ocr.status === 'FAILED' || !(ocr.confidence > 0)) {
@@ -916,13 +881,14 @@ const ExpensesScreen = ({
         BillsAPI
       } = window.TijoriAPI;
       const payload = {
-        business_purpose: expDesc || expCategory,
-        total_amount: parseFloat(expAmount) || 0,
-        invoice_date: expDate || null,
-        pre_gst_amount: parseFloat(expAmount) || 0,
-        vendor_name: expVendorName || 'Internal Expense',
+        expense_category: expCategory || 'Misc',
+        description: expDesc || expCategory,
+        amount: parseFloat(expAmount) || 0,
+        ...(expDate ? {
+          invoice_date: expDate
+        } : {}),
         ...(uploadedFileRef ? {
-          invoice_file: uploadedFileRef
+          file_id: uploadedFileRef
         } : {})
       };
       await BillsAPI.submitExpense(payload);
@@ -930,7 +896,6 @@ const ExpensesScreen = ({
       setExpAmount('');
       setExpDate('');
       setExpDesc('');
-      setExpVendorName('');
       setUploadDone(false);
       setUploadedFileRef(null);
       setOcrResult(null);
@@ -950,8 +915,9 @@ const ExpensesScreen = ({
       const {
         BillsAPI
       } = window.TijoriAPI;
-      await BillsAPI.approve(selectedInv.id, reviewNotes || 'Approved');
-      setReviewMsg('Approved successfully.');
+      const rawId = selectedInv.rawId || selectedInv.id;
+      await BillsAPI.approve(rawId, reviewNotes || 'Approved');
+      setReviewMsg('✓ Approved. Submitter notified via email.');
       setExpenses(prev => prev.map(e => e.id === selectedInv.id ? {
         ...e,
         status: 'APPROVED'
@@ -959,7 +925,7 @@ const ExpensesScreen = ({
       setTimeout(() => {
         setSelectedInv(null);
         setReviewMsg('');
-      }, 1000);
+      }, 1500);
     } catch (err) {
       setReviewMsg('Failed: ' + (err.message || 'Error'));
     } finally {
@@ -973,11 +939,12 @@ const ExpensesScreen = ({
   const [searchExp, setSearchExp] = React.useState('');
   const expFiltered = expenses.filter(e => {
     const mStatus = statusFilter === 'ALL' || (e.status || '').includes(statusFilter);
-    const mSearch = !searchExp || (e.vendor_name || '').toLowerCase().includes(searchExp.toLowerCase()) || (e.ref_no || '').toLowerCase().includes(searchExp.toLowerCase()) || (e.invoice_number || '').toLowerCase().includes(searchExp.toLowerCase());
+    const searchTerm = searchExp.toLowerCase();
+    const mSearch = !searchExp || (e.submitted_by || '').toLowerCase().includes(searchTerm) || (e.description || '').toLowerCase().includes(searchTerm) || (e.expense_category || '').toLowerCase().includes(searchTerm) || (e.ref_no || '').toLowerCase().includes(searchTerm);
     return mStatus && mSearch;
   });
   const totalSpend = expenses.reduce((s, e) => s + parseFloat(e.total_amount || 0), 0);
-  const pendingSpend = expenses.filter(e => e.status?.startsWith('PENDING')).reduce((s, e) => s + parseFloat(e.total_amount || 0), 0);
+  const pendingSpend = expenses.filter(e => (e.status || '').startsWith('PENDING')).reduce((s, e) => s + parseFloat(e.total_amount || 0), 0);
   const paidSpend = expenses.filter(e => e.status === 'PAID').reduce((s, e) => s + parseFloat(e.total_amount || 0), 0);
   const fmtS = n => n >= 100000 ? `₹${(n / 100000).toFixed(1)}L` : `₹${Math.round(n).toLocaleString('en-IN')}`;
   return /*#__PURE__*/React.createElement("div", {
@@ -1036,7 +1003,7 @@ const ExpensesScreen = ({
   }, /*#__PURE__*/React.createElement("input", {
     value: searchExp,
     onChange: e => setSearchExp(e.target.value),
-    placeholder: "Search by vendor, ref no\u2026",
+    placeholder: "Search by employee, category, ref no\u2026",
     style: {
       width: '100%',
       padding: '8px 12px 8px 32px',
@@ -1118,18 +1085,19 @@ const ExpensesScreen = ({
       fontSize: '13px'
     }
   }, "No expenses found", statusFilter !== 'ALL' ? ` with status ${statusFilter}` : '', ".")) : null, expFiltered.map(e => {
-    const rowId = e.invoice_number || e.ref_no || (e.id ? String(e.id).slice(0, 8).toUpperCase() : '—');
+    const rowId = e.ref_no || (e.id ? String(e.id).slice(0, 8).toUpperCase() : '—');
     const refNo = e.ref_no;
-    const employee = e.vendor_name || e.submitted_by_name || '—';
-    const category = e.business_purpose || e.category || '—';
-    const dept = e.department || null;
+    // Always prefer the human-readable name; submitted_by is a UUID/ID not a name
+    const employee = e.submitted_by_name || e.submitted_by || e.submitted_by_display || e.submitted_by_username || '—';
+    const category = e.expense_category || e.category || e.business_purpose?.slice(0, 30) || '—';
+    const dept = e.department_name || e.department || null;
     const amount = e.total_amount != null ? `₹${Number(e.total_amount).toLocaleString('en-IN')}` : '—';
-    const date = e.invoice_date ? new Date(e.invoice_date).toLocaleDateString('en-IN', {
+    const date = e.submitted_at || e.created_at || e.invoice_date ? new Date(e.submitted_at || e.created_at || e.invoice_date).toLocaleDateString('en-IN', {
       day: 'numeric',
       month: 'short'
     }) : '—';
-    const aiCat = !!(e.ocr_confidence && e.ocr_confidence > 0);
-    const catConf = e.ocr_confidence ? Math.round(e.ocr_confidence * 100) : null;
+    const aiCat = !!(e.invoice_file && e.expense_category && e.expense_category !== 'Misc');
+    const catConf = aiCat ? 82 : null;
     return /*#__PURE__*/React.createElement(React.Fragment, {
       key: e.id || rowId
     }, /*#__PURE__*/React.createElement("tr", {
@@ -1261,10 +1229,21 @@ const ExpensesScreen = ({
     }, e.status && e.status.startsWith('PENDING') && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Btn, {
       variant: "green",
       small: true,
-      onClick: () => {
+      onClick: async () => {
         setSelectedInv(e);
         setReviewNotes('');
         setReviewMsg('');
+        setSelectedInvDetail(null);
+        const rawId = e.rawId || e.id;
+        if (rawId) {
+          setSelectedInvDetailLoading(true);
+          try {
+            const det = await window.TijoriAPI.BillsAPI.detail(rawId);
+            setSelectedInvDetail(det);
+          } catch (_) {} finally {
+            setSelectedInvDetailLoading(false);
+          }
+        }
       }
     }, "Review")), (!e.status || !e.status.startsWith('PENDING')) && /*#__PURE__*/React.createElement("span", {
       style: {
@@ -1331,7 +1310,7 @@ const ExpensesScreen = ({
         fontFamily: "'Plus Jakarta Sans', sans-serif",
         marginTop: '2px'
       }
-    }, e.ocr_confidence ? `OCR Confidence: ${Math.round(e.ocr_confidence * 100)}%` : 'Manual submission'), /*#__PURE__*/React.createElement("button", {
+    }, e.over_limit ? 'Over policy limit' : 'Within policy limit'), /*#__PURE__*/React.createElement("button", {
       style: {
         marginTop: '6px',
         fontSize: '11px',
@@ -1379,7 +1358,7 @@ const ExpensesScreen = ({
         fontFamily: "'Plus Jakarta Sans', sans-serif",
         marginTop: '2px'
       }
-    }, "Policy: Global Travel & Expense v2.4"))), /*#__PURE__*/React.createElement("div", {
+    }, e.description || 'No description provided'))), /*#__PURE__*/React.createElement("div", {
       style: {
         background: '#ECFDF5',
         border: '1px solid #A7F3D0',
@@ -1416,52 +1395,300 @@ const ExpensesScreen = ({
     open: !!selectedInv,
     onClose: () => {
       setSelectedInv(null);
+      setSelectedInvDetail(null);
       setReviewNotes('');
       setReviewMsg('');
     },
     title: "Review Expense",
     accentColor: "#065F46",
-    width: 480
+    width: 580
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      padding: '12px 14px',
-      background: '#F8F7F5',
-      borderRadius: '10px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '14px',
+      padding: '14px 16px',
+      background: 'linear-gradient(135deg, #F0FDF4, #ECFDF5)',
+      border: '1px solid #BBF7D0',
+      borderRadius: '12px',
       marginBottom: '16px'
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
+      width: 48,
+      height: 48,
+      borderRadius: '50%',
+      background: '#10B981',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: 'white',
+      fontWeight: 800,
+      fontSize: '14px',
+      fontFamily: "'Bricolage Grotesque', sans-serif"
+    }
+  }, (selectedInv.submitted_by_name || selectedInv.submitted_by || 'U').slice(0, 1).toUpperCase())), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
       fontFamily: "'JetBrains Mono', monospace",
-      fontSize: '12px',
-      color: '#E8783B'
+      fontSize: '11px',
+      color: '#10B981',
+      fontWeight: 600
     }
   }, selectedInv.ref_no || String(selectedInv.id).slice(0, 8).toUpperCase()), /*#__PURE__*/React.createElement("div", {
     style: {
-      fontWeight: 600,
-      fontSize: '14px',
+      fontWeight: 700,
+      fontSize: '15px',
       color: '#0F172A',
-      fontFamily: "'Plus Jakarta Sans', sans-serif",
-      marginTop: '4px'
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, selectedInv.vendor_name || selectedInv.submitted_by_name || '—'), /*#__PURE__*/React.createElement("div", {
+  }, selectedInv.submitted_by_name || selectedInv.submitted_by || '—'), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#64748B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, selectedInv.department || selectedInv.department_name || '—', " \xB7 Grade ", selectedInv.submitted_by_grade || '—')), /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: 'right'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
     style: {
       fontFamily: "'Bricolage Grotesque', sans-serif",
       fontWeight: 800,
-      fontSize: '22px',
+      fontSize: '24px',
       color: '#E8783B',
-      letterSpacing: '-0.5px',
-      marginTop: '4px'
+      letterSpacing: '-1px'
     }
-  }, "\u20B9", selectedInv.total_amount ? Number(selectedInv.total_amount).toLocaleString('en-IN') : '—'), /*#__PURE__*/React.createElement("div", {
+  }, "\u20B9", Number(selectedInv.total_amount || 0).toLocaleString('en-IN', {
+    minimumFractionDigits: 2
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: selectedInv.over_limit ? '#EF4444' : '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontWeight: 600
+    }
+  }, selectedInv.over_limit ? `⚠ Exceeds ₹${Number(selectedInv.grade_limit).toLocaleString('en-IN')} limit` : 'Within policy limit'))), selectedInvDetailLoading && /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: 'center',
+      padding: '8px',
+      fontSize: '12px',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginBottom: '10px'
+    }
+  }, "Loading full details\u2026"), selectedInvDetail && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: '#F8F7F5',
+      borderRadius: '10px',
+      padding: '12px 14px',
+      marginBottom: '14px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '10px',
+      fontWeight: 700,
+      color: '#94A3B8',
+      textTransform: 'uppercase',
+      letterSpacing: '0.08em',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginBottom: '10px'
+    }
+  }, "Invoice Details (OCR Extracted)"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr 1fr',
+      gap: '8px'
+    }
+  }, [{
+    label: 'Invoice #',
+    value: selectedInvDetail.invoice_number || '—'
+  }, {
+    label: 'Invoice Date',
+    value: selectedInvDetail.invoice_date ? new Date(selectedInvDetail.invoice_date).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    }) : '—'
+  }, {
+    label: 'Pre-GST Amount',
+    value: selectedInvDetail.pre_gst_amount ? `₹${Number(selectedInvDetail.pre_gst_amount).toLocaleString('en-IN')}` : '—'
+  }, {
+    label: 'CGST',
+    value: selectedInvDetail.cgst ? `₹${Number(selectedInvDetail.cgst).toLocaleString('en-IN')}` : '—'
+  }, {
+    label: 'SGST',
+    value: selectedInvDetail.sgst ? `₹${Number(selectedInvDetail.sgst).toLocaleString('en-IN')}` : '—'
+  }, {
+    label: 'IGST',
+    value: selectedInvDetail.igst ? `₹${Number(selectedInvDetail.igst).toLocaleString('en-IN')}` : '—'
+  }].map((f, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      background: 'white',
+      borderRadius: '6px',
+      padding: '8px 10px',
+      border: '1px solid #E2E8F0'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '9px',
+      fontWeight: 700,
+      color: '#94A3B8',
+      textTransform: 'uppercase',
+      letterSpacing: '0.06em',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginBottom: '3px'
+    }
+  }, f.label), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: '12px',
-      color: '#64748B',
-      marginTop: '4px',
+      fontWeight: 600,
+      color: '#0F172A',
+      fontFamily: "'JetBrains Mono', monospace"
+    }
+  }, f.value))))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: '8px',
+      marginBottom: '14px'
+    }
+  }, (() => {
+    const det = selectedInvDetail || selectedInv;
+    const rawDesc = det.description || det.ocr_raw && det.ocr_raw.expense_description || det.business_purpose || '';
+    const cleanDesc = rawDesc && (rawDesc.includes('/') || rawDesc.includes('_2F') || rawDesc.startsWith('Expense for ')) ? `Invoice submitted — Ref: ${det.ref_no || String(det.id).slice(0, 8).toUpperCase()}` : rawDesc || '—';
+    return [{
+      label: 'Category',
+      value: det.expense_category || selectedInv.expense_category || '—',
+      highlight: true
+    }, {
+      label: 'Status',
+      value: det.status || selectedInv.status || '—'
+    }, {
+      label: 'Description / Purpose',
+      value: cleanDesc,
+      span: 2
+    }, {
+      label: 'Submitted At',
+      value: det.submitted_at || selectedInv.submitted_at ? new Date(det.submitted_at || selectedInv.submitted_at).toLocaleString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }) : '—'
+    }, {
+      label: 'Vendor / Merchant',
+      value: det.vendor_name || selectedInv.vendor_name || 'Internal'
+    }].map((f, i) => /*#__PURE__*/React.createElement("div", {
+      key: i,
+      style: {
+        gridColumn: f.span === 2 ? '1 / -1' : 'auto',
+        background: '#F8F7F5',
+        borderRadius: '8px',
+        padding: '10px 12px'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '10px',
+        fontWeight: 700,
+        color: '#94A3B8',
+        textTransform: 'uppercase',
+        letterSpacing: '0.08em',
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        marginBottom: '4px'
+      }
+    }, f.label), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '13px',
+        fontWeight: f.highlight ? 700 : 500,
+        color: f.highlight ? '#5B21B6' : '#0F172A',
+        fontFamily: "'Plus Jakarta Sans', sans-serif"
+      }
+    }, f.value)));
+  })()), selectedInvDetail && selectedInvDetail.ocr_raw && selectedInvDetail.ocr_raw.anomaly_flags && selectedInvDetail.ocr_raw.anomaly_flags.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '10px 14px',
+      background: '#FEF3C7',
+      border: '1px solid #FDE68A',
+      borderRadius: '10px',
+      marginBottom: '14px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      fontWeight: 700,
+      color: '#92400E',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginBottom: '4px'
+    }
+  }, "\u26A0 AI Anomaly Flags"), selectedInvDetail.ocr_raw.anomaly_flags.map((flag, fi) => /*#__PURE__*/React.createElement("div", {
+    key: fi,
+    style: {
+      fontSize: '12px',
+      color: '#78350F',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "Purpose: ", selectedInv.business_purpose || '—')), /*#__PURE__*/React.createElement(TjTextarea, {
-    label: "Approval Notes (optional)",
-    placeholder: "Add any notes for this approval\u2026",
+  }, "\xB7 ", flag))), (selectedInv.invoice_file || selectedInvDetail && selectedInvDetail.invoice_file) && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px',
+      padding: '10px 14px',
+      background: '#EFF6FF',
+      border: '1px solid #BFDBFE',
+      borderRadius: '10px',
+      marginBottom: '14px'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '20px'
+    }
+  }, "\uD83D\uDCC4"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      fontWeight: 700,
+      color: '#1E40AF',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Invoice / Receipt Attached"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#64748B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, selectedInvDetail && selectedInvDetail.ocr_confidence ? `OCR confidence: ${Math.round(selectedInvDetail.ocr_confidence * 100)}%` : 'AI-processed document')), /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    small: true,
+    onClick: () => window.TijoriAPI.FilesAPI.open(selectedInv.invoice_file || selectedInvDetail.invoice_file)
+  }, "View Document \u2197")), (selectedInv.anomaly_severity === 'HIGH' || selectedInv.anomaly_severity === 'CRITICAL' || selectedInv.status === 'ANOMALY') && /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '10px 14px',
+      background: '#FEF2F2',
+      border: '1px solid #FECACA',
+      borderRadius: '10px',
+      marginBottom: '14px',
+      fontSize: '12px',
+      fontWeight: 600,
+      color: '#991B1B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "\u26A0 This expense has been flagged by the AI Fraud Engine (", selectedInv.anomaly_severity || 'HIGH', " severity). Review carefully before approving."), /*#__PURE__*/React.createElement(TjTextarea, {
+    label: "Approval Notes (required for rejection, optional for approval)",
+    placeholder: "Add justification, comments, or reason for rejection\u2026",
     value: reviewNotes,
     onChange: e => setReviewNotes(e.target.value),
     rows: 3
@@ -1482,17 +1709,46 @@ const ExpensesScreen = ({
     variant: "secondary",
     onClick: () => {
       setSelectedInv(null);
+      setSelectedInvDetail(null);
       setReviewNotes('');
       setReviewMsg('');
     }
   }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
+    variant: "destructive",
+    onClick: async () => {
+      if (!reviewNotes.trim()) {
+        setReviewMsg('Please add a reason for rejection.');
+        return;
+      }
+      setReviewLoading(true);
+      setReviewMsg('');
+      try {
+        await window.TijoriAPI.BillsAPI.reject(selectedInv.rawId || selectedInv.id, reviewNotes);
+        setReviewMsg('Rejected. Submitter notified.');
+        setExpenses(prev => prev.map(e => e.id === selectedInv.id ? {
+          ...e,
+          status: 'REJECTED'
+        } : e));
+        setTimeout(() => {
+          setSelectedInv(null);
+          setSelectedInvDetail(null);
+          setReviewMsg('');
+        }, 1200);
+      } catch (err) {
+        setReviewMsg('Failed: ' + (err.message || 'Error'));
+      } finally {
+        setReviewLoading(false);
+      }
+    },
+    disabled: reviewLoading
+  }, "Reject"), /*#__PURE__*/React.createElement(Btn, {
     variant: "green",
     onClick: handleReviewApprove,
     disabled: reviewLoading
   }, reviewLoading ? 'Processing…' : '✓ Approve'))), /*#__PURE__*/React.createElement(SidePanel, {
     open: panelOpen,
     onClose: () => setPanelOpen(false),
-    title: "File Expense / Bill"
+    title: "File Internal Expense"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       border: `1.5px dashed ${ocrFailed ? '#F59E0B' : uploadDone ? '#10B981' : '#E2E8F0'}`,
@@ -2759,44 +3015,75 @@ const BudgetScreen = ({
 const GuardrailsScreen = ({
   onNavigate
 }) => {
-  const depts = [{
-    name: 'Engineering',
-    spent: 2.4,
-    total: 2.4,
-    color: '#EF4444'
-  }, {
-    name: 'Marketing',
-    spent: 1.1,
-    total: 1.3,
-    color: '#F59E0B'
-  }, {
-    name: 'Operations',
-    spent: 0.65,
-    total: 1.5,
-    color: '#10B981'
-  }, {
-    name: 'Human Resources',
-    spent: 0.544,
-    total: 0.8,
-    color: '#F59E0B'
-  }];
-  const logs = [{
-    time: '09:14',
-    text: 'System blocked $12,400 transaction for Engineering. Cap exceeded.',
-    entity: 'TechLogistics'
-  }, {
-    time: '08:52',
-    text: 'Warning email sent to Engineering HOD — 98% threshold crossed.',
-    entity: 'System'
-  }, {
-    time: 'Apr 18',
-    text: 'System blocked $8,200 transaction for Engineering.',
-    entity: 'GlobalSync'
-  }, {
-    time: 'Apr 17',
-    text: 'Marketing budget warning triggered at 85%.',
-    entity: 'System'
-  }];
+  const [budgets, setBudgets] = React.useState([]);
+  const [logs, setLogs] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [resolveModal, setResolveModal] = React.useState(null);
+  const [resolveAmt, setResolveAmt] = React.useState('');
+  const [resolveLoading, setResolveLoading] = React.useState(false);
+  const [resolveMsg, setResolveMsg] = React.useState('');
+  const loadData = () => {
+    setLoading(true);
+    Promise.allSettled([window.TijoriAPI.BudgetAPI.list(), window.TijoriAPI.AuditAPI.list({
+      limit: 12
+    })]).then(([budgetRes, auditRes]) => {
+      if (budgetRes.status === 'fulfilled') setBudgets(budgetRes.value || []);
+      if (auditRes.status === 'fulfilled') {
+        const entries = auditRes.value?.results || auditRes.value || [];
+        setLogs(entries.map(e => {
+          const action = (e.action || '').replace('.', ' ').replace(/_/g, ' ');
+          const details = e.details || {};
+          const amt = details.total_amount ? `₹${Number(details.total_amount).toLocaleString('en-IN')} ` : '';
+          const ref = details.ref_no || details.invoice_number || '';
+          const actor = e.actor || 'System';
+          const time = e.timestamp ? new Date(e.timestamp).toLocaleString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit'
+          }) : '—';
+          return {
+            time,
+            text: `${amt}${action} ${ref}`.trim() || action,
+            entity: actor
+          };
+        }));
+      }
+    }).finally(() => setLoading(false));
+  };
+  React.useEffect(() => {
+    loadData();
+  }, []);
+  const criticalBudget = budgets.find(b => b.alert_level === 'critical');
+  const deptColor = b => b.alert_level === 'critical' ? '#EF4444' : b.alert_level === 'warning' ? '#F59E0B' : '#10B981';
+  const fmtAmt = n => n >= 100000 ? `₹${(n / 100000).toFixed(1)}L` : `₹${Math.round(n).toLocaleString('en-IN')}`;
+  const handleResolve = async () => {
+    if (!resolveModal) return;
+    const extra = parseFloat(resolveAmt) || 0;
+    if (extra <= 0) {
+      setResolveMsg('Enter a valid amount greater than zero.');
+      return;
+    }
+    setResolveLoading(true);
+    setResolveMsg('');
+    try {
+      const newTotal = resolveModal.total_amount + extra;
+      await window.TijoriAPI.BudgetAPI.update(resolveModal.id, {
+        total_amount: newTotal
+      });
+      setResolveMsg('Budget cap released successfully.');
+      setTimeout(() => {
+        setResolveModal(null);
+        setResolveMsg('');
+        setResolveAmt('');
+        loadData();
+      }, 1500);
+    } catch (e) {
+      setResolveMsg('Failed: ' + (e.message || 'Error'));
+    } finally {
+      setResolveLoading(false);
+    }
+  };
   return /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '32px'
@@ -2829,7 +3116,7 @@ const GuardrailsScreen = ({
       color: '#64748B',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "Q3 Fiscal Year 2026"), /*#__PURE__*/React.createElement("span", {
+  }, "Live budget utilization & enforcement"), /*#__PURE__*/React.createElement("span", {
     style: {
       width: 6,
       height: 6,
@@ -2845,7 +3132,23 @@ const GuardrailsScreen = ({
       fontFamily: "'Plus Jakarta Sans', sans-serif",
       fontWeight: 600
     }
-  }, "Updated 4 minutes ago")))), /*#__PURE__*/React.createElement("div", {
+  }, "Real-time")))), loading ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      height: 200
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 28,
+      height: 28,
+      border: '2.5px solid #E2E8F0',
+      borderTopColor: '#E8783B',
+      borderRadius: '50%',
+      animation: 'spin 0.8s linear infinite'
+    }
+  })) : /*#__PURE__*/React.createElement(React.Fragment, null, criticalBudget && /*#__PURE__*/React.createElement("div", {
     style: {
       background: '#FEF2F2',
       border: '1px solid #FECACA',
@@ -2871,17 +3174,55 @@ const GuardrailsScreen = ({
       color: '#991B1B',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "Booking Suspension Active \u2014 Engineering at 100%"), /*#__PURE__*/React.createElement("div", {
+  }, "Booking Suspension Active \u2014 ", criticalBudget.department || criticalBudget.name, " at ", Math.round(criticalBudget.utilization_pct), "%"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: '12px',
       color: '#B91C1C',
       fontFamily: "'Plus Jakarta Sans', sans-serif",
       marginTop: '2px'
     }
-  }, "All new invoices for Engineering are automatically blocked until CFO releases the cap.")), /*#__PURE__*/React.createElement(Btn, {
+  }, "New invoices for this department are automatically blocked until CFO releases the cap.")), /*#__PURE__*/React.createElement(Btn, {
     variant: "primary",
-    small: true
-  }, "Resolve")), /*#__PURE__*/React.createElement("div", {
+    small: true,
+    onClick: () => {
+      setResolveModal(criticalBudget);
+      setResolveAmt('');
+      setResolveMsg('');
+    }
+  }, "Resolve")), !criticalBudget && budgets.some(b => b.alert_level === 'warning') && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: '#FEF3C7',
+      border: '1px solid #FDE68A',
+      borderRadius: '14px',
+      padding: '14px 20px',
+      marginBottom: '24px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '12px'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '16px'
+    }
+  }, "\u26A0\uFE0F"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '13px',
+      fontWeight: 600,
+      color: '#92400E',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, budgets.filter(b => b.alert_level === 'warning').length, " department(s) approaching budget limit.")), budgets.length === 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: '#F8F7F5',
+      borderRadius: '12px',
+      padding: '24px',
+      textAlign: 'center',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontSize: '13px',
+      marginBottom: '24px'
+    }
+  }, "No budgets configured. Create budgets in Budget Management to see guardrails."), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'grid',
       gridTemplateColumns: '1fr 1fr',
@@ -2899,18 +3240,20 @@ const GuardrailsScreen = ({
       color: '#0F172A',
       marginBottom: '20px'
     }
-  }, "Departmental Utilisation"), depts.map(d => {
-    const pct = Math.round(d.spent / d.total * 100);
+  }, "Departmental Utilisation"), budgets.map(b => {
+    const pct = Math.min(100, Math.round(b.utilization_pct || 0));
+    const color = deptColor(b);
     return /*#__PURE__*/React.createElement("div", {
-      key: d.name,
+      key: b.id,
       style: {
-        marginBottom: '18px'
+        marginBottom: '20px'
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
         display: 'flex',
         justifyContent: 'space-between',
-        marginBottom: '6px'
+        marginBottom: '6px',
+        alignItems: 'center'
       }
     }, /*#__PURE__*/React.createElement("span", {
       style: {
@@ -2919,13 +3262,27 @@ const GuardrailsScreen = ({
         color: '#0F172A',
         fontFamily: "'Plus Jakarta Sans', sans-serif"
       }
-    }, d.name), /*#__PURE__*/React.createElement("span", {
+    }, b.department || b.name), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: '12px',
         color: '#64748B',
         fontFamily: "'Plus Jakarta Sans', sans-serif"
       }
-    }, "$", d.spent, "M / $", d.total, "M")), /*#__PURE__*/React.createElement("div", {
+    }, fmtAmt(b.spent_amount), " / ", fmtAmt(b.total_amount)), b.alert_level !== 'normal' && /*#__PURE__*/React.createElement(Btn, {
+      variant: "secondary",
+      small: true,
+      onClick: () => {
+        setResolveModal(b);
+        setResolveAmt('');
+        setResolveMsg('');
+      }
+    }, "Resolve"))), /*#__PURE__*/React.createElement("div", {
       style: {
         height: 10,
         background: '#F1F5F9',
@@ -2935,16 +3292,17 @@ const GuardrailsScreen = ({
     }, /*#__PURE__*/React.createElement("div", {
       style: {
         height: '100%',
-        width: `${Math.min(pct, 100)}%`,
-        background: d.color,
-        borderRadius: 5
+        width: `${pct}%`,
+        background: color,
+        borderRadius: 5,
+        transition: 'width 600ms ease'
       }
     })), /*#__PURE__*/React.createElement("div", {
       style: {
         textAlign: 'right',
         marginTop: '3px',
         fontSize: '11px',
-        color: d.color,
+        color: color,
         fontWeight: 700,
         fontFamily: "'Plus Jakarta Sans', sans-serif"
       }
@@ -2961,7 +3319,13 @@ const GuardrailsScreen = ({
       color: '#0F172A',
       marginBottom: '16px'
     }
-  }, "Enforcement Logs"), logs.map((l, i) => /*#__PURE__*/React.createElement("div", {
+  }, "Enforcement Logs"), logs.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: '#94A3B8',
+      fontSize: '13px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "No enforcement activity logged yet.") : logs.map((l, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
     style: {
       display: 'flex',
@@ -2998,52 +3362,61 @@ const GuardrailsScreen = ({
       fontFamily: "'JetBrains Mono', monospace",
       color: '#E8783B'
     }
-  }, l.entity))))))));
+  }, l.entity)))))))), resolveModal && /*#__PURE__*/React.createElement(TjModal, {
+    open: true,
+    onClose: () => {
+      setResolveModal(null);
+      setResolveMsg('');
+      setResolveAmt('');
+    },
+    title: "Release Budget Cap",
+    accentColor: "#065F46",
+    width: 420
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: '14px',
+      padding: '12px',
+      background: '#FEF2F2',
+      borderRadius: '8px',
+      fontSize: '13px',
+      color: '#991B1B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, /*#__PURE__*/React.createElement("strong", null, resolveModal.department || resolveModal.name), " is at ", /*#__PURE__*/React.createElement("strong", null, Math.round(resolveModal.utilization_pct), "%"), " utilization. Current cap: ", /*#__PURE__*/React.createElement("strong", null, fmtAmt(resolveModal.total_amount)), " \xB7 Spent: ", /*#__PURE__*/React.createElement("strong", null, fmtAmt(resolveModal.spent_amount))), /*#__PURE__*/React.createElement(TjInput, {
+    label: "Additional Budget to Release (\u20B9)",
+    placeholder: "e.g. 500000",
+    type: "number",
+    value: resolveAmt,
+    onChange: e => setResolveAmt(e.target.value)
+  }), resolveMsg && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: resolveMsg.includes('Failed') ? '#EF4444' : '#10B981',
+      marginBottom: '8px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, resolveMsg), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: '10px',
+      justifyContent: 'flex-end'
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    onClick: () => {
+      setResolveModal(null);
+      setResolveMsg('');
+      setResolveAmt('');
+    }
+  }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
+    variant: "primary",
+    onClick: handleResolve,
+    disabled: resolveLoading
+  }, resolveLoading ? 'Releasing…' : '✓ Release Cap'))));
 };
 
 // ─── AUDIT LOG ────────────────────────────────────────────────────────────────
 
-const AUDIT_ENTRIES = [{
-  id: 1,
-  user: 'Rohan Kapoor',
-  action: 'approved',
-  entity: 'INV-2024-087',
-  type: 'APPROVAL',
-  time: 'Apr 19, 09:45',
-  detail: '{ "invoice": "INV-2024-087", "amount": 45200, "role": "CFO", "status": "APPROVED" }'
-}, {
-  id: 2,
-  user: 'System',
-  action: 'flagged anomaly on',
-  entity: 'INV-2024-082',
-  type: 'SYSTEM',
-  time: 'Apr 19, 09:14',
-  detail: '{ "anomaly_id": "ANO-001", "score": 94, "type": "DUPLICATE_INVOICE" }'
-}, {
-  id: 3,
-  user: 'Priya Mehta',
-  action: 'raised query on',
-  entity: 'INV-2024-089',
-  type: 'INVOICE',
-  time: 'Apr 19, 08:30',
-  detail: '{ "invoice": "INV-2024-089", "query": "Please provide original PO reference." }'
-}, {
-  id: 4,
-  user: 'Finance Admin',
-  action: 'activated vendor',
-  entity: 'VND-003',
-  type: 'VENDOR',
-  time: 'Apr 18, 17:20',
-  detail: '{ "vendor_id": "VND-003", "name": "GlobalSync Technologies", "status": "ACTIVE" }'
-}, {
-  id: 5,
-  user: 'Aisha Nair',
-  action: 'submitted expense',
-  entity: 'EXP-2024-441',
-  type: 'INVOICE',
-  time: 'Apr 18, 23:43',
-  detail: '{ "expense_id": "EXP-2024-441", "amount": 4200, "category": "Travel" }'
-}];
 const AuditScreen = ({
   role,
   onNavigate,

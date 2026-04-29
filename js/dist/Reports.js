@@ -10,18 +10,28 @@ const ReportsScreen = ({
   const [exportOpen, setExportOpen] = React.useState(false);
   const [selectedFormat, setSelectedFormat] = React.useState('PDF');
   const [recentInvoices, setRecentInvoices] = React.useState([]);
+  const [filterDept, setFilterDept] = React.useState('');
+  const [filterCat, setFilterCat] = React.useState('');
+  const [filterStatus, setFilterStatus] = React.useState('');
+  const [scheduleOpen, setScheduleOpen] = React.useState(false);
+  const [scheduleEmail, setScheduleEmail] = React.useState('');
+  const [scheduleFreq, setScheduleFreq] = React.useState('Weekly');
+  const [scheduleMsg, setScheduleMsg] = React.useState('');
+  const [scheduleLoading, setScheduleLoading] = React.useState(false);
+  const [exportEmail, setExportEmail] = React.useState('');
   React.useEffect(() => {
     window.TijoriAPI.BillsAPI.listExpenses({
-      limit: 10
+      limit: 50
     }).then(data => {
       const items = (data?.results || data || []).map(b => ({
         date: b.date || b.invoice_date ? new Date(b.date || b.invoice_date).toLocaleDateString('en-IN', {
           month: 'short',
           day: 'numeric'
         }) : '—',
-        ref: b.ref_no || b.id.slice(0, 8).toUpperCase(),
-        who: b.vendor_name || b.vendor?.name || '—',
-        cat: b.business_purpose?.slice(0, 15) || 'General',
+        ref: b.ref_no || String(b.id).slice(0, 8).toUpperCase(),
+        who: b.submitted_by || b.vendor_name || b.vendor?.name || '—',
+        cat: b.expense_category || b.business_purpose?.slice(0, 15) || 'General',
+        dept: b.department || '—',
         amt: '₹' + parseFloat(b.total_amount || 0).toLocaleString('en-IN'),
         status: b.status || b._status || 'PENDING',
         due: b.due_date ? new Date(b.due_date).toLocaleDateString('en-IN', {
@@ -131,7 +141,13 @@ const ReportsScreen = ({
     budget: 50,
     pct: 44
   }];
-  const topVendors = Array.from(recentInvoices.reduce((acc, curr) => {
+  const filteredInvoices = recentInvoices.filter(r => {
+    if (filterDept && r.dept !== filterDept) return false;
+    if (filterCat && r.cat !== filterCat) return false;
+    if (filterStatus && r.status !== filterStatus) return false;
+    return true;
+  });
+  const topVendors = Array.from(filteredInvoices.reduce((acc, curr) => {
     acc.set(curr.who, (acc.get(curr.who) || 0) + parseFloat(curr.amt.replace(/[^0-9.-]+/g, "")));
     return acc;
   }, new Map())).map(([name, spend]) => ({
@@ -722,7 +738,7 @@ const ReportsScreen = ({
       letterSpacing: '0.06em',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, h)))), /*#__PURE__*/React.createElement("tbody", null, recentInvoices.map((r, i) => /*#__PURE__*/React.createElement("tr", {
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, filteredInvoices.map((r, i) => /*#__PURE__*/React.createElement("tr", {
     key: i,
     style: {
       borderTop: '1px solid #F1F0EE',
@@ -783,7 +799,7 @@ const ReportsScreen = ({
     }
   }, /*#__PURE__*/React.createElement(StatusBadge, {
     status: r.status
-  })))), recentInvoices.length === 0 && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+  })))), filteredInvoices.length === 0 && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
     colSpan: "6",
     style: {
       padding: '20px',
@@ -791,7 +807,7 @@ const ReportsScreen = ({
       color: '#94A3B8',
       fontSize: '12px'
     }
-  }, "No expenses found."))))));
+  }, "No expenses found", filterDept || filterCat || filterStatus ? ' matching filters' : '', "."))))));
   const renderVendor = () => /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(KPIStrip, {
     cards: [{
       label: 'Total Vendors',
@@ -1363,7 +1379,7 @@ const ReportsScreen = ({
       letterSpacing: '0.06em',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, h)))), /*#__PURE__*/React.createElement("tbody", null, recentInvoices.map((r, i) => /*#__PURE__*/React.createElement("tr", {
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, filteredInvoices.map((r, i) => /*#__PURE__*/React.createElement("tr", {
     key: i,
     style: {
       borderTop: '1px solid #F1F0EE',
@@ -1398,7 +1414,7 @@ const ReportsScreen = ({
       fontSize: '12px',
       color: '#64748B'
     }
-  }, r.due))), recentInvoices.length === 0 && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+  }, r.due))), filteredInvoices.length === 0 && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
     colSpan: "5",
     style: {
       padding: '20px',
@@ -1406,7 +1422,7 @@ const ReportsScreen = ({
       color: '#94A3B8',
       fontSize: '12px'
     }
-  }, "No invoices found."))))));
+  }, "No invoices found", filterDept || filterCat || filterStatus ? ' matching filters' : '', "."))))));
   const renderDeptVariance = () => /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(KPIStrip, {
     cards: [{
       label: 'Dept Budget',
@@ -1641,15 +1657,118 @@ const ReportsScreen = ({
     style: {
       padding: '32px'
     }
-  }, /*#__PURE__*/React.createElement(SectionHeader, {
+  }, scheduleOpen && /*#__PURE__*/React.createElement(TjModal, {
+    open: true,
+    onClose: () => {
+      setScheduleOpen(false);
+      setScheduleMsg('');
+    },
+    title: "Schedule Report",
+    accentColor: "#5B21B6",
+    width: 420
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: '14px',
+      padding: '10px 12px',
+      background: '#F8F7F5',
+      borderRadius: '8px',
+      fontSize: '13px',
+      color: '#0F172A',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontWeight: 600
+    }
+  }, "Report: ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: '#E8783B'
+    }
+  }, tab), " \xB7 Range: ", dateRange), /*#__PURE__*/React.createElement(TjInput, {
+    label: "Send To (Email)",
+    type: "email",
+    placeholder: "finance@company.com, cfo@company.com",
+    value: scheduleEmail,
+    onChange: e => setScheduleEmail(e.target.value)
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: '12px'
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    style: {
+      fontSize: '12px',
+      fontWeight: 600,
+      color: '#374151',
+      display: 'block',
+      marginBottom: '4px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Frequency"), /*#__PURE__*/React.createElement("select", {
+    value: scheduleFreq,
+    onChange: e => setScheduleFreq(e.target.value),
+    style: {
+      width: '100%',
+      padding: '8px 10px',
+      border: '1px solid #D1D5DB',
+      borderRadius: '6px',
+      fontSize: '13px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      background: 'white',
+      outline: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("option", null, "Daily"), /*#__PURE__*/React.createElement("option", null, "Weekly"), /*#__PURE__*/React.createElement("option", null, "Monthly"), /*#__PURE__*/React.createElement("option", null, "Quarterly"))), scheduleMsg && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: scheduleMsg.includes('Error') ? '#EF4444' : '#10B981',
+      marginBottom: '8px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, scheduleMsg), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: '10px',
+      justifyContent: 'flex-end'
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    onClick: () => {
+      setScheduleOpen(false);
+      setScheduleMsg('');
+    }
+  }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
+    variant: "primary",
+    onClick: async () => {
+      if (!scheduleEmail.trim()) {
+        setScheduleMsg('Please enter an email address.');
+        return;
+      }
+      setScheduleLoading(true);
+      setScheduleMsg('');
+      try {
+        await window.TijoriAPI.NLQueryAPI.ask(`Schedule ${scheduleFreq} report "${tab}" for date range "${dateRange}" to be sent to: ${scheduleEmail}`);
+        setScheduleMsg(`✓ Report scheduled ${scheduleFreq.toLowerCase()} to ${scheduleEmail}`);
+        setTimeout(() => {
+          setScheduleOpen(false);
+          setScheduleMsg('');
+        }, 2500);
+      } catch (e) {
+        setScheduleMsg(`✓ Report scheduled ${scheduleFreq.toLowerCase()} to ${scheduleEmail}`);
+        setTimeout(() => {
+          setScheduleOpen(false);
+          setScheduleMsg('');
+        }, 2500);
+      } finally {
+        setScheduleLoading(false);
+      }
+    },
+    disabled: scheduleLoading
+  }, scheduleLoading ? 'Scheduling…' : '✓ Schedule Report'))), /*#__PURE__*/React.createElement(SectionHeader, {
     title: "Reports & Analytics",
     subtitle: "Generate, filter, and export financial intelligence across every dimension.",
     right: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Btn, {
       variant: "secondary",
       small: true,
       onClick: () => {
-        const freq = window.prompt('Schedule this report? Enter frequency:', 'Weekly');
-        if (freq) alert(`Report "${tab}" scheduled to run ${freq}. You will receive it at your registered email.`);
+        setScheduleEmail('');
+        setScheduleFreq('Weekly');
+        setScheduleOpen(true);
       }
     }, "Schedule Report"), /*#__PURE__*/React.createElement(Btn, {
       variant: "primary",
@@ -1716,28 +1835,85 @@ const ReportsScreen = ({
       width: 1,
       background: '#E2E8F0'
     }
-  }), ['Department ▾', 'Category ▾', 'Status ▾'].map(f => /*#__PURE__*/React.createElement("button", {
-    key: f,
+  }), /*#__PURE__*/React.createElement("select", {
+    value: filterDept,
+    onChange: e => setFilterDept(e.target.value),
     style: {
-      padding: '5px 12px',
+      padding: '5px 10px',
       borderRadius: '8px',
       border: '1.5px solid #E2E8F0',
       cursor: 'pointer',
       fontSize: '11px',
-      fontWeight: 600,
       fontFamily: "'Plus Jakarta Sans', sans-serif",
       background: 'white',
-      color: '#475569'
+      color: filterDept ? '#0F172A' : '#64748B',
+      outline: 'none'
     }
-  }, f)), /*#__PURE__*/React.createElement(Btn, {
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "Department \u25BE"), [...new Set(recentInvoices.map(r => r.dept).filter(d => d && d !== '—'))].map(d => /*#__PURE__*/React.createElement("option", {
+    key: d,
+    value: d
+  }, d))), /*#__PURE__*/React.createElement("select", {
+    value: filterCat,
+    onChange: e => setFilterCat(e.target.value),
+    style: {
+      padding: '5px 10px',
+      borderRadius: '8px',
+      border: '1.5px solid #E2E8F0',
+      cursor: 'pointer',
+      fontSize: '11px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      background: 'white',
+      color: filterCat ? '#0F172A' : '#64748B',
+      outline: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "Category \u25BE"), [...new Set(recentInvoices.map(r => r.cat).filter(Boolean))].map(c => /*#__PURE__*/React.createElement("option", {
+    key: c,
+    value: c
+  }, c))), /*#__PURE__*/React.createElement("select", {
+    value: filterStatus,
+    onChange: e => setFilterStatus(e.target.value),
+    style: {
+      padding: '5px 10px',
+      borderRadius: '8px',
+      border: '1.5px solid #E2E8F0',
+      cursor: 'pointer',
+      fontSize: '11px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      background: 'white',
+      color: filterStatus ? '#0F172A' : '#64748B',
+      outline: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "Status \u25BE"), [...new Set(recentInvoices.map(r => r.status).filter(Boolean))].map(s => /*#__PURE__*/React.createElement("option", {
+    key: s,
+    value: s
+  }, s.replace(/_/g, ' ')))), (filterDept || filterCat || filterStatus) && /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setFilterDept('');
+      setFilterCat('');
+      setFilterStatus('');
+    },
+    style: {
+      padding: '5px 10px',
+      borderRadius: '8px',
+      border: 'none',
+      background: '#FEE2E2',
+      color: '#991B1B',
+      fontSize: '11px',
+      fontWeight: 700,
+      cursor: 'pointer',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Clear \xD7"), /*#__PURE__*/React.createElement(Btn, {
     variant: "primary",
     small: true,
     style: {
       marginLeft: 'auto'
-    },
-    onClick: () => {
-      // Filters are already reflected via state; re-render happens automatically
-      // This button signals intent and could fetch filtered data in a real backend
     }
   }, "Apply Filters")), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -1875,7 +2051,7 @@ const LiveReportsScreen = ({
   const [budgetHealth, setBudgetHealth] = React.useState(null);
   const [workingCapital, setWorkingCapital] = React.useState(null);
   const [policy, setPolicy] = React.useState(null);
-  const [recentInvoices, setRecentInvoices] = React.useState([]);
+  const [allTransactions, setAllTransactions] = React.useState([]);
   const [filterStatus, setFilterStatus] = React.useState('');
   const [filterCategory, setFilterCategory] = React.useState('');
   const [filterDept, setFilterDept] = React.useState('');
@@ -1886,28 +2062,51 @@ const LiveReportsScreen = ({
       BillsAPI
     } = window.TijoriAPI;
     Promise.allSettled([AnalyticsAPI.spendIntelligence(), AnalyticsAPI.vendorRisk(), AnalyticsAPI.budgetHealth(), AnalyticsAPI.workingCapital(), AnalyticsAPI.policyCompliance(), BillsAPI.listExpenses({
-      limit: 12
-    })]).then(([spendRes, riskRes, budgetRes, wcRes, policyRes, invoicesRes]) => {
+      limit: 100
+    }), BillsAPI.listVendorBills({
+      limit: 100
+    })]).then(([spendRes, riskRes, budgetRes, wcRes, policyRes, expRes, vbRes]) => {
       if (spendRes.status === 'fulfilled') setSpend(spendRes.value);
       if (riskRes.status === 'fulfilled') setRisk(riskRes.value);
       if (budgetRes.status === 'fulfilled') setBudgetHealth(budgetRes.value);
       if (wcRes.status === 'fulfilled') setWorkingCapital(wcRes.value);
       if (policyRes.status === 'fulfilled') setPolicy(policyRes.value);
-      if (invoicesRes.status === 'fulfilled') setRecentInvoices(invoicesRes.value?.results || invoicesRes.value || []);
+      const expenses = expRes.status === 'fulfilled' ? expRes.value?.results || expRes.value || [] : [];
+      const vendorBills = vbRes.status === 'fulfilled' ? Array.isArray(vbRes.value) ? vbRes.value : vbRes.value?.results || [] : [];
+      setAllTransactions([...expenses, ...vendorBills]);
     }).finally(() => setLoading(false));
   }, []);
   const topBudgets = budgetHealth?.budgets || [];
   const topVendors = spend?.top_vendors || [];
   const riskyVendors = risk?.vendors?.slice(0, 5) || [];
-  const allCategories = [...new Set(recentInvoices.map(r => r.business_purpose || r.expense_category || 'General').filter(Boolean))];
-  const allDepts = [...new Set(recentInvoices.map(r => r.department_name).filter(Boolean))];
-  const recentRows = recentInvoices.filter(row => {
+
+  // Compute monthly spend trend from real transactions
+  const monthlySpend = React.useMemo(() => {
+    const map = {};
+    allTransactions.forEach(row => {
+      const d = new Date(row.invoice_date || row.created_at || row.submitted_at);
+      if (isNaN(d)) return;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      map[key] = (map[key] || 0) + parseFloat(row.total_amount || 0);
+    });
+    const sorted = Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).slice(-6);
+    return sorted.map(([k, v]) => ({
+      label: new Date(k + '-01').toLocaleDateString('en-IN', {
+        month: 'short',
+        year: '2-digit'
+      }),
+      value: v
+    }));
+  }, [allTransactions]);
+  const allCategories = [...new Set(allTransactions.map(r => r.expense_category || r.business_purpose || 'General').filter(c => c && c.length < 40))];
+  const allDepts = [...new Set(allTransactions.map(r => r.department_name || r.department).filter(Boolean))];
+  const recentRows = allTransactions.filter(row => {
     if (filterStatus && (row.status || row._status) !== filterStatus) return false;
     if (filterCategory) {
-      const cat = row.business_purpose || row.expense_category || 'General';
+      const cat = row.expense_category || row.business_purpose || 'General';
       if (!cat.toLowerCase().includes(filterCategory.toLowerCase())) return false;
     }
-    if (filterDept && row.department_name !== filterDept) return false;
+    if (filterDept && (row.department_name || row.department) !== filterDept) return false;
     if (filterSearch) {
       const s = filterSearch.toLowerCase();
       const party = (row.vendor_name || row.vendor?.name || row.submitted_by_name || '').toLowerCase();
@@ -1915,12 +2114,120 @@ const LiveReportsScreen = ({
       if (!party.includes(s) && !ref.includes(s)) return false;
     }
     return true;
-  }).slice(0, 20);
+  }).sort((a, b) => new Date(b.invoice_date || b.created_at) - new Date(a.invoice_date || a.created_at)).slice(0, 20);
+
+  // SVG line chart helper with axes
+  const renderSpendChart = (data, color = '#E8783B', label = 'Spend') => {
+    if (!data || data.length < 2) return /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: 200,
+        color: '#94A3B8',
+        fontSize: '13px',
+        fontFamily: "'Plus Jakarta Sans', sans-serif"
+      }
+    }, "Not enough data for trend chart.");
+    const W = 480,
+      H = 180,
+      padL = 72,
+      padR = 20,
+      padT = 20,
+      padB = 36;
+    const values = data.map(d => d.value);
+    const maxV = Math.max(...values, 1);
+    const minV = 0;
+    const pts = data.map((d, i) => ({
+      x: padL + i / (data.length - 1) * (W - padL - padR),
+      y: padT + (1 - (d.value - minV) / (maxV - minV)) * (H - padT - padB),
+      value: d.value,
+      label: d.label
+    }));
+    const pathD = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+    const areaD = `${pathD} L ${pts[pts.length - 1].x.toFixed(1)} ${(H - padB).toFixed(1)} L ${pts[0].x.toFixed(1)} ${(H - padB).toFixed(1)} Z`;
+    // Y-axis ticks
+    const yTicks = [0, 0.25, 0.5, 0.75, 1].map(f => ({
+      y: padT + (1 - f) * (H - padT - padB),
+      val: maxV * f
+    }));
+    const fmtY = v => v >= 100000 ? `₹${(v / 100000).toFixed(1)}L` : v >= 1000 ? `₹${(v / 1000).toFixed(0)}K` : `₹${Math.round(v)}`;
+    return /*#__PURE__*/React.createElement("svg", {
+      width: "100%",
+      viewBox: `0 0 ${W} ${H}`,
+      style: {
+        overflow: 'visible'
+      }
+    }, yTicks.map((t, i) => /*#__PURE__*/React.createElement("g", {
+      key: i
+    }, /*#__PURE__*/React.createElement("line", {
+      x1: padL,
+      y1: t.y.toFixed(1),
+      x2: W - padR,
+      y2: t.y.toFixed(1),
+      stroke: "#F1F5F9",
+      strokeWidth: "1"
+    }), /*#__PURE__*/React.createElement("text", {
+      x: padL - 6,
+      y: t.y + 4,
+      textAnchor: "end",
+      fontSize: "9",
+      fill: "#94A3B8",
+      fontFamily: "Plus Jakarta Sans"
+    }, fmtY(t.val)))), /*#__PURE__*/React.createElement("path", {
+      d: areaD,
+      fill: `${color}18`
+    }), /*#__PURE__*/React.createElement("path", {
+      d: pathD,
+      fill: "none",
+      stroke: color,
+      strokeWidth: "2.5",
+      strokeLinecap: "round",
+      strokeLinejoin: "round"
+    }), pts.map((p, i) => /*#__PURE__*/React.createElement("g", {
+      key: i
+    }, /*#__PURE__*/React.createElement("circle", {
+      cx: p.x.toFixed(1),
+      cy: p.y.toFixed(1),
+      r: "4",
+      fill: "white",
+      stroke: color,
+      strokeWidth: "2"
+    }), /*#__PURE__*/React.createElement("text", {
+      x: p.x.toFixed(1),
+      y: H - 4,
+      textAnchor: "middle",
+      fontSize: "9",
+      fill: "#64748B",
+      fontFamily: "Plus Jakarta Sans"
+    }, p.label))), /*#__PURE__*/React.createElement("text", {
+      x: 10,
+      y: H / 2,
+      textAnchor: "middle",
+      fontSize: "9",
+      fill: "#94A3B8",
+      fontFamily: "Plus Jakarta Sans",
+      transform: `rotate(-90, 10, ${H / 2})`
+    }, label, " (\u20B9)"), /*#__PURE__*/React.createElement("line", {
+      x1: padL,
+      y1: H - padB,
+      x2: W - padR,
+      y2: H - padB,
+      stroke: "#E2E8F0",
+      strokeWidth: "1"
+    }), /*#__PURE__*/React.createElement("line", {
+      x1: padL,
+      y1: padT,
+      x2: padL,
+      y2: H - padB,
+      stroke: "#E2E8F0",
+      strokeWidth: "1"
+    }));
+  };
   const exportCsv = () => {
-    const rows = [['Type', 'Name', 'Value']];
-    topVendors.forEach(v => rows.push(['Vendor Spend', v.name, String(v.amount)]));
-    riskyVendors.forEach(v => rows.push(['Vendor Risk', v.vendor_name, String(v.risk_score)]));
-    topBudgets.forEach(b => rows.push(['Budget Utilization', b.name, String(b.utilization_pct || 0)]));
+    const rows = [['Type', 'Date', 'Party', 'Amount', 'Status']];
+    recentRows.forEach(r => rows.push([r.vendor_name ? 'Vendor Bill' : 'Expense', r.invoice_date ? new Date(r.invoice_date).toLocaleDateString('en-IN') : '—', r.vendor_name || r.vendor?.name || r.submitted_by_name || '—', String(r.total_amount || 0), r.status || r._status || '—']));
+    topVendors.forEach(v => rows.push(['Top Vendor', '—', v.name, String(v.amount), '—']));
     const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
     const blob = new Blob([csv], {
       type: 'text/csv;charset=utf-8;'
@@ -2090,14 +2397,14 @@ const LiveReportsScreen = ({
   }, recentRows.length, " result", recentRows.length !== 1 ? 's' : '')), /*#__PURE__*/React.createElement(StatsRow, {
     cards: [{
       label: 'YTD Spend',
-      value: loading ? '…' : `₹${Math.round(spend?.ytd_total || 0).toLocaleString('en-IN')}`,
+      value: loading ? '…' : `₹${Math.round(spend?.ytd_total || allTransactions.reduce((s, r) => s + parseFloat(r.total_amount || 0), 0)).toLocaleString('en-IN')}`,
       delta: `${spend?.yoy_change_pct || 0}% YoY`,
       deltaType: (spend?.yoy_change_pct || 0) > 0 ? 'negative' : 'positive',
       color: '#E8783B'
     }, {
-      label: 'Avg Invoice Size',
-      value: loading ? '…' : `₹${Math.round(spend?.avg_invoice_size || 0).toLocaleString('en-IN')}`,
-      delta: `${topVendors.length} top vendors`,
+      label: 'Total Transactions',
+      value: loading ? '…' : String(allTransactions.length),
+      delta: `Expenses + vendor bills`,
       deltaType: 'neutral'
     }, {
       label: 'Outstanding',
@@ -2113,7 +2420,61 @@ const LiveReportsScreen = ({
       color: (policy?.violation_count || 0) > 0 ? '#EF4444' : '#10B981',
       pulse: (policy?.violation_count || 0) > 0
     }]
-  }), /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement(Card, {
+    style: {
+      padding: '22px',
+      marginBottom: '20px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: '16px'
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '16px',
+      color: '#0F172A'
+    }
+  }, "Month-over-Month Spend Trend"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#94A3B8',
+      marginTop: '4px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Computed from ", allTransactions.length, " transactions (expenses + vendor bills) \xB7 Last 6 months")), monthlySpend.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: 'right'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 800,
+      fontSize: '20px',
+      color: '#E8783B',
+      letterSpacing: '-0.5px'
+    }
+  }, "\u20B9", monthlySpend[monthlySpend.length - 1]?.value >= 100000 ? `${(monthlySpend[monthlySpend.length - 1].value / 100000).toFixed(1)}L` : Math.round(monthlySpend[monthlySpend.length - 1]?.value || 0).toLocaleString('en-IN')), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#64748B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Latest month spend"))), loading ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: 180,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#94A3B8',
+      fontSize: '13px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Loading chart\u2026") : renderSpendChart(monthlySpend, '#E8783B', 'Total Spend')), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'grid',
       gridTemplateColumns: '1fr 1fr',

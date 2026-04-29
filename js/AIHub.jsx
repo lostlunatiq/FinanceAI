@@ -50,10 +50,12 @@ const CopilotWidget = ({ role }) => {
       const res = await NLQueryAPI.ask(q);
       const answer = res.answer || res.error || 'No response.';
       const insight = res.insight || '';
+      const actions = res.actions || [];
       setMessages(prev => [...prev, {
         role: 'ai',
         text: answer,
         insight,
+        actions,
         model: res.model,
         time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
       }]);
@@ -61,6 +63,20 @@ const CopilotWidget = ({ role }) => {
       setMessages(prev => [...prev, { role: 'ai', text: 'Sorry, I encountered an error. Please try again.', time, error: true }]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAction = (a) => {
+    if (a.type === 'nav_to') {
+      onNavigate(a.payload.screen);
+    } else if (a.type === 'remind') {
+      // Direct call to reminder API
+      window.TijoriAPI.BillsAPI.remind(a.payload.ref_no)
+        .then(() => alert(`Reminder sent for ${a.payload.ref_no}`))
+        .catch(e => alert(e.message));
+    } else {
+      alert(`Action ${a.type} suggested for ${a.payload.ref_no || 'this item'}. Click to view details.`);
+      if (a.payload.ref_no) onNavigate('ap-hub');
     }
   };
 
@@ -103,6 +119,16 @@ const CopilotWidget = ({ role }) => {
                 boxShadow: m.role === 'ai' ? '0 1px 4px rgba(0,0,0,0.07)' : 'none',
                 border: m.role === 'ai' && !m.error ? '1px solid #F1F0EE' : 'none',
               }}>{m.text}</div>
+              {m.actions && m.actions.length > 0 && (
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+                  {m.actions.map((a, idx) => (
+                    <button key={idx} onClick={() => handleAction(a)}
+                      style={{ background: 'white', border: '1px solid #E8783B', borderRadius: '8px', padding: '6px 12px', fontSize: '11px', color: '#E8783B', fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: '0 2px 4px rgba(232,120,59,0.1)' }}>
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+              )}
               {m.insight && (
                 <div style={{ background: '#F5F3FF', border: '1px solid #EDE9FE', borderRadius: '8px', padding: '8px 12px', marginTop: '6px', fontSize: '12px', color: '#5B21B6', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                   <span style={{ fontWeight: 700 }}>Insight: </span>{m.insight}
@@ -159,6 +185,12 @@ const AIHubScreen = ({ role, onNavigate }) => {
   const [monthlySummaries, setMonthlySummaries] = React.useState(null);
   const [payNowLoading, setPayNowLoading] = React.useState(null);
   const [payNowMsg, setPayNowMsg] = React.useState(null);
+  const [payModal, setPayModal] = React.useState(null); // { rec } — Pay Now modal
+  const [schedModal, setSchedModal] = React.useState(null); // { rec } — Schedule modal
+  const [payForm, setPayForm] = React.useState({ method: 'NEFT', utr: '', notes: '' });
+  const [schedForm, setSchedForm] = React.useState({ date: '', note: '' });
+  const [payProcessing, setPayProcessing] = React.useState(false);
+  const [schedProcessing, setSchedProcessing] = React.useState(false);
   const [autoGenEnabled, setAutoGenEnabled] = React.useState(true);
 
   React.useEffect(() => {
@@ -281,27 +313,50 @@ const AIHubScreen = ({ role, onNavigate }) => {
   const [payRecs, setPayRecs] = React.useState([]);
 
   React.useEffect(() => {
-    window.TijoriAPI.BillsAPI.listExpenses({ status: 'APPROVED', limit: 10 })
+    // Load approved vendor bills for payment optimization
+    window.TijoriAPI.BillsAPI.listVendorBills({ status: 'APPROVED,BOOKED_D365', limit: 15 })
+      .then(d => {
+        const bills = Array.isArray(d) ? d : (d?.results || []);
+        if (bills.length === 0) {
+          // Fallback: try all non-paid vendor bills
+          return window.TijoriAPI.BillsAPI.listVendorBills({ limit: 15 });
+        }
+        return bills;
+      })
       .then(d => {
         const bills = Array.isArray(d) ? d : (d?.results || []);
         if (bills.length > 0) {
-          const mapped = bills.map((b, i) => {
-            const amt = Number(b.total_amount || 0);
-            const due = new Date(b.due_date || Date.now() + 86400000 * 15);
-            const suggested = new Date(due.getTime() - 86400000 * (i % 2 === 0 ? 5 : 2));
-            const isDiscount = i % 2 === 0;
-            return {
-              vendor: b.vendor_name || b.vendor?.name || 'Unknown Vendor',
-              invoices: b.ref_no || `INV-${b.id.slice(0,6).toUpperCase()}`,
-              amount: '₹' + amt.toLocaleString('en-IN'),
-              due: due.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
-              suggested: suggested.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
-              type: isDiscount ? 'discount' : 'lateFee',
-              tip: isDiscount ? `Save ₹${Math.round(amt * 0.015)} — 1.5% early discount` : `Avoid ₹${Math.round(amt * 0.02)} late fee`,
-              rawId: b.id,
-              rawAmount: amt
-            };
-          });
+          const now = Date.now();
+          const mapped = bills
+            .filter(b => !['PAID', 'REJECTED', 'WITHDRAWN', 'AUTO_REJECT'].includes(b._status || b.status || ''))
+            .slice(0, 10)
+            .map((b, i) => {
+              const amt = Number(b.total_amount || 0);
+              const dueRaw = b.due_date;
+              const due = dueRaw ? new Date(dueRaw) : new Date(now + 86400000 * (15 + i * 3));
+              const daysUntilDue = Math.floor((due.getTime() - now) / 86400000);
+              const isEarly = daysUntilDue > 5;
+              const suggested = new Date(due.getTime() - 86400000 * (isEarly ? 5 : 1));
+              const type = isEarly ? 'discount' : daysUntilDue < 0 ? 'lateFee' : 'batch';
+              const tip = type === 'discount'
+                ? `Pay ${Math.abs(daysUntilDue) > 0 ? daysUntilDue + 'd early' : 'now'} — save ₹${Math.round(amt * 0.015).toLocaleString('en-IN')} (1.5% discount)`
+                : type === 'lateFee'
+                ? `OVERDUE by ${Math.abs(daysUntilDue)}d — avoid ₹${Math.round(amt * 0.02).toLocaleString('en-IN')} penalty`
+                : `Pay by ${due.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })} to stay on time`;
+              return {
+                vendor: b.vendor_name || b.vendor?.name || 'Unknown Vendor',
+                invoices: b.ref_no || `INV-${String(b.id).slice(0,6).toUpperCase()}`,
+                amount: '₹' + amt.toLocaleString('en-IN'),
+                due: due.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
+                suggested: suggested.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
+                suggestedDate: suggested.toISOString().slice(0,10),
+                type,
+                tip,
+                rawId: b.id,
+                rawAmount: amt,
+                daysUntilDue,
+              };
+            });
           setPayRecs(mapped);
         }
       })
@@ -615,28 +670,13 @@ const AIHubScreen = ({ role, onNavigate }) => {
                     </td>
                     <td style={{ padding: '0 14px' }}>
                       <div style={{ display: 'flex', gap: '6px' }}>
-                        <Btn variant="primary" small disabled={payNowLoading === r.invoices} onClick={async () => {
-                          if (!window.confirm(`Initiate payment of ${r.amount} to ${r.vendor}?`)) return;
-                          setPayNowLoading(r.invoices); setPayNowMsg(null);
-                          try {
-                            await window.TijoriAPI.BillsAPI.settle(r.rawId, `PAY-NOW-${Date.now()}`);
-                            setPayNowMsg({ type: 'success', text: `Payment of ${r.amount} to ${r.vendor} queued. UTR will be generated within 24h.` });
-                            setPayRecs(prev => prev.filter(p => p.rawId !== r.rawId));
-                          } catch(e) {
-                            setPayNowMsg({ type: 'error', text: `Payment failed: ${e.message || 'Server error'}` });
-                          } finally {
-                            setPayNowLoading(null);
-                            setTimeout(() => setPayNowMsg(null), 5000);
-                          }
-                        }}>
-                          {payNowLoading === r.invoices ? '…' : 'Pay Now'}
-                        </Btn>
-                        <Btn variant="secondary" small onClick={async () => {
-                          setPayNowMsg({ type: 'info', text: `Scheduling payment of ${r.amount} for ${r.suggested}...` });
-                          setTimeout(() => {
-                            setPayNowMsg({ type: 'success', text: `Payment of ${r.amount} to ${r.vendor} scheduled for ${r.suggested}.` });
-                            setTimeout(() => setPayNowMsg(null), 4000);
-                          }, 800);
+                        <Btn variant="primary" small onClick={() => {
+                          setPayForm({ method: 'NEFT', utr: '', notes: '' });
+                          setPayModal({ rec: r });
+                        }}>Pay Now</Btn>
+                        <Btn variant="secondary" small onClick={() => {
+                          setSchedForm({ date: r.suggestedDate || '', note: '' });
+                          setSchedModal({ rec: r });
                         }}>Schedule</Btn>
                       </div>
                     </td>
@@ -693,6 +733,125 @@ const AIHubScreen = ({ role, onNavigate }) => {
           </>
         )}
       </SidePanel>
+
+      {/* ── Pay Now Modal ─────────────────────────────────────────────────── */}
+      {payModal && (
+        <TjModal open onClose={() => { setPayModal(null); setPayProcessing(false); }} title="Initiate Payment" accentColor="#E8783B" width={480}>
+          {/* Invoice summary */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', background: 'linear-gradient(135deg, #FFF7ED, #FEF3C7)', border: '1px solid #FED7AA', borderRadius: '12px', marginBottom: '20px' }}>
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Invoice</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', color: '#E8783B', fontWeight: 600, marginTop: '2px' }}>{payModal.rec.invoices}</div>
+              <div style={{ fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>{payModal.rec.vendor}</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '26px', color: '#E8783B', letterSpacing: '-1px' }}>{payModal.rec.amount}</div>
+              <div style={{ fontSize: '11px', color: '#92400E', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Due: {payModal.rec.due}</div>
+            </div>
+          </div>
+
+          {/* Payment method */}
+          <div style={{ marginBottom: '14px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#374151', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '6px' }}>Payment Method</div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {['NEFT', 'RTGS', 'IMPS', 'UPI'].map(m => (
+                <button key={m} onClick={() => setPayForm(f => ({...f, method: m}))}
+                  style={{ flex: 1, padding: '8px 4px', borderRadius: '8px', border: `2px solid ${payForm.method === m ? '#E8783B' : '#E2E8F0'}`, background: payForm.method === m ? '#FFF7ED' : 'white', fontSize: '12px', fontWeight: 700, color: payForm.method === m ? '#E8783B' : '#64748B', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'all 150ms' }}>
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <TjInput label="UTR / Transaction Reference (optional — auto-generated if blank)" placeholder={`UTR-${payModal.rec.invoices}-${Date.now().toString().slice(-6)}`} value={payForm.utr} onChange={e => setPayForm(f => ({...f, utr: e.target.value}))} />
+          <TjInput label="Payment Notes / Remarks" placeholder="e.g. Early payment for 1.5% discount" value={payForm.notes} onChange={e => setPayForm(f => ({...f, notes: e.target.value}))} />
+
+          <div style={{ padding: '12px 14px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '10px', marginBottom: '16px', fontSize: '12px', color: '#065F46', fontFamily: "'Plus Jakarta Sans', sans-serif' ", fontWeight: 500 }}>
+            ✓ Payment confirmation will be sent to vendor via email. Transaction will be recorded in AuditLog with UTR.
+          </div>
+
+          {payNowMsg && (
+            <div style={{ marginBottom: '12px', padding: '10px 14px', borderRadius: '8px', background: payNowMsg.type === 'success' ? '#D1FAE5' : '#FEE2E2', border: `1px solid ${payNowMsg.type === 'success' ? '#6EE7B7' : '#FCA5A5'}`, fontSize: '13px', fontWeight: 600, color: payNowMsg.type === 'success' ? '#065F46' : '#991B1B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              {payNowMsg.text}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <Btn variant="secondary" onClick={() => setPayModal(null)}>Cancel</Btn>
+            <Btn variant="primary" disabled={payProcessing} onClick={async () => {
+              const r = payModal.rec;
+              setPayProcessing(true); setPayNowMsg(null);
+              try {
+                const utr = payForm.utr.trim() || `UTR-${r.invoices}-${Date.now().toString().slice(-6)}`;
+                const res = await window.TijoriAPI.BillsAPI.settle(r.rawId, utr, payForm.method, payForm.notes);
+                setPayNowMsg({ type: 'success', text: res?.message || `✓ Payment of ${r.amount} to ${r.vendor} processed via ${payForm.method}. UTR: ${utr}` });
+                setPayRecs(prev => prev.filter(p => p.rawId !== r.rawId));
+                setTimeout(() => { setPayModal(null); setPayNowMsg(null); }, 3000);
+              } catch(e) {
+                setPayNowMsg({ type: 'error', text: `Payment failed: ${e.message || 'Check approval status or authority limits'}` });
+              } finally {
+                setPayProcessing(false);
+              }
+            }}>
+              {payProcessing ? 'Processing…' : `Confirm Payment — ${payModal.rec.amount}`}
+            </Btn>
+          </div>
+        </TjModal>
+      )}
+
+      {/* ── Schedule Payment Modal ─────────────────────────────────────────── */}
+      {schedModal && (
+        <TjModal open onClose={() => { setSchedModal(null); setSchedProcessing(false); }} title="Schedule Payment" accentColor="#5B21B6" width={440}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', background: '#F5F3FF', border: '1px solid #EDE9FE', borderRadius: '12px', marginBottom: '20px' }}>
+            <div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#7C3AED', fontWeight: 600 }}>{schedModal.rec.invoices}</div>
+              <div style={{ fontSize: '13px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600, marginTop: '2px' }}>{schedModal.rec.vendor}</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '22px', color: '#7C3AED', letterSpacing: '-0.5px' }}>{schedModal.rec.amount}</div>
+              <div style={{ fontSize: '11px', color: '#7C3AED', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                {schedModal.rec.tip}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '6px', fontSize: '12px', fontWeight: 600, color: '#374151', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Payment Date <span style={{ color: '#EF4444' }}>*</span></div>
+          <input type="date" value={schedForm.date} onChange={e => setSchedForm(f => ({...f, date: e.target.value}))} min={new Date().toISOString().slice(0,10)}
+            style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1.5px solid #E2E8F0', borderRadius: '10px', fontSize: '14px', fontFamily: "'Plus Jakarta Sans', sans-serif", color: '#0F172A', outline: 'none', marginBottom: '14px' }} />
+
+          <TjInput label="Note / Reason (optional)" placeholder="e.g. Early payment for discount — AI recommendation" value={schedForm.note} onChange={e => setSchedForm(f => ({...f, note: e.target.value}))} />
+
+          <div style={{ padding: '10px 14px', background: '#F5F3FF', border: '1px solid #EDE9FE', borderRadius: '10px', marginBottom: '16px', fontSize: '12px', color: '#5B21B6', fontFamily: "'Plus Jakarta Sans', sans-serif'", fontWeight: 500 }}>
+            ✓ Vendor will be notified via email. Payment will auto-initiate on the scheduled date.
+          </div>
+
+          {payNowMsg && schedModal && (
+            <div style={{ marginBottom: '12px', padding: '10px 14px', borderRadius: '8px', background: payNowMsg.type === 'success' ? '#D1FAE5' : '#FEE2E2', border: `1px solid ${payNowMsg.type === 'success' ? '#6EE7B7' : '#FCA5A5'}`, fontSize: '13px', fontWeight: 600, color: payNowMsg.type === 'success' ? '#065F46' : '#991B1B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              {payNowMsg.text}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <Btn variant="secondary" onClick={() => setSchedModal(null)}>Cancel</Btn>
+            <Btn variant="purple" disabled={schedProcessing || !schedForm.date} onClick={async () => {
+              const r = schedModal.rec;
+              if (!schedForm.date) { setPayNowMsg({ type: 'error', text: 'Please select a payment date.' }); return; }
+              setSchedProcessing(true);
+              try {
+                const res = await window.TijoriAPI.BillsAPI.schedulePayment(r.rawId, schedForm.date, schedForm.note || `Scheduled via AI Optimization for ${r.vendor}`);
+                setPayNowMsg({ type: 'success', text: res?.message || `✓ Payment of ${r.amount} to ${r.vendor} scheduled for ${schedForm.date}. Vendor notified.` });
+                setTimeout(() => { setSchedModal(null); setPayNowMsg(null); }, 3000);
+              } catch(e) {
+                setPayNowMsg({ type: 'error', text: `Schedule failed: ${e.message || 'Server error'}` });
+              } finally {
+                setSchedProcessing(false);
+              }
+            }}>
+              {schedProcessing ? 'Scheduling…' : `Confirm Schedule — ${schedModal.rec.amount}`}
+            </Btn>
+          </div>
+        </TjModal>
+      )}
     </div>
   );
 };
