@@ -232,6 +232,20 @@ const AppShell = ({
   const navBadges = useLiveBadges();
   const config = ROLE_CONFIG[roleKey] || ROLE_CONFIG['AP Clerk'];
   const navItems = config.nav;
+  const prevUnreadRef = React.useRef(null);
+  const fireBrowserPush = items => {
+    try {
+      const prefs = JSON.parse(localStorage.getItem('notif_prefs') || '{}');
+      if (!prefs.push) return;
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      items.slice(0, 3).forEach(item => {
+        new Notification(item.sub || 'Tijori Alert', {
+          body: item.text,
+          icon: '/static/favicon.ico'
+        });
+      });
+    } catch (_) {}
+  };
   const loadNotifs = (showPopup = false) => {
     window.TijoriAPI.NotificationsAPI.list().then(data => {
       const items = (data?.notifications || []).map(n => ({
@@ -251,7 +265,15 @@ const AppShell = ({
         isRead: n.is_read
       }));
       setNotifs(items);
-      setUnreadCount(data?.unread_count || 0);
+      const newUnread = data?.unread_count || 0;
+      setUnreadCount(newUnread);
+
+      // Fire browser push for NEW unread notifications on subsequent polls
+      if (!showPopup && prevUnreadRef.current !== null && newUnread > prevUnreadRef.current) {
+        const freshItems = items.filter(i => !i.isRead && (i.priority === 'HIGH' || i.priority === 'CRITICAL'));
+        if (freshItems.length > 0) fireBrowserPush(freshItems);
+      }
+      prevUnreadRef.current = newUnread;
 
       // Show popup for HIGH priority on first load or on dashboard
       if (showPopup && !popupDismissed) {
@@ -1039,123 +1061,151 @@ const AppShell = ({
 // ─── SCREEN MAP ───────────────────────────────────────────────────────────────
 
 const SCREEN_MAP = {
-  'dashboard': (nav, roleKey, ctx) => React.createElement(DashboardScreen, {
-    role: roleKey,
-    onNavigate: nav
-  }),
-  'ap-hub': (nav, roleKey, ctx) => React.createElement(APHubScreen, {
-    role: roleKey,
-    onNavigate: nav
-  }),
-  'ap-match': (nav, roleKey, ctx) => React.createElement(APMatchScreen, {
+  'dashboard': (nav, back, roleKey, ctx) => React.createElement(DashboardScreen, {
     role: roleKey,
     onNavigate: nav,
+    onBack: back
+  }),
+  'ap-hub': (nav, back, roleKey, ctx) => React.createElement(APHubScreen, {
+    role: roleKey,
+    onNavigate: nav,
+    onBack: back
+  }),
+  'ap-match': (nav, back, roleKey, ctx) => React.createElement(APMatchScreen, {
+    role: roleKey,
+    onNavigate: nav,
+    onBack: back,
     invoice: ctx?.invoice || ctx
   }),
-  'expenses': (nav, roleKey, ctx) => React.createElement(ExpensesScreen, {
-    role: roleKey,
-    onNavigate: nav
-  }),
-  'budget': (nav, roleKey, ctx) => React.createElement(BudgetScreen, {
-    role: roleKey,
-    onNavigate: nav
-  }),
-  'guardrails': (nav, roleKey, ctx) => React.createElement(GuardrailsScreen, {
-    role: roleKey,
-    onNavigate: nav
-  }),
-  'anomaly': (nav, roleKey, ctx) => React.createElement(AnomalyScreen, {
-    role: roleKey,
-    onNavigate: nav
-  }),
-  'ai-hub': (nav, roleKey, ctx) => React.createElement(AIHubScreen, {
-    role: roleKey,
-    onNavigate: nav
-  }),
-  'vendors': (nav, roleKey, ctx) => React.createElement(VendorsScreen, {
-    role: roleKey,
-    onNavigate: nav
-  }),
-  'audit': (nav, roleKey, ctx) => React.createElement(AuditScreen, {
+  'expenses': (nav, back, roleKey, ctx) => React.createElement(ExpensesScreen, {
     role: roleKey,
     onNavigate: nav,
+    onBack: back
+  }),
+  'budget': (nav, back, roleKey, ctx) => React.createElement(BudgetScreen, {
+    role: roleKey,
+    onNavigate: nav,
+    onBack: back
+  }),
+  'guardrails': (nav, back, roleKey, ctx) => React.createElement(GuardrailsScreen, {
+    role: roleKey,
+    onNavigate: nav,
+    onBack: back
+  }),
+  'anomaly': (nav, back, roleKey, ctx) => React.createElement(AnomalyScreen, {
+    role: roleKey,
+    onNavigate: nav,
+    onBack: back
+  }),
+  'ai-hub': (nav, back, roleKey, ctx) => React.createElement(AIHubScreen, {
+    role: roleKey,
+    onNavigate: nav,
+    onBack: back
+  }),
+  'vendors': (nav, back, roleKey, ctx) => React.createElement(VendorsScreen, {
+    role: roleKey,
+    onNavigate: nav,
+    onBack: back
+  }),
+  'audit': (nav, back, roleKey, ctx) => React.createElement(AuditScreen, {
+    role: roleKey,
+    onNavigate: nav,
+    onBack: back,
     initialFilter: ctx?.filter
   }),
-  'settings': (nav, roleKey, ctx) => React.createElement(SettingsScreen, {
-    role: roleKey,
-    onNavigate: nav
-  }),
-  'vendor-portal': (nav, roleKey, ctx) => React.createElement(VendorPortalScreen, {
-    role: roleKey,
-    onNavigate: nav
-  }),
-  'fm-home': (nav, roleKey, ctx, usr) => React.createElement(FinanceManagerDashboard, {
+  'settings': (nav, back, roleKey, ctx) => React.createElement(SettingsScreen, {
     role: roleKey,
     onNavigate: nav,
-    user: usr
+    onBack: back
   }),
-  'clerk-home': (nav, roleKey, ctx, usr) => React.createElement(APClerkDashboard, {
+  'vendor-portal': (nav, back, roleKey, ctx) => React.createElement(VendorPortalScreen, {
     role: roleKey,
     onNavigate: nav,
-    user: usr
+    onBack: back
   }),
-  'emp-home': (nav, roleKey, ctx, usr) => React.createElement(EmployeeDashboard, {
+  'fm-home': (nav, back, roleKey, ctx, usr) => React.createElement(FinanceManagerDashboard, {
     role: roleKey,
     onNavigate: nav,
+    onBack: back,
     user: usr
   }),
-  'iam': (nav, roleKey, ctx) => React.createElement(IAMScreen, {
+  'clerk-home': (nav, back, roleKey, ctx, usr) => React.createElement(APClerkDashboard, {
     role: roleKey,
-    onNavigate: nav
+    onNavigate: nav,
+    onBack: back,
+    user: usr
   }),
-  'ar': (nav, roleKey, ctx) => React.createElement(ARScreen, {
+  'emp-home': (nav, back, roleKey, ctx, usr) => React.createElement(EmployeeDashboard, {
     role: roleKey,
-    onNavigate: nav
+    onNavigate: nav,
+    onBack: back,
+    user: usr
   }),
-  'ar-raise': (nav, roleKey, ctx) => React.createElement(ARLiveRaiseScreen, {
+  'iam': (nav, back, roleKey, ctx) => React.createElement(IAMScreen, {
     role: roleKey,
-    onNavigate: nav
+    onNavigate: nav,
+    onBack: back
   }),
-  'ar-customer': (nav, roleKey, ctx) => React.createElement(ARLiveCustomerScreen, {
+  'ar': (nav, back, roleKey, ctx) => React.createElement(ARScreen, {
     role: roleKey,
-    onNavigate: nav
+    onNavigate: nav,
+    onBack: back
   }),
-  'reports': (nav, roleKey, ctx) => React.createElement(LiveReportsScreen, {
+  'ar-raise': (nav, back, roleKey, ctx) => React.createElement(ARLiveRaiseScreen, {
     role: roleKey,
-    onNavigate: nav
+    onNavigate: nav,
+    onBack: back
+  }),
+  'ar-customer': (nav, back, roleKey, ctx) => React.createElement(ARLiveCustomerScreen, {
+    role: roleKey,
+    onNavigate: nav,
+    onBack: back
+  }),
+  'reports': (nav, back, roleKey, ctx) => React.createElement(LiveReportsScreen, {
+    role: roleKey,
+    onNavigate: nav,
+    onBack: back
   }),
   // ── New AI Finance Automation Screens ──
-  'spend-analytics': (nav, roleKey, ctx) => React.createElement(SpendAnalyticsScreen, {
+  'spend-analytics': (nav, back, roleKey, ctx) => React.createElement(SpendAnalyticsScreen, {
     role: roleKey,
-    onNavigate: nav
+    onNavigate: nav,
+    onBack: back
   }),
-  'working-capital': (nav, roleKey, ctx) => React.createElement(WorkingCapitalScreen, {
+  'working-capital': (nav, back, roleKey, ctx) => React.createElement(WorkingCapitalScreen, {
     role: roleKey,
-    onNavigate: nav
+    onNavigate: nav,
+    onBack: back
   }),
-  'vendor-risk': (nav, roleKey, ctx) => React.createElement(VendorRiskScreen, {
+  'vendor-risk': (nav, back, roleKey, ctx) => React.createElement(VendorRiskScreen, {
     role: roleKey,
-    onNavigate: nav
+    onNavigate: nav,
+    onBack: back
   }),
-  'gst-recon': (nav, roleKey, ctx) => React.createElement(GSTReconScreen, {
+  'gst-recon': (nav, back, roleKey, ctx) => React.createElement(GSTReconScreen, {
     role: roleKey,
-    onNavigate: nav
+    onNavigate: nav,
+    onBack: back
   }),
-  'tds-compliance': (nav, roleKey, ctx) => React.createElement(TDSComplianceScreen, {
+  'tds-compliance': (nav, back, roleKey, ctx) => React.createElement(TDSComplianceScreen, {
     role: roleKey,
-    onNavigate: nav
+    onNavigate: nav,
+    onBack: back
   }),
-  'policy-compliance': (nav, roleKey, ctx) => React.createElement(PolicyComplianceScreen, {
+  'policy-compliance': (nav, back, roleKey, ctx) => React.createElement(PolicyComplianceScreen, {
     role: roleKey,
-    onNavigate: nav
+    onNavigate: nav,
+    onBack: back
   }),
-  'dept-variance': (nav, roleKey, ctx) => React.createElement(DeptVarianceScreen, {
+  'dept-variance': (nav, back, roleKey, ctx) => React.createElement(DeptVarianceScreen, {
     role: roleKey,
-    onNavigate: nav
+    onNavigate: nav,
+    onBack: back
   }),
-  'po-match': (nav, roleKey, ctx) => React.createElement(POMatchScreen, {
+  'po-match': (nav, back, roleKey, ctx) => React.createElement(POMatchScreen, {
     role: roleKey,
-    onNavigate: nav
+    onNavigate: nav,
+    onBack: back
   })
 };
 
@@ -1222,6 +1272,18 @@ const App = () => {
     const handler = e => navigate(e.detail?.screen || e.detail, e.detail?.ctx);
     window.addEventListener('navigate', handler);
     return () => window.removeEventListener('navigate', handler);
+  }, []);
+
+  // ── Profile update events (fired by Settings screen) ─────────────
+  React.useEffect(() => {
+    const handler = e => {
+      if (!e.detail) return;
+      const built = buildUser(e.detail);
+      setUser(built);
+      localStorage.setItem('tj_user', JSON.stringify(built));
+    };
+    window.addEventListener('profile-updated', handler);
+    return () => window.removeEventListener('profile-updated', handler);
   }, []);
   const navigate = (s, ctx) => {
     setNavHistory(prev => [...prev.slice(-19), screen]); // keep last 20
@@ -1327,7 +1389,7 @@ const App = () => {
     style: {
       animation: 'fadeIn 220ms ease'
     }
-  }, screenFn(navigate, roleKey, screenCtx, user)));
+  }, screenFn(navigate, navHistory.length > 0 ? back : null, roleKey, screenCtx, user)));
 };
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(/*#__PURE__*/React.createElement(App, null));

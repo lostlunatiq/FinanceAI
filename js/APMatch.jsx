@@ -1,6 +1,6 @@
 // Tijori AI — AP Invoice Detail (real data + working actions)
 
-const APMatchScreen = ({ onNavigate, invoice: passedInvoice, role: propRole }) => {
+const APMatchScreen = ({ onNavigate, onBack, invoice: passedInvoice, role: propRole }) => {
   const [bill, setBill] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState('');
@@ -81,7 +81,7 @@ const APMatchScreen = ({ onNavigate, invoice: passedInvoice, role: propRole }) =
     <div style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       <div style={{ fontSize: '48px', marginBottom: '12px' }}>📄</div>
       <div style={{ fontSize: '14px' }}>{error || 'Invoice not found.'}</div>
-      <Btn variant="secondary" style={{ marginTop: 16 }} onClick={() => onNavigate && onNavigate('ap-hub')}>← Back to Hub</Btn>
+      <Btn variant="secondary" style={{ marginTop: 16 }} onClick={() => onBack ? onBack() : onNavigate && onNavigate('ap-hub')}>← Back</Btn>
     </div>
   );
 
@@ -107,7 +107,7 @@ const APMatchScreen = ({ onNavigate, invoice: passedInvoice, role: propRole }) =
       {/* Header */}
       <div style={{ marginBottom: '24px' }}>
         <div style={{ fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ cursor: 'pointer', color: '#E8783B' }} onClick={() => onNavigate && onNavigate('ap-hub')}>← Accounts Payable Hub</span>
+          <span style={{ cursor: 'pointer', color: '#E8783B' }} onClick={() => onBack ? onBack() : onNavigate && onNavigate('ap-hub')}>← Back</span>
           <span>›</span>
           <span style={{ color: '#0F172A', fontWeight: 600 }}>{bill.ref_no}</span>
         </div>
@@ -128,7 +128,7 @@ const APMatchScreen = ({ onNavigate, invoice: passedInvoice, role: propRole }) =
             </div>
           </div>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <Btn variant="secondary" onClick={() => onNavigate && onNavigate('ap-hub')}>← Back</Btn>
+            <Btn variant="secondary" onClick={() => onBack ? onBack() : onNavigate && onNavigate('ap-hub')}>← Back</Btn>
             {canAct && (
               <>
                 {bill.anomaly_severity && bill.anomaly_severity !== 'NONE' && (

@@ -209,6 +209,10 @@ const AuthAPI = {
   async updateGroup(id, data) {
     return apiFetch(`/auth/groups/${id}/`, { method: 'PATCH', body: JSON.stringify(data) });
   },
+
+  async deleteGroup(id) {
+    return apiFetch(`/auth/groups/${id}/`, { method: 'DELETE' });
+  },
 };
 
 // ── Dashboard API ─────────────────────────────────────────────────────────────
@@ -641,6 +645,15 @@ const NotificationsAPI = {
   },
   async unreadCount() {
     return apiFetch('/notifications/unread-count/');
+  },
+  async getPrefs() {
+    return apiFetch('/notifications/preferences/');
+  },
+  async savePrefs(data) {
+    return apiFetch('/notifications/preferences/', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
   },
 };
 

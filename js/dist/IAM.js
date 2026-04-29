@@ -583,7 +583,6 @@ const UserDetailDrawer = ({
         ...user
       });
       setEditing(false);
-      setActionMsg('');
     }
   }, [user]);
   const handleSave = async () => {
@@ -1014,14 +1013,25 @@ const UserDetailDrawer = ({
     style: {
       marginTop: 12,
       padding: '10px 14px',
-      background: actionMsg.includes('failed') || actionMsg.includes('Failed') ? '#FEE2E2' : '#F0FDF4',
-      border: `1px solid ${actionMsg.includes('failed') || actionMsg.includes('Failed') ? '#FECACA' : '#BBF7D0'}`,
+      background: actionMsg.toLowerCase().includes('fail') || actionMsg.toLowerCase().includes('cannot') || actionMsg.toLowerCase().includes('error') ? '#FEE2E2' : '#F0FDF4',
+      border: `1px solid ${actionMsg.toLowerCase().includes('fail') || actionMsg.toLowerCase().includes('cannot') || actionMsg.toLowerCase().includes('error') ? '#FECACA' : '#BBF7D0'}`,
       borderRadius: 8,
       fontSize: 12,
-      color: actionMsg.includes('failed') || actionMsg.includes('Failed') ? '#991B1B' : '#065F46',
-      fontFamily: "'Plus Jakarta Sans', sans-serif"
+      color: actionMsg.toLowerCase().includes('fail') || actionMsg.toLowerCase().includes('cannot') || actionMsg.toLowerCase().includes('error') ? '#991B1B' : '#065F46',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      gap: 8
     }
-  }, actionMsg));
+  }, /*#__PURE__*/React.createElement("span", null, actionMsg), /*#__PURE__*/React.createElement("span", {
+    style: {
+      cursor: 'pointer',
+      flexShrink: 0,
+      opacity: 0.6
+    },
+    onClick: () => setActionMsg('')
+  }, "\u2715")));
 };
 
 // ─── MAIN IAM SCREEN ─────────────────────────────────────────────────────────
@@ -1062,21 +1072,17 @@ const IAMScreen = ({
   const load = React.useCallback((refreshUserId = null) => {
     setLoading(true);
     Promise.allSettled([window.TijoriAPI.AuthAPI.listUsers(), window.TijoriAPI.AuthAPI.listDepartments(), window.TijoriAPI.AuthAPI.listGroups()]).then(([uRes, dRes, gRes]) => {
-      let latestUsers = users;
-      if (uRes.status === 'fulfilled') {
-        latestUsers = uRes.value || [];
-        setUsers(latestUsers);
-      }
+      const latestUsers = uRes.status === 'fulfilled' ? uRes.value || [] : [];
+      if (uRes.status === 'fulfilled') setUsers(latestUsers);
       if (dRes.status === 'fulfilled') setDepartments(dRes.value || []);
       if (gRes.status === 'fulfilled') setGroups(gRes.value || []);
-      setSelectedUser(prev => {
-        const targetId = refreshUserId || (prev ? prev.id : null);
-        if (!targetId) return prev;
-        return latestUsers.find(x => x.id === targetId) || prev;
-      });
+      if (refreshUserId) {
+        const found = latestUsers.find(x => x.id === refreshUserId);
+        if (found) setSelectedUser(found);
+      }
       setLoading(false);
     });
-  }, [users]);
+  }, []);
   React.useEffect(() => {
     load();
   }, [load]);
@@ -1488,7 +1494,12 @@ const IAMScreen = ({
         justifyContent: 'center',
         fontSize: 20
       }
-    }, "\uD83D\uDC65"), /*#__PURE__*/React.createElement(Btn, {
+    }, "\uD83D\uDC65"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 6
+      }
+    }, /*#__PURE__*/React.createElement(Btn, {
       variant: "ghost",
       small: true,
       onClick: () => {
@@ -1496,7 +1507,19 @@ const IAMScreen = ({
         setEditGroupName(g.name);
         setEditGroupOpen(true);
       }
-    }, "Edit")), /*#__PURE__*/React.createElement("div", {
+    }, "Edit"), /*#__PURE__*/React.createElement(Btn, {
+      variant: "destructive",
+      small: true,
+      onClick: async () => {
+        if (!window.confirm(`Delete group "${g.name}"? This cannot be undone.`)) return;
+        try {
+          await window.TijoriAPI.AuthAPI.deleteGroup(g.id);
+          load();
+        } catch (e) {
+          alert(e.message || 'Delete failed');
+        }
+      }
+    }, "Delete"))), /*#__PURE__*/React.createElement("div", {
       style: {
         fontFamily: "'Bricolage Grotesque', sans-serif",
         fontWeight: 700,
@@ -2001,22 +2024,9 @@ const IAMScreen = ({
       if (!addMembersGroup) return;
       setAddMembersLoading(true);
       try {
-        // For each active user, update their groups to include/exclude this group
-        await Promise.all(users.filter(u => u.is_active).map(u => {
-          const shouldBeMember = addMembersSelected.includes(u.id);
-          const currentGroupIds = u.groups || [];
-          const hasGroup = currentGroupIds.includes(addMembersGroup.id);
-          if (shouldBeMember && !hasGroup) {
-            return window.TijoriAPI.AuthAPI.updateUser(u.id, {
-              groups: [...currentGroupIds, addMembersGroup.id]
-            });
-          } else if (!shouldBeMember && hasGroup) {
-            return window.TijoriAPI.AuthAPI.updateUser(u.id, {
-              groups: currentGroupIds.filter(id => id !== addMembersGroup.id)
-            });
-          }
-          return Promise.resolve();
-        }));
+        await window.TijoriAPI.AuthAPI.updateGroup(addMembersGroup.id, {
+          user_ids: addMembersSelected
+        });
         setAddMembersGroup(null);
         load();
       } catch (e) {

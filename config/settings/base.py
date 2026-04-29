@@ -132,8 +132,8 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.UserRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
-        "user": "200/hour",
-        "nl_query": "100/hour",  # tighter limit on AI endpoints
+        "user": "600/minute",
+        "nl_query": "60/minute",
     },
 }
 

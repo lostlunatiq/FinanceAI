@@ -2,6 +2,21 @@ from django.db import models
 from django.conf import settings
 import uuid
 
+
+class NotificationPreference(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='notif_prefs',
+    )
+    email_summaries = models.BooleanField(default=True)
+    system_alerts = models.BooleanField(default=True)
+    mobile_push = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"NotifPrefs({self.user.username})"
+
+
 class Notification(models.Model):
     PRIORITY_CHOICES = [
         ('LOW', 'Low'),
