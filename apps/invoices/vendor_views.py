@@ -367,6 +367,26 @@ class OCRResultView(APIView):
 
     def get(self, request, task_id):
         from celery.result import AsyncResult
+        from apps.invoices.models import Expense
+
+        # Check ownership: find the expense associated with this task ID
+        # and ensure the requesting user owns it (submitted_by or vendor.user)
+        try:
+            expense = Expense.objects.get(ocr_task_id=task_id)
+            is_owner = False
+            if expense.submitted_by == request.user:
+                is_owner = True
+            elif hasattr(expense.vendor, 'user') and expense.vendor.user == request.user:
+                is_owner = True
+                
+            if not is_owner and not request.user.is_superuser:
+                 return Response({"error": "Not allowed to view this task result."}, status=status.HTTP_403_FORBIDDEN)
+        except Expense.DoesNotExist:
+            # If the task isn't linked to an expense yet (standalone), 
+            # we should ideally track ownership elsewhere, but for now, 
+            # fail safe if it's not superuser.
+            if not request.user.is_superuser:
+                 return Response({"error": "Task not found or not authorized."}, status=status.HTTP_404_NOT_FOUND)
 
         result = AsyncResult(task_id)
 

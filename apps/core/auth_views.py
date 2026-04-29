@@ -394,7 +394,6 @@ class UserDetailView(APIView):
             "email",
             "employee_grade",
             "department",
-            "is_superuser",
             "groups",
         }
         data = {k: v for k, v in request.data.items() if k in allowed_fields}

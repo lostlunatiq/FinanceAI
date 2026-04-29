@@ -207,7 +207,7 @@ D365_CLIENT_ID = env("D365_CLIENT_ID", default="")
 D365_CLIENT_SECRET = env("D365_CLIENT_SECRET", default="")
 D365_ENVIRONMENT = env("D365_ENVIRONMENT", default="Sandbox")
 D365_COMPANY_ID = env("D365_COMPANY_ID", default="")
-D365_MOCK_MODE = env.bool("D365_MOCK_MODE", default=True)
+D365_MOCK_MODE = env.bool("D365_MOCK_MODE", default=False)
 
 # --- Teams ---
 TEAMS_WEBHOOK_URL = env("TEAMS_WEBHOOK_URL", default="")

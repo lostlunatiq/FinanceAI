@@ -32,23 +32,36 @@ def serve_app(request):
 
 def serve_js(request, path):
     """Serve js/ assets (JSX, JS files) for the Tijori AI app."""
-    file_path = os.path.join(settings.BASE_DIR, 'js', path)
-    if os.path.isfile(file_path):
-        ext = os.path.splitext(file_path)[1].lower()
+    import pathlib
+    root = pathlib.Path(settings.BASE_DIR, 'js').resolve()
+    full_path = (root / path).resolve()
+    
+    if not str(full_path).startswith(str(root)):
+        raise Http404(f"Not found: js/{path}")
+        
+    if full_path.is_file():
+        ext = full_path.suffix.lower()
         content_type = CONTENT_TYPES.get(ext, 'application/octet-stream')
-        return FileResponse(open(file_path, 'rb'), content_type=content_type)
+        return FileResponse(open(full_path, 'rb'), content_type=content_type)
     raise Http404(f"Not found: js/{path}")
 
 
 def serve_legacy_frontend(request, path=""):
     """Serve old frontend pages (kept for reference)."""
+    import pathlib
     if not path or path.endswith('/'):
         path = path.rstrip('/') + '/code.html' if path else 'financeai_login/code.html'
-    file_path = os.path.join(settings.BASE_DIR, 'frontend', path)
-    if os.path.isfile(file_path):
-        ext = os.path.splitext(file_path)[1].lower()
+        
+    root = pathlib.Path(settings.BASE_DIR, 'frontend').resolve()
+    full_path = (root / path).resolve()
+    
+    if not str(full_path).startswith(str(root)):
+        raise Http404(f"Frontend file not found: {path}")
+        
+    if full_path.is_file():
+        ext = full_path.suffix.lower()
         content_type = CONTENT_TYPES.get(ext, 'application/octet-stream')
-        return FileResponse(open(file_path, 'rb'), content_type=content_type)
+        return FileResponse(open(full_path, 'rb'), content_type=content_type)
     raise Http404(f"Frontend file not found: {path}")
 
 
