@@ -3,7 +3,7 @@
 
 const APPROVAL_STAGES_DATA = [{
   stage: 'Submitted',
-  actor: 'TechLogistics',
+  actor: 'Vendor',
   date: 'Apr 11, 2026 09:15',
   state: 'done',
   dept: null,
@@ -84,7 +84,7 @@ const COMMENTS_DATA = [{
   initials: 'PM'
 }, {
   id: 2,
-  user: 'TechLogistics',
+  user: 'Vendor',
   role: 'Vendor',
   time: 'Apr 11, 16:20',
   text: 'The service was rendered under a blanket agreement — PO reference: BLA-2026-004. Please check with procurement.',
@@ -103,13 +103,13 @@ const ATTACHMENTS_DATA = [{
   name: 'Invoice_TL_0842.pdf',
   size: '342 KB',
   type: 'pdf',
-  uploader: 'TechLogistics',
+  uploader: 'Vendor',
   date: 'Apr 11'
 }, {
   name: 'GST_Certificate.pdf',
   size: '128 KB',
   type: 'pdf',
-  uploader: 'TechLogistics',
+  uploader: 'Vendor',
   date: 'Apr 11'
 }, {
   name: 'Service_Completion.pdf',
@@ -173,8 +173,8 @@ const FINANCE_CHECKLIST = [{
 const BILL_DATA_FALLBACK = {
   id: 'BILL-2026-00042',
   vendorCode: 'VND-001',
-  vendorName: 'TechLogistics Solutions Global',
-  vendorName2: 'TechLogistics India',
+  vendorName: 'Vendor Solutions Global',
+  vendorName2: 'Vendor India',
   gstin: '27AABCT3518Q1ZL',
   pan: 'AABCT3518Q',
   msme: false,

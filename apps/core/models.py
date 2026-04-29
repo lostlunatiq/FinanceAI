@@ -163,3 +163,14 @@ class AuditLog(models.Model):
     def __str__(self):
         actor = self.user.get_full_name() if self.user else "System"
         return f"{actor} — {self.action} on {self.entity_type} [{self.created_at:%Y-%m-%d %H:%M}]"
+
+class AICopilotLog(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="ai_copilot_logs")
+    prompt = models.TextField()
+    response = models.TextField()
+    insight = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]

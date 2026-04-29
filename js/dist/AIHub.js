@@ -62,10 +62,12 @@ const CopilotWidget = ({
       const res = await NLQueryAPI.ask(q);
       const answer = res.answer || res.error || 'No response.';
       const insight = res.insight || '';
+      const actions = res.actions || [];
       setMessages(prev => [...prev, {
         role: 'ai',
         text: answer,
         insight,
+        actions,
         model: res.model,
         time: new Date().toLocaleTimeString('en-IN', {
           hour: '2-digit',
@@ -81,6 +83,28 @@ const CopilotWidget = ({
       }]);
     } finally {
       setLoading(false);
+    }
+  };
+  const handleAction = a => {
+    if (a.type === 'nav_to') {
+      onNavigate(a.payload.screen);
+    } else if (a.type === 'remind') {
+      // Direct call to reminder API
+      window.TijoriAPI.BillsAPI.remind(a.payload.ref_no).then(() => alert(`Reminder sent for ${a.payload.ref_no}`)).catch(e => alert(e.message));
+    } else if (a.type === 'export_report') {
+      const csv = `"Report Data"\n"${a.payload.report_type || 'Custom Report'}"\n"${new Date().toISOString()}"`;
+      const blob = new Blob([csv], {
+        type: 'text/csv'
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `ai_report_${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } else {
+      alert(`Action ${a.type} suggested for ${a.payload.ref_no || 'this item'}. Click to view details.`);
+      if (a.payload.ref_no) onNavigate('ap-hub');
     }
   };
   return /*#__PURE__*/React.createElement(Card, {
@@ -184,9 +208,33 @@ const CopilotWidget = ({
       fontFamily: "'Plus Jakarta Sans', sans-serif",
       lineHeight: 1.6,
       boxShadow: m.role === 'ai' ? '0 1px 4px rgba(0,0,0,0.07)' : 'none',
-      border: m.role === 'ai' && !m.error ? '1px solid #F1F0EE' : 'none'
+      border: m.role === 'ai' && !m.error ? '1px solid #F1F0EE' : 'none',
+      whiteSpace: 'pre-wrap',
+      wordBreak: 'break-word'
     }
-  }, m.text), m.insight && /*#__PURE__*/React.createElement("div", {
+  }, m.text), m.actions && m.actions.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: '8px',
+      marginTop: '8px',
+      flexWrap: 'wrap'
+    }
+  }, m.actions.map((a, idx) => /*#__PURE__*/React.createElement("button", {
+    key: idx,
+    onClick: () => handleAction(a),
+    style: {
+      background: 'white',
+      border: '1px solid #E8783B',
+      borderRadius: '8px',
+      padding: '6px 12px',
+      fontSize: '11px',
+      color: '#E8783B',
+      fontWeight: 700,
+      cursor: 'pointer',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      boxShadow: '0 2px 4px rgba(232,120,59,0.1)'
+    }
+  }, a.label))), m.insight && /*#__PURE__*/React.createElement("div", {
     style: {
       background: '#F5F3FF',
       border: '1px solid #EDE9FE',

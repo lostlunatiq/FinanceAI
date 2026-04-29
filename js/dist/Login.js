@@ -476,7 +476,7 @@ const LoginScreen = ({
     }
   })), /*#__PURE__*/React.createElement(TjInput, {
     label: "Username",
-    placeholder: "e.g. fin_admin",
+    placeholder: "Enter your username",
     type: "text",
     value: username,
     onChange: e => setUsername(e.target.value),

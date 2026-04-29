@@ -15,6 +15,23 @@ const AnomalyScreen = ({ role, onNavigate }) => {
   const [markSafeModal, setMarkSafeModal] = React.useState(null);
   const [markSafeNote, setMarkSafeNote] = React.useState('');
   const [markSafeLoading, setMarkSafeLoading] = React.useState(false);
+  const [vendorHistory, setVendorHistory] = React.useState([]);
+  const [vendorHistoryLoading, setVendorHistoryLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (activePanel && activePanel._raw) {
+      const vendorName = activePanel._raw.vendor_name || activePanel._raw.vendor;
+      if (vendorName) {
+        setVendorHistoryLoading(true);
+        window.TijoriAPI.BillsAPI.listExpenses({ search: vendorName, status: 'REJECTED' })
+          .then(data => setVendorHistory(data?.results || data || []))
+          .catch(() => setVendorHistory([]))
+          .finally(() => setVendorHistoryLoading(false));
+      } else {
+        setVendorHistory([]);
+      }
+    }
+  }, [activePanel]);
 
   const loadAnomalies = () => {
     const { AnomalyAPI, expenseToAnomaly } = window.TijoriAPI;
@@ -385,6 +402,31 @@ const AnomalyScreen = ({ role, onNavigate }) => {
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Vendor Risk History */}
+            <div style={{ marginBottom: '20px', background: '#FFF8F5', borderRadius: '12px', padding: '14px 16px', border: '1px solid #FFEDD5' }}>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#9A3412', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>📜</span> Vendor Risk History (Past Rejections)
+              </div>
+              {vendorHistoryLoading ? (
+                <div style={{ fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Loading history...</div>
+              ) : vendorHistory.length === 0 ? (
+                <div style={{ fontSize: '12px', color: '#10B981', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>✓ No past rejected invoices for this vendor.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {vendorHistory.slice(0, 3).map((h, i) => (
+                    <div key={i} style={{ background: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #FFEDD5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A', fontFamily: "'JetBrains Mono', monospace" }}>{h.invoice_number || h.ref_no || h.id.slice(0,8)}</div>
+                        <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px', fontFamily: "'Plus Jakarta Sans', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>{h.rejection_reason || 'Rejected by Compliance'}</div>
+                      </div>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#EF4444', fontFamily: "'Bricolage Grotesque', sans-serif" }}>₹{parseFloat(h.total_amount || 0).toLocaleString('en-IN')}</div>
+                    </div>
+                  ))}
+                  {vendorHistory.length > 3 && <div style={{ fontSize: '11px', color: '#E8783B', textAlign: 'center', marginTop: '4px', cursor: 'pointer', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>+ {vendorHistory.length - 3} more rejections</div>}
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'flex', gap: '8px' }}>

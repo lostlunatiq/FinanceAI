@@ -617,6 +617,38 @@ const EmployeeDashboard = ({ role, onNavigate, user }) => {
         {/* Quick tips + policy */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <Card style={{ padding: '20px' }}>
+            <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '16px', color: '#0F172A', marginBottom: '14px' }}>My Department Budget</div>
+            {budgetHealth.length === 0 ? (
+              <div style={{ fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>No budget data available.</div>
+            ) : (
+              <div>
+                {budgetHealth.slice(0, 1).map((b, i) => {
+                  const util = Math.min(100, Math.round(b.utilization_pct || 0));
+                  const spentAmt = parseFloat(b.spent_amount || 0);
+                  const totalAmt = parseFloat(b.total_amount || 0);
+                  const bColor = b.alert_level === 'CRITICAL' ? '#EF4444' : b.alert_level === 'WARNING' ? '#F59E0B' : '#10B981';
+                  
+                  return (
+                    <div key={i}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{b.name}</span>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: bColor, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{util}% Used</span>
+                      </div>
+                      <div style={{ height: 10, background: '#F1F5F9', borderRadius: 5, overflow: 'hidden', marginBottom: '8px' }}>
+                        <div style={{ height: '100%', width: `${util}%`, background: bColor, borderRadius: 5, transition: 'width 600ms ease' }} />
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                        <span>₹{spentAmt.toLocaleString('en-IN')} spent</span>
+                        <span>₹{totalAmt.toLocaleString('en-IN')} limit</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+          
+          <Card style={{ padding: '20px' }}>
             <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '16px', color: '#0F172A', marginBottom: '14px' }}>Expense Policy</div>
             {[
               { rule: 'Meals', limit: '₹500 / day', icon: '🍽' },

@@ -37,8 +37,8 @@ const ARScreen = ({ onNavigate }) => {
   const loadData = () => {
     setLoadingInvoices(true);
     Promise.allSettled([
-      window.TijoriAPI.BillsAPI.listVendorBills({ limit: 50 }),
-      window.TijoriAPI.AuditAPI.list({ limit: 10 }),
+      window.TijoriAPI.BillsAPI.listVendorBills({ limit: 500 }),
+      window.TijoriAPI.AuditAPI.list({ limit: 30 }),
     ]).then(([billsRes, auditRes]) => {
       if (billsRes.status === 'fulfilled') {
         const bills = Array.isArray(billsRes.value) ? billsRes.value : (billsRes.value?.results || []);
@@ -225,7 +225,7 @@ const ARScreen = ({ onNavigate }) => {
                   <td style={{ padding: '0 14px' }}><ARStatusBadge status={inv.status} /></td>
                   <td style={{ padding: '0 14px' }}>
                     <div style={{ display: 'flex', gap: '5px' }}>
-                      {['APPROVED', 'UNPAID', 'OVERDUE'].includes(inv.status) && <Btn variant="green" small onClick={() => { setRecordPaymentModal(inv); setPaymentForm({ amount: '', date: new Date().toISOString().slice(0,10), utr: '' }); setPaymentMsg(''); }}>Record Payment</Btn>}
+                      {['APPROVED', 'UNPAID', 'OVERDUE'].includes(inv.status) && inv.status !== 'PAID' && <Btn variant="green" small onClick={() => { setRecordPaymentModal(inv); setPaymentForm({ amount: '', date: new Date().toISOString().slice(0,10), utr: '' }); setPaymentMsg(''); }}>Record Payment</Btn>}
                       {inv.status === 'OVERDUE' && (
                         <Btn variant="secondary" small disabled={remindLoading === inv.rawId} onClick={async () => {
                           if (!inv.rawId) { setRemindMsg(`Reminder logged for ${inv.customer}`); setTimeout(() => setRemindMsg(''), 3000); return; }
