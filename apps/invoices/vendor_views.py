@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 from apps.core.permissions import HasMinimumGrade
+from apps.core.utils import log_audit_event
 from .models import Vendor, Expense, ExpenseApprovalStep, STEP_TO_STATUS
 from .vendor_serializers import (
     VendorOnboardSerializer,
@@ -88,6 +89,21 @@ class VendorCreateView(APIView):
         data = VendorDetailSerializer(vendor).data
         if user_created:
             data["portal_user_created"] = user_created
+        log_audit_event(
+            user=request.user,
+            action="vendor.created",
+            entity_type="Vendor",
+            entity_id=vendor.id,
+            entity_display_name=vendor.name,
+            masked_after={
+                "status": vendor.status,
+                "is_approved": vendor.is_approved,
+                "vendor_type": vendor.vendor_type,
+                "portal_user_created": user_created or "",
+            },
+            change_summary=f"Created vendor {vendor.name}",
+            request=request,
+        )
         return Response(data, status=status.HTTP_201_CREATED)
 
 
@@ -108,9 +124,35 @@ class VendorDetailView(APIView):
             Vendor.objects.exclude(name="Internal Expense").exclude(vendor_type="internal"),
             pk=pk,
         )
+        before = {
+            "name": vendor.name,
+            "status": vendor.status,
+            "is_approved": vendor.is_approved,
+            "vendor_type": vendor.vendor_type,
+            "email": vendor.email,
+            "gstin": vendor.gstin,
+        }
         serializer = VendorOnboardSerializer(vendor, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        vendor.refresh_from_db()
+        log_audit_event(
+            user=request.user,
+            action="vendor.updated",
+            entity_type="Vendor",
+            entity_id=vendor.id,
+            entity_display_name=vendor.name,
+            masked_before=before,
+            masked_after={
+                "name": vendor.name,
+                "status": vendor.status,
+                "is_approved": vendor.is_approved,
+                "vendor_type": vendor.vendor_type,
+                "email": vendor.email,
+                "gstin": vendor.gstin,
+            },
+            request=request,
+        )
         return Response(VendorDetailSerializer(vendor, context={"request": request}).data)
 
 
@@ -124,6 +166,8 @@ class VendorActivateView(APIView):
             Vendor.objects.exclude(name="Internal Expense").exclude(vendor_type="internal"),
             pk=pk,
         )
+        old_status = vendor.status
+        old_is_approved = vendor.is_approved
         action = request.data.get("action", "activate")
 
         if action == "activate":
@@ -137,9 +181,20 @@ class VendorActivateView(APIView):
             return Response(
                 {"error": "Invalid action. Use: activate, suspend, blacklist"},
                 status=status.HTTP_400_BAD_REQUEST,
-            )
+                )
 
         vendor.save()
+        log_audit_event(
+            user=request.user,
+            action="vendor.status_changed",
+            entity_type="Vendor",
+            entity_id=vendor.id,
+            entity_display_name=vendor.name,
+            masked_before={"status": old_status, "is_approved": old_is_approved},
+            masked_after={"status": vendor.status, "is_approved": vendor.is_approved},
+            change_summary=f"Vendor {vendor.name} status changed from {old_status} to {vendor.status}",
+            request=request,
+        )
         return Response(VendorDetailSerializer(vendor, context={"request": request}).data)
 
 

@@ -365,6 +365,14 @@ class FinanceAPI {
         return this.request(`/audit/${q ? '?' + q : ''}`);
     }
 
+    async exportAuditLog(params = {}) {
+        const q = new URLSearchParams(params).toString();
+        const token = localStorage.getItem('accessToken');
+        return fetch(`/api/v1/audit/export/${q ? '?' + q : ''}`, {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        });
+    }
+
     // ─── NL Query ─────────────────────────────────────
 
     async nlQuery(question) {

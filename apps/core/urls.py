@@ -21,6 +21,7 @@ urlpatterns = [
     path("files/<uuid:pk>/", file_views.FileDownloadView.as_view(), name="file-download"),
     # Audit
     path("audit/", auth_views.AuditLogListView.as_view(), name="audit-list"),
+    path("audit/export/", auth_views.AuditLogExportView.as_view(), name="audit-export"),
     # NL Query
     path("nl-query/", auth_views.NLQueryView.as_view(), name="nl-query"),
 ]

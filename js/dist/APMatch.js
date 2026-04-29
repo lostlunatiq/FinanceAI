@@ -12,6 +12,7 @@ const APMatchScreen = ({
   const [notes, setNotes] = React.useState('');
   const [anomalyOverride, setAnomalyOverride] = React.useState('');
   const [actionLoading, setActionLoading] = React.useState(false);
+  const [feedbackMode, setFeedbackMode] = React.useState(null); // 'OCR' | 'ANOMALY'
   const [actionError, setActionError] = React.useState('');
   const currentRole = propRole || localStorage.getItem('tj_role') || 'CFO';
   const rawId = passedInvoice?.rawId || passedInvoice?.id;
@@ -501,7 +502,20 @@ const APMatchScreen = ({
       fontWeight: 700,
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, Math.round(parseFloat(bill.ocr_confidence) * 100), "% Confidence")), /*#__PURE__*/React.createElement("div", {
+  }, Math.round(parseFloat(bill.ocr_confidence) * 100), "% Confidence"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setFeedbackMode('OCR'),
+    style: {
+      background: 'none',
+      border: '1px solid #E2E8F0',
+      borderRadius: '8px',
+      padding: '2px 10px',
+      fontSize: '11px',
+      color: '#64748B',
+      cursor: 'pointer',
+      fontWeight: 600,
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "\u21A9 Feedback")), /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '20px'
     }
@@ -1036,7 +1050,21 @@ const APMatchScreen = ({
         type: 'investigate'
       });
     }
-  }, "\uD83D\uDD0D Re-Run Anomaly Scan")), !canAct && bill && /*#__PURE__*/React.createElement("div", {
+  }, "\uD83D\uDD0D Re-Run Anomaly Scan"), bill.anomaly_severity && bill.anomaly_severity !== 'NONE' && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setFeedbackMode('ANOMALY'),
+    style: {
+      width: '100%',
+      padding: '10px',
+      background: '#F0FDF4',
+      border: '1px solid #BBF7D0',
+      borderRadius: '10px',
+      cursor: 'pointer',
+      fontSize: '13px',
+      color: '#15803D',
+      fontWeight: 600,
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "\u21A9 This anomaly is incorrect \u2014 give feedback")), !canAct && bill && /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '14px',
       background: '#F0FDF4',
@@ -1143,7 +1171,13 @@ const APMatchScreen = ({
     variant: modal.type === 'approve' ? 'green' : modal.type === 'reject' ? 'destructive' : modal.type === 'query' ? 'purple' : 'primary',
     onClick: confirmAction,
     disabled: !canConfirm || actionLoading
-  }, actionLoading ? 'Processing…' : modal.type === 'approve' ? 'Confirm Approval' : modal.type === 'reject' ? 'Confirm Rejection' : modal.type === 'query' ? 'Send Query' : 'Run Scan'))));
+  }, actionLoading ? 'Processing…' : modal.type === 'approve' ? 'Confirm Approval' : modal.type === 'reject' ? 'Confirm Rejection' : modal.type === 'query' ? 'Send Query' : 'Run Scan'))), feedbackMode && bill && /*#__PURE__*/React.createElement(FeedbackModal, {
+    taskType: feedbackMode,
+    expenseId: bill.id,
+    vendorName: bill.vendor_name || '',
+    anomalyFlags: bill.ocr_raw?.anomaly_flags || [],
+    onClose: () => setFeedbackMode(null)
+  }));
 };
 Object.assign(window, {
   APMatchScreen

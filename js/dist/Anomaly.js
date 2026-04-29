@@ -20,6 +20,7 @@ const AnomalyScreen = ({
   const [markSafeLoading, setMarkSafeLoading] = React.useState(false);
   const [vendorHistory, setVendorHistory] = React.useState([]);
   const [vendorHistoryLoading, setVendorHistoryLoading] = React.useState(false);
+  const [feedbackTarget, setFeedbackTarget] = React.useState(null);
   React.useEffect(() => {
     if (activePanel && activePanel._raw) {
       const vendorName = activePanel._raw.vendor_name || activePanel._raw.vendor;
@@ -991,6 +992,21 @@ const AnomalyScreen = ({
     },
     onClick: () => openMarkSafeModal(activePanel)
   }, "Mark as Safe")), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setFeedbackTarget(activePanel),
+    style: {
+      width: '100%',
+      marginTop: '10px',
+      padding: '10px',
+      background: '#F0FDF4',
+      border: '1px solid #BBF7D0',
+      borderRadius: '10px',
+      cursor: 'pointer',
+      fontSize: '13px',
+      color: '#15803D',
+      fontWeight: 600,
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "\u21A9 This is a false positive \u2014 give feedback"), /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       setActivePanel(null);
       if (onNavigate) onNavigate('ai-hub');
@@ -1015,7 +1031,13 @@ const AnomalyScreen = ({
       fontWeight: 600,
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "\u2726 Explain this anomaly in Copilot"))));
+  }, "\u2726 Explain this anomaly in Copilot"))), feedbackTarget && /*#__PURE__*/React.createElement(FeedbackModal, {
+    taskType: "ANOMALY",
+    expenseId: feedbackTarget.rawId,
+    vendorName: feedbackTarget._raw?.vendor_name || '',
+    anomalyFlags: feedbackTarget._raw?.ocr_raw?.anomaly_flags || [],
+    onClose: () => setFeedbackTarget(null)
+  }));
 };
 Object.assign(window, {
   AnomalyScreen

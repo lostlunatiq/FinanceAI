@@ -17,6 +17,7 @@ const AnomalyScreen = ({ role, onNavigate }) => {
   const [markSafeLoading, setMarkSafeLoading] = React.useState(false);
   const [vendorHistory, setVendorHistory] = React.useState([]);
   const [vendorHistoryLoading, setVendorHistoryLoading] = React.useState(false);
+  const [feedbackTarget, setFeedbackTarget] = React.useState(null);
 
   React.useEffect(() => {
     if (activePanel && activePanel._raw) {
@@ -433,6 +434,10 @@ const AnomalyScreen = ({ role, onNavigate }) => {
               <Btn variant="primary" style={{ flex: 1 }} onClick={() => handleEscalate(activePanel.rawId)}>Escalate to CFO</Btn>
               <Btn variant="green" style={{ flex: 1 }} onClick={() => openMarkSafeModal(activePanel)}>Mark as Safe</Btn>
             </div>
+            <button onClick={() => setFeedbackTarget(activePanel)}
+              style={{ width: '100%', marginTop: '10px', padding: '10px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '10px', cursor: 'pointer', fontSize: '13px', color: '#15803D', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              ↩ This is a false positive — give feedback
+            </button>
             <button onClick={() => {
                 setActivePanel(null);
                 if (onNavigate) onNavigate('ai-hub');
@@ -446,6 +451,16 @@ const AnomalyScreen = ({ role, onNavigate }) => {
           </>
         )}
       </SidePanel>
+
+      {feedbackTarget && (
+        <FeedbackModal
+          taskType="ANOMALY"
+          expenseId={feedbackTarget.rawId}
+          vendorName={feedbackTarget._raw?.vendor_name || ''}
+          anomalyFlags={feedbackTarget._raw?.ocr_raw?.anomaly_flags || []}
+          onClose={() => setFeedbackTarget(null)}
+        />
+      )}
     </div>
   );
 };

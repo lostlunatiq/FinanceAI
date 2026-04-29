@@ -15,6 +15,7 @@ from django.db.models import Sum, Count, Avg
 from decimal import Decimal
 import logging
 from .models import Budget, Expense
+from apps.core.utils import log_audit_event
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +86,21 @@ class BudgetListView(APIView):
                 notes=data.get("notes", ""),
                 created_by=request.user,
             )
+            log_audit_event(
+                user=request.user,
+                action="budget.created",
+                entity_type="Budget",
+                entity_id=budget.id,
+                entity_display_name=budget.name,
+                masked_after={
+                    "status": budget.status,
+                    "total_amount": float(budget.total_amount),
+                    "department_id": str(budget.department_id) if budget.department_id else None,
+                    "fiscal_year": budget.fiscal_year,
+                },
+                change_summary=f"Created budget {budget.name}",
+                request=request,
+            )
             return Response(_budget_to_dict(budget), status=status.HTTP_201_CREATED)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -103,6 +119,15 @@ class BudgetDetailView(APIView):
         from .models import Budget
         b = get_object_or_404(Budget, pk=pk)
         data = request.data
+        before = {
+            "name": b.name,
+            "status": b.status,
+            "total_amount": float(b.total_amount),
+            "warning_threshold": b.warning_threshold,
+            "critical_threshold": b.critical_threshold,
+            "notes": b.notes,
+            "end_date": str(b.end_date),
+        }
         updatable = ["name", "total_amount", "status", "warning_threshold", "critical_threshold", "notes", "end_date"]
         for field in updatable:
             if field in data:
@@ -111,13 +136,43 @@ class BudgetDetailView(APIView):
                 else:
                     setattr(b, field, data[field])
         b.save()
+        log_audit_event(
+            user=request.user,
+            action="budget.updated",
+            entity_type="Budget",
+            entity_id=b.id,
+            entity_display_name=b.name,
+            masked_before=before,
+            masked_after={
+                "name": b.name,
+                "status": b.status,
+                "total_amount": float(b.total_amount),
+                "warning_threshold": b.warning_threshold,
+                "critical_threshold": b.critical_threshold,
+                "notes": b.notes,
+                "end_date": str(b.end_date),
+            },
+            request=request,
+        )
         return Response(_budget_to_dict(b))
 
     def delete(self, request, pk):
         from .models import Budget
         b = get_object_or_404(Budget, pk=pk)
+        old_status = b.status
         b.status = "closed"
         b.save()
+        log_audit_event(
+            user=request.user,
+            action="budget.closed",
+            entity_type="Budget",
+            entity_id=b.id,
+            entity_display_name=b.name,
+            masked_before={"status": old_status},
+            masked_after={"status": b.status},
+            change_summary=f"Closed budget {b.name}",
+            request=request,
+        )
         return Response({"message": "Budget closed."})
 
 
@@ -338,10 +393,31 @@ def _build_cashflow_forecast(days: int = 90) -> dict:
     }
 
 
+def _get_forecast_feedback_context() -> str:
+    """Return last 5 forecast feedback entries as a prompt block."""
+    try:
+        from .models import AIFeedback
+        feedbacks = AIFeedback.objects.filter(task_type=AIFeedback.TASK_FORECAST).order_by("-created_at")[:5]
+        if not feedbacks:
+            return ""
+        lines = []
+        for fb in feedbacks:
+            date_str = fb.created_at.strftime("%Y-%m-%d")
+            sentiment = "Positive" if fb.is_positive else "Negative"
+            if fb.comment:
+                lines.append(f"- [{date_str}] ({sentiment}) {fb.comment}")
+        if not lines:
+            return ""
+        return "\n\nPAST CFO FEEDBACK ON FORECASTS (incorporate these learnings into the narrative):\n" + "\n".join(lines)
+    except Exception:
+        return ""
+
+
 def _generate_forecast_narrative(days, opening, closing, total_out, total_in, min_day, max_day, upcoming_count):
     """Try AI narrative, fall back to rule-based."""
     try:
         from ai.tools.openrouter_client import call_text_model
+        feedback_context = _get_forecast_feedback_context()
         prompt = f"""Generate a concise 2-paragraph CFO cash flow narrative for this {days}-day forecast:
 - Opening Balance: ₹{opening:,.0f}
 - Projected Closing: ₹{closing:,.0f}
@@ -350,6 +426,7 @@ def _generate_forecast_narrative(days, opening, closing, total_out, total_in, mi
 - Minimum Balance: ₹{min_day['running_balance']:,.0f} on {min_day['date']}
 - Maximum Balance: ₹{max_day['running_balance']:,.0f} on {max_day['date']}
 - Known upcoming payments: {upcoming_count}
+{feedback_context}
 
 Be direct and actionable. Use Indian financial context. Keep it under 100 words."""
         response = call_text_model(prompt=prompt)

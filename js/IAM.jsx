@@ -126,15 +126,31 @@ const RBACMatrixView = () => {
 const AuditLogView = () => {
   const [logs, setLogs] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
-  const [filter, setFilter] = React.useState({ action: '', entity_type: '' });
+  const [filtersMeta, setFiltersMeta] = React.useState({ entity_types: [], actions: [] });
+  const [filter, setFilter] = React.useState({
+    scope: 'business',
+    state_change_only: 'true',
+    action: '',
+    entity_type: '',
+    actor: '',
+    search: '',
+  });
 
   const load = React.useCallback(() => {
     setLoading(true);
     const params = {};
+    if (filter.scope) params.scope = filter.scope;
+    if (filter.state_change_only) params.state_change_only = filter.state_change_only;
     if (filter.action) params.action = filter.action;
     if (filter.entity_type) params.entity_type = filter.entity_type;
+    if (filter.actor) params.actor = filter.actor;
+    if (filter.search) params.search = filter.search;
     window.TijoriAPI.AuditAPI.list(params)
-      .then(data => setLogs(Array.isArray(data) ? data : (data.results || [])))
+      .then(data => {
+        const payload = Array.isArray(data) ? { results: data, filters: {} } : (data || {});
+        setLogs(payload.results || []);
+        setFiltersMeta(payload.filters || { entity_types: [], actions: [] });
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [filter]);
@@ -144,15 +160,28 @@ const AuditLogView = () => {
   return (
     <div style={{ animation: 'fadeUp 220ms ease both' }}>
       <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+        <select value={filter.scope} onChange={e => setFilter(f => ({ ...f, scope: e.target.value }))}
+          style={{ padding: '9px 12px', border: '1.5px solid #E2E8F0', borderRadius: 10, fontSize: 13, fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', background: '#FAFAF8', flex: 1 }}>
+          <option value="business">Business Trail</option>
+          <option value="all">All Visible Events</option>
+          <option value="admin">Admin Changes</option>
+          <option value="auth">Auth Events</option>
+          <option value="system">System Events</option>
+        </select>
         <select value={filter.entity_type} onChange={e => setFilter(f => ({ ...f, entity_type: e.target.value }))}
           style={{ padding: '9px 12px', border: '1.5px solid #E2E8F0', borderRadius: 10, fontSize: 13, fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', background: '#FAFAF8', flex: 1 }}>
           <option value="">All Entities</option>
-          <option value="EXPENSE">Expense</option>
-          <option value="VENDOR">Vendor</option>
-          <option value="USER">User</option>
-          <option value="BUDGET">Budget</option>
+          {filtersMeta.entity_types.map(type => (
+            <option key={type} value={type}>{type}</option>
+          ))}
         </select>
-        <TjInput placeholder="Filter by action (e.g. LOGIN)" value={filter.action} onChange={e => setFilter(f => ({ ...f, action: e.target.value }))} />
+        <TjInput placeholder="Actor" value={filter.actor} onChange={e => setFilter(f => ({ ...f, actor: e.target.value }))} />
+        <TjInput placeholder="Search summary or object" value={filter.search} onChange={e => setFilter(f => ({ ...f, search: e.target.value }))} />
+      </div>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+        <input type="checkbox" checked={filter.state_change_only === 'true'} onChange={e => setFilter(f => ({ ...f, state_change_only: e.target.checked ? 'true' : 'false' }))} />
+        <span style={{ fontSize: 12, color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif", alignSelf: 'center' }}>State changes only</span>
+        <TjInput placeholder="Filter by action (e.g. approved)" value={filter.action} onChange={e => setFilter(f => ({ ...f, action: e.target.value }))} />
         <Btn variant="secondary" onClick={load}>Filter</Btn>
       </div>
 
@@ -160,7 +189,7 @@ const AuditLogView = () => {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ background: '#F8F7F5' }}>
-              {['Timestamp', 'User', 'Action', 'Entity', 'Details'].map(h => (
+              {['Timestamp', 'Actor', 'Action', 'Entity', 'Summary', 'Details'].map(h => (
                 <th key={h} style={{ padding: '12px 14px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#94A3B8', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{h}</th>
               ))}
             </tr>
@@ -169,9 +198,10 @@ const AuditLogView = () => {
             {logs.map(log => (
               <tr key={log.id} style={{ borderTop: '1px solid #F1F0EE' }}>
                 <td style={{ padding: '12px 14px', color: '#94A3B8', fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}>{new Date(log.timestamp).toLocaleString('en-IN')}</td>
-                <td style={{ padding: '12px 14px', fontWeight: 600 }}>{log.user_full_name || 'System'}</td>
+                <td style={{ padding: '12px 14px', fontWeight: 600 }}>{log.actor || 'System'}</td>
                 <td style={{ padding: '12px 14px' }}><span style={{ background: '#F1F5F9', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>{log.action}</span></td>
-                <td style={{ padding: '12px 14px', color: '#475569' }}>{log.entity_type}</td>
+                <td style={{ padding: '12px 14px', color: '#475569' }}>{log.entity_display_name || log.entity_type}</td>
+                <td style={{ padding: '12px 14px', color: '#334155', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.change_summary || '—'}</td>
                 <td style={{ padding: '12px 14px', color: '#94A3B8', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{JSON.stringify(log.details)}</td>
               </tr>
             ))}
