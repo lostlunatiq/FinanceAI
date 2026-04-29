@@ -29,5 +29,4 @@ def log_approval_action(
             },
         )
     except Exception as exc:
-        logger.exception("Failed to write function log")
-        raise self.retry(exc=exc)
+        logger.warning(f"Failed to write function log: {exc}")

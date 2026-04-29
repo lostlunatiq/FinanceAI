@@ -14,7 +14,7 @@ from .serializers import (
     ApprovalActionSerializer,
     VendorSerializer,
 )
-from .services import transition_expense, InvalidTransition, SoDViolation
+from .services import transition_expense, InvalidTransition, SoDViolation, can_user_take_step_action
 
 
 class ExpenseSubmitView(APIView):
@@ -127,6 +127,13 @@ class ApprovalActionView(APIView):
 
     def post(self, request, pk):
         expense = get_object_or_404(Expense, pk=pk)
+        
+        if not can_user_take_step_action(request.user, expense):
+            return Response(
+                {"error": "You are not authorized to take action on this invoice at its current step."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         serializer = ApprovalActionSerializer(data=request.data, context={"expense": expense})
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
