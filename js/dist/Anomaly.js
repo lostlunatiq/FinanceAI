@@ -599,7 +599,7 @@ const AnomalyScreen = ({
       variant: "green",
       small: true,
       onClick: () => openMarkSafeModal(a)
-    }, "Mark Safe"), a.score > 80 && /*#__PURE__*/React.createElement(Btn, {
+    }, "Mark Safe"), a.score > 80 && role !== "CFO" && /*#__PURE__*/React.createElement(Btn, {
       variant: "destructive",
       small: true,
       onClick: () => handleEscalate(a.rawId)
@@ -979,7 +979,7 @@ const AnomalyScreen = ({
       display: 'flex',
       gap: '8px'
     }
-  }, /*#__PURE__*/React.createElement(Btn, {
+  }, role !== "CFO" && /*#__PURE__*/React.createElement(Btn, {
     variant: "primary",
     style: {
       flex: 1

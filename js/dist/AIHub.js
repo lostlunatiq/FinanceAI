@@ -369,6 +369,8 @@ const AIHubScreen = ({
   const [payProcessing, setPayProcessing] = React.useState(false);
   const [schedProcessing, setSchedProcessing] = React.useState(false);
   const [autoGenEnabled, setAutoGenEnabled] = React.useState(true);
+  const [generatedReport, setGeneratedReport] = React.useState(null);
+  const [generatingReport, setGeneratingReport] = React.useState(false);
   React.useEffect(() => {
     window.TijoriAPI.BudgetAPI.cashflow().then(d => setCfData(d)).catch(() => {});
     // Load real monthly summaries from backend analytics
@@ -1205,13 +1207,19 @@ const AIHubScreen = ({
     icon: /*#__PURE__*/React.createElement(AIBadge, {
       small: true
     }),
-    onClick: () => {
-      window.TijoriAPI.NLQueryAPI.ask('Generate executive financial summary for ' + new Date().toLocaleString('en-IN', {
-        month: 'long',
-        year: 'numeric'
-      })).then(res => alert('Summary: ' + (res.answer || 'Generated successfully.'))).catch(e => alert('Generation failed: ' + (e.message || 'Error')));
+    disabled: generatingReport,
+    onClick: async () => {
+      setGeneratingReport(true);
+      try {
+        const res = await window.TijoriAPI.AnalyticsAPI.generate10Q();
+        setGeneratedReport(res);
+      } catch(e) {
+        setGeneratedReport({ error: true, title: 'Generation Failed', content: e.message || 'Error generating report.' });
+      } finally {
+        setGeneratingReport(false);
+      }
     }
-  }, "Generate Now")), /*#__PURE__*/React.createElement("div", {
+  }, generatingReport ? 'Generating…' : 'Generate Now')), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'grid',
       gridTemplateColumns: 'repeat(3, 1fr)',
@@ -1711,7 +1719,90 @@ const AIHubScreen = ({
       alignItems: 'center',
       gap: 8
     }
-  }, /*#__PURE__*/React.createElement("span", null, payNowMsg.type === 'success' ? '✓' : payNowMsg.type === 'error' ? '✕' : '…'), payNowMsg.text)), /*#__PURE__*/React.createElement(CopilotWidget, {
+  }, /*#__PURE__*/React.createElement("span", null, payNowMsg.type === 'success' ? '✓' : payNowMsg.type === 'error' ? '✕' : '…'), payNowMsg.text)), generatedReport && /*#__PURE__*/React.createElement(TjModal, {
+    open: true,
+    onClose: () => setGeneratedReport(null),
+    title: generatedReport.title || 'Monthly Financial Summary',
+    accentColor: generatedReport.error ? '#DC2626' : '#10B981',
+    width: 720
+  }, generatedReport.error ? /*#__PURE__*/React.createElement("div", {
+    style: { color: '#991B1B', fontSize: '13px', padding: '16px', fontFamily: "'Plus Jakarta Sans', sans-serif" }
+  }, generatedReport.content) : /*#__PURE__*/React.createElement("div", { style: { fontFamily: "'Plus Jakarta Sans', sans-serif" } },
+    generatedReport.period && /*#__PURE__*/React.createElement("div", { style: { fontSize: '11px', color: '#64748B', marginBottom: '16px' } }, "Period: ", generatedReport.period, " | Generated: ", generatedReport.generated_at),
+    /*#__PURE__*/React.createElement("div", { style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '16px' } },
+      [
+        { label: 'YTD Paid', value: generatedReport.stats ? '₹' + ((generatedReport.stats.ytd_expenses||0)/100000).toFixed(1) + 'L' : '—' },
+        { label: 'Q Paid', value: generatedReport.stats ? '₹' + ((generatedReport.stats.q_paid||0)/100000).toFixed(1) + 'L' : '—' },
+        { label: 'Pending Bills', value: generatedReport.stats ? String(generatedReport.stats.q_pending_count||0) : '—' },
+        { label: 'QoQ Change', value: generatedReport.stats ? ((generatedReport.stats.qoq_change_pct||0) >= 0 ? '+' : '') + (generatedReport.stats.qoq_change_pct||0) + '%' : '—' },
+        { label: 'Anomalies', value: generatedReport.stats ? String(generatedReport.stats.anomaly_total||0) : '—' },
+        { label: 'Critical', value: generatedReport.stats ? String(generatedReport.stats.anomaly_critical||0) : '—', danger: true },
+        { label: 'Est. GST', value: generatedReport.stats ? '₹' + ((generatedReport.stats.gst_estimate||0)/100000).toFixed(1) + 'L' : '—' },
+        { label: 'Est. TDS', value: generatedReport.stats ? '₹' + ((generatedReport.stats.tds_estimate||0)/100000).toFixed(1) + 'L' : '—' },
+      ].map((s, i) => /*#__PURE__*/React.createElement("div", { key: i, style: { background: s.danger ? '#FEF2F2' : '#F0FDF4', border: '1px solid ' + (s.danger ? '#FECACA' : '#D1FAE5'), borderRadius: '10px', padding: '10px 12px', textAlign: 'center' } },
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: '9px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' } }, s.label),
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: '15px', fontWeight: 800, color: s.danger ? '#DC2626' : '#065F46', marginTop: '3px' } }, s.value)
+      ))
+    ),
+    /*#__PURE__*/React.createElement("div", { style: { fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' } }, "AI Executive Summary"),
+    /*#__PURE__*/React.createElement("div", { style: { fontSize: '12px', color: '#1E293B', lineHeight: 1.7, maxHeight: 200, overflowY: 'auto', whiteSpace: 'pre-wrap', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '12px', marginBottom: '12px' } }, generatedReport.content || ''),
+    generatedReport.top_vendors && generatedReport.top_vendors.length > 0 && /*#__PURE__*/React.createElement("div", { style: { marginBottom: '12px' } },
+      /*#__PURE__*/React.createElement("div", { style: { fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' } }, "Top Vendors by Spend"),
+      /*#__PURE__*/React.createElement("table", { style: { width: '100%', borderCollapse: 'collapse', fontSize: '11px' } },
+        /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", { style: { background: '#F1F5F9' } },
+          ["Vendor","Amount","Invoices"].map((h,i) => /*#__PURE__*/React.createElement("th", { key: i, style: { padding: '5px 8px', textAlign: i>0?'right':'left', color: '#475569' } }, h))
+        )),
+        /*#__PURE__*/React.createElement("tbody", null, generatedReport.top_vendors.map((v, i) => /*#__PURE__*/React.createElement("tr", { key: i, style: { borderBottom: '1px solid #F1F5F9' } },
+          /*#__PURE__*/React.createElement("td", { style: { padding: '5px 8px', fontWeight: 600, color: '#1E293B' } }, v.name),
+          /*#__PURE__*/React.createElement("td", { style: { padding: '5px 8px', textAlign: 'right', color: '#065F46', fontWeight: 700 } }, '₹' + parseFloat(v.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })),
+          /*#__PURE__*/React.createElement("td", { style: { padding: '5px 8px', textAlign: 'right', color: '#64748B' } }, v.invoices)
+        )))
+      )
+    ),
+    generatedReport.monthly_trend && generatedReport.monthly_trend.length > 0 && /*#__PURE__*/React.createElement("div", { style: { marginBottom: '12px' } },
+      /*#__PURE__*/React.createElement("div", { style: { fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' } }, "Monthly Expense Trend (YTD)"),
+      /*#__PURE__*/React.createElement("table", { style: { width: '100%', borderCollapse: 'collapse', fontSize: '11px' } },
+        /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", { style: { background: '#F1F5F9' } },
+          ["Month","Paid","Invoices"].map((h,i) => /*#__PURE__*/React.createElement("th", { key: i, style: { padding: '5px 8px', textAlign: i>0?'right':'left', color: '#475569' } }, h))
+        )),
+        /*#__PURE__*/React.createElement("tbody", null, generatedReport.monthly_trend.map((m, i) => /*#__PURE__*/React.createElement("tr", { key: i, style: { borderBottom: '1px solid #F1F5F9' } },
+          /*#__PURE__*/React.createElement("td", { style: { padding: '5px 8px', fontWeight: 600, color: '#1E293B' } }, m.month),
+          /*#__PURE__*/React.createElement("td", { style: { padding: '5px 8px', textAlign: 'right', color: '#065F46', fontWeight: 700 } }, '₹' + parseFloat(m.paid).toLocaleString('en-IN', { minimumFractionDigits: 2 })),
+          /*#__PURE__*/React.createElement("td", { style: { padding: '5px 8px', textAlign: 'right', color: '#64748B' } }, m.invoices)
+        )))
+      )
+    ),
+    generatedReport.dept_budgets && generatedReport.dept_budgets.length > 0 && /*#__PURE__*/React.createElement("div", { style: { marginBottom: '12px' } },
+      /*#__PURE__*/React.createElement("div", { style: { fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' } }, "Dept. Budget Utilization"),
+      generatedReport.dept_budgets.map((b, i) => /*#__PURE__*/React.createElement("div", { key: i, style: { marginBottom: '6px' } },
+        /*#__PURE__*/React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '3px' } },
+          /*#__PURE__*/React.createElement("span", { style: { fontWeight: 600, color: '#1E293B' } }, b.dept),
+          /*#__PURE__*/React.createElement("span", { style: { color: b.utilization > 90 ? '#DC2626' : b.utilization > 70 ? '#D97706' : '#065F46', fontWeight: 700 } }, b.utilization + '%')
+        ),
+        /*#__PURE__*/React.createElement("div", { style: { background: '#E2E8F0', borderRadius: '4px', height: '6px', overflow: 'hidden' } },
+          /*#__PURE__*/React.createElement("div", { style: { background: b.utilization > 90 ? '#DC2626' : b.utilization > 70 ? '#F59E0B' : '#10B981', width: Math.min(b.utilization, 100) + '%', height: '100%', borderRadius: '4px' } })
+        )
+      ))
+    ),
+    /*#__PURE__*/React.createElement("div", { style: { display: 'flex', gap: '8px', marginTop: '12px' } },
+      /*#__PURE__*/React.createElement(Btn, {
+        variant: "primary",
+        onClick: () => {
+          const d = generatedReport;
+          const stats = d.stats || {};
+          const vRows = (d.top_vendors||[]).map((v,i) => '<tr><td style="padding:5px 10px;border-bottom:1px solid #E2E8F0">'+(i+1)+'. '+v.name+'</td><td style="padding:5px 10px;border-bottom:1px solid #E2E8F0;text-align:right">₹'+parseFloat(v.amount).toLocaleString('en-IN',{minimumFractionDigits:2})+'</td><td style="padding:5px 10px;border-bottom:1px solid #E2E8F0;text-align:right">'+v.invoices+'</td></tr>').join('');
+          const tRows = (d.monthly_trend||[]).map(m => '<tr><td style="padding:5px 10px;border-bottom:1px solid #E2E8F0">'+m.month+'</td><td style="padding:5px 10px;border-bottom:1px solid #E2E8F0;text-align:right">₹'+parseFloat(m.paid).toLocaleString('en-IN',{minimumFractionDigits:2})+'</td><td style="padding:5px 10px;border-bottom:1px solid #E2E8F0;text-align:right">'+m.invoices+'</td></tr>').join('');
+          const bRows = (d.dept_budgets||[]).map(b => '<tr><td style="padding:5px 10px;border-bottom:1px solid #E2E8F0">'+b.dept+'</td><td style="padding:5px 10px;border-bottom:1px solid #E2E8F0;text-align:right">₹'+b.spent.toLocaleString('en-IN',{minimumFractionDigits:2})+'</td><td style="padding:5px 10px;border-bottom:1px solid #E2E8F0;text-align:right">'+b.utilization+'%</td></tr>').join('');
+          const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+(d.title||'Monthly Summary')+'</title><style>body{font-family:"Segoe UI",Arial,sans-serif;margin:40px;color:#1E293B;font-size:13px}h1{color:#065F46;font-size:20px;border-bottom:3px solid #10B981;padding-bottom:10px}h2{color:#065F46;font-size:14px;margin-top:24px;margin-bottom:8px;border-left:4px solid #10B981;padding-left:10px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}.card{background:#F0FDF4;border:1px solid #A7F3D0;border-radius:8px;padding:12px;text-align:center}.lbl{font-size:10px;color:#64748B;font-weight:600;text-transform:uppercase}.val{font-size:16px;font-weight:800;color:#065F46;margin-top:4px}table{width:100%;border-collapse:collapse;margin:10px 0}th{background:#F1F5F9;text-align:left;padding:7px 10px;font-size:11px;color:#475569;font-weight:700}.ai-box{background:#F8FAFC;border-left:4px solid #10B981;padding:16px;border-radius:4px;line-height:1.8;white-space:pre-wrap;font-size:12px}@media print{body{margin:20px}}</style></head><body><h1>'+(d.title||'Monthly Financial Summary')+'</h1><p style="color:#64748B;font-size:11px">Period: '+(d.period||'')+' | Generated: '+(d.generated_at||'')+'</p><div class="grid"><div class="card"><div class="lbl">YTD Paid</div><div class="val">₹'+((stats.ytd_expenses||0)/100000).toFixed(1)+'L</div></div><div class="card"><div class="lbl">Q Paid</div><div class="val">₹'+((stats.q_paid||0)/100000).toFixed(1)+'L</div></div><div class="card"><div class="lbl">Pending Bills</div><div class="val">'+(stats.q_pending_count||0)+'</div></div><div class="card"><div class="lbl">QoQ Change</div><div class="val" style="color:'+((stats.qoq_change_pct||0)>=0?'#DC2626':'#16A34A')+'">'+(stats.qoq_change_pct>=0?'+':'')+(stats.qoq_change_pct||0)+'%</div></div><div class="card"><div class="lbl">Anomalies</div><div class="val">'+(stats.anomaly_total||0)+'</div></div><div class="card"><div class="lbl">Critical</div><div class="val" style="color:#DC2626">'+(stats.anomaly_critical||0)+'</div></div><div class="card"><div class="lbl">Est. GST</div><div class="val">₹'+((stats.gst_estimate||0)/100000).toFixed(1)+'L</div></div><div class="card"><div class="lbl">Est. TDS</div><div class="val">₹'+((stats.tds_estimate||0)/100000).toFixed(1)+'L</div></div></div><h2>AI Executive Summary</h2><div class="ai-box">'+(d.content||'')+'</div>'+(vRows?'<h2>Top Vendors</h2><table><thead><tr><th>Vendor</th><th style="text-align:right">Amount</th><th style="text-align:right">Invoices</th></tr></thead><tbody>'+vRows+'</tbody></table>':'')+(tRows?'<h2>Monthly Expense Trend</h2><table><thead><tr><th>Month</th><th style="text-align:right">Paid</th><th style="text-align:right">Invoices</th></tr></thead><tbody>'+tRows+'</tbody></table>':'')+(bRows?'<h2>Dept. Budget Utilization</h2><table><thead><tr><th>Dept</th><th style="text-align:right">Spent</th><th style="text-align:right">Utilization</th></tr></thead><tbody>'+bRows+'</tbody></table>':'')+'<p style="margin-top:30px;font-size:10px;color:#94A3B8;border-top:1px solid #E2E8F0;padding-top:10px">Auto-generated by FinanceAI. Verify with Finance dept before regulatory submission.</p></body></html>';
+          const w = window.open('', '_blank', 'width=900,height=700');
+          w.document.write(html);
+          w.document.close();
+          setTimeout(() => w.print(), 800);
+        }
+      }, "Export PDF"),
+      /*#__PURE__*/React.createElement(Btn, { variant: "secondary", onClick: () => setGeneratedReport(null) }, "Close")
+    )
+  )), /*#__PURE__*/React.createElement(CopilotWidget, {
     role: role
   }), /*#__PURE__*/React.createElement(SidePanel, {
     open: summaryOpen,
