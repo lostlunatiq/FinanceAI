@@ -439,7 +439,12 @@ class DashboardStatsView(APIView):
 
         if is_vendor:
             base_qs = base_qs.filter(vendor=request.user.vendor_profile)
-        elif grade < 3 and not is_cfo:
+        elif grade == 2 and not is_cfo:
+            if request.user.department_id:
+                base_qs = base_qs.filter(submitted_by__department=request.user.department)
+            else:
+                base_qs = base_qs.filter(submitted_by=request.user)
+        elif grade < 2 and not is_cfo:
             base_qs = base_qs.filter(submitted_by=request.user)
 
         # PENDING_CFO is only visible to CFO/superuser — exclude for Finance Admin (G4)

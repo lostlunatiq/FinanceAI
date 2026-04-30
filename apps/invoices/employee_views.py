@@ -945,6 +945,7 @@ class VendorBillsAllView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        from apps.core.permissions import hod_dept_filter
         qs = (
             Expense.objects
             .exclude(vendor__name="Internal Expense")
@@ -956,6 +957,7 @@ class VendorBillsAllView(APIView):
         if status_f:
             statuses = [s.strip().upper() for s in status_f.split(",")]
             qs = qs.filter(_status__in=statuses)
+        qs = hod_dept_filter(request.user, qs, "submitted_by__department")
         limit = min(int(request.query_params.get("limit", 50)), 200)
         return Response(
             VendorBillListSerializer(qs[:limit], many=True, context={"request": request}).data
