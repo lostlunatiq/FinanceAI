@@ -302,7 +302,11 @@ class BudgetHealthView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        user = request.user
+        grade = user.employee_grade or 0
         budgets = Budget.objects.filter(status__in=["active", "draft"]).select_related("department")
+        if grade == 2 and not user.is_superuser and user.department_id:
+            budgets = budgets.filter(department=user.department)
         today = date.today()
         health = []
 
@@ -806,8 +810,11 @@ class DepartmentVarianceView(APIView):
 
     def get(self, request):
         from apps.core.models import Department
-
+        user = request.user
+        grade = user.employee_grade or 0
         depts = Department.objects.all()
+        if grade == 2 and not user.is_superuser and user.department_id:
+            depts = depts.filter(id=user.department_id)
         today = date.today()
         year = today.year
         year_start = date(year, 1, 1)

@@ -10,7 +10,7 @@ const gradeToRoleKey = (grade, isSuperuser, isVendor, username, dept) => {
   if (isSuperuser) return 'CFO';
   if (grade >= 4) return 'Finance Admin';
   if (grade >= 3) return 'Finance Manager';
-  if (grade >= 2) return 'Finance Manager';
+  if (grade >= 2) return 'HOD';
 
   // Grade 1 logic: Finance dept or specific l1_approver get Clerk view, others get Employee view
   if (dept === 'Finance' || username === 'l1_approver') return 'AP Clerk';
@@ -33,6 +33,10 @@ const ROLE_CONFIG = {
   'Finance Manager': {
     homeScreen: 'fm-home',
     nav: ['fm-home', 'ai-hub', 'ap-hub', 'expenses', 'budget', 'guardrails', 'anomaly', 'spend-analytics', 'dept-variance', 'po-match', 'reports', 'audit', 'settings']
+  },
+  'HOD': {
+    homeScreen: 'fm-home',
+    nav: ['fm-home', 'ap-hub', 'expenses', 'budget', 'guardrails', 'anomaly', 'reports', 'audit', 'settings']
   },
   'AP Clerk': {
     homeScreen: 'clerk-home',
