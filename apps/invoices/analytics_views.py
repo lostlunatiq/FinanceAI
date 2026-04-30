@@ -991,25 +991,203 @@ class AuditSweepView(APIView):
 class Generate10QView(APIView):
     """
     POST /api/v1/invoices/analytics/generate-10q/
-    Generates an AI-drafted regulatory filing draft.
+    Generates an AI-drafted regulatory filing draft with comprehensive real DB data.
     """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        from django.db.models import FloatField
+        from apps.core.models import AnomalyLog
+        from apps.invoices.models import Budget, Department
+
         today = date.today()
-        ytd = Expense.objects.filter(_status="PAID", invoice_date__year=today.year).aggregate(t=Sum("total_amount"))["t"] or 0
-        
-        prompt = (
-            f"Write a formal financial summary for a 10-Q filing. "
-            f"YTD Operating Expenses: ₹{float(ytd):,.2f}. "
-            f"Current Date: {today}. Focus on expense trends and vendor obligations. "
-            f"Format as a professional report."
+        quarter = (today.month - 1) // 3 + 1
+        year = today.year
+
+        # Quarter date range
+        q_start_month = (quarter - 1) * 3 + 1
+        q_start = date(year, q_start_month, 1)
+        if quarter == 4:
+            q_end = date(year, 12, 31)
+        else:
+            q_end = date(year, q_start_month + 3, 1) - timedelta(days=1)
+
+        # Previous quarter
+        prev_q = quarter - 1 if quarter > 1 else 4
+        prev_year = year if quarter > 1 else year - 1
+        prev_q_start_month = (prev_q - 1) * 3 + 1
+        prev_q_start = date(prev_year, prev_q_start_month, 1)
+        if prev_q == 4:
+            prev_q_end = date(prev_year, 12, 31)
+        else:
+            prev_q_end = date(prev_year, prev_q_start_month + 3, 1) - timedelta(days=1)
+
+        all_exp = Expense.objects
+
+        # YTD paid
+        ytd_paid = all_exp.filter(_status="PAID", invoice_date__year=year).aggregate(t=Sum("total_amount"))["t"] or 0
+
+        # Current quarter stats
+        q_qs = all_exp.filter(invoice_date__gte=q_start, invoice_date__lte=q_end)
+        q_paid = q_qs.filter(_status="PAID").aggregate(t=Sum("total_amount"))["t"] or 0
+        q_pending_amt = q_qs.filter(_status="PENDING").aggregate(t=Sum("total_amount"))["t"] or 0
+        q_pending_cnt = q_qs.filter(_status="PENDING").count()
+        q_approved_amt = q_qs.filter(_status="APPROVED").aggregate(t=Sum("total_amount"))["t"] or 0
+        q_approved_cnt = q_qs.filter(_status="APPROVED").count()
+        q_rejected_cnt = q_qs.filter(_status="REJECTED").count()
+        q_total_cnt = q_qs.count()
+
+        # Previous quarter paid (for QoQ comparison)
+        prev_q_paid = all_exp.filter(
+            _status="PAID", invoice_date__gte=prev_q_start, invoice_date__lte=prev_q_end
+        ).aggregate(t=Sum("total_amount"))["t"] or 0
+        qoq_change = ((float(q_paid) - float(prev_q_paid)) / float(prev_q_paid) * 100) if prev_q_paid else 0
+
+        # Top 5 vendors by current quarter spend
+        top_vendors = (
+            all_exp.filter(_status="PAID", invoice_date__gte=q_start, invoice_date__lte=q_end)
+            .exclude(vendor__isnull=True)
+            .values("vendor__name")
+            .annotate(total=Sum("total_amount"), count=Count("id"))
+            .order_by("-total")[:5]
         )
-        content = _ai_text(prompt, fallback="YTD Operating Expenses are within expected parameters.")
-        
+
+        # Month-over-month for last 6 months
+        mom_data = (
+            all_exp.filter(invoice_date__year=year)
+            .annotate(month=TruncMonth("invoice_date"))
+            .values("month")
+            .annotate(paid=Sum("total_amount", filter=Q(_status="PAID")), cnt=Count("id"))
+            .order_by("month")
+        )
+
+        # Anomaly stats for quarter
+        try:
+            anomaly_qs = AnomalyLog.objects.filter(created_at__date__gte=q_start, created_at__date__lte=q_end)
+            anomaly_total = anomaly_qs.count()
+            anomaly_critical = anomaly_qs.filter(risk_score__gte=80).count()
+            anomaly_medium = anomaly_qs.filter(risk_score__gte=50, risk_score__lt=80).count()
+            anomaly_resolved = anomaly_qs.filter(status="RESOLVED").count()
+        except Exception:
+            anomaly_total = anomaly_critical = anomaly_medium = anomaly_resolved = 0
+
+        # Budget utilization per department
+        dept_budgets = []
+        try:
+            budgets = Budget.objects.filter(status__in=["active", "draft"]).select_related("department")
+            for b in budgets:
+                spent = all_exp.filter(
+                    _status__in=["PAID", "APPROVED"],
+                    invoice_date__year=year,
+                    submitted_by__department=b.department
+                ).aggregate(t=Sum("total_amount"))["t"] or 0
+                util = (float(spent) / float(b.total_amount) * 100) if b.total_amount else 0
+                dept_budgets.append({
+                    "dept": b.department.name if b.department else "General",
+                    "budget": float(b.total_amount),
+                    "spent": float(spent),
+                    "utilization": round(util, 1),
+                })
+        except Exception:
+            pass
+
+        # TDS/GST estimates (18% GST, 10% TDS on vendor bills)
+        vendor_paid = all_exp.filter(
+            _status="PAID", invoice_date__year=year
+        ).exclude(vendor__isnull=True).aggregate(t=Sum("total_amount"))["t"] or 0
+        gst_est = float(vendor_paid) * 0.18
+        tds_est = float(vendor_paid) * 0.10
+
+        # Build structured sections for AI
+        vendor_lines = "\n".join(
+            f"  {i+1}. {v['vendor__name']}: ₹{float(v['total']):,.2f} ({v['count']} invoices)"
+            for i, v in enumerate(top_vendors)
+        ) or "  No vendor data available"
+
+        dept_budget_lines = "\n".join(
+            f"  {d['dept']}: ₹{d['spent']:,.2f} / ₹{d['budget']:,.2f} ({d['utilization']}% utilized)"
+            for d in dept_budgets
+        ) or "  No budget data available"
+
+        mom_lines = "\n".join(
+            f"  {row['month'].strftime('%b %Y')}: ₹{float(row['paid'] or 0):,.2f} paid ({row['cnt']} invoices)"
+            for row in mom_data
+        ) or "  No monthly data available"
+
+        prompt = f"""Write a formal, comprehensive quarterly financial summary for a 10-Q SEC filing.
+Use the following real financial data:
+
+QUARTER: Q{quarter} {year} ({q_start.strftime('%d %b')} – {q_end.strftime('%d %b %Y')})
+
+EXPENSE SUMMARY:
+- YTD Total Paid: ₹{float(ytd_paid):,.2f}
+- Q{quarter} Paid Expenses: ₹{float(q_paid):,.2f}
+- Q{quarter} Pending Approval: ₹{float(q_pending_amt):,.2f} ({q_pending_cnt} invoices)
+- Q{quarter} Approved Awaiting Payment: ₹{float(q_approved_amt):,.2f} ({q_approved_cnt} invoices)
+- Q{quarter} Rejected: {q_rejected_cnt} invoices
+- Total Invoices Processed: {q_total_cnt}
+- QoQ Change vs Q{prev_q}: {qoq_change:+.1f}%
+
+TOP VENDORS BY SPEND (Q{quarter}):
+{vendor_lines}
+
+MONTHLY TREND (YTD):
+{mom_lines}
+
+ANOMALY DETECTION:
+- Total Anomalies: {anomaly_total} | Critical (score≥80): {anomaly_critical} | Medium: {anomaly_medium} | Resolved: {anomaly_resolved}
+
+BUDGET UTILIZATION:
+{dept_budget_lines}
+
+ESTIMATED TAX OBLIGATIONS:
+- Estimated GST (18%): ₹{gst_est:,.2f}
+- Estimated TDS (10%): ₹{tds_est:,.2f}
+
+Write 4-5 structured paragraphs: (1) Executive Summary, (2) Expense Analysis & Trends, (3) Vendor Obligations, (4) Risk & Compliance, (5) Outlook. Use formal financial language. Be specific with numbers."""
+
+        content = _ai_text(
+            prompt,
+            fallback=(
+                f"Q{quarter} {year} Financial Summary: Total paid expenses of ₹{float(q_paid):,.2f} with "
+                f"{q_pending_cnt} invoices pending approval worth ₹{float(q_pending_amt):,.2f}. "
+                f"YTD operating expenses stand at ₹{float(ytd_paid):,.2f}, representing a "
+                f"{qoq_change:+.1f}% change from the prior quarter. "
+                f"{anomaly_total} anomalies detected ({anomaly_critical} critical). "
+                f"Estimated GST liability: ₹{gst_est:,.2f}. TDS payable: ₹{tds_est:,.2f}."
+            )
+        )
+
         return Response({
-            "title": f"10-Q Filing Draft - Q{ (today.month-1)//3 + 1 } {today.year}",
+            "title": f"10-Q Filing Draft — Q{quarter} {year}",
+            "period": f"{q_start.strftime('%d %b %Y')} to {q_end.strftime('%d %b %Y')}",
             "generated_at": today.isoformat(),
             "content": content,
-            "stats": {"ytd_expenses": float(ytd)}
+            "sections": {
+                "executive_summary": content,
+            },
+            "stats": {
+                "ytd_expenses": float(ytd_paid),
+                "q_paid": float(q_paid),
+                "q_pending_amount": float(q_pending_amt),
+                "q_pending_count": q_pending_cnt,
+                "q_approved_amount": float(q_approved_amt),
+                "q_approved_count": q_approved_cnt,
+                "q_rejected_count": q_rejected_cnt,
+                "q_total_invoices": q_total_cnt,
+                "qoq_change_pct": round(qoq_change, 1),
+                "anomaly_total": anomaly_total,
+                "anomaly_critical": anomaly_critical,
+                "gst_estimate": round(gst_est, 2),
+                "tds_estimate": round(tds_est, 2),
+            },
+            "top_vendors": [
+                {"name": v["vendor__name"], "amount": float(v["total"]), "invoices": v["count"]}
+                for v in top_vendors
+            ],
+            "dept_budgets": dept_budgets,
+            "monthly_trend": [
+                {"month": row["month"].strftime("%b %Y"), "paid": float(row["paid"] or 0), "invoices": row["cnt"]}
+                for row in mom_data
+            ],
         })
