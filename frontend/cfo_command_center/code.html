@@ -123,7 +123,7 @@
 <header class="flex flex-col md:flex-row md:items-end justify-between gap-6">
 <div class="space-y-1">
 <h1 class="text-2xl lg:text-3xl font-extrabold tracking-tight font-headline text-primary">Intelligence Command</h1>
-<p class="text-on-surface-variant font-body text-lg">Thursday, October 24th — Operational Overview</p>
+        <p class="text-on-surface-variant font-body text-lg" id="current-date">Loading date...</p>
 </div>
 <button id="ask-your-data-btn" class="primary-gradient text-on-primary px-8 py-3.5 rounded-full font-headline font-bold text-sm shadow-lg shadow-primary/20 hover:scale-105 transition-transform flex items-center gap-2">
                     <span class="material-symbols-outlined text-[18px]">psychology</span>
@@ -1161,6 +1161,18 @@ async function vpoApplyAll() {
     }
     window.statusPoller?.showToast('All Applied', `${count} payments scheduled`, 'success');
 }
+
+// Set current date dynamically
+function setCurrentDate() {
+    const dateElement = document.getElementById('current-date');
+    if (dateElement) {
+        const now = new Date();
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        const dateString = now.toLocaleDateString('en-US', options);
+        dateElement.textContent = `${dateString} — Operational Overview`;
+    }
+}
+setCurrentDate();
 
 </script>
 <script src="/frontend/shared/layout.js"></script>

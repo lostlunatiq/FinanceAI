@@ -368,14 +368,14 @@ const ARRaiseScreen = ({ onNavigate }) => {
           }}>Save Draft</Btn>
           {saveMsg && <span style={{ fontSize: '12px', color: '#10B981', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>{saveMsg}</span>}
           <Btn variant="primary" disabled={!customer || issueLoading} onClick={async () => {
-            if (!customer) { alert('Please select a customer.'); return; }
+            if (!customer) { window.ModalUtils.show('Please select a customer.', 'error'); return; }
             setIssueLoading(true);
             try {
               // Mock issue — in production, call an AR invoice creation API
               await new Promise(r => setTimeout(r, 600));
-              alert(`Invoice ${invoiceNo} issued to ${customer} for ${fmt(total)}`);
+              window.ModalUtils.show(`Invoice ${invoiceNo} issued to ${customer} for ${fmt(total)}`, 'success');
               onNavigate && onNavigate('ar');
-            } catch(e) { alert('Failed to issue invoice.'); }
+            } catch(e) { window.ModalUtils.show('Failed to issue invoice.', 'error'); }
             finally { setIssueLoading(false); }
           }}>{issueLoading ? 'Issuing…' : 'Issue Invoice →'}</Btn>
         </div>

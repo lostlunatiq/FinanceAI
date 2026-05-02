@@ -89,17 +89,17 @@ const DashboardScreen = ({ role, onNavigate }) => {
     try {
       await window.TijoriAPI.BillsAPI.approve(billId, 'Approved from Command Center');
       setQueueBills(prev => prev.filter(b => b.id !== billId));
-    } catch (e) { alert('Approval failed: ' + e.message); }
+    } catch (e) { window.ModalUtils.show('Approval failed: ' + e.message, 'error'); }
     setApproveLoading(prev => ({ ...prev, [billId]: false }));
   };
 
   const handleQuickReject = async (billId) => {
-    const reason = prompt('Reason for rejection:');
+    const reason = await window.ModalUtils.prompt('Reason for rejection:');
     if (!reason) return;
     try {
       await window.TijoriAPI.BillsAPI.reject(billId, reason);
       setQueueBills(prev => prev.filter(b => b.id !== billId));
-    } catch (e) { alert('Rejection failed: ' + e.message); }
+    } catch (e) { window.ModalUtils.show('Rejection failed: ' + e.message, 'error'); }
   };
 
   const fmtAmt = (v) => {
@@ -257,7 +257,9 @@ const DashboardScreen = ({ role, onNavigate }) => {
             {/* Floating insight */}
             <div style={{ position: 'absolute', top: '20%', right: '22%', background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(8px)', border: '1px solid #F1F0EE', borderRadius: '12px', padding: '10px 14px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
               <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '13px', color: '#E8783B' }}>⚡ Critical Peak</div>
-              <div style={{ fontSize: '11px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>May 2026: ₹5.2Cr projected</div>
+               <div style={{ fontSize: '11px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>
+                 <span id="current-month-year">Loading...</span>: ₹5.2Cr projected
+               </div>
             </div>
           </div>
         </Card>
@@ -403,5 +405,17 @@ const DashboardScreen = ({ role, onNavigate }) => {
     </div>
   );
 };
+
+// Set current month and year
+function setCurrentMonthYear() {
+  const monthYearElement = document.getElementById('current-month-year');
+  if (monthYearElement) {
+    const now = new Date();
+    const options = { month: 'long', year: 'numeric' };
+    const monthYearString = now.toLocaleDateString('en-US', options);
+    monthYearElement.textContent = monthYearString;
+  }
+}
+setCurrentMonthYear();
 
 Object.assign(window, { DashboardScreen });

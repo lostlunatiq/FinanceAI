@@ -66,7 +66,7 @@ const AnomalyScreen = ({ role, onNavigate }) => {
   const handleMarkSafe = async () => {
     if (!markSafeModal) return;
     const { rawId, entity } = markSafeModal;
-    if (!markSafeNote.trim()) { alert('Please enter a reason for marking this anomaly as safe.'); return; }
+    if (!markSafeNote.trim()) { window.ModalUtils.show('Please enter a reason for marking this anomaly as safe.', 'error'); return; }
     setMarkSafeLoading(true);
     try {
       await window.TijoriAPI.BillsAPI.markSafe(rawId, markSafeNote.trim());
@@ -96,7 +96,7 @@ const AnomalyScreen = ({ role, onNavigate }) => {
         if (activePanel && activePanel.rawId === rawId) setActivePanel(null);
       }
     } catch (e) {
-      alert("Failed to mark safe: " + (e.message || 'Server error'));
+      window.ModalUtils.show("Failed to mark safe: " + (e.message || 'Server error'), 'error');
     } finally {
       setMarkSafeLoading(false);
     }
@@ -127,13 +127,13 @@ const AnomalyScreen = ({ role, onNavigate }) => {
         if (activePanel && activePanel.rawId === id) setActivePanel(null);
       }
     } catch (e) {
-      alert("Failed to escalate: " + e.message);
+      window.ModalUtils.show("Failed to escalate: " + e.message, 'error');
     }
   };
 
   const handleReviewAll = () => {
     const openAnomalies = anomalies.filter(a => a.status !== 'RESOLVED');
-    if (openAnomalies.length === 0) { alert('No open anomalies to review.'); return; }
+    if (openAnomalies.length === 0) { window.ModalUtils.show('No open anomalies to review.', 'info'); return; }
     setReviewQueue(openAnomalies);
     setReviewQueueIdx(0);
     setActivePanel(openAnomalies[0]);
