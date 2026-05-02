@@ -16,13 +16,14 @@ from decimal import Decimal
 import logging
 from .models import Budget, Expense
 from apps.core.utils import log_audit_event
+from apps.core.permissions import HasMinimumGrade
 
 logger = logging.getLogger(__name__)
 
 
 class BudgetListView(APIView):
     """GET /POST /api/v1/invoices/budgets/"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasMinimumGrade.make(4)]
 
     def get(self, request):
         from .models import Budget
@@ -115,7 +116,7 @@ class BudgetListView(APIView):
 
 class BudgetDetailView(APIView):
     """GET/PATCH/DELETE /api/v1/invoices/budgets/<id>/"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasMinimumGrade.make(4)]
 
     def get(self, request, pk):
         from .models import Budget
@@ -191,7 +192,7 @@ class BudgetDetailView(APIView):
 
 class BudgetUtilizationView(APIView):
     """GET /api/v1/invoices/budgets/<id>/utilization/ — Detailed breakdown"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasMinimumGrade.make(4)]
 
     def get(self, request, pk):
         from .models import Budget, Expense

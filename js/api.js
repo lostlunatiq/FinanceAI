@@ -153,7 +153,7 @@ const AuthAPI = {
 
   async exportUsers() {
     // Return the blob so the frontend can trigger download
-    const token = localStorage.getItem('tijori_token');
+    const token = Auth.getAccess();
     const response = await fetch(`${API_BASE}/auth/users/export/`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -188,7 +188,7 @@ const AuthAPI = {
 
   async exportAuditLog(params = {}) {
     const qs = new URLSearchParams(params).toString();
-    const token = localStorage.getItem('accessToken');
+    const token = Auth.getAccess();
     return fetch(`/api/v1/audit/export/${qs ? '?' + qs : ''}`, {
       headers: token ? { 'Authorization': `Bearer ${token}` } : {}
     });

@@ -32,8 +32,7 @@ VALID_TRANSITIONS = {
     "PENDING_HOD": {"PENDING_FIN_L1", "PENDING_FIN_L2", "REJECTED", "QUERY_RAISED"},
     "PENDING_FIN_L1": {"PENDING_FIN_L2", "REJECTED", "QUERY_RAISED"},
     "PENDING_FIN_L2": {"PENDING_FIN_HEAD", "REJECTED", "QUERY_RAISED"},
-    "PENDING_FIN_HEAD": {"APPROVED", "PENDING_CFO", "REJECTED", "QUERY_RAISED"},
-    "PENDING_CFO": {"APPROVED", "REJECTED", "QUERY_RAISED"},
+    "PENDING_FIN_HEAD": {"APPROVED", "REJECTED", "QUERY_RAISED"},
     "QUERY_RAISED": {
         "PENDING_L1",
         "PENDING_L2",
@@ -41,7 +40,6 @@ VALID_TRANSITIONS = {
         "PENDING_FIN_L1",
         "PENDING_FIN_L2",
         "PENDING_FIN_HEAD",
-        "PENDING_CFO",
     },
     "APPROVED": {"PENDING_D365"},
     "PENDING_D365": {"BOOKED_D365"},
@@ -158,14 +156,21 @@ class Expense(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.ref_no:
+            from django.db import transaction
             from django.db.models import Max
             from django.utils import timezone
-            year = timezone.now().year
-            last = Expense.objects.filter(
-                ref_no__startswith=f"BILL-{year}-"
-            ).aggregate(Max("ref_no"))["ref_no__max"]
-            num = (int(last.split("-")[-1]) + 1) if last else 1
-            self.ref_no = f"BILL-{year}-{num:05d}"
+            
+            with transaction.atomic():
+                # Lock the table to prevent race conditions
+                Expense.objects.select_for_update().filter(
+                    ref_no__startswith=f"BILL-{timezone.now().year}-"
+                ).first()
+                
+                last = Expense.objects.filter(
+                    ref_no__startswith=f"BILL-{timezone.now().year}-"
+                ).aggregate(Max("ref_no"))["ref_no__max"]
+                num = (int(last.split("-")[-1]) + 1) if last else 1
+                self.ref_no = f"BILL-{timezone.now().year}-{num:05d}"
         super().save(*args, **kwargs)
 
     def __str__(self):

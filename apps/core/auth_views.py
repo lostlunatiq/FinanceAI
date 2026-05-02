@@ -3,6 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.throttling import AnonRateThrottle
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
 
@@ -233,6 +234,8 @@ def _build_audit_filter_metadata(qs):
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [AnonRateThrottle]
+    throttle_rates = {"anon": "5/minute"}
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
@@ -419,11 +422,6 @@ class UserDetailView(APIView):
         }
         data = {k: v for k, v in request.data.items() if k in allowed_fields}
 
-        if "password" in request.data:
-            new_pass = request.data["password"]
-            if len(new_pass) >= 6:
-                user.set_password(new_pass)
-
         # Handle groups separately (M2M — serializer can't set via standard write)
         new_group_ids = request.data.get("groups")
 
@@ -447,9 +445,6 @@ class UserDetailView(APIView):
             "is_superuser": user.is_superuser,
             "groups": sorted(user.groups.values_list("name", flat=True)),
         }
-        if "password" in request.data and len(request.data["password"]) >= 6:
-            after["password"] = "<changed>"
-            before["password"] = "<hidden>"
         log_audit_event(
             user=request.user,
             action="auth.user_updated",
