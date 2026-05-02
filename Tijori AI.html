@@ -6,9 +6,9 @@
   <title>Tijori AI — Enterprise Finance OS</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700;12..96,800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js" integrity="sha384-2Unx2h2J5LkS2Mro9rFnE2s8Jn4sQ4r4Kf3b0O1I0B5C6f9N8Ia7D0bZQJ+0D" crossorigin="anonymous"></script>
+   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js" integrity="sha384-NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=" crossorigin="anonymous"></script>
+   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" integrity="sha384-zAFRMKqFIefwiPiImOupSczcv7ON8L0Sm0S3Jzw6b0E="></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -54,145 +54,18 @@
       *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
     }
 
-    /* ── Tweaks panel ── */
-    #tweaks-panel {
-      position: fixed; bottom: 88px; right: 24px; width: 270px;
-      background: white; border-radius: 16px; border: 1px solid #E2E8F0;
-      box-shadow: 0 16px 48px rgba(0,0,0,0.14); padding: 20px;
-      z-index: 9999; display: none; font-family: 'Plus Jakarta Sans', sans-serif;
-      animation: fadeUp 200ms ease both;
-    }
-    #tweaks-panel.open { display: block; }
-    .tweak-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #94A3B8; margin-bottom: 6px; }
-    .tweak-title { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 15px; color: #0F172A; margin-bottom: 14px; letter-spacing: -0.5px; }
-    .swatch, .sidebar-swatch, .canvas-swatch { transition: transform 150ms; }
-    .swatch:hover, .sidebar-swatch:hover, .canvas-swatch:hover { transform: scale(1.12); }
+
   </style>
 </head>
 <body>
   <div id="root"></div>
 
-  <!-- Tweaks Panel -->
-  <div id="tweaks-panel">
-    <div class="tweak-label">Design Controls</div>
-    <div class="tweak-title">Tweaks</div>
-    <div style="display:flex;flex-direction:column;gap:16px;">
 
-      <div>
-        <div class="tweak-label">Accent Color</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
-          <div class="swatch" data-color="#E8783B" style="width:28px;height:28px;border-radius:8px;background:#E8783B;cursor:pointer;border:2px solid #E8783B;box-shadow:0 0 0 2px white inset;" title="Orange"></div>
-          <div class="swatch" data-color="#3B82F6" style="width:28px;height:28px;border-radius:8px;background:#3B82F6;cursor:pointer;border:2px solid transparent;" title="Blue"></div>
-          <div class="swatch" data-color="#10B981" style="width:28px;height:28px;border-radius:8px;background:#10B981;cursor:pointer;border:2px solid transparent;" title="Green"></div>
-          <div class="swatch" data-color="#8B5CF6" style="width:28px;height:28px;border-radius:8px;background:#8B5CF6;cursor:pointer;border:2px solid transparent;" title="Purple"></div>
-          <div class="swatch" data-color="#F59E0B" style="width:28px;height:28px;border-radius:8px;background:#F59E0B;cursor:pointer;border:2px solid transparent;" title="Amber"></div>
-          <div class="swatch" data-color="#EF4444" style="width:28px;height:28px;border-radius:8px;background:#EF4444;cursor:pointer;border:2px solid transparent;" title="Red"></div>
-        </div>
-      </div>
 
-      <div>
-        <div class="tweak-label">Sidebar Tone</div>
-        <div style="display:flex;gap:8px;margin-top:6px;">
-          <div class="sidebar-swatch" data-bg="#020617" style="width:32px;height:32px;border-radius:8px;background:#020617;cursor:pointer;border:2px solid transparent;box-shadow:0 0 0 2px white inset,0 0 0 3px #020617;" title="Near Black"></div>
-          <div class="sidebar-swatch" data-bg="#0F172A" style="width:32px;height:32px;border-radius:8px;background:#0F172A;cursor:pointer;border:2px solid transparent;" title="Slate 900"></div>
-          <div class="sidebar-swatch" data-bg="#1E3A5F" style="width:32px;height:32px;border-radius:8px;background:#1E3A5F;cursor:pointer;border:2px solid transparent;" title="Navy"></div>
-          <div class="sidebar-swatch" data-bg="#1C1917" style="width:32px;height:32px;border-radius:8px;background:#1C1917;cursor:pointer;border:2px solid transparent;" title="Warm Black"></div>
-          <div class="sidebar-swatch" data-bg="#1E293B" style="width:32px;height:32px;border-radius:8px;background:#1E293B;cursor:pointer;border:2px solid transparent;" title="Slate 800"></div>
-        </div>
-      </div>
 
-      <div>
-        <div class="tweak-label">Canvas Background</div>
-        <div style="display:flex;gap:8px;margin-top:6px;">
-          <div class="canvas-swatch" data-bg="#FAFAF8" style="width:32px;height:32px;border-radius:8px;background:#FAFAF8;cursor:pointer;border:2px solid #E2E8F0;box-shadow:0 0 0 2px #E8783B inset;" title="Warm White"></div>
-          <div class="canvas-swatch" data-bg="#F8FAFC" style="width:32px;height:32px;border-radius:8px;background:#F8FAFC;cursor:pointer;border:2px solid #E2E8F0;" title="Cool White"></div>
-          <div class="canvas-swatch" data-bg="#FFFFFF" style="width:32px;height:32px;border-radius:8px;background:#FFFFFF;cursor:pointer;border:2px solid #E2E8F0;" title="Pure White"></div>
-          <div class="canvas-swatch" data-bg="#FFF7ED" style="width:32px;height:32px;border-radius:8px;background:#FFF7ED;cursor:pointer;border:2px solid #E2E8F0;" title="Warm Tint"></div>
-        </div>
-      </div>
 
-      <div>
-        <div class="tweak-label">User Role</div>
-        <select id="role-select" style="width:100%;padding:8px 10px;border:1.5px solid #E2E8F0;border-radius:8px;font-size:12px;font-family:'Plus Jakarta Sans',sans-serif;color:#0F172A;background:#FAFAF8;outline:none;cursor:pointer;margin-top:6px;">
-          <option value="CFO">CFO</option>
-          <option value="Finance Admin">Finance Admin</option>
-          <option value="Finance Manager">Finance Manager</option>
-          <option value="AP Clerk">AP Clerk</option>
-          <option value="Employee">Employee</option>
-          <option value="Vendor">Vendor</option>
-        </select>
-      </div>
-
-    </div>
-  </div>
-
-  <script>
-    // ── Tweaks protocol ──────────────────────────────────────────────────────
-    window.addEventListener('message', (e) => {
-      if (e.data?.type === '__activate_edit_mode')   document.getElementById('tweaks-panel').classList.add('open');
-      if (e.data?.type === '__deactivate_edit_mode') document.getElementById('tweaks-panel').classList.remove('open');
-    });
-    window.parent.postMessage({ type: '__edit_mode_available' }, '*');
-
-    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
-      "accentColor": "#3B82F6",
-      "sidebarBg": "#020617",
-      "canvasBg": "#F8FAFC",
-      "role": "CFO"
-    }/*EDITMODE-END*/;
-
-    function applyTweaks(t) {
-      document.documentElement.style.setProperty('--orange', t.accentColor);
-      document.documentElement.style.setProperty('--orange-hot', t.accentColor);
-      document.documentElement.style.setProperty('--canvas', t.canvasBg);
-      document.body.style.background = t.canvasBg;
-    }
-    applyTweaks(TWEAK_DEFAULTS);
-
-    // Accent swatches
-    document.querySelectorAll('.swatch').forEach(el => {
-      el.addEventListener('click', () => {
-        document.querySelectorAll('.swatch').forEach(s => { s.style.boxShadow = 'none'; s.style.borderColor = 'transparent'; });
-        el.style.boxShadow = '0 0 0 2px white inset';
-        el.style.borderColor = el.dataset.color;
-        const color = el.dataset.color;
-        document.documentElement.style.setProperty('--orange', color);
-        document.documentElement.style.setProperty('--orange-hot', color);
-        window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { accentColor: color } }, '*');
-      });
-    });
-
-    // Sidebar swatches
-    document.querySelectorAll('.sidebar-swatch').forEach(el => {
-      el.addEventListener('click', () => {
-        document.querySelectorAll('.sidebar-swatch').forEach(s => { s.style.boxShadow = 'none'; s.style.borderColor = 'transparent'; });
-        el.style.boxShadow = '0 0 0 2px white inset, 0 0 0 3px ' + el.dataset.bg;
-        document.querySelectorAll('[data-sidebar]').forEach(s => s.style.background = el.dataset.bg);
-        window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { sidebarBg: el.dataset.bg } }, '*');
-      });
-    });
-
-    // Canvas swatches
-    document.querySelectorAll('.canvas-swatch').forEach(el => {
-      el.addEventListener('click', () => {
-        document.querySelectorAll('.canvas-swatch').forEach(s => s.style.boxShadow = 'none');
-        el.style.boxShadow = '0 0 0 2px #E8783B inset';
-        document.documentElement.style.setProperty('--canvas', el.dataset.bg);
-        document.body.style.background = el.dataset.bg;
-        window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { canvasBg: el.dataset.bg } }, '*');
-      });
-    });
-
-    // Role selector — fires rolechange event into React
-    const roleSelect = document.getElementById('role-select');
-    if (roleSelect) {
-      roleSelect.value = localStorage.getItem('tj_role') || 'CFO';
-      roleSelect.addEventListener('change', () => {
-        window.dispatchEvent(new CustomEvent('rolechange', { detail: roleSelect.value }));
-        window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { role: roleSelect.value } }, '*');
-      });
-    }
-  </script>
+  <!-- Modal utility -->
+  <script defer src="js/dist/ModalUtils.js"></script>
 
   <!-- API client -->
   <script defer src="js/api.js"></script>

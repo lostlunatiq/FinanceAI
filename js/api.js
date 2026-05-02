@@ -108,14 +108,7 @@ async function apiUpload(url, formData) {
 // ── Role mapping ──────────────────────────────────────────────────────────────
 // Maps Django role strings → Tijori AI ROLE_CONFIG keys
 
-const ROLE_MAP = {
-  'finance_admin':   'Finance Admin',
-  'finance_manager': 'Finance Manager',
-  'dept_head':       'Finance Manager',
-  'employee':        'AP Clerk',
-  'vendor':          'Vendor',
-  'cfo':             'CFO',
-};
+
 
 
 const AuthAPI = {
@@ -660,6 +653,6 @@ const NotificationsAPI = {
 // ── Export to window ──────────────────────────────────────────────────────────
 window.TijoriAPI = {
   Auth, AuthAPI, DashboardAPI, BillsAPI, VendorAPI, FilesAPI, AnomalyAPI,
-  AuditAPI, NotificationAPI, NotificationsAPI, BudgetAPI, NLQueryAPI, AnalyticsAPI, FeedbackAPI,
+  AuditAPI, NotificationAPI, BudgetAPI, NLQueryAPI, AnalyticsAPI, FeedbackAPI,
   APIError, expenseToAnomaly, anomalyFlagToType,
 };
