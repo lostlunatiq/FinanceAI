@@ -134,6 +134,8 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "user": "600/minute",
         "nl_query": "60/minute",
+        "login": "5/minute",
+        "auth": "20/minute",
     },
 }
 

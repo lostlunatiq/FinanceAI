@@ -63,7 +63,6 @@ class FinanceQueueView(APIView):
                     "PENDING_FIN_L1",
                     "PENDING_FIN_L2",
                     "PENDING_FIN_HEAD",
-                    "PENDING_CFO",
                     "QUERY_RAISED",
                 ]
             else:
@@ -169,7 +168,118 @@ class ApproveView(APIView):
                 )
             final_target = "APPROVED"
 
+        iteration_count = 0
+        max_iterations = 10
+        iteration_count = 0
+        max_iterations = 10
+        iteration_count = 0
+        max_iterations = 10
         while True:
+            iteration_count += 1
+            if iteration_count > max_iterations:
+                break
+            current_status = expense.status
+            new_status = STATUS_TO_NEXT_STATUS.get(current_status, "APPROVED")
+            try:
+                expense = transition_expense(expense, new_status, request.user, reason, skip_sod=True, request=request)
+            except (InvalidTransition, SoDViolation) as e:
+                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Mark current approval step as done
+            if pending_step:
+                ExpenseApprovalStep.objects.filter(pk=pending_step.pk).update(
+                    status="APPROVED",
+                    actual_actor=request.user,
+                    decided_at=timezone.now(),
+                    decision_reason=reason,
+                    anomaly_override_reason=anomaly_override,
+                )
+
+            if new_status == "APPROVED":
+                break
+
+            # Create next approval step in chain (amount-aware)
+            next_step = create_next_approval_step(expense)
+            if not next_step:
+                break
+
+            if final_target == "APPROVED" and (
+                request.user.is_superuser or (request.user.employee_grade or 1) >= next_step.grade_required
+            ):
+                pending_step = next_step
+                continue
+
+            if current_status == "QUERY_RAISED":
+                pending_step = next_step
+                continue
+
+            if final_target != "APPROVED":
+                # Notify next assigned actor
+                if next_step and next_step.assigned_to:
+                    notify_user(
+                        user=next_step.assigned_to,
+                        title="Action Required: New Bill Approval",
+                        message=f"Bill {expense.ref_no} for ₹{float(expense.total_amount or 0):,.0f} is pending your approval.",
+                        priority="MEDIUM",
+                        nav_target="ap-hub",
+                        entity_type="Expense",
+                        entity_id=expense.id
+                    )
+                break
+
+            pending_step = next_step
+            break
+            current_status = expense.status
+            new_status = STATUS_TO_NEXT_STATUS.get(current_status, "APPROVED")
+            try:
+                expense = transition_expense(expense, new_status, request.user, reason, skip_sod=True, request=request)
+            except (InvalidTransition, SoDViolation) as e:
+                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Mark current approval step as done
+            if pending_step:
+                ExpenseApprovalStep.objects.filter(pk=pending_step.pk).update(
+                    status="APPROVED",
+                    actual_actor=request.user,
+                    decided_at=timezone.now(),
+                    decision_reason=reason,
+                    anomaly_override_reason=anomaly_override,
+                )
+
+            if new_status == "APPROVED":
+                break
+
+            # Create next approval step in chain (amount-aware)
+            next_step = create_next_approval_step(expense)
+            if not next_step:
+                break
+
+            if final_target == "APPROVED" and (
+                request.user.is_superuser or (request.user.employee_grade or 1) >= next_step.grade_required
+            ):
+                pending_step = next_step
+                continue
+
+            if current_status == "QUERY_RAISED":
+                pending_step = next_step
+                continue
+
+            if final_target != "APPROVED":
+                # Notify next assigned actor
+                if next_step and next_step.assigned_to:
+                    notify_user(
+                        user=next_step.assigned_to,
+                        title="Action Required: New Bill Approval",
+                        message=f"Bill {expense.ref_no} for ₹{float(expense.total_amount or 0):,.0f} is pending your approval.",
+                        priority="MEDIUM",
+                        nav_target="ap-hub",
+                        entity_type="Expense",
+                        entity_id=expense.id
+                    )
+                break
+
+            pending_step = next_step
+            break
             current_status = expense.status
             new_status = STATUS_TO_NEXT_STATUS.get(current_status, "APPROVED")
             try:
