@@ -78,6 +78,42 @@ class TestSendEmailTask:
         assert mail.outbox[0].body == "Hello plain"
 
 
+# ── RedirectEmailBackend ──────────────────────────────────────────────────────
+
+@pytest.mark.django_db
+class TestRedirectEmailBackend:
+    @override_settings(EMAIL_REDIRECT_TO="catchall@example.com")
+    def test_rewrites_recipient_to_redirect_address(self):
+        from apps.notifications.backends import RedirectEmailBackend
+        from django.core.mail import EmailMultiAlternatives
+        from django.core.mail.backends.smtp import EmailBackend
+
+        backend = RedirectEmailBackend()
+        msg = EmailMultiAlternatives("Subject", "body", "from@example.com", ["original@example.com"])
+        with patch.object(EmailBackend, "send_messages", return_value=1):
+            backend.send_messages([msg])
+        assert msg.to == ["catchall@example.com"]
+        assert msg.cc == []
+        assert msg.bcc == []
+
+    @override_settings(EMAIL_REDIRECT_TO="catchall@example.com")
+    def test_strips_cc_and_bcc(self):
+        from apps.notifications.backends import RedirectEmailBackend
+        from django.core.mail import EmailMultiAlternatives
+        from django.core.mail.backends.smtp import EmailBackend
+
+        backend = RedirectEmailBackend()
+        msg = EmailMultiAlternatives(
+            "Subject", "body", "from@example.com",
+            to=["a@example.com"], cc=["b@example.com"], bcc=["c@example.com"],
+        )
+        with patch.object(EmailBackend, "send_messages", return_value=1):
+            backend.send_messages([msg])
+        assert msg.to == ["catchall@example.com"]
+        assert msg.cc == []
+        assert msg.bcc == []
+
+
 # ── _send_email_alert (dispatcher) ───────────────────────────────────────────
 
 @pytest.mark.django_db

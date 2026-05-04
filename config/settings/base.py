@@ -185,6 +185,7 @@ EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="Tijori Finance <noreply@tijori.ai>")
 FINANCE_NOTIFY_EMAIL = env("FINANCE_NOTIFY_EMAIL", default="finance@tijori.ai")
+EMAIL_REDIRECT_TO = env("EMAIL_REDIRECT_TO", default="")  # when set, all mail routes here
 
 # --- Azure AD / MSAL ---
 AZURE_CLIENT_ID = env("AZURE_CLIENT_ID", default="")
