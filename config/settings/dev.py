@@ -70,8 +70,8 @@ AUTHENTICATION_BACKENDS = [
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
-# ─── Print emails to console ────────────────────────────────────
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+# ─── Email: driven by .env (defaults to console if not set) ─────
+# Set EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend in .env for Gmail
 
 # ─── Disable throttling in dev ───────────────────────────────────
 REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = []
