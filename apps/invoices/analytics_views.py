@@ -267,7 +267,7 @@ class PaymentPredictionView(APIView):
 
             predictions.append({
                 "ref_no": e.ref_no,
-                "vendor": e.vendor.name,
+                "vendor": e.vendor.name if e.vendor_id else "Internal",
                 "amount": float(e.total_amount),
                 "current_status": e._status,
                 "days_in_system": days_in_system,
@@ -548,7 +548,8 @@ class WorkingCapitalView(APIView):
                 aging["61_90"] += amt; aging_count["61_90"] += 1
             else:
                 aging["over_90"] += amt; aging_count["over_90"] += 1
-                overdue_vendors.append({"vendor": e.vendor.name, "ref_no": e.ref_no, "days": days_old, "amount": amt})
+                vendor_name = e.vendor.name if e.vendor_id else "Internal"
+                overdue_vendors.append({"vendor": vendor_name, "ref_no": e.ref_no, "days": days_old, "amount": amt})
 
         overdue_vendors.sort(key=lambda x: x["days"], reverse=True)
         total_outstanding = sum(aging.values())
@@ -997,7 +998,6 @@ class Generate10QView(APIView):
 
     def post(self, request):
         from django.db.models import FloatField
-        from apps.core.models import AnomalyLog
         from apps.invoices.models import Budget, Department
 
         today = date.today()
@@ -1028,10 +1028,11 @@ class Generate10QView(APIView):
         ytd_paid = all_exp.filter(_status="PAID", invoice_date__year=year).aggregate(t=Sum("total_amount"))["t"] or 0
 
         # Current quarter stats
+        PENDING_STATUSES = ["PENDING_L1", "PENDING_L2", "PENDING_HOD", "PENDING_FIN_L1", "PENDING_FIN_L2", "PENDING_FIN_HEAD"]
         q_qs = all_exp.filter(invoice_date__gte=q_start, invoice_date__lte=q_end)
         q_paid = q_qs.filter(_status="PAID").aggregate(t=Sum("total_amount"))["t"] or 0
-        q_pending_amt = q_qs.filter(_status="PENDING").aggregate(t=Sum("total_amount"))["t"] or 0
-        q_pending_cnt = q_qs.filter(_status="PENDING").count()
+        q_pending_amt = q_qs.filter(_status__in=PENDING_STATUSES).aggregate(t=Sum("total_amount"))["t"] or 0
+        q_pending_cnt = q_qs.filter(_status__in=PENDING_STATUSES).count()
         q_approved_amt = q_qs.filter(_status="APPROVED").aggregate(t=Sum("total_amount"))["t"] or 0
         q_approved_cnt = q_qs.filter(_status="APPROVED").count()
         q_rejected_cnt = q_qs.filter(_status="REJECTED").count()
@@ -1063,6 +1064,7 @@ class Generate10QView(APIView):
 
         # Anomaly stats for quarter
         try:
+            from apps.core.models import AnomalyLog
             anomaly_qs = AnomalyLog.objects.filter(created_at__date__gte=q_start, created_at__date__lte=q_end)
             anomaly_total = anomaly_qs.count()
             anomaly_critical = anomaly_qs.filter(risk_score__gte=80).count()
@@ -1190,4 +1192,209 @@ Write 4-5 structured paragraphs: (1) Executive Summary, (2) Expense Analysis & T
                 {"month": row["month"].strftime("%b %Y"), "paid": float(row["paid"] or 0), "invoices": row["cnt"]}
                 for row in mom_data
             ],
+        })
+
+
+# ─── Annual Financial Report ───────────────────────────────────────────────────
+
+class AnnualReportView(APIView):
+    """
+    GET /api/v1/invoices/analytics/annual-report/?year=2026
+    Full-year financial summary: budget vs actual, monthly trends, dept performance,
+    risk summary, compliance, YoY comparison. Investor / board-ready format.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.core.models import Department
+        year = int(request.query_params.get("year", date.today().year))
+        prev_year = year - 1
+        year_start = date(year, 1, 1)
+        year_end = date(year, 12, 31)
+        prev_start = date(prev_year, 1, 1)
+        prev_end = date(prev_year, 12, 31)
+
+        all_exp = Expense.objects
+
+        # ── Total actual spend (paid + approved) current & prev year ─────────
+        PAID_STATUSES = ["PAID", "APPROVED", "BOOKED_D365", "POSTED_D365"]
+        ytd = all_exp.filter(invoice_date__year=year, _status__in=PAID_STATUSES)
+        prev_ytd = all_exp.filter(invoice_date__year=prev_year, _status__in=PAID_STATUSES)
+
+        total_spend = float(ytd.aggregate(t=Sum("total_amount"))["t"] or 0)
+        prev_spend = float(prev_ytd.aggregate(t=Sum("total_amount"))["t"] or 0)
+        yoy_pct = round((total_spend - prev_spend) / prev_spend * 100, 1) if prev_spend else 0
+
+        # ── Total budget vs actual by department ──────────────────────────────
+        dept_performance = []
+        depts = Department.objects.all()
+        total_budget = 0.0
+        for dept in depts:
+            budget_q = Budget.objects.filter(department=dept, fiscal_year=year, status="active")
+            budget_amt = float(budget_q.aggregate(t=Sum("total_amount"))["t"] or 0)
+            actual_amt = float(
+                ytd.filter(submitted_by__department=dept).aggregate(t=Sum("total_amount"))["t"] or 0
+            )
+            prev_actual = float(
+                prev_ytd.filter(submitted_by__department=dept).aggregate(t=Sum("total_amount"))["t"] or 0
+            )
+            if budget_amt == 0 and actual_amt == 0:
+                continue
+            variance = actual_amt - budget_amt
+            total_budget += budget_amt
+            dept_performance.append({
+                "department": dept.name,
+                "budget": round(budget_amt, 0),
+                "actual": round(actual_amt, 0),
+                "variance": round(variance, 0),
+                "variance_pct": round(variance / budget_amt * 100, 1) if budget_amt else 0,
+                "prev_year_actual": round(prev_actual, 0),
+                "yoy_change_pct": round((actual_amt - prev_actual) / prev_actual * 100, 1) if prev_actual else 0,
+                "status": "OVER_BUDGET" if variance > 0 else "ON_TRACK" if variance == 0 else "UNDER_BUDGET",
+                "utilization_pct": round(actual_amt / budget_amt * 100, 1) if budget_amt else 0,
+            })
+        dept_performance.sort(key=lambda x: x["actual"], reverse=True)
+
+        # ── Monthly spend trend (all 12 months) ──────────────────────────────
+        monthly = (
+            all_exp.filter(invoice_date__year=year)
+            .annotate(month=TruncMonth("invoice_date"))
+            .values("month")
+            .annotate(
+                paid=Sum("total_amount", filter=Q(_status__in=PAID_STATUSES)),
+                pending=Sum("total_amount", filter=Q(_status__in=["PENDING_L1", "PENDING_L2", "PENDING_HOD", "PENDING_FIN_L1", "PENDING_FIN_L2"])),
+                cnt=Count("id"),
+            )
+            .order_by("month")
+        )
+
+        # ── Quarter breakdown ─────────────────────────────────────────────────
+        quarters = []
+        for q in range(1, 5):
+            q_start_m = (q - 1) * 3 + 1
+            q_start = date(year, q_start_m, 1)
+            q_end_m = q_start_m + 2
+            import calendar
+            _, last_day = calendar.monthrange(year, q_end_m)
+            q_end = date(year, q_end_m, last_day)
+            q_spend = float(
+                ytd.filter(invoice_date__gte=q_start, invoice_date__lte=q_end)
+                .aggregate(t=Sum("total_amount"))["t"] or 0
+            )
+            q_cnt = ytd.filter(invoice_date__gte=q_start, invoice_date__lte=q_end).count()
+            quarters.append({"quarter": f"Q{q}", "spend": round(q_spend, 0), "invoices": q_cnt})
+
+        # ── Top categories ────────────────────────────────────────────────────
+        top_categories = (
+            ytd.values("vendor__vendor_type")
+            .annotate(total=Sum("total_amount"), count=Count("id"))
+            .order_by("-total")[:8]
+        )
+
+        # ── Top vendors ───────────────────────────────────────────────────────
+        top_vendors = (
+            ytd.exclude(vendor__isnull=True)
+            .values("vendor__name", "vendor__vendor_type")
+            .annotate(total=Sum("total_amount"), count=Count("id"))
+            .order_by("-total")[:10]
+        )
+
+        # ── Risk & compliance summary ─────────────────────────────────────────
+        total_invoices = all_exp.filter(invoice_date__year=year).count()
+        flagged_high = all_exp.filter(invoice_date__year=year, anomaly_severity__in=["HIGH", "CRITICAL"]).count()
+        flagged_medium = all_exp.filter(invoice_date__year=year, anomaly_severity="MEDIUM").count()
+        rejected = all_exp.filter(invoice_date__year=year, _status__in=["REJECTED", "AUTO_REJECT"]).count()
+        pending_count = all_exp.filter(invoice_date__year=year, _status__in=["PENDING_L1", "PENDING_L2", "PENDING_HOD", "PENDING_FIN_L1", "PENDING_FIN_L2"]).count()
+        pending_amount = float(all_exp.filter(invoice_date__year=year, _status__in=["PENDING_L1", "PENDING_L2", "PENDING_HOD", "PENDING_FIN_L1", "PENDING_FIN_L2"]).aggregate(t=Sum("total_amount"))["t"] or 0)
+
+        # ── GST / TDS estimates ───────────────────────────────────────────────
+        gst_total = float(ytd.aggregate(t=Sum("cgst"))["t"] or 0) + float(ytd.aggregate(t=Sum("sgst"))["t"] or 0) + float(ytd.aggregate(t=Sum("igst"))["t"] or 0)
+        tds_total = float(ytd.aggregate(t=Sum("tds_amount"))["t"] or 0)
+        if gst_total == 0:
+            gst_total = total_spend * 0.18
+        if tds_total == 0:
+            tds_total = total_spend * 0.10
+
+        # ── AI narrative ──────────────────────────────────────────────────────
+        top_dept = dept_performance[0]["department"] if dept_performance else "N/A"
+        top_dept_spend = dept_performance[0]["actual"] if dept_performance else 0
+        prompt = (
+            f"Write a formal 3-paragraph annual financial report executive summary for FY {year}. "
+            f"Total operational expenditure: ₹{total_spend:,.0f} ({yoy_pct:+.1f}% YoY). "
+            f"Total approved budget: ₹{total_budget:,.0f}. "
+            f"Budget utilization: {round(total_spend/total_budget*100,1) if total_budget else 0}%. "
+            f"Top spending department: {top_dept} at ₹{top_dept_spend:,.0f}. "
+            f"Total invoices processed: {total_invoices}, rejected: {rejected}, high-risk flags: {flagged_high}. "
+            f"Estimated GST: ₹{gst_total:,.0f}, TDS: ₹{tds_total:,.0f}. "
+            f"Pending payables: ₹{pending_amount:,.0f} ({pending_count} invoices). "
+            f"Write in formal investor-grade language suitable for board presentation or public disclosure."
+        )
+        ai_narrative = _ai_text(
+            prompt,
+            fallback=(
+                f"FY {year} Annual Financial Summary: Total operational expenditure of ₹{total_spend:,.0f} "
+                f"represents a {abs(yoy_pct):.1f}% {'increase' if yoy_pct >= 0 else 'decrease'} over FY {prev_year}. "
+                f"Budget utilization stood at {round(total_spend/total_budget*100,1) if total_budget else 0:.1f}% of the approved ₹{total_budget:,.0f} budget. "
+                f"A total of {total_invoices} invoices were processed, with {rejected} rejections and {flagged_high} high-severity risk flags. "
+                f"Estimated tax obligations: GST ₹{gst_total:,.0f}, TDS ₹{tds_total:,.0f}. "
+                f"Outstanding payables of ₹{pending_amount:,.0f} remain pending approval."
+            )
+        )
+
+        return Response({
+            "year": year,
+            "prev_year": prev_year,
+            "generated_at": date.today().isoformat(),
+            "headline": {
+                "total_spend": round(total_spend, 0),
+                "prev_year_spend": round(prev_spend, 0),
+                "yoy_change_pct": yoy_pct,
+                "total_budget": round(total_budget, 0),
+                "budget_utilization_pct": round(total_spend / total_budget * 100, 1) if total_budget else 0,
+                "total_invoices": total_invoices,
+                "rejected_count": rejected,
+                "pending_count": pending_count,
+                "pending_amount": round(pending_amount, 0),
+                "flagged_high": flagged_high,
+                "flagged_medium": flagged_medium,
+                "gst_total": round(gst_total, 0),
+                "tds_total": round(tds_total, 0),
+            },
+            "quarterly_breakdown": quarters,
+            "monthly_trend": [
+                {
+                    "month": row["month"].strftime("%b"),
+                    "paid": float(row["paid"] or 0),
+                    "pending": float(row["pending"] or 0),
+                    "invoices": row["cnt"],
+                }
+                for row in monthly
+            ],
+            "department_performance": dept_performance,
+            "top_vendors": [
+                {
+                    "name": v["vendor__name"],
+                    "type": v["vendor__vendor_type"] or "General",
+                    "amount": float(v["total"] or 0),
+                    "invoices": v["count"],
+                }
+                for v in top_vendors
+            ],
+            "top_categories": [
+                {
+                    "category": c["vendor__vendor_type"] or "General",
+                    "amount": float(c["total"] or 0),
+                    "invoices": c["count"],
+                    "pct": round(float(c["total"] or 0) / total_spend * 100, 1) if total_spend else 0,
+                }
+                for c in top_categories
+            ],
+            "risk_summary": {
+                "total_invoices": total_invoices,
+                "high_risk": flagged_high,
+                "medium_risk": flagged_medium,
+                "rejected": rejected,
+                "clean_pct": round((total_invoices - flagged_high - flagged_medium) / total_invoices * 100, 1) if total_invoices else 100,
+            },
+            "ai_narrative": ai_narrative,
         })

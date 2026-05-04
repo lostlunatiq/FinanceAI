@@ -1094,6 +1094,43 @@ class GroupDetailView(APIView):
         return Response({"detail": "Group deleted."}, status=204)
 
 
+class GroupPoliciesView(APIView):
+    """
+    GET /api/v1/auth/groups/<pk>/policies/  — Retrieve policies for a group
+    PATCH /api/v1/auth/groups/<pk>/policies/ — Update policies for a group
+    When a user is added to a group they inherit all of its policies.
+    """
+    permission_classes = [IsAuthenticated, HasMinimumGrade.make(4)]
+
+    def get(self, request, pk):
+        group = get_object_or_404(Group, pk=pk)
+        from .models import GroupProfile
+        profile, _ = GroupProfile.objects.get_or_create(group=group)
+        return Response({
+            "group_id": pk,
+            "group_name": group.name,
+            "policies": profile.get_policies(),
+        })
+
+    def patch(self, request, pk):
+        group = get_object_or_404(Group, pk=pk)
+        from .models import GroupProfile
+        profile, _ = GroupProfile.objects.get_or_create(group=group)
+        new_policies = request.data.get("policies", {})
+        profile.policies = new_policies
+        profile.save()
+        log_audit_event(
+            user=request.user,
+            action="auth.group_policies_updated",
+            entity_type="Group",
+            entity_display_name=group.name,
+            masked_after={"policies": new_policies},
+            change_summary=f"Updated policies for group {group.name}",
+            request=request,
+        )
+        return Response({"group_id": pk, "group_name": group.name, "policies": profile.get_policies()})
+
+
 from rest_framework.permissions import IsAdminUser
 from django.http import HttpResponse
 import csv

@@ -10,7 +10,7 @@ const gradeToRoleKey = (grade, isSuperuser, isVendor, username, dept) => {
   if (isSuperuser) return 'CFO';
   if (grade >= 4) return 'Finance Admin';
   if (grade >= 3) return 'Finance Manager';
-  if (grade >= 2) return 'HOD';
+  if (grade >= 2) return 'Finance Manager';
 
   // Grade 1 logic: Finance dept or specific l1_approver get Clerk view, others get Employee view
   if (dept === 'Finance' || username === 'l1_approver') return 'AP Clerk';
@@ -33,10 +33,6 @@ const ROLE_CONFIG = {
   'Finance Manager': {
     homeScreen: 'fm-home',
     nav: ['fm-home', 'ai-hub', 'ap-hub', 'expenses', 'budget', 'guardrails', 'anomaly', 'spend-analytics', 'dept-variance', 'po-match', 'reports', 'audit', 'settings']
-  },
-  'HOD': {
-    homeScreen: 'fm-home',
-    nav: ['fm-home', 'ap-hub', 'expenses', 'budget', 'guardrails', 'anomaly', 'reports', 'audit', 'settings']
   },
   'AP Clerk': {
     homeScreen: 'clerk-home',
@@ -1224,7 +1220,7 @@ const App = () => {
   const [navHistory, setNavHistory] = React.useState([]); // back-button stack
 
   // ── helpers ────────────────────────────────────────────────────
-  const buildUser = userData => ({
+  const buildUser = React.useCallback(userData => ({
     name: `${userData.first_name} ${userData.last_name}`.trim() || userData.username,
     initials: ((userData.first_name?.[0] || '') + (userData.last_name?.[0] || '')).toUpperCase() || userData.username.slice(0, 2).toUpperCase(),
     employee_grade: userData.employee_grade || 1,
@@ -1232,7 +1228,7 @@ const App = () => {
     department: userData.department_name || '',
     id: userData.id,
     username: userData.username
-  });
+  }), []);
   const applySession = userData => {
     const isVendor = !!userData.is_vendor;
     const key = gradeToRoleKey(userData.employee_grade, userData.is_superuser, isVendor, userData.username, userData.department_name);
@@ -1276,7 +1272,7 @@ const App = () => {
     const handler = e => navigate(e.detail?.screen || e.detail, e.detail?.ctx);
     window.addEventListener('navigate', handler);
     return () => window.removeEventListener('navigate', handler);
-  }, []);
+  }, [navigate]);
 
   // ── Profile update events (fired by Settings screen) ─────────────
   React.useEffect(() => {
@@ -1288,13 +1284,13 @@ const App = () => {
     };
     window.addEventListener('profile-updated', handler);
     return () => window.removeEventListener('profile-updated', handler);
-  }, []);
-  const navigate = (s, ctx) => {
+  }, [buildUser]);
+  const navigate = React.useCallback((s, ctx) => {
     setNavHistory(prev => [...prev.slice(-19), screen]); // keep last 20
     setScreen(s);
     setScreenCtx(ctx || null);
     localStorage.setItem('tj_screen', s);
-  };
+  }, [screen]);
   const back = () => {
     if (navHistory.length === 0) return;
     const prev = navHistory[navHistory.length - 1];
