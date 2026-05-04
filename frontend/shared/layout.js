@@ -299,8 +299,6 @@ async function _loadNotifications(dropdown, badge) {
 
 // ─── AI Chatbot Bubble (Floating, all pages) ──────────────────────────────────
 (function _injectChatbot() {
-    // Inject after DOM is ready (layout.js runs at DOMContentLoaded)
-    const user = typeof AUTH !== 'undefined' ? AUTH.getUser() : null;
     const isVendor = typeof AUTH !== 'undefined' ? AUTH.isVendor() : false;
 
     const bubble = document.createElement('div');
@@ -308,49 +306,108 @@ async function _loadNotifications(dropdown, badge) {
     bubble.innerHTML = `
     <style>
       #ai-chatbot-root { position:fixed; bottom:28px; right:28px; z-index:9999; font-family:'Inter',sans-serif; display:flex; flex-direction:column; align-items:flex-end; }
-      #chat-window { display:none; width:360px; height:480px; background:#fff; border-radius:16px;
+      #chat-window { display:none; width:380px; height:520px; background:#fff; border-radius:16px;
         box-shadow:0 24px 60px rgba(0,83,91,0.18); border:1px solid #bec8ca33;
         flex-direction:column; overflow:hidden; margin-bottom:12px;
         pointer-events:none; opacity:0; transition:opacity .2s; }
       #chat-window.open { display:flex; pointer-events:all; opacity:1; }
-      #chat-messages { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:12px; }
-      .chat-msg { max-width:85%; padding:10px 14px; border-radius:12px; font-size:13px; line-height:1.5; }
-      .chat-msg.ai { background:#f5f3f3; color:#1b1c1c; border-bottom-left-radius:4px; align-self:flex-start; }
+      /* Header */
+      #chat-header { padding:12px 14px; background:linear-gradient(135deg,#00535b,#006d77); color:#fff; display:flex; align-items:center; gap:8px; flex-shrink:0; }
+      #chat-title-area { flex:1; min-width:0; }
+      #chat-title-area p { margin:0; }
+      .chat-hdr-btn { background:rgba(255,255,255,.15); border:none; border-radius:50%; width:28px; height:28px;
+        cursor:pointer; color:#fff; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+      .chat-hdr-btn:hover { background:rgba(255,255,255,.28); }
+      /* Panels */
+      #chat-body { flex:1; overflow:hidden; display:flex; flex-direction:column; position:relative; }
+      #chat-panel, #history-panel { position:absolute; inset:0; display:flex; flex-direction:column; transition:transform .22s cubic-bezier(.4,0,.2,1); }
+      #chat-panel { transform:translateX(0); }
+      #history-panel { transform:translateX(-100%); background:#fff; }
+      #chat-body.show-history #chat-panel { transform:translateX(100%); }
+      #chat-body.show-history #history-panel { transform:translateX(0); }
+      /* Chat messages */
+      #chat-messages { flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:10px; }
+      .chat-msg { max-width:85%; padding:9px 13px; border-radius:12px; font-size:13px; line-height:1.5; white-space:pre-wrap; word-break:break-word; }
+      .chat-msg.ai { background:#f0f4f4; color:#1b1c1c; border-bottom-left-radius:4px; align-self:flex-start; }
       .chat-msg.user { background:linear-gradient(135deg,#00535b,#006d77); color:#fff; border-bottom-right-radius:4px; align-self:flex-end; }
-      .chat-msg.loading { background:#f5f3f3; color:#6f797a; font-style:italic; }
-      #chat-input-row { display:flex; gap:8px; padding:12px 16px; border-top:1px solid #bec8ca33; background:#fafafa; }
-      #chat-input { flex:1; border:1px solid #bec8ca; border-radius:24px; padding:8px 16px; font-size:13px;
+      .chat-msg.loading { background:#f0f4f4; color:#6f797a; font-style:italic; align-self:flex-start; }
+      #chat-input-row { display:flex; gap:8px; padding:10px 14px; border-top:1px solid #e4eaeb; background:#fafafa; flex-shrink:0; }
+      #chat-input { flex:1; border:1px solid #bec8ca; border-radius:24px; padding:8px 14px; font-size:13px;
         outline:none; transition:border .2s; font-family:'Inter',sans-serif; }
       #chat-input:focus { border-color:#00535b; }
-      #chat-send { width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg,#00535b,#006d77);
+      #chat-send { width:34px; height:34px; border-radius:50%; background:linear-gradient(135deg,#00535b,#006d77);
         border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; color:#fff; flex-shrink:0; }
       #chat-send:hover { opacity:.85; }
+      /* Session indicator */
+      #session-label { font-size:10px; opacity:.75; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; max-width:180px; }
+      /* History panel */
+      #history-header { display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid #e4eaeb; flex-shrink:0; }
+      #history-header span { font-weight:600; font-size:13px; color:#00535b; flex:1; }
+      #new-chat-btn { display:flex; align-items:center; gap:4px; padding:5px 10px; background:#00535b; color:#fff;
+        border:none; border-radius:20px; font-size:12px; cursor:pointer; font-family:'Inter',sans-serif; }
+      #new-chat-btn:hover { background:#006d77; }
+      #session-list { flex:1; overflow-y:auto; padding:8px 0; }
+      .session-group-label { font-size:10px; font-weight:700; color:#6f797a; text-transform:uppercase;
+        letter-spacing:.06em; padding:8px 14px 4px; }
+      .session-item { display:flex; align-items:center; gap:8px; padding:9px 14px; cursor:pointer; transition:background .15s; }
+      .session-item:hover { background:#f0f7f7; }
+      .session-item.active { background:#e3f0f1; }
+      .session-item-info { flex:1; min-width:0; }
+      .session-item-title { font-size:13px; color:#1b1c1c; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .session-item-time { font-size:11px; color:#6f797a; margin-top:1px; }
+      .session-del-btn { background:none; border:none; cursor:pointer; color:#aaa; display:flex; padding:2px; border-radius:4px; flex-shrink:0; }
+      .session-del-btn:hover { color:#ba1a1a; background:#fde8e8; }
+      #history-empty { padding:32px 16px; text-align:center; color:#6f797a; font-size:13px; }
+      /* FAB */
       #chat-fab { width:52px; height:52px; border-radius:50%; background:linear-gradient(135deg,#00535b,#006d77);
         border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; color:#fff;
         box-shadow:0 8px 24px rgba(0,83,91,0.35); transition:transform .2s,opacity .2s; }
       #chat-fab:hover { transform:scale(1.08); }
       #chat-fab .badge { position:absolute; top:-2px; right:-2px; width:14px; height:14px; background:#ba1a1a;
         border-radius:50%; border:2px solid #fff; display:none; }
+      #hist-back-btn { background:rgba(255,255,255,.15); border:none; border-radius:50%; width:26px; height:26px;
+        cursor:pointer; color:#fff; display:none; align-items:center; justify-content:center; flex-shrink:0; }
+      #hist-back-btn:hover { background:rgba(255,255,255,.28); }
+      #chat-body.show-history ~ #chat-input-area { display:none; }
     </style>
     <div id="chat-window">
-      <div style="padding:14px 16px; background:linear-gradient(135deg,#00535b,#006d77); color:#fff; display:flex; align-items:center; justify-content:between; gap:10px;">
+      <div id="chat-header">
+        <button id="hist-back-btn" title="Back to chat">
+          <span class="material-symbols-outlined" style="font-size:16px">arrow_back</span>
+        </button>
         <span class="material-symbols-outlined" style="font-size:20px">psychology</span>
-        <div style="flex:1">
-          <p style="font-weight:700;font-size:14px;margin:0">FinanceAI Assistant</p>
-          <p style="font-size:10px;opacity:.8;margin:0">${isVendor ? 'Vendor Copilot' : 'Finance Intelligence'}</p>
+        <div id="chat-title-area">
+          <p style="font-weight:700;font-size:14px">FinanceAI Assistant</p>
+          <p id="session-label">${isVendor ? 'Vendor Copilot' : 'Finance Intelligence'}</p>
         </div>
-        <button id="chat-close" style="background:rgba(255,255,255,.15);border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;color:#fff;display:flex;align-items:center;justify-content:center;">
+        <button id="chat-history-btn" class="chat-hdr-btn" title="Chat History">
+          <span class="material-symbols-outlined" style="font-size:16px">history</span>
+        </button>
+        <button id="chat-close" class="chat-hdr-btn" title="Close">
           <span class="material-symbols-outlined" style="font-size:16px">close</span>
         </button>
       </div>
-      <div id="chat-messages">
-        <div class="chat-msg ai">Namaste! 👋 I'm your Finance AI assistant. Ask me anything about invoices, budgets, or spend analytics.</div>
-      </div>
-      <div id="chat-input-row">
-        <input id="chat-input" type="text" placeholder="Ask about invoices, spend, anomalies..." />
-        <button id="chat-send">
-          <span class="material-symbols-outlined" style="font-size:18px">send</span>
-        </button>
+      <div id="chat-body">
+        <div id="chat-panel">
+          <div id="chat-messages">
+            <div class="chat-msg ai">Namaste! I'm your Finance AI assistant. Ask me anything about invoices, budgets, or spend analytics.</div>
+          </div>
+          <div id="chat-input-row">
+            <input id="chat-input" type="text" placeholder="Ask about invoices, spend, anomalies..." />
+            <button id="chat-send">
+              <span class="material-symbols-outlined" style="font-size:18px">send</span>
+            </button>
+          </div>
+        </div>
+        <div id="history-panel">
+          <div id="history-header">
+            <span>Chat History</span>
+            <button id="new-chat-btn">
+              <span class="material-symbols-outlined" style="font-size:14px">add</span> New Chat
+            </button>
+          </div>
+          <div id="session-list"><div id="history-empty">No previous chats found.</div></div>
+        </div>
       </div>
     </div>
     <div style="position:relative;display:flex;justify-content:flex-end;">
@@ -362,15 +419,48 @@ async function _loadNotifications(dropdown, badge) {
 
     document.body.appendChild(bubble);
 
-    const chatWindow = document.getElementById('chat-window');
-    const fab = document.getElementById('chat-fab');
-    const closeBtn = document.getElementById('chat-close');
-    const input = document.getElementById('chat-input');
-    const sendBtn = document.getElementById('chat-send');
-    const messages = document.getElementById('chat-messages');
+    const chatWindow  = document.getElementById('chat-window');
+    const chatBody    = document.getElementById('chat-body');
+    const fab         = document.getElementById('chat-fab');
+    const closeBtn    = document.getElementById('chat-close');
+    const histBtn     = document.getElementById('chat-history-btn');
+    const backBtn     = document.getElementById('hist-back-btn');
+    const newChatBtn  = document.getElementById('new-chat-btn');
+    const input       = document.getElementById('chat-input');
+    const sendBtn     = document.getElementById('chat-send');
+    const messages    = document.getElementById('chat-messages');
+    const sessionLabel = document.getElementById('session-label');
+    const sessionList  = document.getElementById('session-list');
 
-    fab.addEventListener('click', () => { chatWindow.classList.toggle('open'); if (chatWindow.classList.contains('open')) input.focus(); });
-    closeBtn.addEventListener('click', () => chatWindow.classList.remove('open'));
+    let currentSessionId = null;
+
+    // ── helpers ────────────────────────────────────────────────────────────────
+
+    function fmtDateTime(isoStr) {
+        const d = new Date(isoStr);
+        const today = new Date();
+        const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+        const sameDay = (a, b) => a.toDateString() === b.toDateString();
+        const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        if (sameDay(d, today)) return `Today ${timeStr}`;
+        if (sameDay(d, yesterday)) return `Yesterday ${timeStr}`;
+        return d.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }) + ' ' + timeStr;
+    }
+
+    function groupByDate(sessions) {
+        const groups = {};
+        const today = new Date();
+        const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+        sessions.forEach(s => {
+            const d = new Date(s.updated_at);
+            let label;
+            if (d.toDateString() === today.toDateString()) label = 'Today';
+            else if (d.toDateString() === yesterday.toDateString()) label = 'Yesterday';
+            else label = d.toLocaleDateString([], { day: 'numeric', month: 'long', year: 'numeric' });
+            (groups[label] = groups[label] || []).push(s);
+        });
+        return groups;
+    }
 
     function addMsg(text, type = 'ai') {
         const el = document.createElement('div');
@@ -381,16 +471,126 @@ async function _loadNotifications(dropdown, badge) {
         return el;
     }
 
+    function clearMessages() {
+        messages.innerHTML = '';
+    }
+
+    function showHistoryPanel(show) {
+        if (show) {
+            chatBody.classList.add('show-history');
+            backBtn.style.display = 'flex';
+            histBtn.style.display = 'none';
+        } else {
+            chatBody.classList.remove('show-history');
+            backBtn.style.display = 'none';
+            histBtn.style.display = 'flex';
+        }
+    }
+
+    // ── session list rendering ──────────────────────────────────────────────────
+
+    async function loadSessionList() {
+        sessionList.innerHTML = '<div id="history-empty" style="padding:24px;text-align:center;color:#6f797a;font-size:13px">Loading...</div>';
+        try {
+            const sessions = await window.api.getChatSessions();
+            renderSessionList(sessions);
+        } catch (e) {
+            sessionList.innerHTML = '<div id="history-empty" style="padding:24px;text-align:center;color:#ba1a1a;font-size:13px">Could not load history.</div>';
+        }
+    }
+
+    function renderSessionList(sessions) {
+        if (!sessions || sessions.length === 0) {
+            sessionList.innerHTML = '<div id="history-empty" style="padding:32px 16px;text-align:center;color:#6f797a;font-size:13px">No previous chats found.</div>';
+            return;
+        }
+        const groups = groupByDate(sessions);
+        sessionList.innerHTML = '';
+        Object.entries(groups).forEach(([label, items]) => {
+            const grpEl = document.createElement('div');
+            grpEl.className = 'session-group-label';
+            grpEl.textContent = label;
+            sessionList.appendChild(grpEl);
+            items.forEach(s => {
+                const item = document.createElement('div');
+                item.className = 'session-item' + (s.id === currentSessionId ? ' active' : '');
+                item.dataset.id = s.id;
+                item.innerHTML = `
+                  <span class="material-symbols-outlined" style="font-size:18px;color:#00535b;flex-shrink:0">chat</span>
+                  <div class="session-item-info">
+                    <div class="session-item-title">${s.title || 'Untitled Chat'}</div>
+                    <div class="session-item-time">${fmtDateTime(s.updated_at)}</div>
+                  </div>
+                  <button class="session-del-btn" title="Delete" data-sid="${s.id}">
+                    <span class="material-symbols-outlined" style="font-size:15px">delete</span>
+                  </button>`;
+                item.querySelector('.session-item-info').addEventListener('click', () => openSession(s.id, s.title));
+                item.querySelector('.session-del-btn').addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    if (!confirm(`Delete "${s.title || 'this chat'}"?`)) return;
+                    await window.api.deleteChatSession(s.id);
+                    if (currentSessionId === s.id) startNewChat();
+                    await loadSessionList();
+                });
+                sessionList.appendChild(item);
+            });
+        });
+    }
+
+    // ── open a past session ──────────────────────────────────────────────────────
+
+    async function openSession(sessionId, title) {
+        showHistoryPanel(false);
+        clearMessages();
+        addMsg('Loading conversation…', 'loading');
+        try {
+            const data = await window.api.getChatSession(sessionId);
+            clearMessages();
+            currentSessionId = sessionId;
+            sessionLabel.textContent = title || 'Loaded Session';
+            if (!data.messages || data.messages.length === 0) {
+                addMsg('No messages in this session yet. Continue the conversation below.', 'ai');
+            } else {
+                data.messages.forEach(m => {
+                    addMsg(m.prompt, 'user');
+                    addMsg(m.response, 'ai');
+                    if (m.insight) addMsg(`💡 ${m.insight}`, 'ai');
+                });
+            }
+        } catch (e) {
+            clearMessages();
+            addMsg('⚠️ Could not load session.', 'ai');
+        }
+        setTimeout(() => input.focus(), 50);
+    }
+
+    // ── new chat ─────────────────────────────────────────────────────────────────
+
+    function startNewChat() {
+        currentSessionId = null;
+        clearMessages();
+        addMsg('Namaste! I\'m your Finance AI assistant. Ask me anything about invoices, budgets, or spend analytics.', 'ai');
+        sessionLabel.textContent = isVendor ? 'Vendor Copilot' : 'Finance Intelligence';
+        showHistoryPanel(false);
+        setTimeout(() => input.focus(), 50);
+    }
+
+    // ── send message ─────────────────────────────────────────────────────────────
+
     async function sendMessage() {
         const q = input.value.trim();
         if (!q) return;
         input.value = '';
         addMsg(q, 'user');
-        const thinking = addMsg('Thinking...', 'loading');
+        const thinking = addMsg('Thinking…', 'loading');
         sendBtn.disabled = true;
         try {
-            const resp = await window.api.nlQuery(q);
+            const resp = await window.api.nlQuery(q, currentSessionId);
             thinking.remove();
+            if (resp.session_id && !currentSessionId) {
+                currentSessionId = resp.session_id;
+                sessionLabel.textContent = q.slice(0, 40) + (q.length > 40 ? '…' : '');
+            }
             if (resp.answer) {
                 addMsg(resp.answer, 'ai');
                 if (resp.insight) addMsg(`💡 ${resp.insight}`, 'ai');
@@ -406,15 +606,25 @@ async function _loadNotifications(dropdown, badge) {
         }
     }
 
+    // ── event listeners ──────────────────────────────────────────────────────────
+
+    fab.addEventListener('click', () => {
+        chatWindow.classList.toggle('open');
+        if (chatWindow.classList.contains('open')) input.focus();
+    });
+    closeBtn.addEventListener('click', () => chatWindow.classList.remove('open'));
+    histBtn.addEventListener('click', async () => { showHistoryPanel(true); await loadSessionList(); });
+    backBtn.addEventListener('click', () => showHistoryPanel(false));
+    newChatBtn.addEventListener('click', startNewChat);
     sendBtn.addEventListener('click', sendMessage);
     input.addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
 
-    // Public API so any page can open the chatbot programmatically
+    // ── public API ───────────────────────────────────────────────────────────────
+
     window.openChatbot = (seedQuestion) => {
         chatWindow.classList.add('open');
-        if (seedQuestion) {
-            input.value = seedQuestion;
-        }
+        showHistoryPanel(false);
+        if (seedQuestion) input.value = seedQuestion;
         setTimeout(() => input.focus(), 50);
     };
     window.closeChatbot = () => chatWindow.classList.remove('open');

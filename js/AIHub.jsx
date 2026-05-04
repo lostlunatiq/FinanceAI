@@ -9,10 +9,10 @@ const SUGGESTED_QUERIES = {
   'Vendor': ['When will my last invoice be paid?', 'Total outstanding payments to me', 'Status of INV-2026-001', 'How to submit a new invoice?'],
 };
 
-const CopilotWidget = ({ role }) => {
+const CopilotWidget = ({ role, onNavigate }) => {
   const roleKey = role || 'CFO';
   const queries = SUGGESTED_QUERIES[roleKey] || SUGGESTED_QUERIES['Employee'];
-  
+
   const getGreeting = () => {
     if (roleKey === 'Vendor') return "Hello! I'm your Vendor Assistant. Ask me about your invoices, payment status, or how to use the portal.";
     if (roleKey === 'Employee') return "Hi! I'm your Personal Expense Assistant. I can help you track your reimbursements and check your budget.";
@@ -24,6 +24,11 @@ const CopilotWidget = ({ role }) => {
   ]);
   const [input, setInput] = React.useState('');
   const [loading, setLoading] = React.useState(false);
+  const [currentSessionId, setCurrentSessionId] = React.useState(null);
+  const [showHistory, setShowHistory] = React.useState(false);
+  const [sessions, setSessions] = React.useState([]);
+  const [histLoading, setHistLoading] = React.useState(false);
+  const [sessionTitle, setSessionTitle] = React.useState('');
   const endRef = React.useRef(null);
 
   React.useEffect(() => {
@@ -31,12 +36,79 @@ const CopilotWidget = ({ role }) => {
   }, [messages]);
 
   React.useEffect(() => {
-    const handler = (e) => {
-      if (e.detail?.query) sendMessage(e.detail.query);
-    };
+    const handler = (e) => { if (e.detail?.query) sendMessage(e.detail.query); };
     window.addEventListener('copilot:prefill', handler);
     return () => window.removeEventListener('copilot:prefill', handler);
   }, []);
+
+  const fmtTime = (iso) => {
+    const d = new Date(iso);
+    const now = new Date();
+    const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+    const t = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    if (d.toDateString() === now.toDateString()) return `Today ${t}`;
+    if (d.toDateString() === yesterday.toDateString()) return `Yesterday ${t}`;
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) + ' ' + t;
+  };
+
+  const groupSessions = (list) => {
+    const groups = {};
+    const now = new Date(); const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+    list.forEach(s => {
+      const d = new Date(s.updated_at);
+      let label = d.toDateString() === now.toDateString() ? 'Today'
+        : d.toDateString() === yesterday.toDateString() ? 'Yesterday'
+        : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+      (groups[label] = groups[label] || []).push(s);
+    });
+    return groups;
+  };
+
+  const loadHistory = async () => {
+    setHistLoading(true);
+    try {
+      const list = await window.TijoriAPI.ChatSessionAPI.list();
+      setSessions(Array.isArray(list) ? list : []);
+    } catch (e) { setSessions([]); }
+    finally { setHistLoading(false); }
+  };
+
+  const openSession = async (sid, title) => {
+    setShowHistory(false);
+    setMessages([{ role: 'ai', text: 'Loading conversation…', time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }), loading: true }]);
+    try {
+      const data = await window.TijoriAPI.ChatSessionAPI.get(sid);
+      setCurrentSessionId(sid);
+      setSessionTitle(title || 'Past session');
+      if (!data.messages || data.messages.length === 0) {
+        setMessages([{ role: 'ai', text: 'No messages in this session yet. Continue below.', time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) }]);
+      } else {
+        const rebuilt = [];
+        data.messages.forEach(m => {
+          rebuilt.push({ role: 'user', text: m.prompt, time: new Date(m.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) });
+          rebuilt.push({ role: 'ai', text: m.response, insight: m.insight, time: new Date(m.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) });
+        });
+        setMessages(rebuilt);
+      }
+    } catch (e) {
+      setMessages([{ role: 'ai', text: '⚠ Could not load session.', time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }), error: true }]);
+    }
+  };
+
+  const startNewChat = () => {
+    setCurrentSessionId(null);
+    setSessionTitle('');
+    setShowHistory(false);
+    setMessages([{ role: 'ai', text: getGreeting(), time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) }]);
+  };
+
+  const deleteSession = async (sid, e) => {
+    e.stopPropagation();
+    if (!confirm('Delete this chat?')) return;
+    await window.TijoriAPI.ChatSessionAPI.del(sid);
+    if (currentSessionId === sid) startNewChat();
+    setSessions(prev => prev.filter(s => s.id !== sid));
+  };
 
   const sendMessage = async (text) => {
     const q = text || input.trim();
@@ -46,17 +118,16 @@ const CopilotWidget = ({ role }) => {
     setMessages(prev => [...prev, { role: 'user', text: q, time }]);
     setLoading(true);
     try {
-      const { NLQueryAPI } = window.TijoriAPI;
-      const res = await NLQueryAPI.ask(q);
+      const res = await window.TijoriAPI.NLQueryAPI.ask(q, currentSessionId);
+      if (res.session_id && !currentSessionId) {
+        setCurrentSessionId(res.session_id);
+        setSessionTitle(q.slice(0, 40) + (q.length > 40 ? '…' : ''));
+      }
       const answer = res.answer || res.error || 'No response.';
       const insight = res.insight || '';
       const actions = res.actions || [];
       setMessages(prev => [...prev, {
-        role: 'ai',
-        text: answer,
-        insight,
-        actions,
-        model: res.model,
+        role: 'ai', text: answer, insight, actions, model: res.model,
         time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
       }]);
     } catch (err) {
@@ -68,9 +139,8 @@ const CopilotWidget = ({ role }) => {
 
   const handleAction = (a) => {
     if (a.type === 'nav_to') {
-      onNavigate(a.payload.screen);
+      if (typeof onNavigate === 'function') onNavigate(a.payload.screen);
     } else if (a.type === 'remind') {
-      // Direct call to reminder API
       window.TijoriAPI.BillsAPI.remind(a.payload.ref_no)
         .then(() => alert(`Reminder sent for ${a.payload.ref_no}`))
         .catch(e => alert(e.message));
@@ -78,108 +148,169 @@ const CopilotWidget = ({ role }) => {
       const csv = `"Report Data"\n"${a.payload.report_type || 'Custom Report'}"\n"${new Date().toISOString()}"`;
       const blob = new Blob([csv], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
-      const link = document.createElement('a'); 
-      link.href = url; 
-      link.download = `ai_report_${new Date().toISOString().slice(0,10)}.csv`; 
-      link.click(); 
-      URL.revokeObjectURL(url);
+      const link = document.createElement('a');
+      link.href = url; link.download = `ai_report_${new Date().toISOString().slice(0,10)}.csv`;
+      link.click(); URL.revokeObjectURL(url);
     } else {
-      alert(`Action ${a.type} suggested for ${a.payload.ref_no || 'this item'}. Click to view details.`);
-      if (a.payload.ref_no) onNavigate('ap-hub');
+      if (a.payload?.ref_no && typeof onNavigate === 'function') onNavigate('ap-hub');
     }
   };
 
+  const grouped = groupSessions(sessions);
+
   return (
     <Card style={{ padding: '0', overflow: 'hidden', marginTop: '24px' }}>
-      <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F0EE', display: 'flex', alignItems: 'center', gap: '10px' }}>
+      {/* Header */}
+      <div style={{ padding: '14px 20px', borderBottom: '1px solid #F1F0EE', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {showHistory ? (
+          <button onClick={() => setShowHistory(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#E8783B', fontSize: '18px', lineHeight: 1, padding: '0 4px' }}>←</button>
+        ) : null}
         <AIBadge />
-        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A' }}>
-          {roleKey === 'Vendor' ? 'Vendor Assistant' : roleKey === 'Employee' ? 'Expense Assistant' : `${roleKey} Copilot`}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A' }}>
+            {showHistory ? 'Chat History' : roleKey === 'Vendor' ? 'Vendor Assistant' : roleKey === 'Employee' ? 'Expense Assistant' : `${roleKey} Copilot`}
+          </div>
+          {!showHistory && sessionTitle && (
+            <div style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{sessionTitle}</div>
+          )}
         </div>
         <LiveDot />
-        <span style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginLeft: 'auto' }}>Powered by Claude 3 Haiku · Real-time data</span>
-      </div>
-
-      {/* Suggested queries */}
-      <div style={{ padding: '12px 20px', borderBottom: '1px solid #F8F7F5', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-        {queries.map(q => (
-          <button key={q} onClick={() => sendMessage(q)} disabled={loading}
-            style={{ background: '#F5F3FF', border: '1px solid #EDE9FE', borderRadius: '999px', padding: '5px 12px', fontSize: '11px', color: '#5B21B6', fontWeight: 600, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'all 150ms' }}>
-            {q}
+        <button onClick={startNewChat}
+          title="New Chat"
+          style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: '8px', padding: '5px 10px', fontSize: '11px', color: '#E8783B', fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'flex', alignItems: 'center', gap: '4px' }}>
+          ✏ New
+        </button>
+        {!showHistory && (
+          <button onClick={() => { setShowHistory(true); loadHistory(); }}
+            title="Chat History"
+            style={{ background: '#F5F3FF', border: '1px solid #EDE9FE', borderRadius: '8px', padding: '5px 10px', fontSize: '11px', color: '#5B21B6', fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'flex', alignItems: 'center', gap: '4px' }}>
+            📋 History
           </button>
-        ))}
+        )}
       </div>
 
-      {/* Chat messages */}
-      <div style={{ height: 320, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px', background: '#FAFAF8' }}>
-        {messages.map((m, i) => (
-          <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', gap: '8px' }}>
-            {m.role === 'ai' && (
-              <div style={{ width: 28, height: 28, borderRadius: '8px', background: 'linear-gradient(135deg, #E8783B, #8B5CF6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
-                <span style={{ fontSize: '12px', color: 'white', fontWeight: 700 }}>✦</span>
+      {/* ── History Panel ── */}
+      {showHistory ? (
+        <div style={{ height: 400, overflowY: 'auto', background: '#FAFAF8' }}>
+          {histLoading ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#94A3B8', fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Loading history…</div>
+          ) : sessions.length === 0 ? (
+            <div style={{ padding: '48px 24px', textAlign: 'center' }}>
+              <div style={{ fontSize: '32px', marginBottom: '12px' }}>💬</div>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '6px' }}>No past chats yet</div>
+              <div style={{ fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Start a conversation and it will appear here.</div>
+            </div>
+          ) : (
+            Object.entries(grouped).map(([label, items]) => (
+              <div key={label}>
+                <div style={{ padding: '10px 20px 4px', fontSize: '10px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{label}</div>
+                {items.map(s => (
+                  <div key={s.id} onClick={() => openSession(s.id, s.title)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 20px', cursor: 'pointer', background: s.id === currentSessionId ? '#FFF3E6' : 'transparent', borderLeft: s.id === currentSessionId ? '3px solid #E8783B' : '3px solid transparent', transition: 'background 150ms' }}
+                    onMouseEnter={e => { if (s.id !== currentSessionId) e.currentTarget.style.background = '#F8F7F5'; }}
+                    onMouseLeave={e => { if (s.id !== currentSessionId) e.currentTarget.style.background = 'transparent'; }}>
+                    <div style={{ width: 32, height: 32, borderRadius: '8px', background: s.id === currentSessionId ? '#E8783B' : '#EDE9FE', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '14px' }}>
+                      {s.id === currentSessionId ? '✦' : '💬'}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{s.title || 'Untitled Chat'}</div>
+                      <div style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>{fmtTime(s.updated_at)}</div>
+                    </div>
+                    <button onClick={(e) => deleteSession(s.id, e)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#CBD5E1', fontSize: '14px', padding: '4px', borderRadius: '4px', flexShrink: 0 }}
+                      onMouseEnter={e => { e.currentTarget.style.color = '#EF4444'; e.currentTarget.style.background = '#FEF2F2'; }}
+                      onMouseLeave={e => { e.currentTarget.style.color = '#CBD5E1'; e.currentTarget.style.background = 'none'; }}
+                      title="Delete">🗑</button>
+                  </div>
+                ))}
               </div>
-            )}
-            <div style={{ maxWidth: '75%' }}>
-              <div style={{
-                padding: '10px 14px', borderRadius: m.role === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
-                background: m.role === 'user' ? 'linear-gradient(135deg, #E8783B, #FF6B35)' : m.error ? '#FEE2E2' : 'white',
-                color: m.role === 'user' ? 'white' : m.error ? '#991B1B' : '#0F172A',
-                fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.6,
-                boxShadow: m.role === 'ai' ? '0 1px 4px rgba(0,0,0,0.07)' : 'none',
-                border: m.role === 'ai' && !m.error ? '1px solid #F1F0EE' : 'none',
-                whiteSpace: 'pre-wrap', wordBreak: 'break-word'
-              }}>{m.text}</div>
-              {m.actions && m.actions.length > 0 && (
-                <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
-                  {m.actions.map((a, idx) => (
-                    <button key={idx} onClick={() => handleAction(a)}
-                      style={{ background: 'white', border: '1px solid #E8783B', borderRadius: '8px', padding: '6px 12px', fontSize: '11px', color: '#E8783B', fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: '0 2px 4px rgba(232,120,59,0.1)' }}>
-                      {a.label}
-                    </button>
+            ))
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Suggested queries */}
+          <div style={{ padding: '12px 20px', borderBottom: '1px solid #F8F7F5', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {queries.map(q => (
+              <button key={q} onClick={() => sendMessage(q)} disabled={loading}
+                style={{ background: '#F5F3FF', border: '1px solid #EDE9FE', borderRadius: '999px', padding: '5px 12px', fontSize: '11px', color: '#5B21B6', fontWeight: 600, cursor: loading ? 'default' : 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'all 150ms', opacity: loading ? 0.5 : 1 }}>
+                {q}
+              </button>
+            ))}
+          </div>
+
+          {/* Chat messages */}
+          <div style={{ height: 320, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px', background: '#FAFAF8' }}>
+            {messages.map((m, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', gap: '8px' }}>
+                {m.role === 'ai' && (
+                  <div style={{ width: 28, height: 28, borderRadius: '8px', background: 'linear-gradient(135deg, #E8783B, #8B5CF6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+                    <span style={{ fontSize: '12px', color: 'white', fontWeight: 700 }}>✦</span>
+                  </div>
+                )}
+                <div style={{ maxWidth: '75%' }}>
+                  <div style={{
+                    padding: '10px 14px', borderRadius: m.role === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+                    background: m.role === 'user' ? 'linear-gradient(135deg, #E8783B, #FF6B35)' : m.error ? '#FEE2E2' : 'white',
+                    color: m.role === 'user' ? 'white' : m.error ? '#991B1B' : '#0F172A',
+                    fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.6,
+                    boxShadow: m.role === 'ai' ? '0 1px 4px rgba(0,0,0,0.07)' : 'none',
+                    border: m.role === 'ai' && !m.error ? '1px solid #F1F0EE' : 'none',
+                    whiteSpace: 'pre-wrap', wordBreak: 'break-word'
+                  }}>{m.text}</div>
+                  {m.actions && m.actions.length > 0 && (
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+                      {m.actions.map((a, idx) => (
+                        <button key={idx} onClick={() => handleAction(a)}
+                          style={{ background: 'white', border: '1px solid #E8783B', borderRadius: '8px', padding: '6px 12px', fontSize: '11px', color: '#E8783B', fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: '0 2px 4px rgba(232,120,59,0.1)', transition: 'all 150ms' }}>
+                          {a.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {m.insight && (
+                    <div style={{ background: '#F5F3FF', border: '1px solid #EDE9FE', borderRadius: '8px', padding: '8px 12px', marginTop: '6px', fontSize: '12px', color: '#5B21B6', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                      <span style={{ fontWeight: 700 }}>Insight: </span>{m.insight}
+                    </div>
+                  )}
+                  <div style={{ fontSize: '10px', color: '#CBD5E1', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif", textAlign: m.role === 'user' ? 'right' : 'left' }}>
+                    {m.time}{m.model ? ` · ${m.model.split('/').pop()}` : ''}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {loading && (
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <div style={{ width: 28, height: 28, borderRadius: '8px', background: 'linear-gradient(135deg, #E8783B, #8B5CF6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontSize: '12px', color: 'white' }}>✦</span>
+                </div>
+                <div style={{ background: 'white', border: '1px solid #F1F0EE', borderRadius: '12px 12px 12px 2px', padding: '10px 16px', display: 'flex', gap: '4px' }}>
+                  {[0,1,2].map(n => (
+                    <div key={n} style={{ width: 6, height: 6, borderRadius: '50%', background: '#E8783B', animation: 'dotPulse 1.2s ease infinite', animationDelay: `${n * 0.2}s` }} />
                   ))}
                 </div>
-              )}
-              {m.insight && (
-                <div style={{ background: '#F5F3FF', border: '1px solid #EDE9FE', borderRadius: '8px', padding: '8px 12px', marginTop: '6px', fontSize: '12px', color: '#5B21B6', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                  <span style={{ fontWeight: 700 }}>Insight: </span>{m.insight}
-                </div>
-              )}
-              <div style={{ fontSize: '10px', color: '#CBD5E1', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif", textAlign: m.role === 'user' ? 'right' : 'left' }}>
-                {m.time}{m.model ? ` · ${m.model.split('/').pop()}` : ''}
               </div>
-            </div>
+            )}
+            <div ref={endRef} />
           </div>
-        ))}
-        {loading && (
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <div style={{ width: 28, height: 28, borderRadius: '8px', background: 'linear-gradient(135deg, #E8783B, #8B5CF6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ fontSize: '12px', color: 'white' }}>✦</span>
-            </div>
-            <div style={{ background: 'white', border: '1px solid #F1F0EE', borderRadius: '12px 12px 12px 2px', padding: '10px 16px', display: 'flex', gap: '4px' }}>
-              {[0,1,2].map(n => (
-                <div key={n} style={{ width: 6, height: 6, borderRadius: '50%', background: '#E8783B', animation: 'dotPulse 1.2s ease infinite', animationDelay: `${n * 0.2}s` }} />
-              ))}
-            </div>
-          </div>
-        )}
-        <div ref={endRef} />
-      </div>
 
-      {/* Input */}
-      <div style={{ padding: '12px 16px', borderTop: '1px solid #F1F0EE', display: 'flex', gap: '10px', alignItems: 'center', background: 'white' }}>
-        <input
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-          placeholder="Ask about vendors, invoices, cashflow, anomalies…"
-          disabled={loading}
-          style={{ flex: 1, padding: '10px 14px', border: '1.5px solid #E2E8F0', borderRadius: '10px', fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', background: '#FAFAF8' }}
-        />
-        <button onClick={() => sendMessage()} disabled={!input.trim() || loading}
-          style={{ background: !input.trim() || loading ? '#F1F5F9' : 'linear-gradient(135deg, #E8783B, #FF6B35)', color: !input.trim() || loading ? '#94A3B8' : 'white', border: 'none', borderRadius: '10px', padding: '10px 16px', cursor: !input.trim() || loading ? 'default' : 'pointer', fontSize: '13px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'all 150ms' }}>
-          Send ↑
-        </button>
-      </div>
+          {/* Input */}
+          <div style={{ padding: '12px 16px', borderTop: '1px solid #F1F0EE', display: 'flex', gap: '10px', alignItems: 'center', background: 'white' }}>
+            <input
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+              placeholder="Ask about vendors, invoices, cashflow, anomalies…"
+              disabled={loading}
+              style={{ flex: 1, padding: '10px 14px', border: '1.5px solid #E2E8F0', borderRadius: '10px', fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', background: '#FAFAF8' }}
+            />
+            <button onClick={() => sendMessage()} disabled={!input.trim() || loading}
+              style={{ background: !input.trim() || loading ? '#F1F5F9' : 'linear-gradient(135deg, #E8783B, #FF6B35)', color: !input.trim() || loading ? '#94A3B8' : 'white', border: 'none', borderRadius: '10px', padding: '10px 16px', cursor: !input.trim() || loading ? 'default' : 'pointer', fontSize: '13px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'all 150ms' }}>
+              Send ↑
+            </button>
+          </div>
+        </>
+      )}
     </Card>
   );
 };
@@ -706,7 +837,7 @@ const AIHubScreen = ({ role, onNavigate }) => {
       </Card>
 
       {/* CFO Copilot — NL Query */}
-      <CopilotWidget role={role} />
+      <CopilotWidget role={role} onNavigate={onNavigate} />
 
       {/* Summary detail panel */}
       <SidePanel open={summaryOpen} onClose={() => setSummaryOpen(false)} title={selectedMonth?.month || ''} width={500}>

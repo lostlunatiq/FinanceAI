@@ -375,8 +375,31 @@ class FinanceAPI {
 
     // ─── NL Query ─────────────────────────────────────
 
-    async nlQuery(question) {
-        return this.request('/nl-query/', { method: 'POST', body: JSON.stringify({ question }) });
+    async nlQuery(question, sessionId) {
+        const body = { question };
+        if (sessionId) body.session_id = sessionId;
+        return this.request('/nl-query/', { method: 'POST', body: JSON.stringify(body) });
+    }
+
+    // ─── Chat Sessions ────────────────────────────────
+    async getChatSessions() {
+        return this.request('/chat/sessions/');
+    }
+
+    async getChatSession(sessionId) {
+        return this.request(`/chat/sessions/${sessionId}/`);
+    }
+
+    async createChatSession(title = 'New Chat') {
+        return this.request('/chat/sessions/', { method: 'POST', body: JSON.stringify({ title }) });
+    }
+
+    async deleteChatSession(sessionId) {
+        const token = localStorage.getItem('accessToken');
+        return fetch(`/api/v1/chat/sessions/${sessionId}/`, {
+            method: 'DELETE',
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        });
     }
 
     // ─── Superior Override Approval ───────────────────

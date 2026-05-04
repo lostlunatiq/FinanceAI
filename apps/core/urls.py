@@ -24,4 +24,7 @@ urlpatterns = [
     path("audit/export/", auth_views.AuditLogExportView.as_view(), name="audit-export"),
     # NL Query
     path("nl-query/", auth_views.NLQueryView.as_view(), name="nl-query"),
+    # Chat Sessions
+    path("chat/sessions/", auth_views.ChatSessionListView.as_view(), name="chat-sessions"),
+    path("chat/sessions/<uuid:session_id>/", auth_views.ChatSessionDetailView.as_view(), name="chat-session-detail"),
 ]

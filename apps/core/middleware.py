@@ -7,6 +7,8 @@ import threading
 import uuid
 from typing import Any, Dict, Optional
 
+from asgiref.sync import iscoroutinefunction, markcoroutinefunction
+
 
 # Thread-local storage used by audit_service.get_request_context()
 _thread_local = threading.local()
@@ -36,12 +38,19 @@ class AuditLogMiddleware:
     Attaches request metadata to the current thread so that
     audit_service.log_event() can pick up IP, user-agent and a correlation id
     without every view having to pass them explicitly.
+
+    Supports both sync and async ASGI/WSGI contexts via asgiref.
     """
+
+    async_capable = True
+    sync_capable = True
 
     def __init__(self, get_response):
         self.get_response = get_response
+        if iscoroutinefunction(self.get_response):
+            markcoroutinefunction(self)
 
-    def __call__(self, request):
+    def _setup(self, request):
         request_id = request.headers.get("x-request-id", "") or str(uuid.uuid4())[:16]
         request.audit_request_id = request_id
 
@@ -64,7 +73,18 @@ class AuditLogMiddleware:
             "session_id_hash": _hash_session_id(session_key),
             "request_id": request_id,
         }
+        return request_id
 
+    def __call__(self, request):
+        if iscoroutinefunction(self):
+            return self.__acall__(request)
+        request_id = self._setup(request)
         response = self.get_response(request)
+        response["X-Request-ID"] = request_id
+        return response
+
+    async def __acall__(self, request):
+        request_id = self._setup(request)
+        response = await self.get_response(request)
         response["X-Request-ID"] = request_id
         return response
