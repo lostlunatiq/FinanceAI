@@ -1,4 +1,6 @@
 from .models import Notification, NotificationPreference
+from .tasks import send_email_task
+from .email_utils import render_alert_email
 from apps.core.models import User
 
 
@@ -11,18 +13,13 @@ def _get_prefs(user):
 
 
 def _send_email_alert(user, title, message):
-    from django.core.mail import send_mail
-    from django.conf import settings
-    try:
-        send_mail(
-            subject=f"[Tijori Alert] {title}",
-            message=message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[user.email],
-            fail_silently=True,
-        )
-    except Exception:
-        pass
+    html, plain = render_alert_email(user, title, message)
+    send_email_task.delay(
+        to=user.email,
+        subject=f"[Tijori Alert] {title}",
+        html_body=html,
+        plain_body=plain,
+    )
 
 
 def notify_user(user, title, message, priority='LOW', nav_target=None, entity_type=None, entity_id=None, dot_color=None):
