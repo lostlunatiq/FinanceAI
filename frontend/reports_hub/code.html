@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports Hub — FinanceAI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: { extend: {
+            colors: {
+              "primary": "#00535b", "primary-container": "#006d77", "on-primary": "#ffffff",
+              "on-primary-container": "#9becf7", "secondary": "#495f84",
+              "error": "#ba1a1a", "error-container": "#ffdad6", "on-error-container": "#93000a",
+              "surface": "#fbf9f9", "surface-container-lowest": "#ffffff",
+              "surface-container-low": "#f5f3f3", "surface-container": "#efeded",
+              "surface-container-high": "#e9e8e7", "surface-container-highest": "#e3e2e2",
+              "on-surface": "#1b1c1c", "on-surface-variant": "#3e494a",
+              "outline": "#6f797a", "outline-variant": "#bec8ca",
+              "tertiary": "#6300c9", "secondary-container": "#bcd2fe",
+            },
+            fontFamily: { headline: ["Manrope"], body: ["Inter"], label: ["Inter"] }
+          }}
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #fbf9f9; }
+        .primary-gradient { background: linear-gradient(135deg, #00535b 0%, #006d77 100%); }
+        .glass-panel { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(24px); box-shadow: 0 12px 40px rgba(0, 83, 91, 0.06); }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .report-card:hover { transform: translateY(-4px); box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1); }
+    </style>
+</head>
+<body class="text-on-surface antialiased">
+
+<div id="sidebar-container" class="z-40"></div>
+
+<main class="lg:ml-64 min-h-screen">
+  <!-- Top Header -->
+  <div class="w-full h-16 sticky top-0 z-40 bg-surface-container-lowest flex justify-between items-center px-8 border-b border-outline-variant/30 shadow-sm">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl primary-gradient flex items-center justify-center text-white shadow-lg shadow-primary/20">
+        <span class="material-symbols-outlined text-[24px]">analytics</span>
+      </div>
+      <div>
+        <h2 class="text-sm font-bold text-on-surface font-headline">Intelligence Reports Hub</h2>
+        <p class="text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">Executive Decision Support</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <div id="ai-status" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/5 border border-primary/20 text-[10px] font-bold text-primary">
+        <span class="relative flex h-2 w-2">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+        </span>
+        AI COPILOT ACTIVE
+      </div>
+      <button class="p-2 text-on-surface-variant hover:bg-surface-container-low transition-colors rounded-xl">
+        <span class="material-symbols-outlined text-[20px]">notifications</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="px-8 py-8 max-w-7xl mx-auto">
+    
+    <!-- Welcome Section -->
+    <div class="mb-10">
+        <h1 class="text-3xl font-headline font-black text-on-surface">Financial Intelligence</h1>
+        <p class="text-on-surface-variant mt-2 max-w-2xl">Access professional, investor-grade reports enriched with AI insights. All reports are dynamically updated based on the latest transactional data.</p>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+        <div class="bg-surface-container-lowest p-6 rounded-2xl border border-outline-variant/20 flex items-center gap-5">
+            <div class="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600">
+                <span class="material-symbols-outlined text-[32px]">trending_up</span>
+            </div>
+            <div>
+                <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Active Budgets</p>
+                <h3 class="text-2xl font-black font-headline" id="stat-budgets">—</h3>
+            </div>
+        </div>
+        <div class="bg-surface-container-lowest p-6 rounded-2xl border border-outline-variant/20 flex items-center gap-5">
+            <div class="w-14 h-14 rounded-2xl bg-primary/5 flex items-center justify-center text-primary">
+                <span class="material-symbols-outlined text-[32px]">receipt_long</span>
+            </div>
+            <div>
+                <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Total Invoices</p>
+                <h3 class="text-2xl font-black font-headline" id="stat-invoices">—</h3>
+            </div>
+        </div>
+        <div class="bg-surface-container-lowest p-6 rounded-2xl border border-outline-variant/20 flex items-center gap-5">
+            <div class="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+                <span class="material-symbols-outlined text-[32px]">account_balance_wallet</span>
+            </div>
+            <div>
+                <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Working Capital</p>
+                <h3 class="text-2xl font-black font-headline" id="stat-capital">—</h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reports Sections -->
+    <div class="space-y-12">
+        
+        <!-- Financial Statements -->
+        <div>
+            <div class="flex items-center gap-3 mb-6">
+                <h2 class="text-xl font-headline font-extrabold">Financial Statements</h2>
+                <div class="h-px flex-1 bg-outline-variant/30"></div>
+                <span class="text-[10px] font-black text-on-surface-variant uppercase bg-surface-container px-2 py-0.5 rounded">Investor Grade</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="reports-financial">
+                <!-- Cards will be injected by JS -->
+            </div>
+        </div>
+
+        <!-- Operational Deep-Dives -->
+        <div>
+            <div class="flex items-center gap-3 mb-6">
+                <h2 class="text-xl font-headline font-extrabold">Operational Intelligence</h2>
+                <div class="h-px flex-1 bg-outline-variant/30"></div>
+                <span class="text-[10px] font-black text-on-surface-variant uppercase bg-surface-container px-2 py-0.5 rounded">Daily Insights</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="reports-operational">
+                <!-- Cards will be injected by JS -->
+            </div>
+        </div>
+
+        <!-- Compliance & Audit -->
+        <div id="section-compliance" class="hidden">
+            <div class="flex items-center gap-3 mb-6">
+                <h2 class="text-xl font-headline font-extrabold">Compliance & Governance</h2>
+                <div class="h-px flex-1 bg-outline-variant/30"></div>
+                <span class="text-[10px] font-black text-on-surface-variant uppercase bg-surface-container px-2 py-0.5 rounded">Risk Management</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="reports-compliance">
+                <!-- Cards will be injected by JS -->
+            </div>
+        </div>
+
+    </div>
+
+  </div>
+</main>
+
+<script src="/frontend/shared/api.js"></script>
+<script src="/frontend/shared/auth.js"></script>
+<script>
+const REPORTS_CONFIG = [
+    {
+        id: 'financial-summary',
+        title: 'Annual & Monthly Summary',
+        desc: 'Comprehensive financial health report with revenue, profit, and growth metrics.',
+        icon: 'bar_chart',
+        category: 'financial',
+        minGrade: 4,
+        color: 'primary',
+        url: '/frontend/reports_hub/financial_summary.html'
+    },
+    {
+        id: 'budget-variance',
+        title: 'Budget vs Actual Variance',
+        desc: 'Detailed analysis of departmental spending against allocated budgets.',
+        icon: 'query_stats',
+        category: 'financial',
+        minGrade: 2,
+        color: 'amber-600',
+        url: '/frontend/reports_hub/budget_variance.html'
+    },
+    {
+        id: 'vendor-360',
+        title: 'Vendor 360 Intelligence',
+        desc: 'All-in-one view of vendor performance, payment cycles, and AI risk ratings.',
+        icon: 'person_search',
+        category: 'operational',
+        minGrade: 3,
+        color: 'emerald-600',
+        url: '/frontend/reports_hub/vendor_360.html'
+    },
+    {
+        id: 'client-360',
+        title: 'Client 360 Revenue',
+        desc: 'Deep-dive into client accounts receivable and revenue contribution.',
+        icon: 'group',
+        category: 'operational',
+        minGrade: 3,
+        color: 'blue-600',
+        url: '/frontend/reports_hub/client_360.html'
+    },
+    {
+        id: 'cash-flow',
+        title: 'Cash Flow Forecast',
+        desc: '90-day liquidity projections with AI-recommended payment windows.',
+        icon: 'payments',
+        category: 'financial',
+        minGrade: 4,
+        color: 'indigo-600',
+        url: '/frontend/cash_flow_forecast/code.html'
+    },
+    {
+        id: 'expense-audit',
+        title: 'Expense Audit & ROI',
+        desc: 'Analyze employee spending patterns and identify cost-saving opportunities.',
+        icon: 'fact_check',
+        category: 'operational',
+        minGrade: 2,
+        color: 'rose-600',
+        url: '/frontend/expense_management/code.html'
+    },
+    {
+        id: 'gst-compliance',
+        title: 'GST Recon & Tax Report',
+        desc: 'Regulatory compliance reports for GST and TDS reconciliation.',
+        icon: 'gavel',
+        category: 'compliance',
+        minGrade: 4,
+        color: 'slate-700',
+        url: '/frontend/budgetary_guardrails/code.html'
+    },
+    {
+        id: 'audit-trail',
+        title: 'Full Audit Trail',
+        desc: 'Complete log of all financial actions and system changes for auditing.',
+        icon: 'history_edu',
+        category: 'compliance',
+        minGrade: 4,
+        color: 'slate-700',
+        url: '/frontend/audit_log/code.html'
+    }
+];
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const user = AUTH.getUser();
+    if (!user) return;
+    const grade = AUTH.getGrade();
+
+    // Load Stats
+    _loadStats();
+
+    // Render Reports
+    _renderReports(grade);
+
+    // Show compliance section for high grades
+    if (grade >= 4) {
+        document.getElementById('section-compliance').classList.remove('hidden');
+    }
+});
+
+async function _loadStats() {
+    try {
+        const stats = await window.api.getDashboardStats();
+        const budgets = await window.api.getBudgets();
+        const capital = await window.api.getWorkingCapital();
+
+        document.getElementById('stat-budgets').textContent = budgets.count || budgets.results?.length || budgets.length || 0;
+        document.getElementById('stat-invoices').textContent = stats.total_invoices || 0;
+        document.getElementById('stat-capital').textContent = '₹' + (capital.working_capital || 0).toLocaleString('en-IN', {maximumFractionDigits: 0});
+    } catch (e) {
+        console.error('Failed to load stats', e);
+    }
+}
+
+function _renderReports(grade) {
+    const containers = {
+        financial: document.getElementById('reports-financial'),
+        operational: document.getElementById('reports-operational'),
+        compliance: document.getElementById('reports-compliance')
+    };
+
+    REPORTS_CONFIG.forEach(report => {
+        if (grade < report.minGrade) return;
+
+        const card = `
+            <div class="report-card bg-surface-container-lowest p-6 rounded-2xl border border-outline-variant/20 transition-all duration-300 cursor-pointer flex flex-col h-full" onclick="window.location.href='${report.url}'">
+                <div class="w-12 h-12 rounded-xl bg-${report.color}/10 flex items-center justify-center text-${report.color} mb-5">
+                    <span class="material-symbols-outlined text-[28px]">${report.icon}</span>
+                </div>
+                <h3 class="text-lg font-headline font-black text-on-surface mb-2">${report.title}</h3>
+                <p class="text-sm text-on-surface-variant flex-1">${report.desc}</p>
+                <div class="mt-6 flex items-center justify-between border-t border-outline-variant/10 pt-4">
+                    <span class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[14px]">shield</span>
+                        Grade ${report.minGrade}+
+                    </span>
+                    <span class="text-primary font-bold text-xs flex items-center gap-1 group">
+                        Generate Report
+                        <span class="material-symbols-outlined text-[16px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
+                    </span>
+                </div>
+            </div>
+        `;
+        
+        const div = document.createElement('div');
+        div.innerHTML = card;
+        containers[report.category].appendChild(div.firstChild);
+    });
+}
+</script>
+<script src="/frontend/shared/layout.js"></script>
+</body>
+</html>
