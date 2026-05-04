@@ -653,6 +653,6 @@ const NotificationsAPI = {
 // ── Export to window ──────────────────────────────────────────────────────────
 window.TijoriAPI = {
   Auth, AuthAPI, DashboardAPI, BillsAPI, VendorAPI, FilesAPI, AnomalyAPI,
-  AuditAPI, NotificationAPI, BudgetAPI, NLQueryAPI, AnalyticsAPI, FeedbackAPI,
+  AuditAPI, NotificationsAPI, BudgetAPI, NLQueryAPI, AnalyticsAPI, FeedbackAPI,
   APIError, expenseToAnomaly, anomalyFlagToType,
 };
