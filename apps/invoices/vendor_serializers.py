@@ -91,6 +91,9 @@ class VendorBillListSerializer(serializers.ModelSerializer):
 
     vendor_name = serializers.CharField(source="vendor.name", read_only=True)
     status = serializers.CharField(source="_status", read_only=True)
+    department = serializers.SerializerMethodField()
+    expense_category = serializers.SerializerMethodField()
+    anomaly_score = serializers.SerializerMethodField()
     anomaly_flags = serializers.SerializerMethodField()
     action_permissions = serializers.SerializerMethodField()
 
@@ -100,6 +103,8 @@ class VendorBillListSerializer(serializers.ModelSerializer):
             "id",
             "ref_no",
             "vendor_name",
+            "department",
+            "expense_category",
             "invoice_number",
             "invoice_date",
             "total_amount",
@@ -111,6 +116,7 @@ class VendorBillListSerializer(serializers.ModelSerializer):
             "status",
             "current_step",
             "anomaly_severity",
+            "anomaly_score",
             "ocr_confidence",
             "anomaly_flags",
             "action_permissions",
@@ -118,6 +124,20 @@ class VendorBillListSerializer(serializers.ModelSerializer):
             "submitted_at",
             "approved_at",
         ]
+
+    def get_department(self, obj):
+        if obj.submitted_by_id and obj.submitted_by.department_id:
+            return obj.submitted_by.department.name
+        return "General"
+
+    def get_expense_category(self, obj):
+        if obj.ocr_raw and isinstance(obj.ocr_raw, dict):
+            return obj.ocr_raw.get("expense_category", "Vendor Bill")
+        return "Vendor Bill"
+
+    def get_anomaly_score(self, obj):
+        severity_map = {"CRITICAL": 95, "HIGH": 80, "MEDIUM": 55, "LOW": 25, "NONE": 0}
+        return severity_map.get(obj.anomaly_severity or "NONE", 0)
 
     def get_anomaly_flags(self, obj):
         if obj.ocr_raw and isinstance(obj.ocr_raw, dict):

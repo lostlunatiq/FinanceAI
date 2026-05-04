@@ -395,6 +395,100 @@ const UserDetailDrawer = ({ user, departments, groups, open, onClose, onUpdated 
   );
 };
 
+// ─── GROUP POLICY MODAL ──────────────────────────────────────────────────────
+
+const GroupPolicyModal = ({ group, open, onClose, onSaved }) => {
+  const [policies, setPolicies] = React.useState({});
+  const [saving, setSaving] = React.useState(false);
+  const resources = Object.keys(RBAC_MATRIX);
+
+  React.useEffect(() => {
+    if (open && group) {
+      const initial = {};
+      resources.forEach(res => {
+        initial[res] = {};
+        Object.keys(RBAC_MATRIX[res]).forEach(action => {
+          initial[res][action] = group.policies?.[res]?.[action] || false;
+        });
+      });
+      setPolicies(initial);
+    }
+  }, [open, group]);
+
+  const toggle = (res, action) => {
+    setPolicies(prev => ({ ...prev, [res]: { ...prev[res], [action]: !prev[res][action] } }));
+  };
+
+  const countEnabled = () => {
+    let n = 0;
+    Object.values(policies).forEach(res => Object.values(res).forEach(v => { if (v) n++; }));
+    return n;
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await window.TijoriAPI.AuthAPI.updateGroupPolicies(group.id, policies);
+      onSaved();
+      onClose();
+    } catch (e) {
+      alert('Failed to save policies: ' + e.message);
+    }
+    setSaving(false);
+  };
+
+  if (!open || !group) return null;
+
+  return (
+    <TjModal open={open} onClose={onClose} title={`Policies — ${group.name}`} width={700}>
+      <div style={{ background: 'linear-gradient(135deg, #F5F3FF, #EFF6FF)', border: '1px solid #DDD6FE', borderRadius: 10, padding: '12px 14px', marginBottom: 16, fontSize: 12, color: '#4C1D95', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+        <strong>Group Policy Assignment:</strong> Toggle permissions below. All users in <strong>{group.name}</strong> will inherit these policies on top of their grade-based permissions. {countEnabled()} action{countEnabled() !== 1 ? 's' : ''} enabled.
+      </div>
+      <div style={{ overflowX: 'auto', maxHeight: '55vh', overflowY: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead style={{ position: 'sticky', top: 0, background: 'white', zIndex: 1 }}>
+            <tr style={{ background: '#F8F7F5' }}>
+              <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 10, fontWeight: 800, color: '#94A3B8', letterSpacing: '0.08em', textTransform: 'uppercase', minWidth: 140 }}>Permission</th>
+              <th style={{ padding: '10px 12px', textAlign: 'center', fontSize: 10, fontWeight: 800, color: '#7C3AED' }}>Grant to Group</th>
+            </tr>
+          </thead>
+          <tbody>
+            {resources.map((res, ri) => (
+              <React.Fragment key={res}>
+                <tr>
+                  <td colSpan={2} style={{ padding: '10px 12px 4px', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#475569', background: '#FAFAF8', borderTop: ri > 0 ? '2px solid #F1F0EE' : 'none' }}>
+                    {res}
+                  </td>
+                </tr>
+                {Object.keys(RBAC_MATRIX[res]).map(action => {
+                  const enabled = policies[res]?.[action] || false;
+                  return (
+                    <tr key={action} style={{ borderBottom: '1px solid #F8F7F5', background: enabled ? '#F5F3FF' : 'white' }}>
+                      <td style={{ padding: '10px 12px', color: '#0F172A', fontWeight: 500, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{action}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                        <button onClick={() => toggle(res, action)}
+                          style={{ width: 44, height: 24, borderRadius: 12, border: 'none', background: enabled ? '#7C3AED' : '#E2E8F0', cursor: 'pointer', position: 'relative', transition: 'background 200ms' }}>
+                          <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'white', position: 'absolute', top: 3, left: enabled ? 23 : 3, transition: 'left 200ms', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
+        <Btn variant="secondary" onClick={onClose}>Cancel</Btn>
+        <Btn variant="primary" disabled={saving} onClick={handleSave}>
+          {saving ? 'Saving…' : `Save Policies (${countEnabled()} enabled)`}
+        </Btn>
+      </div>
+    </TjModal>
+  );
+};
+
 // ─── MAIN IAM SCREEN ─────────────────────────────────────────────────────────
 
 const IAMScreen = ({ onNavigate }) => {
@@ -420,6 +514,7 @@ const IAMScreen = ({ onNavigate }) => {
   const [search, setSearch] = React.useState('');
   const [gradeFilter, setGradeFilter] = React.useState(0);
   const [statusFilter, setStatusFilter] = React.useState('ALL');
+  const [policyGroup, setPolicyGroup] = React.useState(null);
 
   const load = React.useCallback((refreshUserId = null) => {
     setLoading(true);
@@ -595,9 +690,14 @@ const IAMScreen = ({ onNavigate }) => {
       )}
 
       {tab === 'Groups' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16, animation: 'fadeUp 220ms ease both' }}>
+        <div style={{ animation: 'fadeUp 220ms ease both' }}>
+          <div style={{ background: 'linear-gradient(135deg, #F5F3FF, #EFF6FF)', border: '1px solid #DDD6FE', borderRadius: 12, padding: '14px 18px', marginBottom: 20, fontSize: 13, color: '#4C1D95', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            <strong>Group-Based Policy Inheritance:</strong> Assign policies to groups so every member automatically inherits them. Policies stack on top of grade-based permissions — users get the union of their grade rights and all group policies.
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
           {groups.map(g => {
             const members = users.filter(u => u.group_names?.includes(g.name));
+            const enabledPolicies = g.policies ? Object.values(g.policies).reduce((n, res) => n + Object.values(res).filter(Boolean).length, 0) : 0;
             return (
               <Card key={g.id} style={{ padding: 20 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
@@ -614,8 +714,13 @@ const IAMScreen = ({ onNavigate }) => {
                   </div>
                 </div>
                 <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: 17, color: '#0F172A' }}>{g.name}</div>
-                <div style={{ fontSize: 12, color: '#64748B', marginTop: 4, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                  {members.length} member{members.length !== 1 ? 's' : ''}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
+                  <span style={{ fontSize: 12, color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    {members.length} member{members.length !== 1 ? 's' : ''}
+                  </span>
+                  <span style={{ background: enabledPolicies > 0 ? '#F5F3FF' : '#F1F5F9', color: enabledPolicies > 0 ? '#7C3AED' : '#94A3B8', padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    {enabledPolicies} polic{enabledPolicies !== 1 ? 'ies' : 'y'}
+                  </span>
                 </div>
                 {members.length > 0 && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 10 }}>
@@ -627,12 +732,18 @@ const IAMScreen = ({ onNavigate }) => {
                     {members.length > 4 && <span style={{ fontSize: 10, color: '#94A3B8' }}>+{members.length - 4} more</span>}
                   </div>
                 )}
-                <div style={{ marginTop: 16, borderTop: '1px solid #F1F0EE', paddingTop: 12 }}>
+                <div style={{ marginTop: 16, borderTop: '1px solid #F1F0EE', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <button onClick={() => { setAddMembersGroup(g); setAddMembersSelected(members.map(u => u.id)); }}
                     style={{ width: '100%', padding: '8px', borderRadius: 8, border: '1px solid #E8783B', background: '#FFF8F5', color: '#E8783B', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'all 150ms' }}
                     onMouseEnter={e => { e.currentTarget.style.background = '#E8783B'; e.currentTarget.style.color = 'white'; }}
                     onMouseLeave={e => { e.currentTarget.style.background = '#FFF8F5'; e.currentTarget.style.color = '#E8783B'; }}>
                     + Add / Manage Members
+                  </button>
+                  <button onClick={() => setPolicyGroup(g)}
+                    style={{ width: '100%', padding: '8px', borderRadius: 8, border: '1px solid #7C3AED', background: enabledPolicies > 0 ? '#F5F3FF' : 'white', color: '#7C3AED', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'all 150ms' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#7C3AED'; e.currentTarget.style.color = 'white'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = enabledPolicies > 0 ? '#F5F3FF' : 'white'; e.currentTarget.style.color = '#7C3AED'; }}>
+                    🔐 Manage Policies{enabledPolicies > 0 ? ` (${enabledPolicies} active)` : ''}
                   </button>
                 </div>
               </Card>
@@ -645,6 +756,7 @@ const IAMScreen = ({ onNavigate }) => {
             <div style={{ fontSize: 24, color: '#94A3B8', marginBottom: 8 }}>+</div>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Create New Group</div>
           </button>
+        </div>
         </div>
       )}
 
@@ -812,6 +924,13 @@ const IAMScreen = ({ onNavigate }) => {
         open={!!selectedUser}
         onClose={() => setSelectedUser(null)}
         onUpdated={(id) => { load(id); }}
+      />
+
+      <GroupPolicyModal
+        group={policyGroup}
+        open={!!policyGroup}
+        onClose={() => setPolicyGroup(null)}
+        onSaved={() => load()}
       />
     </div>
   );

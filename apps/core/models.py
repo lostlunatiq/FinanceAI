@@ -1,6 +1,6 @@
 import uuid
 from django.db import models
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, Group
 
 
 class Department(models.Model):
@@ -188,6 +188,34 @@ class AuditLog(models.Model):
             if b != a:
                 result[key] = {"before": b, "after": a}
         return result
+
+
+DEFAULT_GROUP_POLICIES = {
+    "Expenses":    {"Submit": False, "View Own": False, "View All": False, "Approve L1": False, "Approve L2": False, "Reject": False, "Export": False},
+    "Vendors":     {"View": False, "Create": False, "Edit": False, "Approve": False, "Delete": False},
+    "Budgets":     {"View Dept": False, "View All": False, "Create": False, "Edit": False, "Allocate": False},
+    "Reports":     {"View Basic": False, "View Full": False, "Export": False, "Analytics": False},
+    "Users & IAM": {"View Users": False, "Create": False, "Edit": False, "Suspend": False, "Delete": False},
+    "AI Tools":    {"NL Query": False, "Anomaly": False, "Forecasts": False},
+}
+
+
+class GroupProfile(models.Model):
+    """Extends Django's built-in Group with assignable policies."""
+    group = models.OneToOneField(Group, on_delete=models.CASCADE, related_name="profile")
+    policies = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "core_group_profile"
+
+    def get_policies(self):
+        import copy
+        base = copy.deepcopy(DEFAULT_GROUP_POLICIES)
+        saved = self.policies or {}
+        for resource, actions in saved.items():
+            if resource in base:
+                base[resource].update(actions)
+        return base
 
 
 class ChatSession(models.Model):

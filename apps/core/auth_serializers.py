@@ -20,9 +20,20 @@ class LoginSerializer(serializers.Serializer):
 from django.contrib.auth.models import Group
 
 class GroupSerializer(serializers.ModelSerializer):
+    policies = serializers.SerializerMethodField()
+
     class Meta:
         model = Group
-        fields = ["id", "name"]
+        fields = ["id", "name", "policies"]
+
+    def get_policies(self, obj):
+        from .models import GroupProfile
+        try:
+            return obj.profile.get_policies()
+        except GroupProfile.DoesNotExist:
+            from .models import DEFAULT_GROUP_POLICIES
+            import copy
+            return copy.deepcopy(DEFAULT_GROUP_POLICIES)
 
 
 class UserProfileSerializer(serializers.ModelSerializer):

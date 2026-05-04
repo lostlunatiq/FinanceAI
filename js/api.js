@@ -206,6 +206,14 @@ const AuthAPI = {
   async deleteGroup(id) {
     return apiFetch(`/auth/groups/${id}/`, { method: 'DELETE' });
   },
+
+  async getGroupPolicies(id) {
+    return apiFetch(`/auth/groups/${id}/policies/`);
+  },
+
+  async updateGroupPolicies(id, policies) {
+    return apiFetch(`/auth/groups/${id}/policies/`, { method: 'PATCH', body: JSON.stringify({ policies }) });
+  },
 };
 
 // ── Dashboard API ─────────────────────────────────────────────────────────────
@@ -575,6 +583,9 @@ const AnalyticsAPI = {
   },
   async generate10Q() {
     return apiFetch('/invoices/analytics/generate-10q/', { method: 'POST' });
+  },
+  async annualReport(year) {
+    return apiFetch(`/invoices/analytics/annual-report/${year ? '?year=' + year : ''}`);
   },
 };
 
