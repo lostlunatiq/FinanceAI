@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Budget vs Actual Variance — FinanceAI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: { extend: {
+            colors: {
+              "primary": "#00535b", "primary-container": "#006d77", "on-primary": "#ffffff",
+              "on-primary-container": "#9becf7", "secondary": "#495f84",
+              "error": "#ba1a1a", "error-container": "#ffdad6", "on-error-container": "#93000a",
+              "surface": "#fbf9f9", "surface-container-lowest": "#ffffff",
+              "surface-container-low": "#f5f3f3", "surface-container": "#efeded",
+              "surface-container-high": "#e9e8e7", "surface-container-highest": "#e3e2e2",
+              "on-surface": "#1b1c1c", "on-surface-variant": "#3e494a",
+              "outline": "#6f797a", "outline-variant": "#bec8ca",
+              "tertiary": "#6300c9", "secondary-container": "#bcd2fe",
+            },
+            fontFamily: { headline: ["Manrope"], body: ["Inter"], label: ["Inter"] }
+          }}
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #fbf9f9; }
+        .primary-gradient { background: linear-gradient(135deg, #00535b 0%, #006d77 100%); }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .ai-sparkle { background: linear-gradient(90deg, #00535b 0%, #6300c9 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .variance-positive { color: #ba1a1a; } /* Over budget is negative for business */
+        .variance-negative { color: #00535b; } /* Under budget is positive */
+        @media print {
+            .no-print { display: none !important; }
+            main { margin-left: 0 !important; }
+            .print-only { display: block !important; }
+        }
+    </style>
+</head>
+<body class="text-on-surface antialiased">
+
+<div id="sidebar-container" class="z-40 no-print"></div>
+
+<main class="lg:ml-64 min-h-screen">
+  <!-- Top Header -->
+  <div class="w-full h-16 sticky top-0 z-40 bg-surface-container-lowest flex justify-between items-center px-8 border-b border-outline-variant/30 shadow-sm no-print">
+    <div class="flex items-center gap-3">
+      <button data-back class="p-2 rounded-lg hover:bg-surface-container-low transition-colors text-on-surface-variant">
+        <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+      </button>
+      <div>
+        <h2 class="text-sm font-bold text-on-surface font-headline">Budget vs Actual Variance</h2>
+        <p class="text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">Variance Analysis</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <button onclick="window.print()" class="p-2 text-on-surface-variant hover:bg-surface-container-low transition-colors rounded-xl">
+        <span class="material-symbols-outlined text-[20px]">print</span>
+      </button>
+      <button id="export-csv-btn" class="flex items-center gap-2 px-4 py-2 rounded-xl border border-outline-variant/50 text-sm font-semibold text-on-surface-variant hover:bg-surface-container transition-colors">
+        <span class="material-symbols-outlined text-[16px]">file_download</span> Export CSV
+      </button>
+    </div>
+  </div>
+
+  <div class="px-8 py-8 max-w-7xl mx-auto space-y-8">
+
+    <!-- AI Recommendation Banner -->
+    <div class="bg-primary/5 border border-primary/20 rounded-2xl p-6 flex items-start gap-4">
+        <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+            <span class="material-symbols-outlined text-[24px]">lightbulb</span>
+        </div>
+        <div>
+            <h3 class="text-sm font-black uppercase tracking-widest text-primary mb-1">AI Budget Optimization Recommendation</h3>
+            <p id="ai-recommendation" class="text-sm text-on-surface-variant leading-relaxed">
+                Analyzing departmental burn rates... Our AI is identifying unutilized buffers and potential overruns.
+            </p>
+        </div>
+    </div>
+
+    <!-- Variance Chart -->
+    <div class="bg-surface-container-lowest p-6 rounded-2xl border border-outline-variant/20 shadow-sm">
+        <div class="flex items-center justify-between mb-8">
+            <h3 class="font-bold text-on-surface font-headline">Departmental Variance (Actual vs Budget)</h3>
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2">
+                    <div class="w-3 h-3 rounded-full bg-primary"></div>
+                    <span class="text-[10px] font-bold text-on-surface-variant uppercase">Budget</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-3 h-3 rounded-full bg-secondary"></div>
+                    <span class="text-[10px] font-bold text-on-surface-variant uppercase">Actual</span>
+                </div>
+            </div>
+        </div>
+        <div id="chart-variance" class="min-h-[400px]"></div>
+    </div>
+
+    <!-- Detailed Health Table -->
+    <div class="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden">
+        <div class="px-8 py-6 border-b border-outline-variant/20 flex items-center justify-between">
+            <h3 class="font-bold text-on-surface font-headline">Budget Health & Predictive Utilization</h3>
+            <span class="text-[10px] font-black text-on-surface-variant uppercase bg-surface-container-low px-2 py-0.5 rounded">Fiscal Year 2024</span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-surface-container-low text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">
+                    <tr>
+                        <th class="px-8 py-4">Department / Budget Name</th>
+                        <th class="px-8 py-4 text-right">Allocated</th>
+                        <th class="px-8 py-4 text-right">Actual YTD</th>
+                        <th class="px-8 py-4">Utilization</th>
+                        <th class="px-8 py-4 text-right">Forecasted End</th>
+                        <th class="px-8 py-4">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="variance-tbody" class="text-sm divide-y divide-outline-variant/10">
+                    <!-- Rows injected by JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+  </div>
+</main>
+
+<script src="/frontend/shared/api.js"></script>
+<script src="/frontend/shared/auth.js"></script>
+<script src="/frontend/shared/security.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    const user = AUTH.getUser();
+    if (!user) return;
+
+    await _loadVarianceData();
+});
+
+async function _loadVarianceData() {
+    try {
+        const [variance, health] = await Promise.all([
+            window.api.request('/invoices/analytics/dept-variance/'),
+            window.api.request('/invoices/analytics/budget-health/')
+        ]);
+
+        _renderVarianceChart(variance);
+        _renderHealthTable(health);
+        _renderAIRecommendation(variance, health);
+
+    } catch (e) {
+        console.error('Variance data load failed', e);
+    }
+}
+
+function _renderVarianceChart(data) {
+    const options = {
+        series: [{
+            name: 'Budgeted',
+            data: data.map(d => d.budget)
+        }, {
+            name: 'Actual Spent',
+            data: data.map(d => d.actual)
+        }],
+        chart: {
+            type: 'bar',
+            height: 400,
+            stacked: false,
+            toolbar: { show: false }
+        },
+        plotOptions: {
+            bar: {
+                horizontal: false,
+                columnWidth: '55%',
+                endingShape: 'rounded',
+                borderRadius: 4
+            },
+        },
+        dataLabels: { enabled: false },
+        stroke: { show: true, width: 2, colors: ['transparent'] },
+        xaxis: {
+            categories: data.map(d => d.department),
+            axisBorder: { show: false },
+        },
+        yaxis: {
+            title: { text: 'Amount (₹)' },
+            labels: {
+                formatter: (val) => '₹' + (val / 100000).toFixed(1) + 'L'
+            }
+        },
+        fill: { opacity: 1 },
+        colors: ['#00535b', '#495f84'],
+        grid: { borderColor: '#f1f1f1', strokeDashArray: 4 },
+        tooltip: {
+            y: {
+                formatter: (val) => '₹' + val.toLocaleString('en-IN')
+            }
+        }
+    };
+
+    new ApexCharts(document.querySelector("#chart-variance"), options).render();
+}
+
+function _renderHealthTable(health) {
+    const tbody = document.getElementById('variance-tbody');
+    const fmt = n => '₹' + Math.round(n).toLocaleString('en-IN');
+
+    tbody.innerHTML = health.map(b => {
+        const pct = b.utilization_pct;
+        const barColor = pct > 90 ? 'bg-error' : pct > 75 ? 'bg-amber-500' : 'bg-primary';
+        const statusColor = b.projected_alert === 'CRITICAL' ? 'text-error bg-error/10' : 
+                           b.projected_alert === 'WARNING' ? 'text-amber-600 bg-amber-50' : 
+                           'text-emerald-600 bg-emerald-50';
+
+        return `
+            <tr class="hover:bg-surface-container-low transition-colors">
+                <td class="px-8 py-5">
+                    <div class="font-bold text-on-surface">${b.name}</div>
+                    <div class="text-xs text-on-surface-variant uppercase tracking-widest">${b.department}</div>
+                </td>
+                <td class="px-8 py-5 text-right font-medium">${fmt(b.total_amount)}</td>
+                <td class="px-8 py-5 text-right font-bold text-primary">${fmt(b.spent_amount)}</td>
+                <td class="px-8 py-5">
+                    <div class="flex items-center gap-3">
+                        <div class="flex-1 h-1.5 bg-surface-container-high rounded-full overflow-hidden min-w-[80px]">
+                            <div class="h-full ${barColor}" style="width: ${Math.min(100, pct)}%"></div>
+                        </div>
+                        <span class="text-xs font-black ${pct > 100 ? 'text-error' : 'text-on-surface-variant'}">${pct}%</span>
+                    </div>
+                </td>
+                <td class="px-8 py-5 text-right">
+                    <div class="font-bold ${b.over_budget_risk ? 'text-error' : 'text-on-surface'}">${b.projected_end_utilization_pct}%</div>
+                    <div class="text-[10px] text-on-surface-variant font-bold uppercase">Forecasted</div>
+                </td>
+                <td class="px-8 py-5">
+                    <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase ${statusColor}">${b.projected_alert}</span>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function _renderAIRecommendation(variance, health) {
+    const el = document.getElementById('ai-recommendation');
+    const cacheKey = 'ai_insight_budget_variance_' + new Date().toISOString().slice(0, 10);
+    
+    // Check if we already generated this insight today for this session
+    const cachedInsight = sessionStorage.getItem(cacheKey);
+    if (cachedInsight) {
+        el.innerHTML = `<span class="ai-sparkle font-bold">Strategic Insight:</span> ${cachedInsight}`;
+        return;
+    }
+    
+    try {
+        const cleanData = window.SECURITY ? window.SECURITY.anonymizeForAI(variance) : variance;
+        const prompt = `You are a CFO AI. Analyze this budget variance data (actual vs budget) and provide a concise, 2-sentence actionable recommendation. Focus on departments that are over budget or have high positive variance (meaning overspent). Suggest reallocations if possible. Data: ${JSON.stringify(cleanData.slice(0, 6))}`;
+        
+        const resp = await window.api.nlQuery(prompt);
+        if (resp && resp.answer) {
+            const formattedAnswer = resp.answer.replace(/\n/g, '<br>');
+            sessionStorage.setItem(cacheKey, formattedAnswer);
+            el.innerHTML = `<span class="ai-sparkle font-bold">Strategic Insight:</span> ${formattedAnswer}`;
+            return;
+        }
+    } catch (e) {
+        console.error('AI Insight failed', e);
+    }
+
+    // Fallback logic
+    const overBudget = variance.filter(v => v.variance > 0).sort((a, b) => b.variance - a.variance);
+    const underBudget = variance.filter(v => v.variance < 0).sort((a, b) => a.variance - b.variance);
+
+    if (overBudget.length > 0) {
+        const top = overBudget[0];
+        const pct = top.variance_pct;
+        el.innerHTML = `<span class="ai-sparkle font-bold">Alert: ${top.department} department is exceeding its YTD budget by ${pct}%.</span> 
+            Recommendation: Analyze the last 30 days of discretionary spend in this department. 
+            ${underBudget.length > 0 ? `Potential reallocation of ₹${Math.abs(underBudget[0].variance).toLocaleString('en-IN')} available from ${underBudget[0].department} budget.` : ''}`;
+    } else {
+        el.innerHTML = `<span class="ai-sparkle font-bold">Efficiency Insight: All departments are currently within budget.</span> 
+            Overall organization variance is negative (under budget). Suggesting 5% increase in growth-focused R&D allocation for Q4.`;
+    }
+}
+</script>
+<script src="/frontend/shared/layout.js"></script>
+</body>
+</html>

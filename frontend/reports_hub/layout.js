@@ -69,7 +69,6 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (grade === 1) {
         // Employee — submit and track own bills
         navLinks =
-            link('/frontend/reports_hub/code.html',          'analytics',               'Reports Hub') +
             link('/frontend/accounts_payable_hub/code.html', 'account_balance_wallet', 'AP Ledger') +
             link('/frontend/expense_management/code.html',   'receipt_long',            'Expenses') +
             link('/frontend/settings/code.html',             'settings',                'Settings');
@@ -77,7 +76,6 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (grade === 2) {
         // Dept Head — approval queue + anomaly visibility
         navLinks =
-            link('/frontend/reports_hub/code.html',          'analytics',               'Reports Hub') +
             link('/frontend/accounts_payable_hub/code.html', 'account_balance_wallet', 'AP Ledger') +
             link('/frontend/expense_management/code.html',   'receipt_long',            'Expenses') +
             link('/frontend/anomaly_detection/code.html',    'warning',                 'Anomaly Detection') +
@@ -86,7 +84,6 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (grade === 3) {
         // Finance Manager — adds budget visibility
         navLinks =
-            link('/frontend/reports_hub/code.html',           'analytics',               'Reports Hub') +
             link('/frontend/accounts_payable_hub/code.html',  'account_balance_wallet', 'AP Ledger') +
             link('/frontend/expense_management/code.html',    'receipt_long',            'Expenses') +
             link('/frontend/budgetary_guardrails/code.html',  'verified_user',           'Budgetary Controls') +
@@ -97,7 +94,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Finance Admin / CFO / Superuser — full access
         navLinks =
             link('/frontend/cfo_command_center/code.html',       'insights',              'Intelligence Hub') +
-            link('/frontend/reports_hub/code.html',              'analytics',             'Reports Hub') +
             link('/frontend/accounts_payable_hub/code.html',     'account_balance_wallet','AP Ledger') +
             link('/frontend/budgetary_guardrails/code.html',     'verified_user',         'Budgetary Controls') +
             link('/frontend/audit_log/code.html',                'history',               'Audit Registry') +

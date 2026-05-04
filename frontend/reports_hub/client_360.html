@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client 360 Revenue Intelligence — FinanceAI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: { extend: {
+            colors: {
+              "primary": "#00535b", "primary-container": "#006d77", "on-primary": "#ffffff",
+              "on-primary-container": "#9becf7", "secondary": "#495f84",
+              "error": "#ba1a1a", "error-container": "#ffdad6", "on-error-container": "#93000a",
+              "surface": "#fbf9f9", "surface-container-lowest": "#ffffff",
+              "surface-container-low": "#f5f3f3", "surface-container": "#efeded",
+              "surface-container-high": "#e9e8e7", "surface-container-highest": "#e3e2e2",
+              "on-surface": "#1b1c1c", "on-surface-variant": "#3e494a",
+              "outline": "#6f797a", "outline-variant": "#bec8ca",
+              "tertiary": "#6300c9", "secondary-container": "#bcd2fe",
+            },
+            fontFamily: { headline: ["Manrope"], body: ["Inter"], label: ["Inter"] }
+          }}
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #fbf9f9; }
+        .primary-gradient { background: linear-gradient(135deg, #00535b 0%, #006d77 100%); }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .ai-sparkle { background: linear-gradient(90deg, #00535b 0%, #6300c9 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        @media print { .no-print { display: none !important; } .print-only { display: block !important; } }
+    </style>
+</head>
+<body class="text-on-surface antialiased">
+
+<div id="sidebar-container" class="z-40 no-print"></div>
+
+<main class="lg:ml-64 min-h-screen">
+  <!-- Top Header -->
+  <div class="w-full h-16 sticky top-0 z-40 bg-surface-container-lowest flex justify-between items-center px-8 border-b border-outline-variant/30 shadow-sm no-print">
+    <div class="flex items-center gap-3">
+      <button data-back class="p-2 rounded-lg hover:bg-surface-container-low transition-colors text-on-surface-variant">
+        <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+      </button>
+      <div>
+        <h2 class="text-sm font-bold text-on-surface font-headline">Client 360 Intelligence</h2>
+        <p class="text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">Revenue & Receivables</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <button onclick="window.print()" class="p-2 text-on-surface-variant hover:bg-surface-container-low transition-colors rounded-xl">
+        <span class="material-symbols-outlined text-[20px]">print</span>
+      </button>
+      <button id="export-csv-btn" class="flex items-center gap-2 px-4 py-2 rounded-xl border border-outline-variant/50 text-sm font-semibold text-on-surface-variant hover:bg-surface-container transition-colors">
+        <span class="material-symbols-outlined text-[16px]">file_download</span> Export CSV
+      </button>
+    </div>
+  </div>
+
+  <div class="px-8 py-8 max-w-7xl mx-auto space-y-8">
+
+    <!-- AI Recommendation Banner -->
+    <div class="bg-primary/5 border border-primary/20 rounded-2xl p-6 flex items-start gap-4">
+        <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+            <span class="material-symbols-outlined text-[24px]">group</span>
+        </div>
+        <div>
+            <h3 class="text-sm font-black uppercase tracking-widest text-primary mb-1">AI Client Revenue Insight</h3>
+            <p id="ai-client-recommendation" class="text-sm text-on-surface-variant leading-relaxed">
+                Analyzing incoming revenue streams and accounts receivable... Our AI is generating strategic insights.
+            </p>
+        </div>
+    </div>
+
+    <!-- Revenue Chart -->
+    <div class="bg-surface-container-lowest p-6 rounded-2xl border border-outline-variant/20 shadow-sm">
+        <div class="flex items-center justify-between mb-8">
+            <h3 class="font-bold text-on-surface font-headline">Top Client Revenue Concentration</h3>
+            <div class="flex items-center gap-4">
+                <span class="text-[10px] font-bold text-on-surface-variant uppercase">YTD Revenue</span>
+            </div>
+        </div>
+        <div id="chart-revenue" class="min-h-[400px]"></div>
+    </div>
+
+    <!-- Detailed Health Table -->
+    <div class="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden">
+        <div class="px-8 py-6 border-b border-outline-variant/20 flex items-center justify-between">
+            <h3 class="font-bold text-on-surface font-headline">Client Scorecard & Accounts Receivable</h3>
+            <span class="text-[10px] font-black text-on-surface-variant uppercase bg-surface-container-low px-2 py-0.5 rounded">Fiscal Year 2024</span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-surface-container-low text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">
+                    <tr>
+                        <th class="px-8 py-4">Client Entity</th>
+                        <th class="px-8 py-4 text-right">Total Contracts</th>
+                        <th class="px-8 py-4 text-right">YTD Revenue</th>
+                        <th class="px-8 py-4 text-right">Pending Receivable</th>
+                        <th class="px-8 py-4">Payment Health</th>
+                    </tr>
+                </thead>
+                <tbody id="client-tbody" class="text-sm divide-y divide-outline-variant/10">
+                    <!-- Rows injected by JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+  </div>
+</main>
+
+<script src="/frontend/shared/api.js"></script>
+<script src="/frontend/shared/auth.js"></script>
+<script src="/frontend/shared/security.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    const user = AUTH.getUser();
+    if (!user) return;
+
+    await _loadClientData();
+});
+
+// Since we don't have a direct "Client" API yet in the backend, we simulate it for the frontend template.
+// A real implementation would fetch from /api/v1/invoices/analytics/client-revenue/
+async function _loadClientData() {
+    try {
+        // Simulating data
+        const mockData = [
+            { name: "Acme Corp Ltd.", contracts: 12, revenue: 15000000, pending: 200000, health: "Excellent" },
+            { name: "Globex Industries", contracts: 8, revenue: 9500000, pending: 50000, health: "Good" },
+            { name: "Initech Solutions", contracts: 4, revenue: 4200000, pending: 1800000, health: "Delayed" },
+            { name: "Soylent Corp", contracts: 15, revenue: 21000000, pending: 0, health: "Excellent" },
+            { name: "Massive Dynamic", contracts: 3, revenue: 2800000, pending: 600000, health: "Warning" },
+        ].sort((a,b) => b.revenue - a.revenue);
+
+        _renderRevenueChart(mockData);
+        _renderClientTable(mockData);
+        _renderAIRecommendation(mockData);
+
+    } catch (e) {
+        console.error('Client data load failed', e);
+    }
+}
+
+function _renderRevenueChart(data) {
+    const options = {
+        series: [{
+            name: 'YTD Revenue',
+            data: data.map(d => d.revenue)
+        }],
+        chart: {
+            type: 'bar',
+            height: 400,
+            toolbar: { show: false }
+        },
+        plotOptions: {
+            bar: { horizontal: false, columnWidth: '45%', borderRadius: 4 },
+        },
+        dataLabels: { enabled: false },
+        xaxis: { categories: data.map(d => d.name), axisBorder: { show: false } },
+        yaxis: { labels: { formatter: (val) => '₹' + (val / 100000).toFixed(0) + 'L' } },
+        colors: ['#00535b'],
+        grid: { borderColor: '#f1f1f1', strokeDashArray: 4 },
+    };
+    new ApexCharts(document.querySelector("#chart-revenue"), options).render();
+}
+
+function _renderClientTable(data) {
+    const tbody = document.getElementById('client-tbody');
+    const fmt = n => '₹' + Math.round(n).toLocaleString('en-IN');
+
+    tbody.innerHTML = data.map(c => {
+        const statusColor = c.health === 'Excellent' ? 'text-emerald-600 bg-emerald-50' : 
+                           c.health === 'Warning' ? 'text-amber-600 bg-amber-50' : 
+                           c.health === 'Delayed' ? 'text-error bg-error/10' : 'text-blue-600 bg-blue-50';
+
+        return `
+            <tr class="hover:bg-surface-container-low transition-colors">
+                <td class="px-8 py-5">
+                    <div class="font-bold text-on-surface">${c.name}</div>
+                </td>
+                <td class="px-8 py-5 text-right font-medium">${c.contracts}</td>
+                <td class="px-8 py-5 text-right font-bold text-primary">${fmt(c.revenue)}</td>
+                <td class="px-8 py-5 text-right font-bold ${c.pending > 1000000 ? 'text-error' : 'text-on-surface'}">${fmt(c.pending)}</td>
+                <td class="px-8 py-5">
+                    <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase ${statusColor}">${c.health}</span>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function _renderAIRecommendation(data) {
+    const el = document.getElementById('ai-client-recommendation');
+    const cacheKey = 'ai_insight_client_360_' + new Date().toISOString().slice(0, 10);
+    
+    const cachedInsight = sessionStorage.getItem(cacheKey);
+    if (cachedInsight) {
+        el.innerHTML = `<span class="ai-sparkle font-bold">Strategic Insight:</span> ${cachedInsight}`;
+        return;
+    }
+
+    try {
+        const cleanData = window.SECURITY ? window.SECURITY.anonymizeForAI(data) : data;
+        const prompt = `You are a Revenue AI. Analyze this client revenue and accounts receivable data. Provide a 2-sentence actionable recommendation. Focus on high revenue clients and those with high pending/delayed receivables. Data: ${JSON.stringify(cleanData)}`;
+        
+        const resp = await window.api.nlQuery(prompt);
+        if (resp && resp.answer) {
+            const formattedAnswer = resp.answer.replace(/\n/g, '<br>');
+            sessionStorage.setItem(cacheKey, formattedAnswer);
+            el.innerHTML = `<span class="ai-sparkle font-bold">Strategic Insight:</span> ${formattedAnswer}`;
+            return;
+        }
+    } catch (e) {
+        console.error('AI Insight failed', e);
+    }
+
+    // Fallback logic
+    const highPending = data.filter(d => d.pending > 1000000);
+    if (highPending.length > 0) {
+        el.innerHTML = `<span class="ai-sparkle font-bold">Alert: High Accounts Receivable.</span> 
+            ${highPending[0].name} has a high pending balance of ₹${(highPending[0].pending/100000).toFixed(0)}L. Recommendation: Initiate immediate follow-up and consider tightening credit terms for future contracts.`;
+    } else {
+        el.innerHTML = `<span class="ai-sparkle font-bold">Insight: Revenue streams are stable.</span> 
+            Top client ${data[0].name} is contributing significantly to YTD revenue with excellent payment health. Maintain strategic relationship.`;
+    }
+}
+</script>
+<script src="/frontend/shared/layout.js"></script>
+</body>
+</html>

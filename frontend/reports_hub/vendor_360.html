@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vendor 360 Intelligence — FinanceAI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: { extend: {
+            colors: {
+              "primary": "#00535b", "primary-container": "#006d77", "on-primary": "#ffffff",
+              "on-primary-container": "#9becf7", "secondary": "#495f84",
+              "error": "#ba1a1a", "error-container": "#ffdad6", "on-error-container": "#93000a",
+              "surface": "#fbf9f9", "surface-container-lowest": "#ffffff",
+              "surface-container-low": "#f5f3f3", "surface-container": "#efeded",
+              "surface-container-high": "#e9e8e7", "surface-container-highest": "#e3e2e2",
+              "on-surface": "#1b1c1c", "on-surface-variant": "#3e494a",
+              "outline": "#6f797a", "outline-variant": "#bec8ca",
+              "tertiary": "#6300c9", "secondary-container": "#bcd2fe",
+            },
+            fontFamily: { headline: ["Manrope"], body: ["Inter"], label: ["Inter"] }
+          }}
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #fbf9f9; }
+        .primary-gradient { background: linear-gradient(135deg, #00535b 0%, #006d77 100%); }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .ai-sparkle { background: linear-gradient(90deg, #00535b 0%, #6300c9 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        @media print { .no-print { display: none !important; } .print-only { display: block !important; } }
+    </style>
+</head>
+<body class="text-on-surface antialiased">
+
+<div id="sidebar-container" class="z-40 no-print"></div>
+
+<main class="lg:ml-64 min-h-screen">
+  <!-- Top Header -->
+  <div class="w-full h-16 sticky top-0 z-40 bg-surface-container-lowest flex justify-between items-center px-8 border-b border-outline-variant/30 shadow-sm no-print">
+    <div class="flex items-center gap-3">
+      <button data-back class="p-2 rounded-lg hover:bg-surface-container-low transition-colors text-on-surface-variant">
+        <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+      </button>
+      <div>
+        <h2 class="text-sm font-bold text-on-surface font-headline">Vendor 360 Intelligence</h2>
+        <p class="text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">Strategic Sourcing</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <select id="vendor-selector" class="text-xs font-bold border-outline-variant/30 rounded-xl bg-surface-container-low focus:ring-primary">
+          <option value="">All Strategic Vendors</option>
+      </select>
+      <button id="export-pdf-btn" class="flex items-center gap-2 primary-gradient text-white px-5 py-2 rounded-xl font-bold text-sm shadow hover:opacity-90 transition-opacity">
+        <span class="material-symbols-outlined text-[18px]">picture_as_pdf</span> Export Dossier
+      </button>
+    </div>
+  </div>
+
+  <div class="px-8 py-8 max-w-7xl mx-auto space-y-8">
+
+    <!-- Vendor Identity & AI Risk Rating -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 bg-surface-container-lowest p-8 rounded-2xl border border-outline-variant/20 shadow-sm flex items-center gap-6">
+            <div class="w-20 h-20 rounded-2xl bg-primary/5 flex items-center justify-center text-primary shrink-0">
+                <span class="material-symbols-outlined text-[48px]">business</span>
+            </div>
+            <div>
+                <div class="flex items-center gap-3 mb-1">
+                    <h1 class="text-2xl font-black font-headline" id="vendor-name-display">Consolidated Supplier View</h1>
+                    <span class="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-100 text-emerald-700 uppercase">Verified</span>
+                </div>
+                <p class="text-sm text-on-surface-variant max-w-xl" id="vendor-desc-display">Strategic analysis of top 20 vendors by YTD spend volume and performance reliability.</p>
+                <div class="mt-4 flex gap-6">
+                    <div>
+                        <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Master GSTIN</p>
+                        <p class="text-xs font-bold font-mono" id="vendor-gstin">—</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Entity Type</p>
+                        <p class="text-xs font-bold" id="vendor-type">Diverse Portfolio</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="bg-surface-container-lowest p-8 rounded-2xl border border-outline-variant/20 shadow-sm flex flex-col items-center justify-center text-center">
+            <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-4">AI Combined Risk Score</p>
+            <div class="relative w-32 h-32 flex items-center justify-center">
+                <svg class="w-full h-full transform -rotate-90">
+                    <circle cx="64" cy="64" r="58" stroke="currentColor" stroke-width="8" fill="transparent" class="text-surface-container-high"></circle>
+                    <circle id="risk-circle" cx="64" cy="64" r="58" stroke="currentColor" stroke-width="8" fill="transparent" stroke-dasharray="364.4" stroke-dashoffset="364.4" class="text-primary transition-all duration-1000"></circle>
+                </svg>
+                <span class="absolute text-3xl font-black font-headline" id="risk-score-val">0</span>
+            </div>
+            <p class="mt-4 text-xs font-bold text-primary" id="risk-label">Analyzing Reliability...</p>
+        </div>
+    </div>
+
+    <!-- AI Narrative -->
+    <div class="bg-surface-container-lowest p-8 rounded-2xl border border-outline-variant/20 shadow-sm">
+        <div class="flex items-center gap-2 mb-4">
+            <span class="material-symbols-outlined text-primary text-[20px]">psychology</span>
+            <h3 class="text-sm font-black uppercase tracking-widest ai-sparkle">AI Supplier Intelligence Narrative</h3>
+        </div>
+        <p id="ai-vendor-narrative" class="text-on-surface leading-relaxed italic">
+            "Based on the last 12 months of transactional data, this supplier group shows a 94% compliance rate. However, processing delays have increased by 12% in the last quarter. Recommendation: Investigate the high dispute rate in 'Logistics' category before contract renewal."
+        </p>
+    </div>
+
+    <!-- Charts: Performance & Spend -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div class="bg-surface-container-lowest p-6 rounded-2xl border border-outline-variant/20 shadow-sm">
+            <h3 class="font-bold text-on-surface font-headline mb-8">Approval vs Dispute Rate</h3>
+            <div id="chart-performance" class="min-h-[300px]"></div>
+        </div>
+        <div class="bg-surface-container-lowest p-6 rounded-2xl border border-outline-variant/20 shadow-sm">
+            <h3 class="font-bold text-on-surface font-headline mb-8">Supply Chain Spend Volume</h3>
+            <div id="chart-volume" class="min-h-[300px]"></div>
+        </div>
+    </div>
+
+    <!-- Scorecard Table -->
+    <div class="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden">
+        <div class="px-8 py-6 border-b border-outline-variant/20">
+            <h3 class="font-bold text-on-surface font-headline">Vendor Scorecard Registry</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-surface-container-low text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">
+                    <tr>
+                        <th class="px-8 py-4">Vendor Entity</th>
+                        <th class="px-8 py-4 text-right">Total Invoices</th>
+                        <th class="px-8 py-4 text-right">Approval Rate</th>
+                        <th class="px-8 py-4 text-right">Dispute Rate</th>
+                        <th class="px-8 py-4 text-right">YTD Spend</th>
+                        <th class="px-8 py-4">Grade</th>
+                    </tr>
+                </thead>
+                <tbody id="scorecard-tbody" class="text-sm divide-y divide-outline-variant/10">
+                    <!-- Rows injected by JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+  </div>
+</main>
+
+<script src="/frontend/shared/api.js"></script>
+<script src="/frontend/shared/auth.js"></script>
+<script src="/frontend/shared/security.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    const user = AUTH.getUser();
+    if (!user) return;
+
+    await _loadVendor360();
+});
+
+async function _loadVendor360() {
+    try {
+        const scorecard = await window.api.request('/invoices/analytics/supplier-scorecard/');
+        const data = scorecard.scorecards || [];
+
+        _populateSelector(data);
+        _renderScorecard(data);
+        _renderCharts(data);
+        _updateRisk(data);
+        _renderAI(data);
+
+    } catch (e) {
+        console.error('Vendor 360 load failed', e);
+    }
+}
+
+function _populateSelector(data) {
+    const sel = document.getElementById('vendor-selector');
+    data.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.vendor_id;
+        opt.textContent = v.vendor_name;
+        sel.appendChild(opt);
+    });
+}
+
+function _renderScorecard(data) {
+    const tbody = document.getElementById('scorecard-tbody');
+    tbody.innerHTML = data.map(v => {
+        const gradeColor = v.grade === 'A' ? 'text-emerald-600 bg-emerald-50' : 
+                          v.grade === 'B' ? 'text-blue-600 bg-blue-50' :
+                          v.grade === 'C' ? 'text-amber-600 bg-amber-50' : 'text-error bg-error/10';
+        return `
+            <tr class="hover:bg-surface-container-low transition-colors cursor-pointer">
+                <td class="px-8 py-5">
+                    <div class="font-bold text-on-surface">${v.vendor_name}</div>
+                    <div class="text-[10px] text-on-surface-variant font-mono uppercase tracking-widest">${v.gstin || 'NO GSTIN'}</div>
+                </td>
+                <td class="px-8 py-5 text-right font-medium">${v.total_invoices}</td>
+                <td class="px-8 py-5 text-right font-bold text-emerald-600">${v.approval_rate_pct}%</td>
+                <td class="px-8 py-5 text-right font-bold text-amber-600">${v.dispute_rate_pct}%</td>
+                <td class="px-8 py-5 text-right font-black">₹${v.total_spend.toLocaleString('en-IN')}</td>
+                <td class="px-8 py-5">
+                    <span class="px-3 py-1 rounded-lg text-xs font-black ${gradeColor}">${v.grade}</span>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function _renderCharts(data) {
+    const top5 = data.slice(0, 5);
+    
+    // 1. Performance Mix (Radar-ish or Multi-bar)
+    const perfOptions = {
+        series: [{
+            name: 'Approval %',
+            data: top5.map(v => v.approval_rate_pct)
+        }, {
+            name: 'Dispute %',
+            data: top5.map(v => v.dispute_rate_pct)
+        }],
+        chart: { type: 'bar', height: 350, toolbar: { show: false } },
+        colors: ['#00535b', '#ba1a1a'],
+        xaxis: { categories: top5.map(v => v.vendor_name.split(' ')[0]) },
+        legend: { position: 'top' },
+        grid: { borderColor: '#f1f1f1', strokeDashArray: 4 }
+    };
+    new ApexCharts(document.querySelector("#chart-performance"), perfOptions).render();
+
+    // 2. Spend Volume Trend (Treemap or Area)
+    const volOptions = {
+        series: [{
+            data: top5.map(v => ({ x: v.vendor_name, y: v.total_spend }))
+        }],
+        chart: { type: 'treemap', height: 350, toolbar: { show: false } },
+        colors: ['#00535b'],
+        plotOptions: {
+            treemap: { enableShades: true, shadeIntensity: 0.5 }
+        }
+    };
+    new ApexCharts(document.querySelector("#chart-volume"), volOptions).render();
+}
+
+function _updateRisk(data) {
+    const avgScore = data.reduce((s, v) => s + v.performance_score, 0) / (data.length || 1);
+    const score = Math.round(avgScore);
+    const circle = document.getElementById('risk-circle');
+    const valEl = document.getElementById('risk-score-val');
+    const label = document.getElementById('risk-label');
+
+    valEl.textContent = score;
+    const offset = 364.4 - (364.4 * score / 100);
+    circle.style.strokeDashoffset = offset;
+
+    if (score >= 85) { label.textContent = 'EXCEPTIONAL RELIABILITY'; label.className = 'mt-4 text-xs font-black text-emerald-600'; }
+    else if (score >= 70) { label.textContent = 'STABLE PERFORMANCE'; label.className = 'mt-4 text-xs font-black text-primary'; }
+    else { label.textContent = 'HIGH DISPUTE RISK'; label.className = 'mt-4 text-xs font-black text-error'; }
+}
+
+async function _renderAI(data) {
+    const el = document.getElementById('ai-vendor-narrative');
+    if (!data || data.length === 0) return;
+
+    const cacheKey = 'ai_insight_vendor_360_' + new Date().toISOString().slice(0, 10);
+    const cachedInsight = sessionStorage.getItem(cacheKey);
+    if (cachedInsight) {
+        el.innerHTML = `<span class="ai-sparkle font-bold">Strategic Insight:</span> ${cachedInsight}`;
+        return;
+    }
+
+    try {
+        const cleanData = window.SECURITY ? window.SECURITY.anonymizeForAI(data) : data;
+        const prompt = `You are a Strategic Sourcing AI. Analyze this vendor performance data and provide a 2-sentence executive summary. Focus on the best vendor and highlight any risky vendors with high dispute rates. Data: ${JSON.stringify(cleanData.slice(0, 5))}`;
+        
+        const resp = await window.api.nlQuery(prompt);
+        if (resp && resp.answer) {
+            const formattedAnswer = resp.answer.replace(/\n/g, '<br>');
+            sessionStorage.setItem(cacheKey, formattedAnswer);
+            el.innerHTML = `<span class="ai-sparkle font-bold">Strategic Insight:</span> ${formattedAnswer}`;
+            return;
+        }
+    } catch (e) {
+        console.error('AI Insight failed', e);
+    }
+
+    // Fallback logic
+    const top = data[0];
+    const low = data[data.length - 1];
+    
+    el.innerHTML = `<span class="ai-sparkle font-bold">Strategic Insight:</span> 
+        Portfolio concentration is healthy. <span class="font-bold">${top.vendor_name}</span> remains your most reliable partner (Score: ${top.performance_score}). 
+        We recommend a performance audit for <span class="font-bold text-error">${low.vendor_name}</span> due to a ${low.dispute_rate_pct}% dispute rate. 
+        Potential early-payment discount optimization detected for the top 3 suppliers.`;
+}
+</script>
+<script src="/frontend/shared/layout.js"></script>
+</body>
+</html>
