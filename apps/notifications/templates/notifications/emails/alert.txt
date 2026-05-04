@@ -1,0 +1,9 @@
+Hi {{ user.first_name|default:user.username }},
+
+{{ title }}
+
+{{ message }}
+
+---
+You're receiving this because you have email notifications enabled on Tijori AI.
+Log in and visit Settings to update your preferences.
