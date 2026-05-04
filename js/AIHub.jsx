@@ -193,6 +193,10 @@ const AIHubScreen = ({ role, onNavigate }) => {
   const [rerunLoading, setRerunLoading] = React.useState(false);
   const [rerunMsg, setRerunMsg] = React.useState(null);
   const [monthlySummaries, setMonthlySummaries] = React.useState(null);
+  const [summaryDetails, setSummaryDetails] = React.useState({});  // keyed by month label
+  const [summaryLoading, setSummaryLoading] = React.useState(false);
+  const [genLoading, setGenLoading] = React.useState(false);
+  const [notesMap, setNotesMap] = React.useState({});
   const [payNowLoading, setPayNowLoading] = React.useState(null);
   const [payNowMsg, setPayNowMsg] = React.useState(null);
   const [payModal, setPayModal] = React.useState(null); // { rec } — Pay Now modal
@@ -534,11 +538,34 @@ const AIHubScreen = ({ role, onNavigate }) => {
             <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '20px', color: '#0F172A', letterSpacing: '-0.5px' }}>Monthly Financial Summaries</div>
             <div style={{ fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>Auto-generated on 1st of each month</div>
           </div>
-          <Btn variant="secondary" small icon={<AIBadge small />} onClick={() => {
-            window.TijoriAPI.NLQueryAPI.ask('Generate executive financial summary for ' + new Date().toLocaleString('en-IN', {month: 'long', year: 'numeric'}))
-              .then(res => alert('Summary: ' + (res.answer || 'Generated successfully.')))
-              .catch(e => alert('Generation failed: ' + (e.message || 'Error')));
-          }}>Generate Now</Btn>
+          <Btn variant="secondary" small icon={genLoading ? <span style={{ width: 10, height: 10, border: '2px solid #CBD5E1', borderTopColor: '#E8783B', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} /> : <AIBadge small />} disabled={genLoading} onClick={async () => {
+            setGenLoading(true);
+            try {
+              const today = new Date();
+              const months = [0, 1, 2].map(offset => {
+                const d = new Date(today.getFullYear(), today.getMonth() - offset, 1);
+                return { year: d.getFullYear(), month: d.getMonth() + 1 };
+              });
+              const results = await Promise.all(
+                months.map(({year, month}) => window.TijoriAPI.AnalyticsAPI.monthlySummary(year, month).catch(() => null))
+              );
+              const built = results.filter(Boolean).map((r, i) => ({
+                month: r.month,
+                status: i === 0 ? 'REVIEWED' : 'AUTO_GEN',
+                revenue: r.monthly_budget > 0 ? '₹' + (r.monthly_budget / 100000).toFixed(0) + 'L' : '—',
+                expenses: r.expenses > 0 ? '₹' + (r.expenses / 100000).toFixed(0) + 'L' : '₹0',
+                profit: (() => { const v = (r.monthly_budget || 0) - (r.expenses || 0); return (v < 0 ? '-₹' : '₹') + Math.abs(Math.round(v / 100000)) + 'L'; })(),
+                cash: r.budget_variance > 0 ? '₹' + Math.round(r.budget_variance / 100000) + 'L' : '₹0',
+                insight: r.ai_bullets?.[0] || '',
+              }));
+              if (built.length > 0) setMonthlySummaries(built);
+              // Cache full details for SidePanel
+              const detailCache = {};
+              results.filter(Boolean).forEach(r => { detailCache[r.month] = r; });
+              setSummaryDetails(prev => ({ ...prev, ...detailCache }));
+            } catch (e) {}
+            setGenLoading(false);
+          }}>{genLoading ? 'Generating…' : 'Generate Now'}</Btn>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
@@ -567,10 +594,26 @@ const AIHubScreen = ({ role, onNavigate }) => {
                   <AIBadge small /> {s.insight}
                 </div>
                 <div style={{ display: 'flex', gap: '6px' }}>
-                  <Btn variant="primary" small onClick={() => { setSelectedMonth(s); setSummaryOpen(true); }}>View Full →</Btn>
+                  <Btn variant="primary" small onClick={() => {
+                    setSelectedMonth(s); setSummaryOpen(true);
+                    // Fetch real detail if not already cached
+                    if (!summaryDetails[s.month]) {
+                      setSummaryLoading(true);
+                      const parts = s.month.split(' ');
+                      const monthNum = new Date(Date.parse(parts[0] + ' 1')).getMonth() + 1;
+                      const yr = parseInt(parts[1]);
+                      window.TijoriAPI.AnalyticsAPI.monthlySummary(yr, monthNum)
+                        .then(r => { setSummaryDetails(prev => ({ ...prev, [s.month]: r })); })
+                        .catch(() => {})
+                        .finally(() => setSummaryLoading(false));
+                    }
+                  }}>View Full →</Btn>
                   <Btn variant="secondary" small onClick={() => {
+                    const d = summaryDetails[s.month];
+                    const bullets = d?.ai_bullets || (s.insight ? [s.insight] : []);
+                    const bulletHtml = bullets.map(b => `<li style="margin-bottom:6px;">${b}</li>`).join('');
                     const w = window.open('', '_blank');
-                    w.document.write(`<!DOCTYPE html><html><head><title>${s.month} Summary</title><style>body{font-family:sans-serif;padding:32px;}</style></head><body><h1>Tijori AI — ${s.month}</h1><p>Revenue: ${s.revenue} | Expenses: ${s.expenses} | Profit: ${s.profit}</p><p>${s.insight}</p><script>window.print()<\/script></body></html>`);
+                    w.document.write(`<!DOCTYPE html><html><head><title>${s.month} Summary</title><style>body{font-family:'Segoe UI',Arial,sans-serif;padding:40px;color:#0F172A;max-width:700px;margin:0 auto;}h1{font-size:24px;margin-bottom:4px;}p{font-size:13px;color:#64748B;margin-bottom:24px;}ul{margin:0;padding-left:18px;}li{margin-bottom:8px;font-size:14px;line-height:1.5;}.kpis{display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap;}.kpi{background:#F8F7F5;border-radius:8px;padding:12px 16px;min-width:100px;}.kpi-label{font-size:10px;font-weight:700;text-transform:uppercase;color:#94A3B8;}.kpi-value{font-size:20px;font-weight:800;}</style></head><body><h1>Tijori AI — ${s.month}</h1><p>Generated: ${new Date().toLocaleString('en-IN')}</p><div class="kpis">${d ? `<div class="kpi"><div class="kpi-label">Budget</div><div class="kpi-value" style="color:#10B981">₹${(d.monthly_budget/100000).toFixed(0)}L</div></div><div class="kpi"><div class="kpi-label">Expenses</div><div class="kpi-value" style="color:#E8783B">₹${(d.expenses/100000).toFixed(0)}L</div></div><div class="kpi"><div class="kpi-label">Variance</div><div class="kpi-value" style="color:${d.budget_variance>=0?'#10B981':'#EF4444'}">${d.budget_variance>=0?'+':'-'}₹${Math.abs(Math.round(d.budget_variance/100000))}L</div></div>` : `<div class="kpi"><div class="kpi-label">Expenses</div><div class="kpi-value" style="color:#E8783B">${s.expenses}</div></div>`}</div><h2 style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#94A3B8;margin-bottom:10px;">Executive Summary</h2><ul>${bulletHtml || `<li>${s.insight}</li>`}</ul>${d?.next_month_outlook ? `<h2 style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#94A3B8;margin:24px 0 8px;">Next Month Outlook</h2><p style="color:#4C1D95;background:#F5F3FF;padding:12px;border-radius:8px;">${d.next_month_outlook}</p>` : ''}<script>window.print()<\/script></body></html>`);
                     w.document.close();
                   }}>PDF</Btn>
                 </div>
@@ -710,38 +753,127 @@ const AIHubScreen = ({ role, onNavigate }) => {
 
       {/* Summary detail panel */}
       <SidePanel open={summaryOpen} onClose={() => setSummaryOpen(false)} title={selectedMonth?.month || ''} width={500}>
-        {selectedMonth && (
-          <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-              <AIBadge />
-              <LiveDot color="#8B5CF6" />
-              <span style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>AI-generated summary</span>
-            </div>
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '8px' }}>Executive Summary</div>
-              {['Revenue grew 12% MoM driven by 2 large AR collections from Acme Corp and Global Tech.', 'Engineering budget hit 100% — booking suspension triggered.', `Travel expenses up 34% vs prior month — ${selectedMonth.month === 'March 2026' ? 'conference season impact.' : 'investigate root cause.'}`, 'Net profit margin improved to 19% — ahead of Q4 target.'].map((b, i) => (
-                <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                  <span style={{ color: '#E8783B', fontWeight: 700, flexShrink: 0, fontSize: '13px' }}>·</span>
-                  <span style={{ fontSize: '13px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.5 }}>{b}</span>
+        {selectedMonth && (() => {
+          const detail = summaryDetails[selectedMonth.month];
+          const bullets = detail?.ai_bullets || (selectedMonth.insight ? [selectedMonth.insight] : []);
+          const outlook = detail?.next_month_outlook || '';
+          const monthKey = selectedMonth.month;
+          const notes = notesMap[monthKey] || '';
+          return (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                <AIBadge />
+                <LiveDot color="#8B5CF6" />
+                <span style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>AI-generated summary</span>
+              </div>
+
+              {/* Key metrics row */}
+              {detail && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginBottom: '16px' }}>
+                  {[
+                    ['Budget (Monthly)', '₹' + (detail.monthly_budget / 100000).toFixed(0) + 'L', '#10B981'],
+                    ['Expenses', '₹' + (detail.expenses / 100000).toFixed(0) + 'L', '#E8783B'],
+                    ['Variance', (detail.budget_variance >= 0 ? '+₹' : '-₹') + Math.abs(Math.round(detail.budget_variance / 100000)) + 'L', detail.budget_variance >= 0 ? '#10B981' : '#EF4444'],
+                    ['Invoices', detail.invoice_count, '#64748B'],
+                  ].map(([label, value, color]) => (
+                    <div key={label} style={{ background: '#F8F7F5', borderRadius: '8px', padding: '10px 12px' }}>
+                      <div style={{ fontSize: '10px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{label}</div>
+                      <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '18px', color, letterSpacing: '-0.5px' }}>{value}</div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <div style={{ background: '#F5F3FF', border: '1px solid #EDE9FE', borderRadius: '10px', padding: '14px', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}><AIBadge small /><span style={{ fontSize: '11px', fontWeight: 700, color: '#5B21B6', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Next Month Outlook</span></div>
-              <div style={{ fontSize: '13px', color: '#4C1D95', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.5 }}>Based on current pipeline, next month revenue is forecast at ₹68L (±12%). Watch Engineering budget — 3 large invoices pending CFO approval.</div>
-            </div>
-            <TjTextarea label="Finance Manager Notes" placeholder="Add notes to this summary…" rows={3} />
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <Btn variant="primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setSummaryOpen(false)}>Save Notes</Btn>
-              <Btn variant="secondary" small onClick={() => {
-                if (!selectedMonth) return;
-                const w = window.open('', '_blank');
-                w.document.write(`<!DOCTYPE html><html><head><title>${selectedMonth.month} Summary</title><style>body{font-family:sans-serif;padding:32px;color:#0F172A;} h1{font-size:22px;margin-bottom:4px;} .meta{font-size:12px;color:#64748B;margin-bottom:24px;}</style></head><body><h1>Tijori AI — ${selectedMonth.month}</h1><div class="meta">Generated: ${new Date().toLocaleString('en-IN')}</div><table border=1 cellpadding=8 style="width:100%;border-collapse:collapse;"><tr><th>Revenue</th><td>${selectedMonth.revenue}</td></tr><tr><th>Expenses</th><td>${selectedMonth.expenses}</td></tr><tr><th>Net Profit</th><td>${selectedMonth.profit}</td></tr><tr><th>Cash Position</th><td>${selectedMonth.cash}</td></tr></table><p style="margin-top:24px;"><b>AI Insight:</b> ${selectedMonth.insight}</p><script>window.print()<\/script></body></html>`);
-                w.document.close();
-              }}>Export PDF</Btn>
-            </div>
-          </>
-        )}
+              )}
+
+              {/* Executive Summary bullets */}
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '8px' }}>Executive Summary</div>
+                {summaryLoading && bullets.length === 0 ? (
+                  <div style={{ fontSize: '13px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Loading AI summary…</div>
+                ) : bullets.length > 0 ? bullets.map((b, i) => (
+                  <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                    <span style={{ color: '#E8783B', fontWeight: 700, flexShrink: 0, fontSize: '13px' }}>·</span>
+                    <span style={{ fontSize: '13px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.5 }}>{b}</span>
+                  </div>
+                )) : (
+                  <div style={{ fontSize: '13px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>No summary data available — click Generate Now to build.</div>
+                )}
+              </div>
+
+              {/* Next Month Outlook */}
+              <div style={{ background: '#F5F3FF', border: '1px solid #EDE9FE', borderRadius: '10px', padding: '14px', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                  <AIBadge small />
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#5B21B6', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Next Month Outlook</span>
+                </div>
+                <div style={{ fontSize: '13px', color: '#4C1D95', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.5 }}>
+                  {outlook || (summaryLoading ? 'Loading forecast…' : 'Generate the summary to see next month outlook.')}
+                </div>
+                {detail?.next_month_pending_count > 0 && (
+                  <div style={{ marginTop: '8px', fontSize: '11px', color: '#7C3AED', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    {detail.next_month_pending_count} invoices (₹{(detail.next_month_pending_amount / 100000).toFixed(0)}L) already queued
+                  </div>
+                )}
+              </div>
+
+              {/* Finance Manager Notes */}
+              <TjTextarea
+                label="Finance Manager Notes"
+                placeholder="Add notes to this summary…"
+                rows={3}
+                value={notes}
+                onChange={e => setNotesMap(prev => ({ ...prev, [monthKey]: e.target.value }))}
+              />
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <Btn variant="primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setSummaryOpen(false)}>Save Notes</Btn>
+                <Btn variant="secondary" small onClick={() => {
+                  if (!selectedMonth) return;
+                  const d = detail;
+                  const bulletHtml = bullets.map(b => `<li style="margin-bottom:6px;">${b}</li>`).join('');
+                  const deptRows = (d?.top_departments || []).map(dep => `<tr><td>${dep.name}</td><td>₹${Number(dep.amount).toLocaleString('en-IN')}</td></tr>`).join('');
+                  const vendorRows = (d?.top_vendors || []).map(v => `<tr><td>${v.name}</td><td>₹${Number(v.amount).toLocaleString('en-IN')}</td></tr>`).join('');
+                  const notesSection = notes ? `<div style="margin-top:24px;padding:14px;background:#FFF7ED;border-radius:8px;"><b>Finance Manager Notes:</b><p style="margin-top:6px;">${notes}</p></div>` : '';
+                  const w = window.open('', '_blank');
+                  w.document.write(`<!DOCTYPE html><html><head><title>${selectedMonth.month} Summary</title>
+<style>
+  body{font-family:'Segoe UI',Arial,sans-serif;padding:40px;color:#0F172A;max-width:800px;margin:0 auto;}
+  h1{font-size:26px;margin-bottom:2px;letter-spacing:-0.5px;}
+  .meta{font-size:12px;color:#64748B;margin-bottom:28px;}
+  .badge{display:inline-block;background:#EDE9FE;color:#5B21B6;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;margin-left:8px;}
+  h2{font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#94A3B8;margin:24px 0 10px;}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;}
+  .kpi{background:#F8F7F5;border-radius:8px;padding:12px;}
+  .kpi-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#94A3B8;}
+  .kpi-value{font-size:22px;font-weight:800;letter-spacing:-0.5px;margin-top:2px;}
+  ul{margin:0;padding-left:18px;}
+  li{margin-bottom:8px;font-size:14px;line-height:1.5;}
+  table{width:100%;border-collapse:collapse;margin-top:8px;}
+  th{text-align:left;padding:8px 12px;background:#F8F7F5;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#94A3B8;}
+  td{padding:8px 12px;border-top:1px solid #F1F0EE;font-size:13px;}
+  .outlook{background:#F5F3FF;border:1px solid #EDE9FE;border-radius:8px;padding:14px;margin-top:8px;font-size:13px;color:#4C1D95;line-height:1.5;}
+  @media print{body{padding:20px;}}
+</style></head><body>
+<h1>Tijori AI — ${selectedMonth.month} <span class="badge">AI Auto-Generated</span></h1>
+<div class="meta">Generated: ${new Date().toLocaleString('en-IN', {dateStyle:'long',timeStyle:'short'})} &nbsp;·&nbsp; Tijori Finance OS</div>
+${d ? `<div class="kpis">
+  <div class="kpi"><div class="kpi-label">Budget</div><div class="kpi-value" style="color:#10B981">₹${(d.monthly_budget/100000).toFixed(0)}L</div></div>
+  <div class="kpi"><div class="kpi-label">Expenses</div><div class="kpi-value" style="color:#E8783B">₹${(d.expenses/100000).toFixed(0)}L</div></div>
+  <div class="kpi"><div class="kpi-label">Variance</div><div class="kpi-value" style="color:${d.budget_variance>=0?'#10B981':'#EF4444'}">${d.budget_variance>=0?'+':'-'}₹${Math.abs(Math.round(d.budget_variance/100000))}L</div></div>
+  <div class="kpi"><div class="kpi-label">Invoices</div><div class="kpi-value" style="color:#64748B">${d.invoice_count}</div></div>
+</div>` : `<p>Budget: ${selectedMonth.revenue} &nbsp;|&nbsp; Expenses: ${selectedMonth.expenses} &nbsp;|&nbsp; Variance: ${selectedMonth.profit}</p>`}
+<h2>Executive Summary</h2>
+<ul>${bulletHtml || `<li>${selectedMonth.insight || 'No AI summary available.'}</li>`}</ul>
+${d?.next_month_outlook ? `<h2>Next Month Outlook</h2><div class="outlook">${d.next_month_outlook}</div>` : ''}
+${deptRows ? `<h2>Top Departments</h2><table><tr><th>Department</th><th>Spend</th></tr>${deptRows}</table>` : ''}
+${vendorRows ? `<h2>Top Vendors</h2><table><tr><th>Vendor</th><th>Spend</th></tr>${vendorRows}</table>` : ''}
+${notesSection}
+<script>window.print()<\/script>
+</body></html>`);
+                  w.document.close();
+                }}>Export PDF</Btn>
+              </div>
+            </>
+          );
+        })()}
       </SidePanel>
 
       {/* ── Pay Now Modal ─────────────────────────────────────────────────── */}

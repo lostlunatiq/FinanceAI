@@ -553,6 +553,12 @@ const AnalyticsAPI = {
   async generate10Q() {
     return apiFetch('/invoices/analytics/generate-10q/', { method: 'POST' });
   },
+  async monthlySummary(year, month) {
+    return apiFetch('/invoices/analytics/monthly-summary/', {
+      method: 'POST',
+      body: JSON.stringify({ year, month }),
+    });
+  },
 };
 
 // ── AI Feedback API ───────────────────────────────────────────────────────────

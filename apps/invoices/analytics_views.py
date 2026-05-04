@@ -1191,3 +1191,189 @@ Write 4-5 structured paragraphs: (1) Executive Summary, (2) Expense Analysis & T
                 for row in mom_data
             ],
         })
+
+
+class MonthlySummaryView(APIView):
+    """
+    POST /api/v1/invoices/analytics/monthly-summary/
+    Returns real expense data + AI-generated executive summary bullets for a given month.
+    Body: { "year": 2026, "month": 3 }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        import calendar
+        today = date.today()
+        year = int(request.data.get("year", today.year))
+        month = int(request.data.get("month", today.month))
+
+        month_start = date(year, month, 1)
+        month_end = date(year, month, calendar.monthrange(year, month)[1])
+
+        # ── Expense data for the month ────────────────────────────────────────
+        month_qs = Expense.objects.filter(invoice_date__gte=month_start, invoice_date__lte=month_end)
+
+        total_expenses = float(
+            month_qs.filter(_status__in=["PAID", "APPROVED", "BOOKED_D365", "POSTED_D365"])
+            .aggregate(t=Sum("total_amount"))["t"] or 0
+        )
+        paid_expenses = float(
+            month_qs.filter(_status="PAID").aggregate(t=Sum("total_amount"))["t"] or 0
+        )
+        pending_expenses = float(
+            month_qs.exclude(_status__in=["PAID", "REJECTED", "WITHDRAWN", "AUTO_REJECT"])
+            .aggregate(t=Sum("total_amount"))["t"] or 0
+        )
+        invoice_count = month_qs.count()
+
+        # ── Monthly budget allocation (annual budget / 12) ────────────────────
+        try:
+            annual_budget = float(
+                Budget.objects.filter(status__in=["active", "draft"])
+                .aggregate(t=Sum("total_amount"))["t"] or 0
+            )
+        except Exception:
+            annual_budget = 0
+        monthly_budget = round(annual_budget / 12, 0) if annual_budget else 0
+        budget_variance = monthly_budget - total_expenses
+
+        # ── Prior month for MoM comparison ───────────────────────────────────
+        prev_month = month - 1 if month > 1 else 12
+        prev_year = year if month > 1 else year - 1
+        prev_start = date(prev_year, prev_month, 1)
+        prev_end = date(prev_year, prev_month, calendar.monthrange(prev_year, prev_month)[1])
+        prev_expenses = float(
+            Expense.objects.filter(
+                invoice_date__gte=prev_start, invoice_date__lte=prev_end,
+                _status__in=["PAID", "APPROVED", "BOOKED_D365"],
+            ).aggregate(t=Sum("total_amount"))["t"] or 0
+        )
+        mom_pct = round(((total_expenses - prev_expenses) / prev_expenses * 100) if prev_expenses else 0, 1)
+
+        # ── Top departments and vendors ───────────────────────────────────────
+        top_depts = list(
+            month_qs.filter(_status__in=["PAID", "APPROVED"])
+            .values("submitted_by__department__name")
+            .annotate(total=Sum("total_amount"))
+            .order_by("-total")[:3]
+        )
+        top_vendors = list(
+            month_qs.filter(_status__in=["PAID", "APPROVED"])
+            .exclude(vendor__isnull=True)
+            .values("vendor__name")
+            .annotate(total=Sum("total_amount"))
+            .order_by("-total")[:3]
+        )
+
+        # ── Budget utilization per department ─────────────────────────────────
+        budget_util = []
+        try:
+            for b in Budget.objects.filter(status__in=["active", "draft"]).select_related("department")[:4]:
+                spent = float(
+                    month_qs.filter(_status__in=["PAID", "APPROVED"], submitted_by__department=b.department)
+                    .aggregate(t=Sum("total_amount"))["t"] or 0
+                )
+                alloc = round(float(b.total_amount) / 12, 0)
+                if alloc > 0:
+                    budget_util.append({
+                        "dept": b.department.name if b.department else "General",
+                        "allocated": alloc,
+                        "spent": spent,
+                        "utilization": round(spent / alloc * 100, 1),
+                    })
+        except Exception:
+            pass
+
+        # ── Next month pending ────────────────────────────────────────────────
+        next_month = month % 12 + 1
+        next_year = year if month < 12 else year + 1
+        next_start = date(next_year, next_month, 1)
+        next_pending = Expense.objects.filter(
+            invoice_date__gte=next_start,
+            _status__in=["APPROVED", "PENDING_L1", "PENDING_L2", "PENDING_L3", "PENDING"],
+        ).aggregate(t=Sum("total_amount"), cnt=Count("id"))
+        next_pending_amt = float(next_pending["t"] or 0)
+        next_pending_cnt = next_pending["cnt"] or 0
+
+        # ── AI bullet points ──────────────────────────────────────────────────
+        dept_lines = "\n".join(
+            f"  {d.get('submitted_by__department__name') or 'General'}: ₹{float(d['total']):,.0f}"
+            for d in top_depts
+        ) or "  No department data"
+        vendor_lines = "\n".join(
+            f"  {v['vendor__name']}: ₹{float(v['total']):,.0f}"
+            for v in top_vendors
+        ) or "  No vendor data"
+        budget_lines = "\n".join(
+            f"  {b['dept']}: ₹{b['spent']:,.0f} spent of ₹{b['allocated']:,.0f} allocated ({b['utilization']}%)"
+            for b in budget_util
+        ) or "  No budget data"
+
+        month_name = calendar.month_name[month]
+        bullet_prompt = (
+            f"Generate exactly 4 concise CFO executive summary bullet points for {month_name} {year}.\n"
+            f"Each bullet is one sentence. Use specific numbers. Be direct.\n\n"
+            f"EXPENSES: ₹{total_expenses:,.0f} total ({mom_pct:+.1f}% vs prior month)\n"
+            f"  Paid: ₹{paid_expenses:,.0f} | Pending: ₹{pending_expenses:,.0f}\n"
+            f"  Invoices processed: {invoice_count}\n"
+            f"MONTHLY BUDGET: ₹{monthly_budget:,.0f} | Variance: ₹{budget_variance:+,.0f}\n\n"
+            f"TOP DEPARTMENTS:\n{dept_lines}\n\n"
+            f"TOP VENDORS:\n{vendor_lines}\n\n"
+            f"BUDGET UTILIZATION:\n{budget_lines}\n\n"
+            f"Return exactly 4 bullet points, each starting with '•', one per line. No headers."
+        )
+        fallback_bullets = [
+            f"Total expenses of ₹{total_expenses:,.0f} represent a {mom_pct:+.1f}% change vs prior month ({invoice_count} invoices).",
+            f"Paid ₹{paid_expenses:,.0f} with ₹{pending_expenses:,.0f} still pending approval.",
+            f"Monthly budget of ₹{monthly_budget:,.0f} shows ₹{abs(budget_variance):,.0f} {'surplus' if budget_variance >= 0 else 'overrun'}.",
+            (
+                f"Top spend: {top_depts[0].get('submitted_by__department__name') or 'General'} dept at "
+                f"₹{float(top_depts[0]['total']):,.0f}." if top_depts
+                else "Review vendor concentration and department spend patterns."
+            ),
+        ]
+        ai_raw = _ai_text(bullet_prompt, fallback="\n".join(f"• {b}" for b in fallback_bullets))
+        bullets = [
+            line.lstrip("•-· ").strip()
+            for line in ai_raw.strip().split("\n")
+            if line.strip()
+        ][:4] or fallback_bullets
+
+        # ── Next month outlook ────────────────────────────────────────────────
+        next_month_name = calendar.month_name[next_month]
+        outlook_prompt = (
+            f"Write one sentence forecasting the financial outlook for {next_month_name} {next_year}.\n"
+            f"Known: {next_pending_cnt} pending invoices worth ₹{next_pending_amt:,.0f}. "
+            f"Current month trend: {mom_pct:+.1f}% vs prior month. Be specific and actionable."
+        )
+        outlook_fallback = (
+            f"{next_pending_cnt} invoices worth ₹{next_pending_amt:,.0f} are already queued for {next_month_name}. "
+            f"{'Maintain spend discipline given ' + str(abs(mom_pct)) + '% MoM increase.' if mom_pct > 5 else 'Spend trajectory is stable.'}"
+        )
+        outlook = _ai_text(outlook_prompt, fallback=outlook_fallback)
+
+        return Response({
+            "month": f"{month_name} {year}",
+            "year": year,
+            "month_num": month,
+            "expenses": round(total_expenses, 0),
+            "paid_expenses": round(paid_expenses, 0),
+            "pending_expenses": round(pending_expenses, 0),
+            "monthly_budget": round(monthly_budget, 0),
+            "budget_variance": round(budget_variance, 0),
+            "invoice_count": invoice_count,
+            "mom_change_pct": mom_pct,
+            "top_departments": [
+                {"name": d.get("submitted_by__department__name") or "General", "amount": float(d["total"])}
+                for d in top_depts
+            ],
+            "top_vendors": [
+                {"name": v["vendor__name"], "amount": float(v["total"])}
+                for v in top_vendors
+            ],
+            "budget_utilization": budget_util,
+            "ai_bullets": bullets,
+            "next_month_outlook": outlook,
+            "next_month_pending_amount": round(next_pending_amt, 0),
+            "next_month_pending_count": next_pending_cnt,
+        })
