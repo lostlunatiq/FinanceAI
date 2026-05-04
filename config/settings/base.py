@@ -132,6 +132,7 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.UserRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
+        "anon": "20/minute",
         "user": "600/minute",
         "nl_query": "60/minute",
         "login": "5/minute",

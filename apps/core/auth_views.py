@@ -569,29 +569,44 @@ class AuditLogListView(APIView):
 class NLQueryView(APIView):
     """
     POST /api/v1/nl-query/
-    Natural language query against financial data.
-    Body: {"question": "What are my top 5 vendors by spend?"}
+    Body: {"question": "...", "session_id": "<uuid>"}  (session_id optional)
     """
 
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         question = request.data.get("question", "").strip()
+        session_id = request.data.get("session_id", "").strip()
         if not question:
             return Response({"error": "question is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            answer = _run_nl_query(question, request.user)
-            
-            # Log all AI responses in full
-            from apps.core.models import AICopilotLog
+            from apps.core.models import AICopilotLog, ChatSession
+
+            session = None
+            if session_id:
+                try:
+                    session = ChatSession.objects.get(id=session_id, user=request.user)
+                    session.save()  # bumps updated_at
+                except ChatSession.DoesNotExist:
+                    pass
+
+            if session is None:
+                # Auto-create a new session titled from the first 60 chars of the question
+                title = question[:60] + ("…" if len(question) > 60 else "")
+                session = ChatSession.objects.create(user=request.user, title=title)
+
+            answer = _run_nl_query(question, request.user, session_id=str(session.id))
+
             AICopilotLog.objects.create(
                 user=request.user,
+                session=session,
                 prompt=question,
                 response=str(answer.get("answer", "")),
-                insight=str(answer.get("insight", ""))
+                insight=str(answer.get("insight", "")),
             )
 
+            answer["session_id"] = str(session.id)
             return Response(answer)
         except Exception as e:
             return Response(
@@ -600,375 +615,365 @@ class NLQueryView(APIView):
             )
 
 
-def _run_nl_query(question: str, user) -> dict:
-    """Run NL query using OpenRouter and real DB data, scoped by user role."""
+class ChatSessionListView(APIView):
+    """GET /api/v1/chat/sessions/  — list user's sessions (newest first)"""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.core.models import ChatSession
+        sessions = ChatSession.objects.filter(user=request.user).values(
+            "id", "title", "created_at", "updated_at"
+        )
+        return Response(list(sessions))
+
+    def post(self, request):
+        """Create a blank named session."""
+        from apps.core.models import ChatSession
+        title = request.data.get("title", "New Chat")[:200]
+        session = ChatSession.objects.create(user=request.user, title=title)
+        return Response({"id": str(session.id), "title": session.title, "created_at": session.created_at, "updated_at": session.updated_at}, status=status.HTTP_201_CREATED)
+
+
+class ChatSessionDetailView(APIView):
+    """GET messages  |  DELETE session"""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, session_id):
+        from apps.core.models import ChatSession, AICopilotLog
+        try:
+            session = ChatSession.objects.get(id=session_id, user=request.user)
+        except ChatSession.DoesNotExist:
+            return Response({"error": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        messages = AICopilotLog.objects.filter(session=session).values(
+            "id", "prompt", "response", "insight", "created_at"
+        )
+        return Response({
+            "id": str(session.id),
+            "title": session.title,
+            "created_at": session.created_at,
+            "updated_at": session.updated_at,
+            "messages": list(messages),
+        })
+
+    def delete(self, request, session_id):
+        from apps.core.models import ChatSession
+        try:
+            session = ChatSession.objects.get(id=session_id, user=request.user)
+        except ChatSession.DoesNotExist:
+            return Response({"error": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        session.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+def _escape_json_strings(s: str) -> str:
+    """Escape control characters (newlines, tabs) that appear inside JSON string values."""
+    result = []
+    in_string = False
+    escape_next = False
+    for ch in s:
+        if escape_next:
+            result.append(ch)
+            escape_next = False
+        elif ch == '\\' and in_string:
+            result.append(ch)
+            escape_next = True
+        elif ch == '"':
+            in_string = not in_string
+            result.append(ch)
+        elif in_string and ch == '\n':
+            result.append('\\n')
+        elif in_string and ch == '\r':
+            result.append('\\r')
+        elif in_string and ch == '\t':
+            result.append('\\t')
+        else:
+            result.append(ch)
+    return ''.join(result)
+
+
+def _fmt_invoice_full(inv, include_steps=True):
+    """Return all fields for a single invoice as a formatted string block."""
+    from apps.invoices.models import ExpenseApprovalStep, ExpenseQuery
+    lines = [
+        f"  Ref: {inv.ref_no}",
+        f"  Invoice Number: {inv.invoice_number or 'N/A'}",
+        f"  Vendor: {inv.vendor.name if inv.vendor else 'N/A'}",
+        f"  Submitted By: {inv.submitted_by.get_full_name() if inv.submitted_by else 'N/A'} "
+        f"(dept: {inv.submitted_by.department.name if inv.submitted_by and inv.submitted_by.department_id else 'N/A'})",
+        f"  Invoice Date: {inv.invoice_date}",
+        f"  Submitted At: {inv.submitted_at.strftime('%Y-%m-%d %H:%M') if inv.submitted_at else 'N/A'}",
+        f"  Approved At: {inv.approved_at.strftime('%Y-%m-%d %H:%M') if inv.approved_at else 'Not yet approved'}",
+        f"  Status: {inv._status}",
+        f"  Current Approval Step: {inv.current_step}",
+        f"  Pre-GST Amount: ₹{float(inv.pre_gst_amount):,.2f}",
+        f"  CGST: ₹{float(inv.cgst):,.2f}",
+        f"  SGST: ₹{float(inv.sgst):,.2f}",
+        f"  IGST: ₹{float(inv.igst):,.2f}",
+        f"  Total Amount: ₹{float(inv.total_amount):,.2f}",
+        f"  TDS Section: {inv.tds_section or 'N/A'}",
+        f"  TDS Amount: ₹{float(inv.tds_amount):,.2f}",
+        f"  GSTIN: {inv.gstin or 'N/A'}",
+        f"  Business Purpose: {inv.business_purpose or 'N/A'}",
+        f"  Anomaly Severity: {inv.anomaly_severity or 'NONE'}",
+        f"  OCR Confidence: {float(inv.ocr_confidence or 0)*100:.0f}%",
+    ]
+    if inv.d365_document_no:
+        lines.append(f"  D365 Doc No: {inv.d365_document_no}")
+    if inv.d365_paid_at:
+        lines.append(f"  Paid At: {inv.d365_paid_at} | UTR: {inv.d365_payment_utr or 'N/A'}")
+
+    if include_steps:
+        steps = ExpenseApprovalStep.objects.filter(expense=inv).select_related("assigned_to").order_by("level")
+        if steps.exists():
+            lines.append("  Approval Steps:")
+            for s in steps:
+                approver = s.assigned_to.get_full_name() if s.assigned_to else "N/A"
+                lines.append(f"    L{s.level}: {approver} | {s.status} | SLA: {s.sla_due_at or 'N/A'} | Decided: {s.decided_at or 'Pending'}")
+                if s.decision_reason:
+                    lines.append(f"      Reason: {s.decision_reason}")
+
+        queries = ExpenseQuery.objects.filter(expense=inv).order_by("raised_at")
+        if queries.exists():
+            lines.append("  Queries Raised:")
+            for q in queries:
+                lines.append(f"    Q: {q.question}")
+                lines.append(f"    A: {q.response or 'Awaiting response'}")
+    return "\n".join(lines)
+
+
+def _run_nl_query(question: str, user, session_id=None) -> dict:
+    """Intelligent NL query — smart context enrichment + conversation history + real DB data."""
     from ai.tools.openrouter_client import call_text_model
-    from apps.invoices.models import Expense, Vendor, ExpenseApprovalStep, ExpenseQuery
-    from django.db.models import Sum, Count, Avg, Q
+    from apps.invoices.models import Expense, Vendor, ExpenseApprovalStep, ExpenseQuery, Budget
+    from django.db.models import Sum, Count, Q
     from django.utils import timezone
     from datetime import timedelta
+    import json, re
 
-    # ─── 1. Determine Role ───
     is_vendor = hasattr(user, "vendor_profile") and user.vendor_profile is not None
-    is_cfo = user.is_superuser
-    grade = getattr(user, "employee_grade", 1)
+    is_cfo    = user.is_superuser
+    grade     = getattr(user, "employee_grade", 1)
+    q_lower   = question.lower()
 
-    # ─── 2. Gather Scoped Context ───
-    ctx = {"user_role": user.grade_label if not is_vendor else "Vendor"}
+    # ── Role label ──────────────────────────────────────────────────────────────
+    if is_vendor:       role_title = "Vendor Assistant"
+    elif is_cfo:        role_title = "CFO Copilot"
+    elif grade >= 4:    role_title = "Finance Intelligence Copilot"
+    elif grade == 2:    role_title = "Department Intelligence Copilot"
+    else:               role_title = "Personal Expense Assistant"
 
-    # Base querysets
-    expense_qs = Expense.objects.all()
+    user_role = user.grade_label if not is_vendor else "Vendor"
+
+    # ── Scoped base queryset ─────────────────────────────────────────────────────
+    expense_qs = Expense.objects.select_related("vendor", "submitted_by", "submitted_by__department")
     if is_vendor:
         expense_qs = expense_qs.filter(vendor=user.vendor_profile)
-        ctx["vendor_name"] = user.vendor_profile.name
     elif grade == 2 and not is_cfo:
-        # HOD sees their whole department
-        if user.department_id:
-            expense_qs = expense_qs.filter(submitted_by__department=user.department)
-        else:
-            expense_qs = expense_qs.filter(submitted_by=user)
+        expense_qs = (expense_qs.filter(submitted_by__department=user.department)
+                      if user.department_id else expense_qs.filter(submitted_by=user))
     elif grade < 3 and not is_cfo:
-        # G1 employee — own submissions only
         expense_qs = expense_qs.filter(submitted_by=user)
 
-    # Total Outstanding
-    ctx["total_outstanding"] = float(
-        expense_qs.exclude(
-            _status__in=["PAID", "REJECTED", "WITHDRAWN", "AUTO_REJECT"]
-        ).aggregate(total=Sum("total_amount"))["total"] or 0
-    )
+    # ── Summary figures (always needed) ──────────────────────────────────────────
+    total_outstanding = float(expense_qs.exclude(
+        _status__in=["PAID","REJECTED","WITHDRAWN","AUTO_REJECT"]
+    ).aggregate(t=Sum("total_amount"))["t"] or 0)
+    pending_queue = ExpenseApprovalStep.objects.filter(assigned_to=user, status="PENDING").count()
 
-    # Status Distribution
-    status_dist = expense_qs.values("_status").annotate(
-        count=Count("id"), amount=Sum("total_amount")
-    )
-    ctx["expense_status"] = [
-        {"status": s["_status"], "count": s["count"], "amount": float(s["amount"] or 0)}
-        for s in status_dist
+    ctx_lines = [
+        f"USER ROLE: {user_role}",
+        f"LOGGED IN AS: {user.get_full_name() or user.username}",
+        f"TOTAL OUTSTANDING: ₹{total_outstanding:,.0f}",
+        f"PENDING IN MY APPROVAL QUEUE: {pending_queue}",
     ]
 
-    # Role-specific extras
-    if is_cfo or grade >= 4:
-        # Top vendors by spend
-        top_vendors = (
-            Expense.objects.filter(_status__in=["PAID", "APPROVED", "BOOKED_D365", "POSTED_D365"])
-            .values("vendor__name")
-            .annotate(total=Sum("total_amount"), count=Count("id"))
-            .order_by("-total")[:5]
-        )
-        ctx["top_vendors"] = [
-            {"vendor": v["vendor__name"], "total_spend": float(v["total"] or 0), "invoice_count": v["count"]}
-            for v in top_vendors
-        ]
-        ctx["anomaly_count"] = Expense.objects.filter(anomaly_severity__in=["HIGH", "CRITICAL"]).count()
-        
-        # ─── Deep Intelligence for Queries & Delays ───
-        thirty_days_ago = timezone.now() - timedelta(days=30)
-        query_counts = (
-            ExpenseQuery.objects.filter(raised_at__gte=thirty_days_ago)
-            .values("expense__vendor__name")
-            .annotate(count=Count("id"))
-            .order_by("-count")[:5]
-        )
-        ctx["vendor_queries"] = [
-            {"vendor": q["expense__vendor__name"], "query_count": q["count"]}
-            for q in query_counts
-        ]
+    # Status breakdown
+    status_dist = expense_qs.values("_status").annotate(cnt=Count("id"), amt=Sum("total_amount"))
+    ctx_lines.append("EXPENSE STATUS BREAKDOWN:")
+    for s in status_dist:
+        ctx_lines.append(f"  {s['_status']}: {s['cnt']} invoices, ₹{float(s['amt'] or 0):,.0f}")
 
-        # Delayed Payments (Simplified: Approved but not paid, older than 30 days)
-        delayed_invoices = Expense.objects.filter(
-            _status__in=["APPROVED", "BOOKED_D365", "POSTED_D365"],
-            invoice_date__lt=timezone.now().date() - timedelta(days=30)
-        ).values("vendor__name").annotate(count=Count("id"), total_amt=Sum("total_amount")).order_by("-count")[:5]
-        
-        ctx["delayed_payments"] = [
-            {"vendor": d["vendor__name"], "count": d["count"], "amount": float(d["total_amt"] or 0)}
-            for d in delayed_invoices
-        ]
+    # ── ENTITY DETECTION 1: Specific invoice ref (BILL-YYYY-NNNNN) ───────────────
+    ref_matches = re.findall(r'BILL-\d{4}-\d{5}', question.upper())
+    if ref_matches:
+        for ref in ref_matches[:3]:
+            inv = expense_qs.filter(ref_no=ref).first()
+            if inv is None and (is_cfo or grade >= 3):
+                inv = Expense.objects.select_related("vendor","submitted_by","submitted_by__department").filter(ref_no=ref).first()
+            if inv:
+                ctx_lines.append(f"\n=== FULL INVOICE DETAILS: {ref} ===")
+                ctx_lines.append(_fmt_invoice_full(inv, include_steps=True))
 
-        # ─── Deep Budget Intelligence ───
-        from apps.invoices.models import Budget
+    # ── ENTITY DETECTION 2: Vendor name mentioned ────────────────────────────────
+    all_vendor_names = list(Vendor.objects.values_list("name", flat=True))
+    mentioned_vendors = [v for v in all_vendor_names if v.lower() in q_lower or
+                         any(word in v.lower() for word in q_lower.split() if len(word) > 3)]
+
+    if mentioned_vendors:
+        for vname in mentioned_vendors[:2]:
+            vendor_obj = Vendor.objects.filter(name__icontains=vname.split()[0]).first()
+            if vendor_obj:
+                # Vendor master data
+                ctx_lines.append(f"\n=== VENDOR MASTER: {vendor_obj.name} ===")
+                ctx_lines.append(f"  Type: {vendor_obj.vendor_type or 'N/A'}")
+                ctx_lines.append(f"  Status: {vendor_obj.status}")
+                ctx_lines.append(f"  GSTIN: {vendor_obj.gstin or 'N/A'}")
+                ctx_lines.append(f"  PAN: {vendor_obj.pan or 'N/A'}")
+                ctx_lines.append(f"  MSME Registered: {vendor_obj.msme_registered}")
+                ctx_lines.append(f"  TDS Section: {vendor_obj.tds_section or 'N/A'}")
+                ctx_lines.append(f"  Contact Email: {vendor_obj.email or 'N/A'}")
+                ctx_lines.append(f"  Bank: {vendor_obj.bank_account_name or 'N/A'} | IFSC: {vendor_obj.bank_ifsc or 'N/A'}")
+
+                v_expenses = expense_qs.filter(vendor=vendor_obj) if not is_cfo else \
+                             Expense.objects.select_related("vendor","submitted_by","submitted_by__department").filter(vendor=vendor_obj)
+                v_total   = float(v_expenses.aggregate(t=Sum("total_amount"))["t"] or 0)
+                v_paid    = float(v_expenses.filter(_status="PAID").aggregate(t=Sum("total_amount"))["t"] or 0)
+                v_pending = float(v_expenses.exclude(_status__in=["PAID","REJECTED","WITHDRAWN","AUTO_REJECT"]).aggregate(t=Sum("total_amount"))["t"] or 0)
+
+                ctx_lines.append(f"  Total Invoices: {v_expenses.count()}")
+                ctx_lines.append(f"  Total Spend: ₹{v_total:,.0f} | Paid: ₹{v_paid:,.0f} | Outstanding: ₹{v_pending:,.0f}")
+                ctx_lines.append(f"  Anomaly Flags (HIGH/CRITICAL): {v_expenses.filter(anomaly_severity__in=['HIGH','CRITICAL']).count()}")
+
+                ctx_lines.append(f"  ALL INVOICES:")
+                for inv in v_expenses.order_by("-invoice_date"):
+                    ctx_lines.append(_fmt_invoice_full(inv, include_steps=True))
+                    ctx_lines.append("")
+
+    # ── TOP VENDORS summary (CFO/Finance) ─────────────────────────────────────────
+    if is_cfo or grade >= 3:
+        top_v = (Expense.objects.values("vendor__name")
+                 .annotate(total=Sum("total_amount"), cnt=Count("id"), paid=Sum("total_amount", filter=Q(_status="PAID")))
+                 .order_by("-total")[:10])
+        ctx_lines.append("\nTOP 10 VENDORS BY TOTAL SPEND:")
+        for i, v in enumerate(top_v, 1):
+            ctx_lines.append(f"  {i}. {v['vendor__name']}: ₹{float(v['total'] or 0):,.0f} ({v['cnt']} invoices, paid ₹{float(v['paid'] or 0):,.0f})")
+
+        # Full anomaly list
+        anom_items = Expense.objects.filter(anomaly_severity__in=["HIGH","CRITICAL"]).select_related("vendor","submitted_by").order_by("-anomaly_severity", "-total_amount")
+        ctx_lines.append(f"\nALL ANOMALY FLAGS ({anom_items.count()} total — HIGH/CRITICAL):")
+        for a in anom_items:
+            ctx_lines.append(f"  {a.ref_no} | {a.vendor.name if a.vendor else 'N/A'} | ₹{float(a.total_amount):,.0f} | {a.anomaly_severity} | Status: {a._status}")
+
+        # Budget health
         budgets = Budget.objects.filter(status="active").select_related("department")
-        ctx["budget_health"] = []
+        ctx_lines.append("\nBUDGET HEALTH (ALL DEPARTMENTS):")
         for b in budgets:
             spent = float(b.spent_amount or 0)
-            total = float(b.total_amount or 1)
-            util = round((spent / total) * 100, 1)
-            variance = total - spent
-            status = "HEALTHY"
-            if util >= 100: status = "OVER_BUDGET (CRITICAL)"
-            elif util >= 90: status = "NEAR_LIMIT (WARNING)"
-            
-            ctx["budget_health"].append({
-                "dept": b.department.name if b.department else b.name,
-                "spent": spent,
-                "total": total,
-                "util_pct": util,
-                "variance": variance,
-                "status": status
-            })
-        
-        # Treasury health
-        ctx["treasury_index"] = 85 
+            total_b = float(b.total_amount or 1)
+            util  = round((spent / total_b) * 100, 1)
+            flag  = "OVER_BUDGET" if util >= 100 else "NEAR_LIMIT" if util >= 90 else "HEALTHY"
+            ctx_lines.append(f"  {b.department.name if b.department else b.name}: {util}% used | ₹{spent:,.0f} of ₹{total_b:,.0f} [{flag}]")
 
-    # Pending Queue (For everyone)
-    ctx["pending_my_queue"] = ExpenseApprovalStep.objects.filter(
-        assigned_to=user, status="PENDING"
-    ).count()
+        # Delayed payments
+        delayed = (Expense.objects.filter(
+            _status__in=["APPROVED","BOOKED_D365"],
+            invoice_date__lt=timezone.now().date() - timedelta(days=30)
+        ).select_related("vendor").order_by("-total_amount")[:10])
+        ctx_lines.append("\nDELAYED PAYMENTS (approved but >30 days unpaid):")
+        for d in delayed:
+            days_late = (timezone.now().date() - d.invoice_date).days
+            ctx_lines.append(f"  {d.ref_no} | {d.vendor.name if d.vendor else 'N/A'} | ₹{float(d.total_amount):,.0f} | {days_late}d overdue | Status: {d._status}")
 
-    # ─── 3. Construct Prompts ───
-    role_title = "CFO Copilot"
-    if is_vendor: role_title = "Vendor Assistant"
-    elif grade == 2 and not is_cfo: role_title = "Department Intelligence Copilot"
-    elif grade < 3 and not is_cfo: role_title = "Personal Expense Assistant"
-    else: role_title = "Finance Intelligence Copilot"
+    # ── VENDOR-SPECIFIC context (when user IS a vendor) ──────────────────────────
+    if is_vendor:
+        ctx_lines.append(f"\nALL MY INVOICES:")
+        for inv in expense_qs.order_by("-invoice_date"):
+            ctx_lines.append(_fmt_invoice_full(inv, include_steps=True))
+            ctx_lines.append("")
 
-    system_prompt = f"""You are FinanceAI's {role_title} — an elite, pro-active financial intelligence and workflow automation agent.
-You have access to the specific financial data context provided below.
+    # ── EMPLOYEE context ─────────────────────────────────────────────────────────
+    if not is_vendor and not is_cfo and grade <= 2:
+        ctx_lines.append(f"\nMY EXPENSES:")
+        for e in expense_qs.order_by("-invoice_date"):
+            ctx_lines.append(_fmt_invoice_full(e, include_steps=True))
+            ctx_lines.append("")
 
-RULES:
-1. For questions about the company's specific data (spend, budgets, vendors, anomalies), you MUST provide answers based ONLY on the provided context. Format currency as ₹ with Indian numbering (e.g. ₹1,50,000).
-2. For broader financial domain questions (e.g., "What is double-billing?", "How does D365 integration work?", "What is a good working capital ratio?"), use your expert domain knowledge to provide a highly detailed, professional, and educational answer.
-3. Your tone should be executive, data-driven, and highly actionable.
+    full_context = "\n".join(ctx_lines)
 
-TOOLS & ACTIONS:
-You can suggest actions the user can take to execute workflows. If the user asks to "do" something, or if you detect an actionable scenario, suggest these actions:
-- nav_to(screen): Suggest navigating to a screen (dashboard, ap-hub, expenses, anomaly, budget, reports, vendors).
-- approve(ref_no): Suggest approving a specific bill.
-- schedule(ref_no): Suggest scheduling a payment.
-- remind(ref_no): Suggest sending a reminder to a vendor.
-- scan(ref_no): Suggest running an anomaly scan.
-- export_report(report_type): Suggest exporting a CSV report (e.g. "Spend Analysis", "Vendor Audit").
+    # ── 3. CONVERSATION HISTORY from session ────────────────────────────────────
+    history_text = ""
+    if session_id:
+        from apps.core.models import AICopilotLog
+        past = AICopilotLog.objects.filter(session_id=session_id).order_by("created_at")[:10]
+        if past:
+            history_text = "\n\nCONVERSATION HISTORY (most recent first, use for context):\n"
+            for msg in past:
+                history_text += f"User: {msg.prompt}\nAssistant: {msg.response[:300]}\n\n"
 
-IMPORTANT: You are restricted to the context of the current user: {ctx['user_role']}.
-Return a valid JSON object with 'answer' (your detailed response), 'insight' (a 1-sentence strategic takeaway), 'data_used' (list of context keys or "Domain Knowledge"), and an optional 'actions' list of objects like [{{"label": "Go to Reports", "type": "nav_to", "payload": {{"screen": "reports"}}}}]."""
+    # ── 4. SYSTEM PROMPT ─────────────────────────────────────────────────────────
+    system_prompt = f"""You are FinanceAI's {role_title} — an intelligent financial assistant with direct access to real company data.
 
+CRITICAL RULES:
+1. Answer the EXACT question asked. Do NOT repeat a previous answer if the user asks something different.
+2. Use the REAL DATA in the context. Be specific — mention actual amounts, vendor names, invoice refs, dates.
+3. If a specific vendor/invoice is asked about, give ALL available details for that entity.
+4. Use conversation history to understand follow-up questions (e.g. "these vendors", "that invoice", "more details").
+5. Format: use bullet points, ₹ for currency (Indian format like ₹1,23,456), be concise but complete.
+6. Suggest actionable next steps relevant to the finding.
 
-    user_prompt = f"""Financial Data Context:
-{_format_context(ctx)}
+RESPONSE FORMAT — return valid JSON ONLY (no markdown, no code blocks):
+{{
+  "answer": "plain text answer — must be a STRING, not an object or array. Use \\n for line breaks.",
+  "insight": "one sharp strategic takeaway as a plain text STRING",
+  "actions": [{{"label": "Go to AP Hub", "type": "nav_to", "payload": {{"screen": "ap-hub"}}}}]
+}}
 
-User Question: {question}
+IMPORTANT: "answer" and "insight" MUST be plain text strings. Never use nested objects or arrays for these fields.
+Available screens for nav_to: dashboard, ap-hub, expenses, anomaly, budget, reports, ai-hub, vendors"""
 
-Format your response as a valid JSON object."""
+    user_prompt = f"""=== LIVE FINANCIAL DATA ===
+{full_context}
+{history_text}
+=== USER QUESTION ===
+{question}
 
+Answer using the real data above. Return valid JSON only."""
+
+    # ── 5. CALL LLM ──────────────────────────────────────────────────────────────
     try:
         response = call_text_model(prompt=user_prompt, system_prompt=system_prompt)
-        import json
-        content = response.get("content", "{}")
-        # Clean JSON
-        content = content.strip()
+        content  = response.get("content", "{}").strip()
         if content.startswith("```"):
             content = content.split("\n", 1)[1] if "\n" in content else content[3:]
         if content.endswith("```"):
             content = content[:-3]
-        start = content.find("{")
-        end = content.rfind("}") + 1
-        if start >= 0:
-            content = content[start:end]
-        parsed = json.loads(content)
-        parsed["context"] = ctx
+        start = content.find("{"); end = content.rfind("}") + 1
+        if start >= 0: content = content[start:end]
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError:
+            # LLM emits literal control chars inside JSON strings — escape only those
+            fixed = _escape_json_strings(content)
+            parsed = json.loads(fixed)
+
+        # Normalise: ensure "answer" and "insight" are strings, not dicts/lists
+        for key in ("answer", "insight"):
+            val = parsed.get(key, "")
+            if isinstance(val, dict):
+                lines = []
+                for k, v in val.items():
+                    if isinstance(v, list):
+                        lines.append(f"{k}:")
+                        lines.extend(f"  • {item}" for item in v)
+                    else:
+                        lines.append(f"{k}: {v}")
+                parsed[key] = "\n".join(lines)
+            elif isinstance(val, list):
+                parsed[key] = "\n".join(str(x) for x in val)
+
         parsed["model"] = response.get("model", "")
         return parsed
-    except Exception:
-        return _rule_based_answer(question, ctx)
-
-
-def _format_context(ctx: dict) -> str:
-    lines = []
-    lines.append(f"User Role: {ctx.get('user_role')}")
-    if "vendor_name" in ctx:
-        lines.append(f"Vendor Name: {ctx['vendor_name']}")
-
-    lines.append(f"Total Outstanding: ₹{ctx['total_outstanding']:,.0f}")
-    if "anomaly_count" in ctx:
-        lines.append(f"System Anomalies (HIGH/CRITICAL): {ctx['anomaly_count']}")
-
-    lines.append(f"Pending Items in Your Queue: {ctx['pending_my_queue']}")
-
-    if "top_vendors" in ctx:
-        lines.append("Top Vendors by Spend:")
-        for v in ctx["top_vendors"]:
-            lines.append(f"  - {v['vendor']}: ₹{v['total_spend']:,.0f} ({v['invoice_count']} inv)")
-            
-    if "vendor_queries" in ctx:
-        lines.append("Vendors with most Queries (last 30d):")
-        for q in ctx["vendor_queries"]:
-            lines.append(f"  - {q['vendor']}: {q['query_count']} queries")
-
-    if "delayed_payments" in ctx:
-        lines.append("Vendors with Delayed Payments (>30d):")
-        for d in ctx["delayed_payments"]:
-            lines.append(f"  - {d['vendor']}: {d['count']} items (₹{d['amount']:,.0f})")
-
-    if "budget_health" in ctx:
-        lines.append("Budget Health (Active):")
-        for b in ctx["budget_health"]:
-            lines.append(f"  - {b['dept']}: {b['util_pct']}% used (₹{b['spent']:,.0f} of ₹{b['total']:,.0f})")
-            
-    if "treasury_index" in ctx:
-        lines.append(f"Treasury Health Index: {ctx['treasury_index']}%")
-
-    lines.append("Status Distribution:")
-    for s in ctx["expense_status"]:
-        lines.append(f"  - {s['status']}: {s['count']} items, ₹{s['amount']:,.0f}")
-
-    return "\n".join(lines)
-
-
-
-def _rule_based_answer(question: str, ctx: dict) -> dict:
-    q = question.lower()
-    role = ctx.get("user_role", "Finance User")
-
-    # ── Greetings / identity questions ──────────────────────────────────────────
-    greeting_words = ["hi", "hello", "hey", "who are you", "what are you", "what can you do", "help me", "help"]
-    finance_words = ["audit", "budget", "vendor", "invoice", "payment", "expense", "anomaly", "cash", "outstanding", "pending", "queue"]
-    if any(w in q for w in greeting_words) and not any(w in q for w in finance_words):
-        answer = (
-            f"Hello! I'm your {role} Copilot — an AI-powered finance intelligence assistant.\n\n"
-            "I can help you with:\n"
-            "• Outstanding invoices and payment status\n"
-            "• Vendor spend analysis and top vendors\n"
-            "• Budget utilization and alerts\n"
-            "• Anomaly & fraud detection summary\n"
-            "• Cash flow insights and treasury health\n\n"
-            "I'm restricted to financial data only. What would you like to know?"
-        )
-        return {"answer": answer, "insight": "Ask me about vendors, invoices, budget, or anomalies for real-time insights.", "context": ctx}
-
-    # ── Non-finance domain block ────────────────────────────────────────────────
-    non_finance = ["weather", "news", "sports", "movie", "music", "food recipe", "travel plan", "joke", "poem", "programming", "history lesson", "science", "geography"]
-    if any(w in q for w in non_finance):
+    except Exception as _nl_err:
+        import logging, traceback
+        logging.getLogger("apps").error("_run_nl_query failed: %s\n%s", _nl_err, traceback.format_exc())
+        # Minimal fallback
         return {
-            "answer": "I'm strictly a finance intelligence assistant. I can only answer questions about your financial data — invoices, vendors, budgets, expenses, and anomalies. Please ask me a finance-related question.",
-            "insight": "Try: 'What are my top vendors?' or 'Show budget status' or 'Any anomalies?'",
-            "context": ctx,
+            "answer": f"I have your financial data loaded. Here's a quick summary:\n• Outstanding: ₹{total_outstanding:,.0f}\n• Pending queue: {pending_queue} items\n\nPlease ask a specific question and I'll give you detailed real-time data.",
+            "insight": "Ask about a specific vendor, invoice, budget, or anomaly for full details.",
         }
-
-    # ── Queries / Late payments (NEW) ──────────────────────────────────────────
-    if any(w in q for w in ["query", "queries", "question raised"]):
-        vendor_queries = ctx.get("vendor_queries", [])
-        if vendor_queries:
-            lines = "\n".join(f"• {vq['vendor']}: {vq['query_count']} queries" for vq in vendor_queries)
-            answer = f"Vendors with the most queries raised in the last 30 days:\n{lines}"
-            insight = f"Vendor '{vendor_queries[0]['vendor']}' has the highest query volume ({vendor_queries[0]['query_count']})."
-        else:
-            answer = "No significant query volume detected for vendors in the last 30 days."
-            insight = "Query levels are within normal parameters."
-        return {"answer": answer, "insight": insight, "context": ctx}
-
-    if any(w in q for w in ["late", "delay", "overdue", "slow payment"]):
-        delayed = ctx.get("delayed_payments", [])
-        if delayed:
-            lines = "\n".join(f"• {d['vendor']}: {d['count']} delayed items (₹{d['amount']:,.0f})" for d in delayed)
-            answer = f"Vendors with delayed payments (over 30 days old):\n{lines}"
-            insight = f"Total delayed exposure for top flagged vendors: ₹{sum(d['amount'] for d in delayed):,.0f}."
-        else:
-            answer = "No significant payment delays detected (all approved invoices are under 30 days old)."
-            insight = "Payment cycle is performing according to SLA."
-        return {"answer": answer, "insight": insight, "context": ctx}
-
-    # ── Vendor / spend questions ────────────────────────────────────────────────
-    if any(w in q for w in ["vendor", "supplier", "spend", "top vendor", "purchase", "procurement"]):
-        vendors = ctx.get("top_vendors", [])[:5]
-        if vendors:
-            lines = "\n".join(f"{i+1}. {v['vendor']}: ₹{v['total_spend']:,.0f} ({v['invoice_count']} invoices)" for i, v in enumerate(vendors))
-            answer = f"Top vendors by total spend:\n{lines}"
-            insight = f"Your top vendor '{vendors[0]['vendor']}' accounts for ₹{vendors[0]['total_spend']:,.0f} in spend."
-        else:
-            answer = "No vendor spend data available for your access scope."
-            insight = "Contact Finance Admin for vendor data access."
-        return {"answer": answer, "insight": insight, "context": ctx}
-
-    # ── Budget questions ────────────────────────────────────────────────────────
-    if any(w in q for w in ["budget", "over budget", "utilization", "guardrail", "limit", "dept budget", "department budget"]):
-        budgets = ctx.get("budget_health", [])
-        if budgets:
-            critical = [b for b in budgets if "OVER_BUDGET" in b["status"]]
-            warning = [b for b in budgets if "NEAR_LIMIT" in b["status"]]
-            lines = "\n".join(f"• {b['dept']}: {b['util_pct']}% used (₹{b['spent']:,.0f} of ₹{b['total']:,.0f}) — {b['status']}" for b in budgets)
-            answer = f"Budget Health Summary:\n{lines}"
-            insight = f"{len(critical)} department(s) OVER budget, {len(warning)} near limit. Immediate action required: {', '.join(b['dept'] for b in critical) or 'None'}."
-        else:
-            answer = "No active budget data found. Please configure budgets in the Budgetary Guardrails module."
-            insight = "Set up department budgets to enable this feature."
-        return {"answer": answer, "insight": insight, "context": ctx}
-
-    # ── Anomaly / fraud / risk questions ────────────────────────────────────────
-    if any(w in q for w in ["anomal", "fraud", "suspicious", "flag", "risk", "duplicate"]):
-        count = ctx.get("anomaly_count", 0)
-        answer = f"There are currently {count} HIGH/CRITICAL anomaly flag(s) in the system requiring immediate review.\n\nThese include duplicate invoices, inflated values, and abnormal patterns detected by the AI engine."
-        insight = "Navigate to AI Fraud & Anomaly Engine to investigate and take action on flagged items."
-        return {"answer": answer, "insight": insight, "context": ctx}
-
-    # ── Outstanding / payable / receivable questions ─────────────────────────────
-    if any(w in q for w in ["outstanding", "payable", "receivable", "unpaid", "overdue", "due"]):
-        total = ctx.get("total_outstanding", 0)
-        queue = ctx.get("pending_my_queue", 0)
-        dist = ctx.get("expense_status", [])
-        overdue = next((s for s in dist if s["status"] in ("OVERDUE", "APPROVED")), None)
-        answer = f"Total Outstanding Amount: ₹{total:,.0f}\nYour Pending Queue: {queue} items"
-        if overdue:
-            answer += f"\nApproved & Awaiting Payment: {overdue['count']} items (₹{overdue['amount']:,.0f})"
-        insight = "Prioritize clearing overdue items to avoid late payment penalties and interest."
-        return {"answer": answer, "insight": insight, "context": ctx}
-
-    # ── Pending queue / my tasks ────────────────────────────────────────────────
-    if any(w in q for w in ["queue", "my task", "my approval", "my invoice", "my expense", "my reimbursement", "pending approval"]):
-        queue = ctx.get("pending_my_queue", 0)
-        answer = f"You have {queue} item(s) pending in your approval queue."
-        if queue > 0:
-            answer += "\nPlease review these promptly to avoid SLA breaches."
-        insight = "Access the AP Hub or your dashboard to process pending items."
-        return {"answer": answer, "insight": insight, "context": ctx}
-
-    # ── Audit / activity log ────────────────────────────────────────────────────
-    if any(w in q for w in ["audit", "log", "activity", "history", "24h", "last 24", "audit log"]):
-        anomaly_count = ctx.get("anomaly_count", 0)
-        total = ctx.get("total_outstanding", 0)
-        queue = ctx.get("pending_my_queue", 0)
-        answer = (
-            f"Audit Summary:\n"
-            f"• Active Anomaly Flags (HIGH/CRITICAL): {anomaly_count}\n"
-            f"• Total Outstanding: ₹{total:,.0f}\n"
-            f"• Pending Approvals in Queue: {queue}\n\n"
-            "For a full activity log, use Dashboard → Audit Sweep."
-        )
-        insight = "Regular audit log reviews help catch fraud patterns early."
-        return {"answer": answer, "insight": insight, "context": ctx}
-
-    # ── Cash flow / treasury ────────────────────────────────────────────────────
-    if any(w in q for w in ["cash", "cashflow", "cash flow", "forecast", "projection", "treasury"]):
-        treasury = ctx.get("treasury_index", "N/A")
-        outstanding = ctx.get("total_outstanding", 0)
-        answer = f"Treasury Health Index: {treasury}%\nTotal Outstanding Payables: ₹{outstanding:,.0f}"
-        insight = "Navigate to AI Intelligence → Cash Flow Forecasting for detailed 90-day projections."
-        return {"answer": answer, "insight": insight, "context": ctx}
-
-    # ── Status distribution / overview ─────────────────────────────────────────
-    if any(w in q for w in ["status", "distribution", "summary", "overview", "dashboard", "report"]):
-        dist = ctx.get("expense_status", [])
-        if dist:
-            lines = "\n".join(f"• {s['status']}: {s['count']} items (₹{s['amount']:,.0f})" for s in dist)
-            answer = f"Expense & Invoice Status Distribution:\n{lines}"
-        else:
-            answer = f"Total Outstanding: ₹{ctx.get('total_outstanding', 0):,.0f}"
-        insight = "Visit the Dashboard for a complete visual breakdown of all financial metrics."
-        return {"answer": answer, "insight": insight, "context": ctx}
-
-    # ── Default: comprehensive financial summary ────────────────────────────────
-    dist = ctx.get("expense_status", [])
-    status_lines = "\n".join(f"  • {s['status']}: {s['count']} items (₹{s['amount']:,.0f})" for s in dist[:5])
-    answer = (
-        f"Financial Summary for {role}:\n"
-        f"• Total Outstanding: ₹{ctx.get('total_outstanding', 0):,.0f}\n"
-        f"• Anomalies (HIGH/CRITICAL): {ctx.get('anomaly_count', 'N/A')}\n"
-        f"• Your Pending Queue: {ctx.get('pending_my_queue', 0)}\n"
-        f"{'Status Breakdown:\n' + status_lines if status_lines else ''}\n\n"
-        "I can answer questions about vendors, budgets, anomalies, cash flow, and outstanding invoices."
-    )
-    insight = "Ask me a specific question for deeper analysis — e.g. 'top vendors', 'budget status', or 'anomalies'."
-    return {"answer": answer, "insight": insight, "context": ctx}
 
 from django.contrib.auth.models import Group
 from .auth_serializers import GroupSerializer

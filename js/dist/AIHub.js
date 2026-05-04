@@ -9,7 +9,8 @@ const SUGGESTED_QUERIES = {
   'Vendor': ['When will my last invoice be paid?', 'Total outstanding payments to me', 'Status of INV-2026-001', 'How to submit a new invoice?']
 };
 const CopilotWidget = ({
-  role
+  role,
+  onNavigate
 }) => {
   const roleKey = role || 'CFO';
   const queries = SUGGESTED_QUERIES[roleKey] || SUGGESTED_QUERIES['Employee'];
@@ -28,6 +29,11 @@ const CopilotWidget = ({
   }]);
   const [input, setInput] = React.useState('');
   const [loading, setLoading] = React.useState(false);
+  const [currentSessionId, setCurrentSessionId] = React.useState(null);
+  const [showHistory, setShowHistory] = React.useState(false);
+  const [sessions, setSessions] = React.useState([]);
+  const [histLoading, setHistLoading] = React.useState(false);
+  const [sessionTitle, setSessionTitle] = React.useState('');
   const endRef = React.useRef(null);
   React.useEffect(() => {
     if (endRef.current) endRef.current.scrollIntoView({
@@ -41,6 +47,129 @@ const CopilotWidget = ({
     window.addEventListener('copilot:prefill', handler);
     return () => window.removeEventListener('copilot:prefill', handler);
   }, []);
+  const fmtTime = iso => {
+    const d = new Date(iso);
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const t = d.toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    if (d.toDateString() === now.toDateString()) return `Today ${t}`;
+    if (d.toDateString() === yesterday.toDateString()) return `Yesterday ${t}`;
+    return d.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    }) + ' ' + t;
+  };
+  const groupSessions = list => {
+    const groups = {};
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    list.forEach(s => {
+      const d = new Date(s.updated_at);
+      let label = d.toDateString() === now.toDateString() ? 'Today' : d.toDateString() === yesterday.toDateString() ? 'Yesterday' : d.toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+      (groups[label] = groups[label] || []).push(s);
+    });
+    return groups;
+  };
+  const loadHistory = async () => {
+    setHistLoading(true);
+    try {
+      const list = await window.TijoriAPI.ChatSessionAPI.list();
+      setSessions(Array.isArray(list) ? list : []);
+    } catch (e) {
+      setSessions([]);
+    } finally {
+      setHistLoading(false);
+    }
+  };
+  const openSession = async (sid, title) => {
+    setShowHistory(false);
+    setMessages([{
+      role: 'ai',
+      text: 'Loading conversation…',
+      time: new Date().toLocaleTimeString('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      loading: true
+    }]);
+    try {
+      const data = await window.TijoriAPI.ChatSessionAPI.get(sid);
+      setCurrentSessionId(sid);
+      setSessionTitle(title || 'Past session');
+      if (!data.messages || data.messages.length === 0) {
+        setMessages([{
+          role: 'ai',
+          text: 'No messages in this session yet. Continue below.',
+          time: new Date().toLocaleTimeString('en-IN', {
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        }]);
+      } else {
+        const rebuilt = [];
+        data.messages.forEach(m => {
+          rebuilt.push({
+            role: 'user',
+            text: m.prompt,
+            time: new Date(m.created_at).toLocaleTimeString('en-IN', {
+              hour: '2-digit',
+              minute: '2-digit'
+            })
+          });
+          rebuilt.push({
+            role: 'ai',
+            text: m.response,
+            insight: m.insight,
+            time: new Date(m.created_at).toLocaleTimeString('en-IN', {
+              hour: '2-digit',
+              minute: '2-digit'
+            })
+          });
+        });
+        setMessages(rebuilt);
+      }
+    } catch (e) {
+      setMessages([{
+        role: 'ai',
+        text: '⚠ Could not load session.',
+        time: new Date().toLocaleTimeString('en-IN', {
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
+        error: true
+      }]);
+    }
+  };
+  const startNewChat = () => {
+    setCurrentSessionId(null);
+    setSessionTitle('');
+    setShowHistory(false);
+    setMessages([{
+      role: 'ai',
+      text: getGreeting(),
+      time: new Date().toLocaleTimeString('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    }]);
+  };
+  const deleteSession = async (sid, e) => {
+    e.stopPropagation();
+    if (!confirm('Delete this chat?')) return;
+    await window.TijoriAPI.ChatSessionAPI.del(sid);
+    if (currentSessionId === sid) startNewChat();
+    setSessions(prev => prev.filter(s => s.id !== sid));
+  };
   const sendMessage = async text => {
     const q = text || input.trim();
     if (!q) return;
@@ -56,10 +185,11 @@ const CopilotWidget = ({
     }]);
     setLoading(true);
     try {
-      const {
-        NLQueryAPI
-      } = window.TijoriAPI;
-      const res = await NLQueryAPI.ask(q);
+      const res = await window.TijoriAPI.NLQueryAPI.ask(q, currentSessionId);
+      if (res.session_id && !currentSessionId) {
+        setCurrentSessionId(res.session_id);
+        setSessionTitle(q.slice(0, 40) + (q.length > 40 ? '…' : ''));
+      }
       const answer = res.answer || res.error || 'No response.';
       const insight = res.insight || '';
       const actions = res.actions || [];
@@ -87,9 +217,8 @@ const CopilotWidget = ({
   };
   const handleAction = a => {
     if (a.type === 'nav_to') {
-      onNavigate(a.payload.screen);
+      if (typeof onNavigate === 'function') onNavigate(a.payload.screen);
     } else if (a.type === 'remind') {
-      // Direct call to reminder API
       window.TijoriAPI.BillsAPI.remind(a.payload.ref_no).then(() => alert(`Reminder sent for ${a.payload.ref_no}`)).catch(e => alert(e.message));
     } else if (a.type === 'export_report') {
       const csv = `"Report Data"\n"${a.payload.report_type || 'Custom Report'}"\n"${new Date().toISOString()}"`;
@@ -103,10 +232,10 @@ const CopilotWidget = ({
       link.click();
       URL.revokeObjectURL(url);
     } else {
-      alert(`Action ${a.type} suggested for ${a.payload.ref_no || 'this item'}. Click to view details.`);
-      if (a.payload.ref_no) onNavigate('ap-hub');
+      if (a.payload?.ref_no && typeof onNavigate === 'function') onNavigate('ap-hub');
     }
   };
+  const grouped = groupSessions(sessions);
   return /*#__PURE__*/React.createElement(Card, {
     style: {
       padding: '0',
@@ -115,27 +244,206 @@ const CopilotWidget = ({
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      padding: '16px 20px',
+      padding: '14px 20px',
       borderBottom: '1px solid #F1F0EE',
       display: 'flex',
       alignItems: 'center',
       gap: '10px'
     }
-  }, /*#__PURE__*/React.createElement(AIBadge, null), /*#__PURE__*/React.createElement("div", {
+  }, showHistory ? /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowHistory(false),
+    style: {
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      color: '#E8783B',
+      fontSize: '18px',
+      lineHeight: 1,
+      padding: '0 4px'
+    }
+  }, "\u2190") : null, /*#__PURE__*/React.createElement(AIBadge, null), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      minWidth: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
     style: {
       fontFamily: "'Bricolage Grotesque', sans-serif",
       fontWeight: 700,
       fontSize: '17px',
       color: '#0F172A'
     }
-  }, roleKey === 'Vendor' ? 'Vendor Assistant' : roleKey === 'Employee' ? 'Expense Assistant' : `${roleKey} Copilot`), /*#__PURE__*/React.createElement(LiveDot, null), /*#__PURE__*/React.createElement("span", {
+  }, showHistory ? 'Chat History' : roleKey === 'Vendor' ? 'Vendor Assistant' : roleKey === 'Employee' ? 'Expense Assistant' : `${roleKey} Copilot`), !showHistory && sessionTitle && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: '11px',
       color: '#94A3B8',
       fontFamily: "'Plus Jakarta Sans', sans-serif",
-      marginLeft: 'auto'
+      overflow: 'hidden',
+      whiteSpace: 'nowrap',
+      textOverflow: 'ellipsis'
     }
-  }, "Powered by Claude 3 Haiku \xB7 Real-time data")), /*#__PURE__*/React.createElement("div", {
+  }, sessionTitle)), /*#__PURE__*/React.createElement(LiveDot, null), /*#__PURE__*/React.createElement("button", {
+    onClick: startNewChat,
+    title: "New Chat",
+    style: {
+      background: '#FFF7ED',
+      border: '1px solid #FED7AA',
+      borderRadius: '8px',
+      padding: '5px 10px',
+      fontSize: '11px',
+      color: '#E8783B',
+      fontWeight: 700,
+      cursor: 'pointer',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      display: 'flex',
+      alignItems: 'center',
+      gap: '4px'
+    }
+  }, "\u270F New"), !showHistory && /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setShowHistory(true);
+      loadHistory();
+    },
+    title: "Chat History",
+    style: {
+      background: '#F5F3FF',
+      border: '1px solid #EDE9FE',
+      borderRadius: '8px',
+      padding: '5px 10px',
+      fontSize: '11px',
+      color: '#5B21B6',
+      fontWeight: 700,
+      cursor: 'pointer',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      display: 'flex',
+      alignItems: 'center',
+      gap: '4px'
+    }
+  }, "\uD83D\uDCCB History")), showHistory ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: 400,
+      overflowY: 'auto',
+      background: '#FAFAF8'
+    }
+  }, histLoading ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '40px',
+      textAlign: 'center',
+      color: '#94A3B8',
+      fontSize: '13px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Loading history\u2026") : sessions.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '48px 24px',
+      textAlign: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '32px',
+      marginBottom: '12px'
+    }
+  }, "\uD83D\uDCAC"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '14px',
+      fontWeight: 600,
+      color: '#0F172A',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginBottom: '6px'
+    }
+  }, "No past chats yet"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Start a conversation and it will appear here.")) : Object.entries(grouped).map(([label, items]) => /*#__PURE__*/React.createElement("div", {
+    key: label
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '10px 20px 4px',
+      fontSize: '10px',
+      fontWeight: 700,
+      color: '#94A3B8',
+      textTransform: 'uppercase',
+      letterSpacing: '0.08em',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, label), items.map(s => /*#__PURE__*/React.createElement("div", {
+    key: s.id,
+    onClick: () => openSession(s.id, s.title),
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px',
+      padding: '10px 20px',
+      cursor: 'pointer',
+      background: s.id === currentSessionId ? '#FFF3E6' : 'transparent',
+      borderLeft: s.id === currentSessionId ? '3px solid #E8783B' : '3px solid transparent',
+      transition: 'background 150ms'
+    },
+    onMouseEnter: e => {
+      if (s.id !== currentSessionId) e.currentTarget.style.background = '#F8F7F5';
+    },
+    onMouseLeave: e => {
+      if (s.id !== currentSessionId) e.currentTarget.style.background = 'transparent';
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 32,
+      height: 32,
+      borderRadius: '8px',
+      background: s.id === currentSessionId ? '#E8783B' : '#EDE9FE',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+      fontSize: '14px'
+    }
+  }, s.id === currentSessionId ? '✦' : '💬'), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      minWidth: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '13px',
+      fontWeight: 600,
+      color: '#0F172A',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      overflow: 'hidden',
+      whiteSpace: 'nowrap',
+      textOverflow: 'ellipsis'
+    }
+  }, s.title || 'Untitled Chat'), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginTop: '2px'
+    }
+  }, fmtTime(s.updated_at))), /*#__PURE__*/React.createElement("button", {
+    onClick: e => deleteSession(s.id, e),
+    style: {
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      color: '#CBD5E1',
+      fontSize: '14px',
+      padding: '4px',
+      borderRadius: '4px',
+      flexShrink: 0
+    },
+    onMouseEnter: e => {
+      e.currentTarget.style.color = '#EF4444';
+      e.currentTarget.style.background = '#FEF2F2';
+    },
+    onMouseLeave: e => {
+      e.currentTarget.style.color = '#CBD5E1';
+      e.currentTarget.style.background = 'none';
+    },
+    title: "Delete"
+  }, "\uD83D\uDDD1")))))) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '12px 20px',
       borderBottom: '1px solid #F8F7F5',
@@ -155,9 +463,10 @@ const CopilotWidget = ({
       fontSize: '11px',
       color: '#5B21B6',
       fontWeight: 600,
-      cursor: 'pointer',
+      cursor: loading ? 'default' : 'pointer',
       fontFamily: "'Plus Jakarta Sans', sans-serif",
-      transition: 'all 150ms'
+      transition: 'all 150ms',
+      opacity: loading ? 0.5 : 1
     }
   }, q))), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -232,7 +541,8 @@ const CopilotWidget = ({
       fontWeight: 700,
       cursor: 'pointer',
       fontFamily: "'Plus Jakarta Sans', sans-serif",
-      boxShadow: '0 2px 4px rgba(232,120,59,0.1)'
+      boxShadow: '0 2px 4px rgba(232,120,59,0.1)',
+      transition: 'all 150ms'
     }
   }, a.label))), m.insight && /*#__PURE__*/React.createElement("div", {
     style: {
@@ -339,7 +649,7 @@ const CopilotWidget = ({
       fontFamily: "'Plus Jakarta Sans', sans-serif",
       transition: 'all 150ms'
     }
-  }, "Send \u2191")));
+  }, "Send \u2191"))));
 };
 const AIHubScreen = ({
   role,
@@ -369,8 +679,6 @@ const AIHubScreen = ({
   const [payProcessing, setPayProcessing] = React.useState(false);
   const [schedProcessing, setSchedProcessing] = React.useState(false);
   const [autoGenEnabled, setAutoGenEnabled] = React.useState(true);
-  const [generatedReport, setGeneratedReport] = React.useState(null);
-  const [generatingReport, setGeneratingReport] = React.useState(false);
   React.useEffect(() => {
     window.TijoriAPI.BudgetAPI.cashflow().then(d => setCfData(d)).catch(() => {});
     // Load real monthly summaries from backend analytics
@@ -1207,19 +1515,13 @@ const AIHubScreen = ({
     icon: /*#__PURE__*/React.createElement(AIBadge, {
       small: true
     }),
-    disabled: generatingReport,
-    onClick: async () => {
-      setGeneratingReport(true);
-      try {
-        const res = await window.TijoriAPI.AnalyticsAPI.generate10Q();
-        setGeneratedReport(res);
-      } catch(e) {
-        setGeneratedReport({ error: true, title: 'Generation Failed', content: e.message || 'Error generating report.' });
-      } finally {
-        setGeneratingReport(false);
-      }
+    onClick: () => {
+      window.TijoriAPI.NLQueryAPI.ask('Generate executive financial summary for ' + new Date().toLocaleString('en-IN', {
+        month: 'long',
+        year: 'numeric'
+      })).then(res => alert('Summary: ' + (res.answer || 'Generated successfully.'))).catch(e => alert('Generation failed: ' + (e.message || 'Error')));
     }
-  }, generatingReport ? 'Generating…' : 'Generate Now')), /*#__PURE__*/React.createElement("div", {
+  }, "Generate Now")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'grid',
       gridTemplateColumns: 'repeat(3, 1fr)',
@@ -1719,91 +2021,9 @@ const AIHubScreen = ({
       alignItems: 'center',
       gap: 8
     }
-  }, /*#__PURE__*/React.createElement("span", null, payNowMsg.type === 'success' ? '✓' : payNowMsg.type === 'error' ? '✕' : '…'), payNowMsg.text)), generatedReport && /*#__PURE__*/React.createElement(TjModal, {
-    open: true,
-    onClose: () => setGeneratedReport(null),
-    title: generatedReport.title || 'Monthly Financial Summary',
-    accentColor: generatedReport.error ? '#DC2626' : '#10B981',
-    width: 720
-  }, generatedReport.error ? /*#__PURE__*/React.createElement("div", {
-    style: { color: '#991B1B', fontSize: '13px', padding: '16px', fontFamily: "'Plus Jakarta Sans', sans-serif" }
-  }, generatedReport.content) : /*#__PURE__*/React.createElement("div", { style: { fontFamily: "'Plus Jakarta Sans', sans-serif" } },
-    generatedReport.period && /*#__PURE__*/React.createElement("div", { style: { fontSize: '11px', color: '#64748B', marginBottom: '16px' } }, "Period: ", generatedReport.period, " | Generated: ", generatedReport.generated_at),
-    /*#__PURE__*/React.createElement("div", { style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '16px' } },
-      [
-        { label: 'YTD Paid', value: generatedReport.stats ? '₹' + ((generatedReport.stats.ytd_expenses||0)/100000).toFixed(1) + 'L' : '—' },
-        { label: 'Q Paid', value: generatedReport.stats ? '₹' + ((generatedReport.stats.q_paid||0)/100000).toFixed(1) + 'L' : '—' },
-        { label: 'Pending Bills', value: generatedReport.stats ? String(generatedReport.stats.q_pending_count||0) : '—' },
-        { label: 'QoQ Change', value: generatedReport.stats ? ((generatedReport.stats.qoq_change_pct||0) >= 0 ? '+' : '') + (generatedReport.stats.qoq_change_pct||0) + '%' : '—' },
-        { label: 'Anomalies', value: generatedReport.stats ? String(generatedReport.stats.anomaly_total||0) : '—' },
-        { label: 'Critical', value: generatedReport.stats ? String(generatedReport.stats.anomaly_critical||0) : '—', danger: true },
-        { label: 'Est. GST', value: generatedReport.stats ? '₹' + ((generatedReport.stats.gst_estimate||0)/100000).toFixed(1) + 'L' : '—' },
-        { label: 'Est. TDS', value: generatedReport.stats ? '₹' + ((generatedReport.stats.tds_estimate||0)/100000).toFixed(1) + 'L' : '—' },
-      ].map((s, i) => /*#__PURE__*/React.createElement("div", { key: i, style: { background: s.danger ? '#FEF2F2' : '#F0FDF4', border: '1px solid ' + (s.danger ? '#FECACA' : '#D1FAE5'), borderRadius: '10px', padding: '10px 12px', textAlign: 'center' } },
-        /*#__PURE__*/React.createElement("div", { style: { fontSize: '9px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' } }, s.label),
-        /*#__PURE__*/React.createElement("div", { style: { fontSize: '15px', fontWeight: 800, color: s.danger ? '#DC2626' : '#065F46', marginTop: '3px' } }, s.value)
-      ))
-    ),
-    /*#__PURE__*/React.createElement("div", { style: { fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' } }, "AI Executive Summary"),
-    /*#__PURE__*/React.createElement("div", { style: { fontSize: '12px', color: '#1E293B', lineHeight: 1.7, maxHeight: 200, overflowY: 'auto', whiteSpace: 'pre-wrap', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '12px', marginBottom: '12px' } }, generatedReport.content || ''),
-    generatedReport.top_vendors && generatedReport.top_vendors.length > 0 && /*#__PURE__*/React.createElement("div", { style: { marginBottom: '12px' } },
-      /*#__PURE__*/React.createElement("div", { style: { fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' } }, "Top Vendors by Spend"),
-      /*#__PURE__*/React.createElement("table", { style: { width: '100%', borderCollapse: 'collapse', fontSize: '11px' } },
-        /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", { style: { background: '#F1F5F9' } },
-          ["Vendor","Amount","Invoices"].map((h,i) => /*#__PURE__*/React.createElement("th", { key: i, style: { padding: '5px 8px', textAlign: i>0?'right':'left', color: '#475569' } }, h))
-        )),
-        /*#__PURE__*/React.createElement("tbody", null, generatedReport.top_vendors.map((v, i) => /*#__PURE__*/React.createElement("tr", { key: i, style: { borderBottom: '1px solid #F1F5F9' } },
-          /*#__PURE__*/React.createElement("td", { style: { padding: '5px 8px', fontWeight: 600, color: '#1E293B' } }, v.name),
-          /*#__PURE__*/React.createElement("td", { style: { padding: '5px 8px', textAlign: 'right', color: '#065F46', fontWeight: 700 } }, '₹' + parseFloat(v.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })),
-          /*#__PURE__*/React.createElement("td", { style: { padding: '5px 8px', textAlign: 'right', color: '#64748B' } }, v.invoices)
-        )))
-      )
-    ),
-    generatedReport.monthly_trend && generatedReport.monthly_trend.length > 0 && /*#__PURE__*/React.createElement("div", { style: { marginBottom: '12px' } },
-      /*#__PURE__*/React.createElement("div", { style: { fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' } }, "Monthly Expense Trend (YTD)"),
-      /*#__PURE__*/React.createElement("table", { style: { width: '100%', borderCollapse: 'collapse', fontSize: '11px' } },
-        /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", { style: { background: '#F1F5F9' } },
-          ["Month","Paid","Invoices"].map((h,i) => /*#__PURE__*/React.createElement("th", { key: i, style: { padding: '5px 8px', textAlign: i>0?'right':'left', color: '#475569' } }, h))
-        )),
-        /*#__PURE__*/React.createElement("tbody", null, generatedReport.monthly_trend.map((m, i) => /*#__PURE__*/React.createElement("tr", { key: i, style: { borderBottom: '1px solid #F1F5F9' } },
-          /*#__PURE__*/React.createElement("td", { style: { padding: '5px 8px', fontWeight: 600, color: '#1E293B' } }, m.month),
-          /*#__PURE__*/React.createElement("td", { style: { padding: '5px 8px', textAlign: 'right', color: '#065F46', fontWeight: 700 } }, '₹' + parseFloat(m.paid).toLocaleString('en-IN', { minimumFractionDigits: 2 })),
-          /*#__PURE__*/React.createElement("td", { style: { padding: '5px 8px', textAlign: 'right', color: '#64748B' } }, m.invoices)
-        )))
-      )
-    ),
-    generatedReport.dept_budgets && generatedReport.dept_budgets.length > 0 && /*#__PURE__*/React.createElement("div", { style: { marginBottom: '12px' } },
-      /*#__PURE__*/React.createElement("div", { style: { fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' } }, "Dept. Budget Utilization"),
-      generatedReport.dept_budgets.map((b, i) => /*#__PURE__*/React.createElement("div", { key: i, style: { marginBottom: '6px' } },
-        /*#__PURE__*/React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '3px' } },
-          /*#__PURE__*/React.createElement("span", { style: { fontWeight: 600, color: '#1E293B' } }, b.dept),
-          /*#__PURE__*/React.createElement("span", { style: { color: b.utilization > 90 ? '#DC2626' : b.utilization > 70 ? '#D97706' : '#065F46', fontWeight: 700 } }, b.utilization + '%')
-        ),
-        /*#__PURE__*/React.createElement("div", { style: { background: '#E2E8F0', borderRadius: '4px', height: '6px', overflow: 'hidden' } },
-          /*#__PURE__*/React.createElement("div", { style: { background: b.utilization > 90 ? '#DC2626' : b.utilization > 70 ? '#F59E0B' : '#10B981', width: Math.min(b.utilization, 100) + '%', height: '100%', borderRadius: '4px' } })
-        )
-      ))
-    ),
-    /*#__PURE__*/React.createElement("div", { style: { display: 'flex', gap: '8px', marginTop: '12px' } },
-      /*#__PURE__*/React.createElement(Btn, {
-        variant: "primary",
-        onClick: () => {
-          const d = generatedReport;
-          const stats = d.stats || {};
-          const vRows = (d.top_vendors||[]).map((v,i) => '<tr><td style="padding:5px 10px;border-bottom:1px solid #E2E8F0">'+(i+1)+'. '+v.name+'</td><td style="padding:5px 10px;border-bottom:1px solid #E2E8F0;text-align:right">₹'+parseFloat(v.amount).toLocaleString('en-IN',{minimumFractionDigits:2})+'</td><td style="padding:5px 10px;border-bottom:1px solid #E2E8F0;text-align:right">'+v.invoices+'</td></tr>').join('');
-          const tRows = (d.monthly_trend||[]).map(m => '<tr><td style="padding:5px 10px;border-bottom:1px solid #E2E8F0">'+m.month+'</td><td style="padding:5px 10px;border-bottom:1px solid #E2E8F0;text-align:right">₹'+parseFloat(m.paid).toLocaleString('en-IN',{minimumFractionDigits:2})+'</td><td style="padding:5px 10px;border-bottom:1px solid #E2E8F0;text-align:right">'+m.invoices+'</td></tr>').join('');
-          const bRows = (d.dept_budgets||[]).map(b => '<tr><td style="padding:5px 10px;border-bottom:1px solid #E2E8F0">'+b.dept+'</td><td style="padding:5px 10px;border-bottom:1px solid #E2E8F0;text-align:right">₹'+b.spent.toLocaleString('en-IN',{minimumFractionDigits:2})+'</td><td style="padding:5px 10px;border-bottom:1px solid #E2E8F0;text-align:right">'+b.utilization+'%</td></tr>').join('');
-          const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+(d.title||'Monthly Summary')+'</title><style>body{font-family:"Segoe UI",Arial,sans-serif;margin:40px;color:#1E293B;font-size:13px}h1{color:#065F46;font-size:20px;border-bottom:3px solid #10B981;padding-bottom:10px}h2{color:#065F46;font-size:14px;margin-top:24px;margin-bottom:8px;border-left:4px solid #10B981;padding-left:10px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}.card{background:#F0FDF4;border:1px solid #A7F3D0;border-radius:8px;padding:12px;text-align:center}.lbl{font-size:10px;color:#64748B;font-weight:600;text-transform:uppercase}.val{font-size:16px;font-weight:800;color:#065F46;margin-top:4px}table{width:100%;border-collapse:collapse;margin:10px 0}th{background:#F1F5F9;text-align:left;padding:7px 10px;font-size:11px;color:#475569;font-weight:700}.ai-box{background:#F8FAFC;border-left:4px solid #10B981;padding:16px;border-radius:4px;line-height:1.8;white-space:pre-wrap;font-size:12px}@media print{body{margin:20px}}</style></head><body><h1>'+(d.title||'Monthly Financial Summary')+'</h1><p style="color:#64748B;font-size:11px">Period: '+(d.period||'')+' | Generated: '+(d.generated_at||'')+'</p><div class="grid"><div class="card"><div class="lbl">YTD Paid</div><div class="val">₹'+((stats.ytd_expenses||0)/100000).toFixed(1)+'L</div></div><div class="card"><div class="lbl">Q Paid</div><div class="val">₹'+((stats.q_paid||0)/100000).toFixed(1)+'L</div></div><div class="card"><div class="lbl">Pending Bills</div><div class="val">'+(stats.q_pending_count||0)+'</div></div><div class="card"><div class="lbl">QoQ Change</div><div class="val" style="color:'+((stats.qoq_change_pct||0)>=0?'#DC2626':'#16A34A')+'">'+(stats.qoq_change_pct>=0?'+':'')+(stats.qoq_change_pct||0)+'%</div></div><div class="card"><div class="lbl">Anomalies</div><div class="val">'+(stats.anomaly_total||0)+'</div></div><div class="card"><div class="lbl">Critical</div><div class="val" style="color:#DC2626">'+(stats.anomaly_critical||0)+'</div></div><div class="card"><div class="lbl">Est. GST</div><div class="val">₹'+((stats.gst_estimate||0)/100000).toFixed(1)+'L</div></div><div class="card"><div class="lbl">Est. TDS</div><div class="val">₹'+((stats.tds_estimate||0)/100000).toFixed(1)+'L</div></div></div><h2>AI Executive Summary</h2><div class="ai-box">'+(d.content||'')+'</div>'+(vRows?'<h2>Top Vendors</h2><table><thead><tr><th>Vendor</th><th style="text-align:right">Amount</th><th style="text-align:right">Invoices</th></tr></thead><tbody>'+vRows+'</tbody></table>':'')+(tRows?'<h2>Monthly Expense Trend</h2><table><thead><tr><th>Month</th><th style="text-align:right">Paid</th><th style="text-align:right">Invoices</th></tr></thead><tbody>'+tRows+'</tbody></table>':'')+(bRows?'<h2>Dept. Budget Utilization</h2><table><thead><tr><th>Dept</th><th style="text-align:right">Spent</th><th style="text-align:right">Utilization</th></tr></thead><tbody>'+bRows+'</tbody></table>':'')+'<p style="margin-top:30px;font-size:10px;color:#94A3B8;border-top:1px solid #E2E8F0;padding-top:10px">Auto-generated by FinanceAI. Verify with Finance dept before regulatory submission.</p></body></html>';
-          const w = window.open('', '_blank', 'width=900,height=700');
-          w.document.write(html);
-          w.document.close();
-          setTimeout(() => w.print(), 800);
-        }
-      }, "Export PDF"),
-      /*#__PURE__*/React.createElement(Btn, { variant: "secondary", onClick: () => setGeneratedReport(null) }, "Close")
-    )
-  )), /*#__PURE__*/React.createElement(CopilotWidget, {
-    role: role
+  }, /*#__PURE__*/React.createElement("span", null, payNowMsg.type === 'success' ? '✓' : payNowMsg.type === 'error' ? '✕' : '…'), payNowMsg.text)), /*#__PURE__*/React.createElement(CopilotWidget, {
+    role: role,
+    onNavigate: onNavigate
   }), /*#__PURE__*/React.createElement(SidePanel, {
     open: summaryOpen,
     onClose: () => setSummaryOpen(false),

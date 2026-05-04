@@ -190,13 +190,30 @@ class AuditLog(models.Model):
         return result
 
 
+class ChatSession(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="chat_sessions")
+    title = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+
+    def __str__(self):
+        return f"{self.user.username} — {self.title or 'Untitled'} ({self.created_at:%Y-%m-%d %H:%M})"
+
+
 class AICopilotLog(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="ai_copilot_logs")
+    session = models.ForeignKey(
+        ChatSession, on_delete=models.CASCADE, null=True, blank=True, related_name="messages"
+    )
     prompt = models.TextField()
     response = models.TextField()
     insight = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["-created_at"]
+        ordering = ["created_at"]

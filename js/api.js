@@ -443,8 +443,31 @@ const AnomalyAPI = {
 // ── NL Query API ──────────────────────────────────────────────────────────────
 
 const NLQueryAPI = {
-  async ask(question) {
-    return apiFetch('/nl-query/', { method: 'POST', body: JSON.stringify({ question }) });
+  async ask(question, sessionId) {
+    const body = { question };
+    if (sessionId) body.session_id = sessionId;
+    return apiFetch('/nl-query/', { method: 'POST', body: JSON.stringify(body) });
+  },
+};
+
+// ── Chat Session API ──────────────────────────────────────────────────────────
+
+const ChatSessionAPI = {
+  async list() {
+    return apiFetch('/chat/sessions/');
+  },
+  async get(sessionId) {
+    return apiFetch(`/chat/sessions/${sessionId}/`);
+  },
+  async create(title = 'New Chat') {
+    return apiFetch('/chat/sessions/', { method: 'POST', body: JSON.stringify({ title }) });
+  },
+  async del(sessionId) {
+    const res = await fetch(`/api/v1/chat/sessions/${sessionId}/`, {
+      method: 'DELETE',
+      headers: Auth.headers(),
+    });
+    return res;
   },
 };
 
@@ -653,6 +676,6 @@ const NotificationsAPI = {
 // ── Export to window ──────────────────────────────────────────────────────────
 window.TijoriAPI = {
   Auth, AuthAPI, DashboardAPI, BillsAPI, VendorAPI, FilesAPI, AnomalyAPI,
-  AuditAPI, NotificationsAPI, BudgetAPI, NLQueryAPI, AnalyticsAPI, FeedbackAPI,
+  AuditAPI, NotificationsAPI, BudgetAPI, NLQueryAPI, ChatSessionAPI, AnalyticsAPI, FeedbackAPI,
   APIError, expenseToAnomaly, anomalyFlagToType,
 };

@@ -48,7 +48,7 @@ services:
 
   web:
     <<: *django-common
-    command: uv run uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
 
@@ -56,13 +56,13 @@ services:
     <<: *django-common
     entrypoint: []
     # Consume all queues in dev; split into separate workers per queue in production
-    command: uv run celery -A config worker -Q default,ocr,anomaly,analytics --loglevel=info
+    command: celery -A config worker -Q default,ocr,anomaly,analytics --loglevel=info
 
   celery-beat:
     <<: *django-common
     entrypoint: []
     command: >
-      uv run celery -A config beat --loglevel=info
+      celery -A config beat --loglevel=info
       --scheduler django_celery_beat.schedulers:DatabaseScheduler
 
 
