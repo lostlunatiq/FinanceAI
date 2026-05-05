@@ -1034,6 +1034,191 @@ const UserDetailDrawer = ({
   }, "\u2715")));
 };
 
+// ─── GROUP POLICY MODAL ──────────────────────────────────────────────────────
+
+const GroupPolicyModal = ({
+  group,
+  open,
+  onClose,
+  onSaved
+}) => {
+  const [policies, setPolicies] = React.useState({});
+  const [saving, setSaving] = React.useState(false);
+  const resources = Object.keys(RBAC_MATRIX);
+  React.useEffect(() => {
+    if (open && group) {
+      const initial = {};
+      resources.forEach(res => {
+        initial[res] = {};
+        Object.keys(RBAC_MATRIX[res]).forEach(action => {
+          initial[res][action] = group.policies?.[res]?.[action] || false;
+        });
+      });
+      setPolicies(initial);
+    }
+  }, [open, group]);
+  const toggle = (res, action) => {
+    setPolicies(prev => ({
+      ...prev,
+      [res]: {
+        ...prev[res],
+        [action]: !prev[res][action]
+      }
+    }));
+  };
+  const countEnabled = () => {
+    let n = 0;
+    Object.values(policies).forEach(res => Object.values(res).forEach(v => {
+      if (v) n++;
+    }));
+    return n;
+  };
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await window.TijoriAPI.AuthAPI.updateGroupPolicies(group.id, policies);
+      onSaved();
+      onClose();
+    } catch (e) {
+      alert('Failed to save policies: ' + e.message);
+    }
+    setSaving(false);
+  };
+  if (!open || !group) return null;
+  return /*#__PURE__*/React.createElement(TjModal, {
+    open: open,
+    onClose: onClose,
+    title: `Policies — ${group.name}`,
+    width: 700
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'linear-gradient(135deg, #F5F3FF, #EFF6FF)',
+      border: '1px solid #DDD6FE',
+      borderRadius: 10,
+      padding: '12px 14px',
+      marginBottom: 16,
+      fontSize: 12,
+      color: '#4C1D95',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, /*#__PURE__*/React.createElement("strong", null, "Group Policy Assignment:"), " Toggle permissions below. All users in ", /*#__PURE__*/React.createElement("strong", null, group.name), " will inherit these policies on top of their grade-based permissions. ", countEnabled(), " action", countEnabled() !== 1 ? 's' : '', " enabled."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: 'auto',
+      maxHeight: '55vh',
+      overflowY: 'auto'
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: '100%',
+      borderCollapse: 'collapse',
+      fontSize: 12
+    }
+  }, /*#__PURE__*/React.createElement("thead", {
+    style: {
+      position: 'sticky',
+      top: 0,
+      background: 'white',
+      zIndex: 1
+    }
+  }, /*#__PURE__*/React.createElement("tr", {
+    style: {
+      background: '#F8F7F5'
+    }
+  }, /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '10px 12px',
+      textAlign: 'left',
+      fontSize: 10,
+      fontWeight: 800,
+      color: '#94A3B8',
+      letterSpacing: '0.08em',
+      textTransform: 'uppercase',
+      minWidth: 140
+    }
+  }, "Permission"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '10px 12px',
+      textAlign: 'center',
+      fontSize: 10,
+      fontWeight: 800,
+      color: '#7C3AED'
+    }
+  }, "Grant to Group"))), /*#__PURE__*/React.createElement("tbody", null, resources.map((res, ri) => /*#__PURE__*/React.createElement(React.Fragment, {
+    key: res
+  }, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    colSpan: 2,
+    style: {
+      padding: '10px 12px 4px',
+      fontSize: 10,
+      fontWeight: 800,
+      letterSpacing: '0.1em',
+      textTransform: 'uppercase',
+      color: '#475569',
+      background: '#FAFAF8',
+      borderTop: ri > 0 ? '2px solid #F1F0EE' : 'none'
+    }
+  }, res)), Object.keys(RBAC_MATRIX[res]).map(action => {
+    const enabled = policies[res]?.[action] || false;
+    return /*#__PURE__*/React.createElement("tr", {
+      key: action,
+      style: {
+        borderBottom: '1px solid #F8F7F5',
+        background: enabled ? '#F5F3FF' : 'white'
+      }
+    }, /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: '10px 12px',
+        color: '#0F172A',
+        fontWeight: 500,
+        fontFamily: "'Plus Jakarta Sans', sans-serif"
+      }
+    }, action), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: '10px 12px',
+        textAlign: 'center'
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => toggle(res, action),
+      style: {
+        width: 44,
+        height: 24,
+        borderRadius: 12,
+        border: 'none',
+        background: enabled ? '#7C3AED' : '#E2E8F0',
+        cursor: 'pointer',
+        position: 'relative',
+        transition: 'background 200ms'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: 18,
+        height: 18,
+        borderRadius: '50%',
+        background: 'white',
+        position: 'absolute',
+        top: 3,
+        left: enabled ? 23 : 3,
+        transition: 'left 200ms',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+      }
+    }))));
+  })))))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 10,
+      justifyContent: 'flex-end',
+      marginTop: 16
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    onClick: onClose
+  }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
+    variant: "primary",
+    disabled: saving,
+    onClick: handleSave
+  }, saving ? 'Saving…' : `Save Policies (${countEnabled()} enabled)`)));
+};
+
 // ─── MAIN IAM SCREEN ─────────────────────────────────────────────────────────
 
 const IAMScreen = ({
@@ -1069,6 +1254,7 @@ const IAMScreen = ({
   const [search, setSearch] = React.useState('');
   const [gradeFilter, setGradeFilter] = React.useState(0);
   const [statusFilter, setStatusFilter] = React.useState('ALL');
+  const [policyGroup, setPolicyGroup] = React.useState(null);
   const load = React.useCallback((refreshUserId = null) => {
     setLoading(true);
     Promise.allSettled([window.TijoriAPI.AuthAPI.listUsers(), window.TijoriAPI.AuthAPI.listDepartments(), window.TijoriAPI.AuthAPI.listGroups()]).then(([uRes, dRes, gRes]) => {
@@ -1463,13 +1649,28 @@ const IAMScreen = ({
     }, "Edit")));
   }))))), tab === 'Groups' && /*#__PURE__*/React.createElement("div", {
     style: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-      gap: 16,
       animation: 'fadeUp 220ms ease both'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'linear-gradient(135deg, #F5F3FF, #EFF6FF)',
+      border: '1px solid #DDD6FE',
+      borderRadius: 12,
+      padding: '14px 18px',
+      marginBottom: 20,
+      fontSize: 13,
+      color: '#4C1D95',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, /*#__PURE__*/React.createElement("strong", null, "Group-Based Policy Inheritance:"), " Assign policies to groups so every member automatically inherits them. Policies stack on top of grade-based permissions \u2014 users get the union of their grade rights and all group policies."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+      gap: 16
     }
   }, groups.map(g => {
     const members = users.filter(u => u.group_names?.includes(g.name));
+    const enabledPolicies = g.policies ? Object.values(g.policies).reduce((n, res) => n + Object.values(res).filter(Boolean).length, 0) : 0;
     return /*#__PURE__*/React.createElement(Card, {
       key: g.id,
       style: {
@@ -1528,12 +1729,28 @@ const IAMScreen = ({
       }
     }, g.name), /*#__PURE__*/React.createElement("div", {
       style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        marginTop: 6
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
         fontSize: 12,
         color: '#64748B',
-        marginTop: 4,
         fontFamily: "'Plus Jakarta Sans', sans-serif"
       }
-    }, members.length, " member", members.length !== 1 ? 's' : ''), members.length > 0 && /*#__PURE__*/React.createElement("div", {
+    }, members.length, " member", members.length !== 1 ? 's' : ''), /*#__PURE__*/React.createElement("span", {
+      style: {
+        background: enabledPolicies > 0 ? '#F5F3FF' : '#F1F5F9',
+        color: enabledPolicies > 0 ? '#7C3AED' : '#94A3B8',
+        padding: '2px 8px',
+        borderRadius: 20,
+        fontSize: 10,
+        fontWeight: 700,
+        fontFamily: "'Plus Jakarta Sans', sans-serif"
+      }
+    }, enabledPolicies, " polic", enabledPolicies !== 1 ? 'ies' : 'y')), members.length > 0 && /*#__PURE__*/React.createElement("div", {
       style: {
         display: 'flex',
         flexWrap: 'wrap',
@@ -1559,7 +1776,10 @@ const IAMScreen = ({
       style: {
         marginTop: 16,
         borderTop: '1px solid #F1F0EE',
-        paddingTop: 12
+        paddingTop: 12,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8
       }
     }, /*#__PURE__*/React.createElement("button", {
       onClick: () => {
@@ -1587,7 +1807,30 @@ const IAMScreen = ({
         e.currentTarget.style.background = '#FFF8F5';
         e.currentTarget.style.color = '#E8783B';
       }
-    }, "+ Add / Manage Members")));
+    }, "+ Add / Manage Members"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setPolicyGroup(g),
+      style: {
+        width: '100%',
+        padding: '8px',
+        borderRadius: 8,
+        border: '1px solid #7C3AED',
+        background: enabledPolicies > 0 ? '#F5F3FF' : 'white',
+        color: '#7C3AED',
+        fontSize: 12,
+        fontWeight: 700,
+        cursor: 'pointer',
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        transition: 'all 150ms'
+      },
+      onMouseEnter: e => {
+        e.currentTarget.style.background = '#7C3AED';
+        e.currentTarget.style.color = 'white';
+      },
+      onMouseLeave: e => {
+        e.currentTarget.style.background = enabledPolicies > 0 ? '#F5F3FF' : 'white';
+        e.currentTarget.style.color = '#7C3AED';
+      }
+    }, "\uD83D\uDD10 Manage Policies", enabledPolicies > 0 ? ` (${enabledPolicies} active)` : '')));
   }), /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       setCreateGroupOpen(true);
@@ -1623,7 +1866,7 @@ const IAMScreen = ({
       color: '#64748B',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "Create New Group"))), tab === 'Roles & Permissions' && /*#__PURE__*/React.createElement(RBACMatrixView, null), tab === 'Audit Log' && /*#__PURE__*/React.createElement(AuditLogView, null), /*#__PURE__*/React.createElement(TjModal, {
+  }, "Create New Group")))), tab === 'Roles & Permissions' && /*#__PURE__*/React.createElement(RBACMatrixView, null), tab === 'Audit Log' && /*#__PURE__*/React.createElement(AuditLogView, null), /*#__PURE__*/React.createElement(TjModal, {
     open: createOpen,
     onClose: () => {
       setCreateOpen(false);
@@ -2077,6 +2320,11 @@ const IAMScreen = ({
     onUpdated: id => {
       load(id);
     }
+  }), /*#__PURE__*/React.createElement(GroupPolicyModal, {
+    group: policyGroup,
+    open: !!policyGroup,
+    onClose: () => setPolicyGroup(null),
+    onSaved: () => load()
   }));
 };
 Object.assign(window, {

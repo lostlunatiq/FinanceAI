@@ -1060,7 +1060,7 @@ class VendorBillsAllView(APIView):
             Expense.objects
             .exclude(vendor__name="Internal Expense")
             .exclude(vendor__isnull=True)
-            .select_related("vendor", "submitted_by")
+            .select_related("vendor", "submitted_by", "submitted_by__department")
             .order_by("-created_at")
         )
         status_f = request.query_params.get("status")
