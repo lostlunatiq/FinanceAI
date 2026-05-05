@@ -28,6 +28,8 @@ RUN uv sync --frozen --no-install-project
 # now copy rest
 COPY . .
 
+RUN echo "Hello Naman"
+
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 

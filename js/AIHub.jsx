@@ -454,7 +454,7 @@ const AIHubScreen = ({ role, onNavigate }) => {
     { month: 'February 2026', status: 'AUTO_GEN', revenue: '₹51L', expenses: '₹44L', profit: '₹7L', cash: '₹15L', insight: 'Engineering budget at 95% — recommend variance review before Q4.' },
     { month: 'January 2026', status: 'AUTO_GEN', revenue: '₹48L', expenses: '₹52L', profit: '-₹4L', cash: '₹11L', insight: 'Net loss driven by one-time infrastructure spend. Normalised margin 14%.' },
   ];
-  const summaryMonths = monthlySummaries || staticSummaryMonths;
+  const summaryMonths = (monthlySummaries && monthlySummaries.length > 0) ? monthlySummaries : staticSummaryMonths;
 
   // ── Optimisation recommendations ─────────────────────────────────────────
   const [payRecs, setPayRecs] = React.useState([]);
@@ -513,6 +513,48 @@ const AIHubScreen = ({ role, onNavigate }) => {
   const tipColor = { discount: { bg: '#D1FAE5', color: '#065F46' }, lateFee: { bg: '#FEF3C7', color: '#92400E' }, batch: { bg: '#FFF7ED', color: '#C2410C' }, shortfall: { bg: '#FEE2E2', color: '#991B1B' } };
 
   const summaryStatusStyle = { REVIEWED: { bg: '#D1FAE5', color: '#065F46', label: 'Reviewed' }, AUTO_GEN: { bg: '#EDE9FE', color: '#5B21B6', label: 'Auto-Generated' }, DRAFT: { bg: '#FEF3C7', color: '#92400E', label: 'Draft' } };
+
+  // --- EXTRACTED COMPONENT FOR MONTHLY SUMMARY CARD ---
+  const SummaryMonthCard = ({ s, i, setSelectedMonth, setSummaryOpen }) => {
+    const [hov, setHov] = React.useState(false);
+    const ss = summaryStatusStyle[s.status];
+
+    // Safety check: If status mapping fails, use a safe default state
+    const safeStatus = ss || { bg: '#F1F0EE', color: '#64748B', label: 'Unknown' };
+
+    return (
+        <div key={i}
+          onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+          style={{ background: 'white', border: `2px solid ${hov ? '#E8783B' : '#F1F0EE'}`, borderRadius: '16px', padding: '20px', cursor: 'pointer', transition: 'all 200ms', transform: hov ? 'translateY(-2px)' : 'none', boxShadow: hov ? '0 8px 24px rgba(0,0,0,0.10)' : '0 2px 8px rgba(0,0,0,0.04)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
+            <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '18px', color: '#0F172A', letterSpacing: '-0.5px' }}>{s.month}</div>
+            <span style={{ background: safeStatus.bg, color: safeStatus.color, padding: '3px 8px', borderRadius: '999px', fontSize: '10px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap' }}>
+              {s.status === 'AUTO_GEN' && <AIBadge small />} {safeStatus.label}
+            </span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+            {[['Revenue', s.revenue, '#10B981'], ['Expenses', s.expenses, '#E8783B'], ['Net Profit', s.profit, (s.profit || '').startsWith('-') ? '#EF4444' : '#10B981'], ['Cash', s.cash, '#E8783B']].map(([l, v, c]) => (
+              <div key={l}>
+                <div style={{ fontSize: '10px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{l}</div>
+                <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '18px', color: c, letterSpacing: '-0.5px' }}>{v}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.5, marginBottom: '14px', borderTop: '1px solid #F8F7F5', paddingTop: '12px' }}>
+            <AIBadge small /> {s.insight}
+          </div>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <Btn variant="primary" small onClick={() => { setSelectedMonth(s); setSummaryOpen(true); }}>View Full →</Btn>
+            <Btn variant="secondary" small onClick={() => {
+              const w = window.open('', '_blank');
+              w.document.write(`<!DOCTYPE html><html><head><title>${s.month} Summary</title><style>body{font-family:sans-serif;padding:32px;}</style></head><body><h1>Tijori AI — ${s.month}</h1><p>Revenue: ${s.revenue} | Expenses: ${s.expenses} | Profit: ${s.profit}</p><p>${s.insight}</p><script>window.print()<\/script></body></html>`);
+              w.document.close();
+            }}>PDF</Btn>
+          </div>
+        </div>
+    );
+  };
+  // --- END EXTRACTED COMPONENT ---
 
   return (
     <div style={{ padding: '32px 32px 60px' }}>
@@ -681,41 +723,15 @@ const AIHubScreen = ({ role, onNavigate }) => {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-          {summaryMonths.map((s, i) => {
-            const [hov, setHov] = React.useState(false);
-            const ss = summaryStatusStyle[s.status];
-            return (
-              <div key={i}
-                onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-                style={{ background: 'white', border: `2px solid ${hov ? '#E8783B' : '#F1F0EE'}`, borderRadius: '16px', padding: '20px', cursor: 'pointer', transition: 'all 200ms', transform: hov ? 'translateY(-2px)' : 'none', boxShadow: hov ? '0 8px 24px rgba(0,0,0,0.10)' : '0 2px 8px rgba(0,0,0,0.04)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
-                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '18px', color: '#0F172A', letterSpacing: '-0.5px' }}>{s.month}</div>
-                  <span style={{ background: ss.bg, color: ss.color, padding: '3px 8px', borderRadius: '999px', fontSize: '10px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap' }}>
-                    {s.status === 'AUTO_GEN' && <AIBadge small />} {ss.label}
-                  </span>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
-                  {[['Revenue', s.revenue, '#10B981'], ['Expenses', s.expenses, '#E8783B'], ['Net Profit', s.profit, s.profit.startsWith('-') ? '#EF4444' : '#10B981'], ['Cash', s.cash, '#E8783B']].map(([l, v, c]) => (
-                    <div key={l}>
-                      <div style={{ fontSize: '10px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{l}</div>
-                      <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '18px', color: c, letterSpacing: '-0.5px' }}>{v}</div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.5, marginBottom: '14px', borderTop: '1px solid #F8F7F5', paddingTop: '12px' }}>
-                  <AIBadge small /> {s.insight}
-                </div>
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <Btn variant="primary" small onClick={() => { setSelectedMonth(s); setSummaryOpen(true); }}>View Full →</Btn>
-                  <Btn variant="secondary" small onClick={() => {
-                    const w = window.open('', '_blank');
-                    w.document.write(`<!DOCTYPE html><html><head><title>${s.month} Summary</title><style>body{font-family:sans-serif;padding:32px;}</style></head><body><h1>Tijori AI — ${s.month}</h1><p>Revenue: ${s.revenue} | Expenses: ${s.expenses} | Profit: ${s.profit}</p><p>${s.insight}</p><script>window.print()<\/script></body></html>`);
-                    w.document.close();
-                  }}>PDF</Btn>
-                </div>
-              </div>
-            );
-          })}
+          {summaryMonths.map((s, i) => (
+            <SummaryMonthCard 
+              key={i} 
+              s={s} 
+              i={i} 
+              setSelectedMonth={setSelectedMonth} 
+              setSummaryOpen={setSummaryOpen} 
+            />
+          ))}
         </div>
 
         {/* Schedule settings */}
@@ -788,7 +804,8 @@ const AIHubScreen = ({ role, onNavigate }) => {
           </div>
         </div>
         {payNowMsg && (
-          <div style={{ marginBottom: 20, padding: '12px 16px', borderRadius: 8, background: payNowMsg.type === 'success' ? '#D1FAE5' : payNowMsg.type === 'error' ? '#FEE2E2' : '#DBEAFE', border: `1px solid ${payNowMsg.type === 'success' ? '#6EE7B7' : payNowMsg.type === 'error' ? '#FCA5A5' : '#93C5FD'}`, fontSize: 13, fontWeight: 600, color: payNowMsg.type === 'success' ? '#065F46' : payNowMsg.type === 'error' ? '#991B1B' : '#1E40AF', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          <div style={{ marginTop: 12, padding: '12px 16px', borderRadius: 8, background: payNowMsg.type === 'success' ? '#D1FAE5' : payNowMsg.type === 'error' ? '#FEE2E2' : '#DBEAFE', border: `1px solid ${payNowMsg.type === 'success' ? '#6EE7B7' : payNowMsg.type === 'error' ? '#FCA5A5' : '#93C5FD'}`, fontSize: 13, fontWeight: 600, color: payNowMsg.type === 'success' ? '#065F46' : payNowMsg.type === 'error' ? '#991B1B' : '#1E40AF', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>{payNowMsg.type === 'success' ? '✓' : payNowMsg.type === 'error' ? '✕' : '…'}</span>
             {payNowMsg.text}
           </div>
         )}
@@ -915,7 +932,7 @@ const AIHubScreen = ({ role, onNavigate }) => {
           <TjInput label="UTR / Transaction Reference (optional — auto-generated if blank)" placeholder={`UTR-${payModal.rec.invoices}-${Date.now().toString().slice(-6)}`} value={payForm.utr} onChange={e => setPayForm(f => ({...f, utr: e.target.value}))} />
           <TjInput label="Payment Notes / Remarks" placeholder="e.g. Early payment for 1.5% discount" value={payForm.notes} onChange={e => setPayForm(f => ({...f, notes: e.target.value}))} />
 
-          <div style={{ padding: '12px 14px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '10px', marginBottom: '16px', fontSize: '12px', color: '#065F46', fontFamily: "'Plus Jakarta Sans', sans-serif' ", fontWeight: 500 }}>
+          <div style={{ padding: '12px 14px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '10px', marginBottom: '16px', fontSize: '12px', color: '#065F46', fontFamily: "'Plus Jakarta Sans', sans-serif ", fontWeight: 500 }}>
             ✓ Payment confirmation will be sent to vendor via email. Transaction will be recorded in AuditLog with UTR.
           </div>
 
