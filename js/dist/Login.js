@@ -1,5 +1,73 @@
 // Tijori AI — Login Screen
 
+const ForgotPasswordModal = ({ onClose }) => {
+  const [step, setStep] = React.useState('input'); // 'input' | 'done'
+  const [uname, setUname] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState('');
+  const [tempPass, setTempPass] = React.useState('');
+  const [copied, setCopied] = React.useState(false);
+
+  const handleSubmit = async () => {
+    if (!uname.trim()) { setError('Enter your username.'); return; }
+    setLoading(true); setError('');
+    try {
+      const res = await fetch('/api/v1/auth/forgot-password/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: uname.trim() }),
+      });
+      const data = await res.json();
+      if (data.temp_password) {
+        setTempPass(data.temp_password);
+        setStep('done');
+      } else {
+        setError(data.detail || 'Account not found.');
+      }
+    } catch {
+      setError('Network error. Try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copy = () => {
+    navigator.clipboard.writeText(tempPass).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+  };
+
+  const overlay = { position:'fixed',inset:0,background:'rgba(15,23,42,0.7)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,backdropFilter:'blur(4px)' };
+  const box = { background:'#FAFAF8',borderRadius:'18px',padding:'36px',width:'100%',maxWidth:400,boxShadow:'0 24px 80px rgba(0,0,0,0.25)' };
+
+  return React.createElement('div', { style: overlay, onClick: e => e.target === e.currentTarget && onClose() },
+    React.createElement('div', { style: box },
+      React.createElement('div', { style: { display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'24px' } },
+        React.createElement('h3', { style: { fontFamily:"'Bricolage Grotesque',sans-serif", fontWeight:800, fontSize:'22px', color:'#0F172A', letterSpacing:'-0.8px' } }, 'Reset Password'),
+        React.createElement('button', { onClick: onClose, style: { background:'none', border:'none', cursor:'pointer', fontSize:'20px', color:'#94A3B8', lineHeight:1 } }, '×')
+      ),
+      step === 'input' ? React.createElement(React.Fragment, null,
+        React.createElement('p', { style: { fontSize:'14px', color:'#64748B', marginBottom:'20px' } }, 'Enter your username and we\'ll generate a temporary password for you.'),
+        React.createElement(TjInput, { label:'Username', placeholder:'Enter your username', type:'text', value:uname, onChange:e=>setUname(e.target.value), onKeyDown:e=>e.key==='Enter'&&handleSubmit(), icon:'✉' }),
+        error && React.createElement('div', { style:{ background:'#FEE2E2', border:'1px solid #FECACA', borderRadius:'8px', padding:'10px 14px', marginTop:'8px', fontSize:'13px', color:'#991B1B' } }, error),
+        React.createElement('button', {
+          onClick: handleSubmit, disabled: loading,
+          style: { width:'100%', marginTop:'20px', padding:'13px', background: loading?'#94A3B8':'linear-gradient(135deg,#E8783B,#FF6B35)', color:'white', border:'none', borderRadius:'12px', cursor: loading?'not-allowed':'pointer', fontFamily:"'Plus Jakarta Sans',sans-serif", fontWeight:700, fontSize:'14px' }
+        }, loading ? 'Generating…' : 'Get Temporary Password')
+      ) : React.createElement(React.Fragment, null,
+        React.createElement('div', { style:{ background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:'12px', padding:'20px', marginBottom:'20px', textAlign:'center' } },
+          React.createElement('div', { style:{ fontSize:'32px', marginBottom:'8px' } }, '✅'),
+          React.createElement('p', { style:{ fontSize:'13px', color:'#166534', fontWeight:600, marginBottom:'4px' } }, 'Temporary password generated'),
+          React.createElement('p', { style:{ fontSize:'12px', color:'#166534' } }, 'Use this to log in, then change your password in Settings.')
+        ),
+        React.createElement('div', { style:{ background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:'10px', padding:'14px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'16px' } },
+          React.createElement('code', { style:{ fontFamily:"'JetBrains Mono',monospace", fontSize:'16px', color:'#0F172A', fontWeight:600, letterSpacing:'0.5px' } }, tempPass),
+          React.createElement('button', { onClick: copy, style:{ background:'none', border:'none', cursor:'pointer', fontSize:'18px', color:'#E8783B', marginLeft:'12px' } }, copied ? '✓' : '📋')
+        ),
+        React.createElement('button', { onClick: onClose, style:{ width:'100%', padding:'13px', background:'linear-gradient(135deg,#E8783B,#FF6B35)', color:'white', border:'none', borderRadius:'12px', cursor:'pointer', fontFamily:"'Plus Jakarta Sans',sans-serif", fontWeight:700, fontSize:'14px' } }, 'Back to Login')
+      )
+    )
+  );
+};
+
 const LoginScreen = ({
   onLogin
 }) => {
@@ -8,6 +76,7 @@ const LoginScreen = ({
   const [showPass, setShowPass] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
+  const [showForgot, setShowForgot] = React.useState(false);
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
       setError('Enter username and password.');
@@ -53,7 +122,8 @@ const LoginScreen = ({
       });
     }
   }
-  return /*#__PURE__*/React.createElement("div", {
+  return /*#__PURE__*/React.createElement(React.Fragment, null,
+    /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       height: '100vh',
@@ -518,11 +588,15 @@ const LoginScreen = ({
       marginTop: '-4px'
     }
   }, /*#__PURE__*/React.createElement("span", {
+    onClick: () => setShowForgot(true),
     style: {
       fontSize: '11px',
-      color: '#94A3B8',
+      color: '#E8783B',
       cursor: 'pointer',
-      fontFamily: "'Plus Jakarta Sans', sans-serif"
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontWeight: 600,
+      textDecoration: 'underline',
+      textDecorationColor: 'rgba(232,120,59,0.4)'
     }
   }, "Forgot password?")), /*#__PURE__*/React.createElement("button", {
     onClick: handleLogin,
@@ -595,7 +669,9 @@ const LoginScreen = ({
           0%, 100% { box-shadow: 0 0 10px #E8783B; }
           50% { box-shadow: 0 0 20px #FF6B35, 0 0 30px #E8783B; }
         }
-      `));
+      `)),
+    showForgot && React.createElement(ForgotPasswordModal, { onClose: () => setShowForgot(false) })
+  );
 };
 Object.assign(window, {
   LoginScreen

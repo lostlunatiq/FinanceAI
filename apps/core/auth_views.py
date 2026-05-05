@@ -317,6 +317,42 @@ class MeView(APIView):
         return Response(serializer.data)
 
 
+class ForgotPasswordView(APIView):
+    permission_classes = [AllowAny]
+    throttle_classes = [AnonRateThrottle]
+
+    def post(self, request):
+        import secrets, string
+        username = (request.data.get("username") or "").strip()
+        if not username:
+            return Response({"detail": "Username is required."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            user = User.objects.get(username=username, is_active=True)
+        except User.DoesNotExist:
+            # Don't leak whether user exists
+            return Response({"detail": "If this account exists, a temporary password has been generated."})
+
+        alphabet = string.ascii_letters + string.digits
+        temp_password = "Tmp@" + "".join(secrets.choice(alphabet) for _ in range(10))
+        user.set_password(temp_password)
+        user.save(update_fields=["password"])
+
+        log_audit_event(
+            user=user,
+            action="auth.password_reset",
+            entity_type="User",
+            entity_id=user.id,
+            entity_display_name=user.get_full_name() or user.username,
+            change_summary=f"Password reset for {user.username}",
+            request=request,
+        )
+        return Response({
+            "detail": "Temporary password generated.",
+            "temp_password": temp_password,
+            "username": user.username,
+        })
+
+
 class ChangePasswordView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -531,7 +567,7 @@ class AuditLogListView(APIView):
       - date_to         : ISO date filter (inclusive)
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasMinimumGrade.make(3)]
 
     def get(self, request):
         user = request.user

@@ -284,9 +284,25 @@ class CashFlowForecastView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        days = int(request.query_params.get("days", 90))
-        days = max(1, min(days, 180))
-        return Response(_build_cashflow_forecast(days))
+        from datetime import date
+        try:
+            days = int(request.query_params.get("days", 90))
+            days = max(1, min(days, 180))
+            return Response(_build_cashflow_forecast(days))
+        except Exception as e:
+            return Response(
+                {
+                    "error": str(e),
+                    "opening_balance": 0,
+                    "projected_closing_balance": 0,
+                    "forecast_period_days": 90,
+                    "generated_at": str(date.today()),
+                    "daily_forecast": [],
+                    "summary": {},
+                    "narrative": "Unable to generate cashflow forecast at this time.",
+                },
+                status=500
+            )
 
 
 def _build_cashflow_forecast(days: int = 90) -> dict:

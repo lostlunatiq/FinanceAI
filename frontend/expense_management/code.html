@@ -555,7 +555,7 @@ function _renderExpenses(list) {
 
         return `<tr class="hover:bg-surface-container-low cursor-pointer transition-colors" onclick="openDetail(${JSON.stringify(exp).replace(/"/g, '&quot;')})">
             <td class="px-5 py-4">
-                <div class="font-bold text-primary text-xs">${exp.ref_no || exp.id?.slice(0,8)}</div>
+                <div class="font-bold text-primary text-xs">${exp.ref_no || exp.id?.slice(0,8) || 'N/A'}</div>
                 <div class="text-xs text-on-surface-variant mt-0.5">${CATEGORY_ICONS[exp.expense_category] || '📦'} ${exp.expense_category || 'Misc'}</div>
             </td>
             <td class="px-5 py-4 max-w-[200px]">
@@ -615,7 +615,7 @@ function openDetail(exp) {
     const body = document.getElementById('detail-body');
     const actions = document.getElementById('detail-actions');
 
-    document.getElementById('detail-ref').textContent = exp.ref_no || exp.id?.slice(0,8);
+    document.getElementById('detail-ref').textContent = exp.ref_no || exp.id?.slice(0,8) || 'N/A';
     document.getElementById('detail-status-label').textContent = STATUS_LABELS[exp.status] || exp.status;
 
     const isPending = exp.status?.includes('PENDING') || exp.status === 'SUBMITTED';

@@ -1,0 +1,182 @@
+[
+  {
+    "Role": "Employee",
+    "Page / Module": "http://localhost:8008/frontend/accounts_payable_hub/code.html",
+    "Button / Feature": "Page Content",
+    "Issue Type": "Data",
+    "Severity": "High",
+    "Steps to Reproduce": "View page content",
+    "Expected Behavior": "Clean data rendered",
+    "Actual Behavior": "Found 'Failed to fetch', 'An error occurred', or 'undefined' in DOM"
+  },
+  {
+    "Role": "Employee",
+    "Page / Module": "http://localhost:8008/frontend/expense_management/code.html",
+    "Button / Feature": "Page Content",
+    "Issue Type": "Data",
+    "Severity": "High",
+    "Steps to Reproduce": "View page content",
+    "Expected Behavior": "Clean data rendered",
+    "Actual Behavior": "Found 'Failed to fetch', 'An error occurred', or 'undefined' in DOM"
+  },
+  {
+    "Role": "HOD",
+    "Page / Module": "http://localhost:8008/frontend/accounts_payable_hub/code.html",
+    "Button / Feature": "Page Content",
+    "Issue Type": "Data",
+    "Severity": "High",
+    "Steps to Reproduce": "View page content",
+    "Expected Behavior": "Clean data rendered",
+    "Actual Behavior": "Found 'Failed to fetch', 'An error occurred', or 'undefined' in DOM"
+  },
+  {
+    "Role": "HOD",
+    "Page / Module": "http://localhost:8008/frontend/expense_management/code.html",
+    "Button / Feature": "Page Content",
+    "Issue Type": "Data",
+    "Severity": "High",
+    "Steps to Reproduce": "View page content",
+    "Expected Behavior": "Clean data rendered",
+    "Actual Behavior": "Found 'Failed to fetch', 'An error occurred', or 'undefined' in DOM"
+  },
+  {
+    "Role": "HOD",
+    "Page / Module": "http://localhost:8008/frontend/accounts_payable_hub/code.html?bill_id=6df0f87c-8c1d-4fce-97b2-68a6441e9ea5",
+    "Button / Feature": "Page Content",
+    "Issue Type": "Data",
+    "Severity": "High",
+    "Steps to Reproduce": "View page content",
+    "Expected Behavior": "Clean data rendered",
+    "Actual Behavior": "Found 'Failed to fetch', 'An error occurred', or 'undefined' in DOM"
+  },
+  {
+    "Role": "HOD",
+    "Page / Module": "http://localhost:8008/frontend/accounts_payable_hub/code.html?bill_id=fd313eca-1f9b-49b6-ae96-d63493ad2ec9",
+    "Button / Feature": "Page Content",
+    "Issue Type": "Data",
+    "Severity": "High",
+    "Steps to Reproduce": "View page content",
+    "Expected Behavior": "Clean data rendered",
+    "Actual Behavior": "Found 'Failed to fetch', 'An error occurred', or 'undefined' in DOM"
+  },
+  {
+    "Role": "Finance Manager",
+    "Page / Module": "http://localhost:8008/frontend/accounts_payable_hub/code.html",
+    "Button / Feature": "Page Content",
+    "Issue Type": "Data",
+    "Severity": "High",
+    "Steps to Reproduce": "View page content",
+    "Expected Behavior": "Clean data rendered",
+    "Actual Behavior": "Found 'Failed to fetch', 'An error occurred', or 'undefined' in DOM"
+  },
+  {
+    "Role": "Finance Manager",
+    "Page / Module": "http://localhost:8008/frontend/expense_management/code.html",
+    "Button / Feature": "Page Content",
+    "Issue Type": "Data",
+    "Severity": "High",
+    "Steps to Reproduce": "View page content",
+    "Expected Behavior": "Clean data rendered",
+    "Actual Behavior": "Found 'Failed to fetch', 'An error occurred', or 'undefined' in DOM"
+  },
+  {
+    "Role": "Finance Manager",
+    "Page / Module": "http://localhost:8008/frontend/accounts_payable_hub/code.html?bill_id=6df0f87c-8c1d-4fce-97b2-68a6441e9ea5",
+    "Button / Feature": "Page Content",
+    "Issue Type": "Data",
+    "Severity": "High",
+    "Steps to Reproduce": "View page content",
+    "Expected Behavior": "Clean data rendered",
+    "Actual Behavior": "Found 'Failed to fetch', 'An error occurred', or 'undefined' in DOM"
+  },
+  {
+    "Role": "Finance Manager",
+    "Page / Module": "http://localhost:8008/frontend/accounts_payable_hub/code.html?bill_id=feba507c-c001-48e5-998d-40cffeb76a67",
+    "Button / Feature": "Page Content",
+    "Issue Type": "Data",
+    "Severity": "High",
+    "Steps to Reproduce": "View page content",
+    "Expected Behavior": "Clean data rendered",
+    "Actual Behavior": "Found 'Failed to fetch', 'An error occurred', or 'undefined' in DOM"
+  },
+  {
+    "Role": "Finance Manager",
+    "Page / Module": "http://localhost:8008/frontend/accounts_payable_hub/code.html?bill_id=a8df2319-ae5a-4695-93b8-c7d32dc67287",
+    "Button / Feature": "Page Content",
+    "Issue Type": "Data",
+    "Severity": "High",
+    "Steps to Reproduce": "View page content",
+    "Expected Behavior": "Clean data rendered",
+    "Actual Behavior": "Found 'Failed to fetch', 'An error occurred', or 'undefined' in DOM"
+  },
+  {
+    "Role": "Finance Manager",
+    "Page / Module": "http://localhost:8008/frontend/accounts_payable_hub/code.html?bill_id=31be680e-52b3-42f8-a762-5a2b2bf1ae07",
+    "Button / Feature": "Page Content",
+    "Issue Type": "Data",
+    "Severity": "High",
+    "Steps to Reproduce": "View page content",
+    "Expected Behavior": "Clean data rendered",
+    "Actual Behavior": "Found 'Failed to fetch', 'An error occurred', or 'undefined' in DOM"
+  },
+  {
+    "Role": "Finance Manager",
+    "Page / Module": "http://localhost:8008/frontend/accounts_payable_hub/code.html?bill_id=fd313eca-1f9b-49b6-ae96-d63493ad2ec9",
+    "Button / Feature": "Page Content",
+    "Issue Type": "Data",
+    "Severity": "High",
+    "Steps to Reproduce": "View page content",
+    "Expected Behavior": "Clean data rendered",
+    "Actual Behavior": "Found 'Failed to fetch', 'An error occurred', or 'undefined' in DOM"
+  },
+  {
+    "Role": "Finance Manager",
+    "Page / Module": "http://localhost:8008/frontend/accounts_payable_hub/code.html?bill_id=fcc9507e-1bfa-425a-a928-a2d14106a981",
+    "Button / Feature": "Page Content",
+    "Issue Type": "Data",
+    "Severity": "High",
+    "Steps to Reproduce": "View page content",
+    "Expected Behavior": "Clean data rendered",
+    "Actual Behavior": "Found 'Failed to fetch', 'An error occurred', or 'undefined' in DOM"
+  },
+  {
+    "Role": "Finance Manager",
+    "Page / Module": "http://localhost:8008/frontend/accounts_payable_hub/code.html?bill_id=ab68dae4-9e0d-45d7-8252-13474373c29b",
+    "Button / Feature": "Page Content",
+    "Issue Type": "Data",
+    "Severity": "High",
+    "Steps to Reproduce": "View page content",
+    "Expected Behavior": "Clean data rendered",
+    "Actual Behavior": "Found 'Failed to fetch', 'An error occurred', or 'undefined' in DOM"
+  },
+  {
+    "Role": "Finance Manager",
+    "Page / Module": "http://localhost:8008/frontend/accounts_payable_hub/code.html?bill_id=1f7335f8-5974-474a-81ad-f373ca4515e1",
+    "Button / Feature": "Page Content",
+    "Issue Type": "Data",
+    "Severity": "High",
+    "Steps to Reproduce": "View page content",
+    "Expected Behavior": "Clean data rendered",
+    "Actual Behavior": "Found 'Failed to fetch', 'An error occurred', or 'undefined' in DOM"
+  },
+  {
+    "Role": "Finance Admin",
+    "Page / Module": "http://localhost:8008/frontend/cfo_command_center/code.html",
+    "Button / Feature": "Page Load",
+    "Issue Type": "Navigation",
+    "Severity": "High",
+    "Steps to Reproduce": "Navigate to http://localhost:8008/frontend/cfo_command_center/code.html",
+    "Expected Behavior": "Page loads successfully",
+    "Actual Behavior": "Timeout 5000ms exceeded."
+  },
+  {
+    "Role": "CFO",
+    "Page / Module": "http://localhost:8008/frontend/cfo_command_center/code.html",
+    "Button / Feature": "Page Load",
+    "Issue Type": "Navigation",
+    "Severity": "High",
+    "Steps to Reproduce": "Navigate to http://localhost:8008/frontend/cfo_command_center/code.html",
+    "Expected Behavior": "Page loads successfully",
+    "Actual Behavior": "Timeout 5000ms exceeded."
+  }
+]

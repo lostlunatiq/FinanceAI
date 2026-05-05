@@ -46,20 +46,47 @@ services:
       timeout: 3s
       retries: 5
 
+  migrate:
+    <<: *django-common
+    entrypoint: []
+    command: python manage.py migrate --no-input
+    restart: "no"
+
   web:
     <<: *django-common
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     command: uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
 
   celery:
     <<: *django-common
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     entrypoint: []
     # Consume all queues in dev; split into separate workers per queue in production
     command: celery -A config worker -Q default,ocr,anomaly,analytics --loglevel=info
 
   celery-beat:
     <<: *django-common
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     entrypoint: []
     command: >
       celery -A config beat --loglevel=info
