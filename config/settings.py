@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "apps.forecast",
     "apps.query",
     "apps.reports",
+    "apps.d365.apps.D365Config",
     "clickhouse_backend",
     "rest_framework",
     "rest_framework_simplejwt",
@@ -142,3 +143,9 @@ STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 AUTH_USER_MODEL = "core.User"
+
+# D365 Settings
+D365_BASE_URL = env("D365_BASE_URL", default="https://placeholder.api.businesscentral.dynamics.com/v2.0/placeholder/ODataV4")
+D365_USERNAME = env("D365_USERNAME", default="placeholder")
+D365_PASSWORD = env("D365_PASSWORD", default="placeholder")
+D365_COMPANY_ID = env("D365_COMPANY_ID", default="placeholder")

@@ -71,6 +71,7 @@ urlpatterns = [
     # API routes
     path("api/v1/", include("apps.core.urls")),
     path("api/v1/invoices/", include("apps.invoices.urls")),
+    path("api/v1/d365/", include("apps.d365.urls")),
     path("api/v1/notifications/", include("apps.notifications.urls")),
 
     # New Tijori AI UI — served at root

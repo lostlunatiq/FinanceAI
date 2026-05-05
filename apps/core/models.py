@@ -79,6 +79,9 @@ class Vendor(models.Model):
     bank_account_number = models.CharField(max_length=30, blank=True)
     bank_ifsc = models.CharField(max_length=15, blank=True)
 
+    # D365
+    bc_vendor_no = models.CharField(max_length=50, blank=True)
+
     # Status
     is_approved = models.BooleanField(default=False)
     status = models.CharField(max_length=20, choices=VENDOR_STATUS_CHOICES, default="PENDING")

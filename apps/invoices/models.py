@@ -134,6 +134,7 @@ class Expense(models.Model):
     d365_posted_at = models.DateTimeField(null=True)
     d365_paid_at = models.DateTimeField(null=True)
     d365_payment_utr = models.CharField(max_length=100, blank=True)
+    d365_push_error = models.CharField(max_length=500, blank=True)
 
     replaces_bill = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL)
 
