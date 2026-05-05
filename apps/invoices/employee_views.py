@@ -1052,7 +1052,7 @@ def _send_approval_notification(expense, status_str, reason, actor):
 class VendorBillsAllView(APIView):
     """GET /api/v1/invoices/finance/vendor-bills/ — All non-internal vendor bills with optional status filter."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasMinimumGrade.make(3)]
 
     def get(self, request):
         from apps.core.permissions import hod_dept_filter

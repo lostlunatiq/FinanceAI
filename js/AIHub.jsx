@@ -334,28 +334,34 @@ const AIHubScreen = ({ role, onNavigate }) => {
   const [schedProcessing, setSchedProcessing] = React.useState(false);
   const [autoGenEnabled, setAutoGenEnabled] = React.useState(true);
 
+  const loadMonthlySummaries = async ({ regenerate = false, openLatest = false } = {}) => {
+    try {
+      const q = regenerate ? '?regenerate=1' : '';
+      const r = await fetch('/api/v1/invoices/analytics/monthly-summary/' + q, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + (window.TijoriAPI.Auth.getAccess() || ''),
+        },
+      });
+      const d = await r.json();
+      const summaries = Array.isArray(d?.summaries) ? d.summaries : [];
+      setMonthlySummaries(summaries);
+      if (openLatest && summaries.length > 0) {
+        setSelectedMonth(summaries[0]);
+        setSummaryOpen(true);
+      }
+      return summaries;
+    } catch (e) {
+      setMonthlySummaries([]);
+      return [];
+    }
+  };
+
   React.useEffect(() => {
     window.TijoriAPI.BudgetAPI.cashflow()
       .then(d => setCfData(d))
       .catch(() => {});
-    // Load real monthly summaries from backend analytics
-    window.TijoriAPI.AnalyticsAPI.spendIntelligence()
-      .then(d => {
-        if (d && d.monthly_trends && d.monthly_trends.length > 0) {
-          const trend = d.monthly_trends;
-          const built = trend.slice(-3).reverse().map((m, i) => ({
-            month: m.month_label || m.month || `Month ${i + 1}`,
-            status: i === 0 ? 'REVIEWED' : 'AUTO_GEN',
-            revenue: '₹' + Number(m.revenue || 0).toLocaleString('en-IN'),
-            expenses: '₹' + Number(m.total || m.expenses || 0).toLocaleString('en-IN'),
-            profit: (() => { const p = (m.revenue || 0) - (m.total || m.expenses || 0); return (p < 0 ? '-₹' : '₹') + Math.abs(p).toLocaleString('en-IN'); })(),
-            cash: m.cash_position ? '₹' + Number(m.cash_position).toLocaleString('en-IN') : '—',
-            insight: m.insight || (i === 0 ? 'Latest month — live data from system.' : 'Auto-generated from expense buckets.'),
-          }));
-          if (built.length > 0) setMonthlySummaries(built);
-        }
-      })
-      .catch(() => {});
+    loadMonthlySummaries({ regenerate: false, openLatest: false });
   }, []);
 
   const handleRerun = async () => {
@@ -665,10 +671,12 @@ const AIHubScreen = ({ role, onNavigate }) => {
             <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '20px', color: '#0F172A', letterSpacing: '-0.5px' }}>Monthly Financial Summaries</div>
             <div style={{ fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>Auto-generated on 1st of each month</div>
           </div>
-          <Btn variant="secondary" small icon={<AIBadge small />} onClick={() => {
-            window.TijoriAPI.NLQueryAPI.ask('Generate executive financial summary for ' + new Date().toLocaleString('en-IN', {month: 'long', year: 'numeric'}))
-              .then(res => alert('Summary: ' + (res.answer || 'Generated successfully.')))
-              .catch(e => alert('Generation failed: ' + (e.message || 'Error')));
+          <Btn variant="secondary" small icon={<AIBadge small />} onClick={async () => {
+            try {
+              await loadMonthlySummaries({ regenerate: true, openLatest: false });
+            } catch (e) {
+              alert('Generation failed: ' + (e.message || 'Error'));
+            }
           }}>Generate Now</Btn>
         </div>
 

@@ -651,6 +651,276 @@ const CopilotWidget = ({
     }
   }, "Send \u2191"))));
 };
+
+// \u2500\u2500\u2500 SVG Chart Helper Functions \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+
+function MiniStackedBar({ paid, pending, approved }) {
+  const maxVal = Math.max(paid || 0, pending || 0, approved || 0, 1);
+  const barH = 36;
+  const labelH = 16;
+  const totalH = barH + labelH + 4;
+  const barW = 28;
+  const gap = 14;
+  const colors = { paid: '#10B981', pending: '#E8783B', approved: '#3B82F6' };
+  const labels = ['Paid', 'Pend', 'Appr'];
+  const vals = [paid || 0, pending || 0, approved || 0];
+  const colorArr = [colors.paid, colors.pending, colors.approved];
+  const totalBarsW = barW * 3 + gap * 2;
+  return React.createElement('svg', {
+    width: '100%',
+    height: totalH,
+    viewBox: '0 0 ' + (totalBarsW + 20) + ' ' + totalH,
+    preserveAspectRatio: 'xMidYMid meet',
+    style: { display: 'block' }
+  }, vals.map((v, i) => {
+    const h = Math.max(Math.round((v / maxVal) * barH), 2);
+    const x = 10 + i * (barW + gap);
+    const y = barH - h;
+    return React.createElement(React.Fragment, { key: i },
+      React.createElement('rect', { x, y, width: barW, height: h, rx: 4, fill: colorArr[i], opacity: 0.9 }),
+      React.createElement('text', {
+        x: x + barW / 2, y: totalH - 2,
+        textAnchor: 'middle', fontSize: 9,
+        fill: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600
+      }, labels[i])
+    );
+  }));
+}
+
+function SVGBarChart({ items, width, height, title }) {
+  if (!items || items.length === 0) return null;
+  const W = width || 480;
+  const rowH = 36;
+  const H = height || (items.length * rowH + 40);
+  const labelW = 130;
+  const valueW = 70;
+  const barAreaW = W - labelW - valueW - 20;
+  const maxVal = Math.max(...items.map(it => it.value || 0), 1);
+  const palette = ['#E8783B', '#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#06B6D4', '#84CC16'];
+  return React.createElement('svg', {
+    width: '100%',
+    height: H,
+    viewBox: '0 0 ' + W + ' ' + H,
+    style: { display: 'block', overflow: 'visible' }
+  },
+    title && React.createElement('text', {
+      x: 0, y: 16,
+      fontSize: 11, fontWeight: 700,
+      fill: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif",
+      textTransform: 'uppercase'
+    }, title),
+    items.map((item, i) => {
+      const y = (title ? 24 : 4) + i * rowH;
+      const barW = Math.max(Math.round((item.value || 0) / maxVal * barAreaW), 2);
+      const color = item.color || palette[i % palette.length];
+      const fmt = v => '\u20b9' + Number(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+      return React.createElement(React.Fragment, { key: i },
+        React.createElement('text', {
+          x: 0, y: y + 20,
+          fontSize: 11, fill: '#374151',
+          fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600
+        }, (item.label || '').slice(0, 16)),
+        React.createElement('rect', {
+          x: labelW, y: y + 8,
+          width: barW, height: 18,
+          rx: 4, fill: color, opacity: 0.85
+        }),
+        React.createElement('text', {
+          x: labelW + barW + 6, y: y + 20,
+          fontSize: 10, fill: '#64748B',
+          fontFamily: "'Plus Jakarta Sans', sans-serif"
+        }, fmt(item.value))
+      );
+    })
+  );
+}
+
+function SVGDonutChart({ slices, size }) {
+  if (!slices || slices.length === 0) return null;
+  const S = size || 140;
+  const cx = S / 2, cy = S / 2;
+  const R = S * 0.38, r = S * 0.22;
+  const total = slices.reduce((s, sl) => s + (sl.value || 0), 0) || 1;
+  const palette = ['#E8783B', '#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444'];
+  let cumAngle = -Math.PI / 2;
+  const legendH = slices.length * 18 + 8;
+  const totalH = S + legendH;
+  const paths = slices.map((sl, i) => {
+    const frac = (sl.value || 0) / total;
+    const startA = cumAngle;
+    const endA = cumAngle + frac * 2 * Math.PI;
+    cumAngle = endA;
+    const x1 = cx + R * Math.cos(startA), y1 = cy + R * Math.sin(startA);
+    const x2 = cx + R * Math.cos(endA), y2 = cy + R * Math.sin(endA);
+    const ix1 = cx + r * Math.cos(endA), iy1 = cy + r * Math.sin(endA);
+    const ix2 = cx + r * Math.cos(startA), iy2 = cy + r * Math.sin(startA);
+    const lg = frac > 0.5 ? 1 : 0;
+    const color = sl.color || palette[i % palette.length];
+    const d = [
+      'M', x1, y1,
+      'A', R, R, 0, lg, 1, x2, y2,
+      'L', ix1, iy1,
+      'A', r, r, 0, lg, 0, ix2, iy2,
+      'Z'
+    ].join(' ');
+    return React.createElement('path', { key: i, d, fill: color, opacity: 0.9 });
+  });
+  return React.createElement('svg', {
+    width: '100%',
+    height: totalH,
+    viewBox: '0 0 ' + S + ' ' + totalH,
+    style: { display: 'block', overflow: 'visible' }
+  },
+    paths,
+    React.createElement('circle', { cx, cy, r: r * 0.8, fill: 'white' }),
+    React.createElement('text', { x: cx, y: cy + 4, textAnchor: 'middle', fontSize: 9, fill: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }, 'Depts'),
+    slices.map((sl, i) => {
+      const color = sl.color || palette[i % palette.length];
+      const ly = S + 8 + i * 18;
+      const fmt = v => '\u20b9' + Number(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+      return React.createElement(React.Fragment, { key: i },
+        React.createElement('rect', { x: 0, y: ly, width: 10, height: 10, rx: 2, fill: color }),
+        React.createElement('text', { x: 14, y: ly + 9, fontSize: 9, fill: '#374151', fontFamily: "'Plus Jakarta Sans', sans-serif" },
+          (sl.label || '').slice(0, 14) + '  ' + fmt(sl.value))
+      );
+    })
+  );
+}
+
+function SVGTrendLine({ values, width, height, color }) {
+  if (!values || values.length < 2) return null;
+  const W = width || 200;
+  const H = height || 40;
+  const minV = Math.min(...values);
+  const maxV = Math.max(...values);
+  const range = maxV - minV || 1;
+  const pts = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * W;
+    const y = H - ((v - minV) / range) * (H - 6) - 3;
+    return x + ',' + y;
+  });
+  const c = color || '#E8783B';
+  return React.createElement('svg', {
+    width: '100%',
+    height: H,
+    viewBox: '0 0 ' + W + ' ' + H,
+    style: { display: 'block' }
+  },
+    React.createElement('polyline', {
+      points: pts.join(' '),
+      fill: 'none',
+      stroke: c,
+      strokeWidth: 2,
+      strokeLinejoin: 'round',
+      strokeLinecap: 'round'
+    }),
+    React.createElement('circle', {
+      cx: pts[pts.length - 1].split(',')[0],
+      cy: pts[pts.length - 1].split(',')[1],
+      r: 3, fill: c
+    })
+  );
+}
+
+// \u2500\u2500\u2500 Excel Export Functions \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+
+function exportToExcel(monthData, filename) {
+  const XLSX = window.XLSX;
+  if (!XLSX) { alert('Excel export library not loaded.'); return; }
+  const wb = XLSX.utils.book_new();
+  // Sheet 1: Summary KPIs
+  const summary = [
+    ['Month Financial Summary', monthData.month || ''],
+    ['Generated', monthData.generated_at || new Date().toISOString().slice(0, 10)],
+    [],
+    ['Metric', 'Value'],
+    ['Total Paid (\u20b9)', monthData.paid_amount || 0],
+    ['Pending Approval (\u20b9)', monthData.pending_amount || 0],
+    ['Approved Awaiting Payment (\u20b9)', monthData.approved_amount || 0],
+    ['Total Invoices', monthData.total_invoices || 0],
+    ['Rejected Invoices', monthData.rejected_count || 0],
+    ['Anomalies Detected', monthData.anomaly_count || 0],
+    ['Critical Anomalies', monthData.critical_anomalies || 0],
+    ['MoM Change (%)', monthData.mom_change_pct || 0],
+  ];
+  const ws1 = XLSX.utils.aoa_to_sheet(summary);
+  ws1['!cols'] = [{ wch: 35 }, { wch: 22 }];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Summary');
+  // Sheet 2: Top Vendors
+  if (monthData.top_vendors && monthData.top_vendors.length) {
+    const vendorRows = [['Vendor Name', 'Type', 'Amount (\u20b9)', 'Invoices'],
+      ...monthData.top_vendors.map(v => [v.name || '', v.type || '', v.amount || 0, v.invoices || 0])];
+    const ws2 = XLSX.utils.aoa_to_sheet(vendorRows);
+    ws2['!cols'] = [{ wch: 28 }, { wch: 16 }, { wch: 16 }, { wch: 10 }];
+    XLSX.utils.book_append_sheet(wb, ws2, 'Top Vendors');
+  }
+  // Sheet 3: Dept Breakdown
+  if (monthData.dept_breakdown && monthData.dept_breakdown.length) {
+    const deptRows = [['Department', 'Amount (\u20b9)', 'Invoices'],
+      ...monthData.dept_breakdown.map(d => [d.dept || '', d.amount || 0, d.invoices || 0])];
+    const ws3 = XLSX.utils.aoa_to_sheet(deptRows);
+    ws3['!cols'] = [{ wch: 24 }, { wch: 16 }, { wch: 10 }];
+    XLSX.utils.book_append_sheet(wb, ws3, 'Dept Breakdown');
+  }
+  // Sheet 4: AI Narrative
+  if (monthData.ai_narrative) {
+    const ws4 = XLSX.utils.aoa_to_sheet([['Month', 'Narrative'], [monthData.month || '', monthData.ai_narrative]]);
+    ws4['!cols'] = [{ wch: 16 }, { wch: 80 }];
+    XLSX.utils.book_append_sheet(wb, ws4, 'AI Narrative');
+  }
+  XLSX.writeFile(wb, filename || (monthData.month || 'report').replace(/\s/g, '_') + '_Financial_Summary.xlsx');
+}
+
+function exportQuarterlyExcel(reportData) {
+  const XLSX = window.XLSX;
+  if (!XLSX) { alert('Excel export library not loaded.'); return; }
+  const wb = XLSX.utils.book_new();
+  // Sheet 1: Quarter Summary
+  const stats = reportData.stats || {};
+  const qSummary = [
+    ['Quarterly Report', reportData.title || ''],
+    ['Period', reportData.period || ''],
+    ['Generated', reportData.generated_at || new Date().toISOString().slice(0, 10)],
+    [],
+    ['Metric', 'Value'],
+    ['YTD Expenses (\u20b9)', stats.ytd_expenses || 0],
+    ['Quarter Paid (\u20b9)', stats.q_paid || 0],
+    ['Quarter Pending (\u20b9)', stats.q_pending_amount || 0],
+    ['Total Anomalies', stats.anomaly_total || 0],
+    ['Critical Anomalies', stats.anomaly_critical || 0],
+    ['GST Estimate (\u20b9)', stats.gst_estimate || 0],
+    ['TDS Estimate (\u20b9)', stats.tds_estimate || 0],
+  ];
+  const ws1 = XLSX.utils.aoa_to_sheet(qSummary);
+  ws1['!cols'] = [{ wch: 30 }, { wch: 22 }];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Quarter Summary');
+  // Sheet 2: Monthly Trend
+  if (reportData.monthly_trend && reportData.monthly_trend.length) {
+    const trendRows = [['Month', 'Paid (\u20b9)', 'Pending (\u20b9)', 'Invoices', 'Anomalies'],
+      ...reportData.monthly_trend.map(m => [m.month || '', m.paid || m.paid_amount || 0, m.pending || m.pending_amount || 0, m.invoices || m.total_invoices || 0, m.anomalies || m.anomaly_count || 0])];
+    const ws2 = XLSX.utils.aoa_to_sheet(trendRows);
+    ws2['!cols'] = [{ wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 12 }];
+    XLSX.utils.book_append_sheet(wb, ws2, 'Monthly Trend');
+  }
+  // Sheet 3: Top Vendors
+  if (reportData.top_vendors && reportData.top_vendors.length) {
+    const vendorRows = [['Vendor Name', 'Amount (\u20b9)', 'Invoices'],
+      ...reportData.top_vendors.map(v => [v.name || '', v.amount || 0, v.invoices || 0])];
+    const ws3 = XLSX.utils.aoa_to_sheet(vendorRows);
+    ws3['!cols'] = [{ wch: 28 }, { wch: 16 }, { wch: 10 }];
+    XLSX.utils.book_append_sheet(wb, ws3, 'Top Vendors');
+  }
+  // Sheet 4: Dept Budgets
+  if (reportData.dept_budgets && reportData.dept_budgets.length) {
+    const deptRows = [['Department', 'Budget (\u20b9)', 'Spent (\u20b9)', 'Utilization (%)'],
+      ...reportData.dept_budgets.map(d => [d.dept || d.name || '', d.budget || 0, d.spent || d.amount || 0, d.budget > 0 ? Math.round((d.spent || d.amount || 0) / d.budget * 100) : 0])];
+    const ws4 = XLSX.utils.aoa_to_sheet(deptRows);
+    ws4['!cols'] = [{ wch: 24 }, { wch: 16 }, { wch: 16 }, { wch: 16 }];
+    XLSX.utils.book_append_sheet(wb, ws4, 'Dept Budgets');
+  }
+  XLSX.writeFile(wb, (reportData.title || 'Quarterly_Report').replace(/\s/g, '_') + '.xlsx');
+}
+
 const AIHubScreen = ({
   role,
   onNavigate
@@ -663,6 +933,10 @@ const AIHubScreen = ({
   const [rerunLoading, setRerunLoading] = React.useState(false);
   const [rerunMsg, setRerunMsg] = React.useState(null);
   const [monthlySummaries, setMonthlySummaries] = React.useState(null);
+  const [monthlySummaryData, setMonthlySummaryData] = React.useState(null);
+  const [summaryLoadingMonth, setSummaryLoadingMonth] = React.useState(null);
+  const [reportModal, setReportModal] = React.useState(null); // {title, period, content, stats, top_vendors, dept_budgets}
+  const [generatingReport, setGeneratingReport] = React.useState(false);
   const [payNowLoading, setPayNowLoading] = React.useState(null);
   const [payNowMsg, setPayNowMsg] = React.useState(null);
   const [payModal, setPayModal] = React.useState(null); // { rec } — Pay Now modal
@@ -679,27 +953,37 @@ const AIHubScreen = ({
   const [payProcessing, setPayProcessing] = React.useState(false);
   const [schedProcessing, setSchedProcessing] = React.useState(false);
   const [autoGenEnabled, setAutoGenEnabled] = React.useState(true);
+  const loadMonthlySummaries = async ({
+    openLatest = false,
+    regenerate = false
+  } = {}) => {
+    try {
+      const q = regenerate ? '?regenerate=1' : '';
+      const r = await fetch('/api/v1/invoices/analytics/monthly-summary/' + q, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + (window.TijoriAPI.Auth.getAccess() || '')
+        }
+      });
+      const d = await r.json();
+      const summaries = Array.isArray(d.summaries) ? d.summaries : [];
+      setMonthlySummaryData(summaries);
+      if (openLatest && summaries.length > 0) {
+        setSelectedMonth(summaries[0]);
+        setSummaryOpen(true);
+      }
+      return summaries;
+    } catch (e) {
+      setMonthlySummaryData([]);
+      return [];
+    }
+  };
   React.useEffect(() => {
     window.TijoriAPI.BudgetAPI.cashflow().then(d => setCfData(d)).catch(() => {});
-    // Load real monthly summaries from backend analytics
-    window.TijoriAPI.AnalyticsAPI.spendIntelligence().then(d => {
-      if (d && d.monthly_trends && d.monthly_trends.length > 0) {
-        const trend = d.monthly_trends;
-        const built = trend.slice(-3).reverse().map((m, i) => ({
-          month: m.month_label || m.month || `Month ${i + 1}`,
-          status: i === 0 ? 'REVIEWED' : 'AUTO_GEN',
-          revenue: '₹' + Number(m.revenue || 0).toLocaleString('en-IN'),
-          expenses: '₹' + Number(m.total || m.expenses || 0).toLocaleString('en-IN'),
-          profit: (() => {
-            const p = (m.revenue || 0) - (m.total || m.expenses || 0);
-            return (p < 0 ? '-₹' : '₹') + Math.abs(p).toLocaleString('en-IN');
-          })(),
-          cash: m.cash_position ? '₹' + Number(m.cash_position).toLocaleString('en-IN') : '—',
-          insight: m.insight || (i === 0 ? 'Latest month — live data from system.' : 'Auto-generated from expense buckets.')
-        }));
-        if (built.length > 0) setMonthlySummaries(built);
-      }
-    }).catch(() => {});
+    loadMonthlySummaries({
+      openLatest: false,
+      regenerate: false
+    });
   }, []);
   const handleRerun = async () => {
     setRerunLoading(true);
@@ -851,33 +1135,9 @@ const AIHubScreen = ({
     icon: '⚠'
   }];
 
-  // ── Summary months (real data preferred, static fallback) ────────────────
-  const staticSummaryMonths = [{
-    month: 'March 2026',
-    status: 'REVIEWED',
-    revenue: '₹62L',
-    expenses: '₹50L',
-    profit: '₹12L',
-    cash: '₹18L',
-    insight: 'Travel expenses up 34% vs February. AR collection rate improved to 82%.'
-  }, {
-    month: 'February 2026',
-    status: 'AUTO_GEN',
-    revenue: '₹51L',
-    expenses: '₹44L',
-    profit: '₹7L',
-    cash: '₹15L',
-    insight: 'Engineering budget at 95% — recommend variance review before Q4.'
-  }, {
-    month: 'January 2026',
-    status: 'AUTO_GEN',
-    revenue: '₹48L',
-    expenses: '₹52L',
-    profit: '-₹4L',
-    cash: '₹11L',
-    insight: 'Net loss driven by one-time infrastructure spend. Normalised margin 14%.'
-  }];
-  const summaryMonths = monthlySummaries || staticSummaryMonths;
+  // ── Summary months (real data from /api/v1/invoices/analytics/monthly-summary/) ──
+  const summaryMonths = monthlySummaryData || [];
+  const summaryLoading = monthlySummaryData === null;
 
   // ── Optimisation recommendations ─────────────────────────────────────────
   const [payRecs, setPayRecs] = React.useState([]);
@@ -1515,122 +1775,171 @@ const AIHubScreen = ({
     icon: /*#__PURE__*/React.createElement(AIBadge, {
       small: true
     }),
-    onClick: () => {
-      window.TijoriAPI.NLQueryAPI.ask('Generate executive financial summary for ' + new Date().toLocaleString('en-IN', {
-        month: 'long',
-        year: 'numeric'
-      })).then(res => alert('Summary: ' + (res.answer || 'Generated successfully.'))).catch(e => alert('Generation failed: ' + (e.message || 'Error')));
+    onClick: async () => {
+        setGeneratingReport(true);
+        try {
+          await loadMonthlySummaries({
+            openLatest: false,
+            regenerate: true
+          });
+        } catch(e) {
+          alert('Failed to generate monthly summaries: ' + (e.message || 'Server error'));
+        } finally {
+          setGeneratingReport(false);
+        }
+      }
+  }, generatingReport ? 'Generating\u2026' : 'Generate Now')), summaryLoading ? React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(3, 1fr)',
+      gap: '16px'
     }
-  }, "Generate Now")), /*#__PURE__*/React.createElement("div", {
+  }, [0,1,2].map(i => React.createElement("div", {
+    key: i,
+    style: {
+      background: 'white',
+      border: '2px solid #F1F0EE',
+      borderRadius: '16px',
+      padding: '20px',
+      minHeight: '220px'
+    }
+  },
+    React.createElement("div", {
+      style: { height: '18px', width: '60%', background: '#F1F5F9', borderRadius: '6px', marginBottom: '14px' }
+    }),
+    React.createElement("div", {
+      style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }
+    }, [0,1,2,3].map(j => React.createElement("div", {key: j},
+      React.createElement("div", {style: {height: '10px', width: '40%', background: '#F1F5F9', borderRadius: '4px', marginBottom: '6px'}}),
+      React.createElement("div", {style: {height: '22px', width: '70%', background: '#F1F5F9', borderRadius: '4px'}})
+    ))),
+    React.createElement("div", {style: {height: '12px', width: '90%', background: '#F1F5F9', borderRadius: '4px', marginBottom: '8px'}}),
+    React.createElement("div", {style: {height: '12px', width: '75%', background: '#F1F5F9', borderRadius: '4px'}})
+  ))) : summaryMonths.length === 0 ? React.createElement("div", {
+    style: {
+      background: '#FFF7ED',
+      border: '1px solid #FED7AA',
+      borderRadius: '12px',
+      padding: '16px',
+      fontSize: '13px',
+      color: '#9A3412',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "No monthly data available for recent months.") : React.createElement("div", {
     style: {
       display: 'grid',
       gridTemplateColumns: 'repeat(3, 1fr)',
       gap: '16px'
     }
   }, summaryMonths.map((s, i) => {
-    const [hov, setHov] = React.useState(false);
-    const ss = summaryStatusStyle[s.status];
-    return /*#__PURE__*/React.createElement("div", {
+    const fmtAmt = v => v != null ? '\u20B9' + Number(v).toLocaleString('en-IN', {maximumFractionDigits: 0}) : '\u2014';
+    const momPct = s.mom_change_pct;
+    const momPos = momPct != null && momPct >= 0;
+    const narrative = s.ai_narrative || '';
+    return React.createElement("div", {
       key: i,
-      onMouseEnter: () => setHov(true),
-      onMouseLeave: () => setHov(false),
       style: {
         background: 'white',
-        border: `2px solid ${hov ? '#E8783B' : '#F1F0EE'}`,
+        border: '2px solid #F1F0EE',
         borderRadius: '16px',
         padding: '20px',
         cursor: 'pointer',
         transition: 'all 200ms',
-        transform: hov ? 'translateY(-2px)' : 'none',
-        boxShadow: hov ? '0 8px 24px rgba(0,0,0,0.10)' : '0 2px 8px rgba(0,0,0,0.04)'
+        boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+      },
+      onMouseEnter: e => {
+        e.currentTarget.style.border = '2px solid #E8783B';
+        e.currentTarget.style.transform = 'translateY(-2px)';
+        e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.10)';
+      },
+      onMouseLeave: e => {
+        e.currentTarget.style.border = '2px solid #F1F0EE';
+        e.currentTarget.style.transform = 'none';
+        e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)';
       }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        marginBottom: '14px'
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontFamily: "'Bricolage Grotesque', sans-serif",
-        fontWeight: 800,
-        fontSize: '18px',
-        color: '#0F172A',
-        letterSpacing: '-0.5px'
-      }
-    }, s.month), /*#__PURE__*/React.createElement("span", {
-      style: {
-        background: ss.bg,
-        color: ss.color,
-        padding: '3px 8px',
-        borderRadius: '999px',
-        fontSize: '10px',
-        fontWeight: 700,
-        fontFamily: "'Plus Jakarta Sans', sans-serif",
-        whiteSpace: 'nowrap'
-      }
-    }, s.status === 'AUTO_GEN' && /*#__PURE__*/React.createElement(AIBadge, {
-      small: true
-    }), " ", ss.label)), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: '10px',
-        marginBottom: '14px'
-      }
-    }, [['Revenue', s.revenue, '#10B981'], ['Expenses', s.expenses, '#E8783B'], ['Net Profit', s.profit, s.profit.startsWith('-') ? '#EF4444' : '#10B981'], ['Cash', s.cash, '#E8783B']].map(([l, v, c]) => /*#__PURE__*/React.createElement("div", {
-      key: l
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: '10px',
-        color: '#94A3B8',
-        fontFamily: "'Plus Jakarta Sans', sans-serif",
-        fontWeight: 700,
-        textTransform: 'uppercase',
-        letterSpacing: '0.06em'
-      }
-    }, l), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontFamily: "'Bricolage Grotesque', sans-serif",
-        fontWeight: 800,
-        fontSize: '18px',
-        color: c,
-        letterSpacing: '-0.5px'
-      }
-    }, v)))), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: '12px',
-        color: '#64748B',
-        fontFamily: "'Plus Jakarta Sans', sans-serif",
-        lineHeight: 1.5,
-        marginBottom: '14px',
-        borderTop: '1px solid #F8F7F5',
-        paddingTop: '12px'
-      }
-    }, /*#__PURE__*/React.createElement(AIBadge, {
-      small: true
-    }), " ", s.insight), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: 'flex',
-        gap: '6px'
-      }
-    }, /*#__PURE__*/React.createElement(Btn, {
-      variant: "primary",
-      small: true,
-      onClick: () => {
-        setSelectedMonth(s);
-        setSummaryOpen(true);
-      }
-    }, "View Full \u2192"), /*#__PURE__*/React.createElement(Btn, {
-      variant: "secondary",
-      small: true,
-      onClick: () => {
-        const w = window.open('', '_blank');
-        w.document.write(`<!DOCTYPE html><html><head><title>${s.month} Summary</title><style>body{font-family:sans-serif;padding:32px;}</style></head><body><h1>Tijori AI — ${s.month}</h1><p>Revenue: ${s.revenue} | Expenses: ${s.expenses} | Profit: ${s.profit}</p><p>${s.insight}</p><script>window.print()<\/script></body></html>`);
-        w.document.close();
-      }
-    }, "PDF")));
+    },
+      React.createElement("div", {
+        style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }
+      },
+        React.createElement("div", {
+          style: { fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '18px', color: '#0F172A', letterSpacing: '-0.5px' }
+        }, s.month),
+        React.createElement("span", {
+          style: { background: '#FFF7ED', color: '#E8783B', padding: '3px 8px', borderRadius: '999px', fontSize: '10px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap' }
+        }, React.createElement(AIBadge, { small: true }), ' AUTO_GEN')
+      ),
+      React.createElement("div", {
+        style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }
+      },
+        [
+          ['Paid', fmtAmt(s.paid_amount), '#10B981'],
+          ['Pending', fmtAmt(s.pending_amount), '#E8783B'],
+          ['Invoices', s.total_invoices != null ? String(s.total_invoices) : '\u2014', '#0F172A'],
+          ['Anomalies', s.anomaly_count != null ? String(s.anomaly_count) + (s.critical_anomalies ? ' (' + s.critical_anomalies + ' crit)' : '') : '\u2014', s.critical_anomalies > 0 ? '#EF4444' : '#64748B']
+        ].map(([l, v, c]) =>
+          React.createElement("div", { key: l },
+            React.createElement("div", {
+              style: { fontSize: '10px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }
+            }, l),
+            React.createElement("div", {
+              style: { fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '17px', color: c, letterSpacing: '-0.5px' }
+            }, v)
+          )
+        )
+      ),
+      React.createElement("div", { style: { marginBottom: '12px' } },
+        React.createElement(MiniStackedBar, { paid: s.paid_amount || 0, pending: s.pending_amount || 0, approved: s.approved_amount || 0 }),
+        React.createElement("div", {
+          style: { display: 'flex', justifyContent: 'space-around', marginTop: '4px' }
+        },
+          [['Paid', '#10B981'], ['Pend', '#E8783B'], ['Appr', '#3B82F6']].map(([lbl, col]) =>
+            React.createElement("span", { key: lbl, style: { fontSize: '9px', color: col, fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700 } }, lbl)
+          )
+        )
+      ),
+      momPct != null && React.createElement("div", {
+        style: { marginBottom: '10px', display: 'inline-flex', alignItems: 'center', gap: '4px', background: momPos ? '#D1FAE5' : '#FEE2E2', color: momPos ? '#065F46' : '#991B1B', borderRadius: '999px', padding: '2px 8px', fontSize: '11px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }
+      }, momPos ? '\u2191' : '\u2193', ' ', Math.abs(momPct).toFixed(1) + '% MoM'),
+      narrative && React.createElement("div", {
+        style: { fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.5, marginBottom: '14px', borderTop: '1px solid #F8F7F5', paddingTop: '12px' }
+      }, React.createElement(AIBadge, { small: true }), ' ', narrative.slice(0, 120) + (narrative.length > 120 ? '\u2026' : '')),
+      React.createElement("div", { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } },
+        React.createElement(Btn, {
+          variant: 'primary',
+          small: true,
+          onClick: () => {
+            setSummaryLoadingMonth(s.month_key || s.month);
+            const monthQuery = s.month_key ? '?month=' + encodeURIComponent(s.month_key) : '';
+            fetch('/api/v1/invoices/analytics/monthly-summary/' + monthQuery, {
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window.TijoriAPI.Auth.getAccess() || '') }
+            }).then(r => r.json()).then(d => {
+              const found = (d.summaries || [])[0] || s;
+              setSelectedMonth(found);
+              setSummaryOpen(true);
+            }).catch(() => {
+              setSelectedMonth(s);
+              setSummaryOpen(true);
+            }).finally(() => setSummaryLoadingMonth(null));
+          }
+        }, summaryLoadingMonth === (s.month_key || s.month) ? 'Loading\u2026' : 'View Full Report \u2192'),
+        React.createElement(Btn, {
+          variant: 'secondary',
+          small: true,
+          onClick: () => exportToExcel(s)
+        }, '\u2B07 Excel'),
+        React.createElement(Btn, {
+          variant: 'secondary',
+          small: true,
+          onClick: () => {
+            const w = window.open('', '_blank');
+            const vlist = (s.top_vendors || []).map(v => '<tr><td>' + v.name + '</td><td>' + (v.type||'') + '</td><td>\u20B9' + Number(v.amount||0).toLocaleString('en-IN') + '</td></tr>').join('');
+            const dlist = (s.dept_breakdown || []).map(d => '<tr><td>' + d.dept + '</td><td>\u20B9' + Number(d.amount||0).toLocaleString('en-IN') + '</td><td>' + (d.invoices||0) + '</td></tr>').join('');
+            w.document.write('<!DOCTYPE html><html><head><title>' + s.month + ' Summary</title><style>body{font-family:sans-serif;padding:32px;color:#0F172A;}h1{font-size:22px;}table{width:100%;border-collapse:collapse;margin-top:16px;}th,td{border:1px solid #E2E8F0;padding:8px;text-align:left;}th{background:#F8F7F5;}</style></head><body><h1>Tijori AI \u2014 ' + s.month + '</h1><p>Generated: ' + (s.generated_at ? new Date(s.generated_at).toLocaleString('en-IN') : new Date().toLocaleString('en-IN')) + '</p><h2>KPIs</h2><table><tr><th>Paid</th><td>\u20B9' + Number(s.paid_amount||0).toLocaleString('en-IN') + '</td><th>Pending</th><td>\u20B9' + Number(s.pending_amount||0).toLocaleString('en-IN') + '</td></tr><tr><th>Total Invoices</th><td>' + (s.total_invoices||0) + '</td><th>Anomalies</th><td>' + (s.anomaly_count||0) + ' (' + (s.critical_anomalies||0) + ' critical)</td></tr></table>' + (s.ai_narrative ? '<h2>AI Narrative</h2><p>'+s.ai_narrative+'</p>' : '') + (vlist ? '<h2>Top Vendors</h2><table><tr><th>Name</th><th>Type</th><th>Amount</th></tr>'+vlist+'</table>' : '') + (dlist ? '<h2>Dept Breakdown</h2><table><tr><th>Dept</th><th>Amount</th><th>Invoices</th></tr>'+dlist+'</table>' : '') + '<script>window.print()<\/script></body></html>');
+            w.document.close();
+          }
+        }, 'Export PDF')
+      )
+    );
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: '20px',
@@ -2024,116 +2333,287 @@ const AIHubScreen = ({
   }, /*#__PURE__*/React.createElement("span", null, payNowMsg.type === 'success' ? '✓' : payNowMsg.type === 'error' ? '✕' : '…'), payNowMsg.text)), /*#__PURE__*/React.createElement(CopilotWidget, {
     role: role,
     onNavigate: onNavigate
-  }), /*#__PURE__*/React.createElement(SidePanel, {
+  }), React.createElement(SidePanel, {
     open: summaryOpen,
     onClose: () => setSummaryOpen(false),
-    title: selectedMonth?.month || '',
-    width: 500
-  }, selectedMonth && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px',
-      marginBottom: '16px'
-    }
-  }, /*#__PURE__*/React.createElement(AIBadge, null), /*#__PURE__*/React.createElement(LiveDot, {
-    color: "#8B5CF6"
-  }), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: '11px',
-      color: '#94A3B8',
-      fontFamily: "'Plus Jakarta Sans', sans-serif"
-    }
-  }, "AI-generated summary")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: '16px'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: '12px',
-      fontWeight: 700,
-      color: '#0F172A',
-      fontFamily: "'Plus Jakarta Sans', sans-serif",
-      marginBottom: '8px'
-    }
-  }, "Executive Summary"), ['Revenue grew 12% MoM driven by 2 large AR collections from Acme Corp and Global Tech.', 'Engineering budget hit 100% — booking suspension triggered.', `Travel expenses up 34% vs prior month — ${selectedMonth.month === 'March 2026' ? 'conference season impact.' : 'investigate root cause.'}`, 'Net profit margin improved to 19% — ahead of Q4 target.'].map((b, i) => /*#__PURE__*/React.createElement("div", {
-    key: i,
-    style: {
-      display: 'flex',
-      gap: '8px',
-      marginBottom: '8px'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: '#E8783B',
-      fontWeight: 700,
-      flexShrink: 0,
-      fontSize: '13px'
-    }
-  }, "\xB7"), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: '13px',
-      color: '#475569',
-      fontFamily: "'Plus Jakarta Sans', sans-serif",
-      lineHeight: 1.5
-    }
-  }, b)))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      background: '#F5F3FF',
-      border: '1px solid #EDE9FE',
-      borderRadius: '10px',
-      padding: '14px',
-      marginBottom: '16px'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '6px',
-      marginBottom: '6px'
-    }
-  }, /*#__PURE__*/React.createElement(AIBadge, {
-    small: true
-  }), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: '11px',
-      fontWeight: 700,
-      color: '#5B21B6',
-      fontFamily: "'Plus Jakarta Sans', sans-serif"
-    }
-  }, "Next Month Outlook")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: '13px',
-      color: '#4C1D95',
-      fontFamily: "'Plus Jakarta Sans', sans-serif",
-      lineHeight: 1.5
-    }
-  }, "Based on current pipeline, next month revenue is forecast at \u20B968L (\xB112%). Watch Engineering budget \u2014 3 large invoices pending CFO approval.")), /*#__PURE__*/React.createElement(TjTextarea, {
-    label: "Finance Manager Notes",
-    placeholder: "Add notes to this summary\u2026",
-    rows: 3
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      gap: '8px'
-    }
-  }, /*#__PURE__*/React.createElement(Btn, {
-    variant: "primary",
-    style: {
-      flex: 1,
-      justifyContent: 'center'
+    title: selectedMonth ? selectedMonth.month : '',
+    width: 520
+  }, selectedMonth && React.createElement(React.Fragment, null,
+    React.createElement("div", {
+      style: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }
     },
-    onClick: () => setSummaryOpen(false)
-  }, "Save Notes"), /*#__PURE__*/React.createElement(Btn, {
-    variant: "secondary",
-    small: true,
-    onClick: () => {
-      if (!selectedMonth) return;
-      const w = window.open('', '_blank');
-      w.document.write(`<!DOCTYPE html><html><head><title>${selectedMonth.month} Summary</title><style>body{font-family:sans-serif;padding:32px;color:#0F172A;} h1{font-size:22px;margin-bottom:4px;} .meta{font-size:12px;color:#64748B;margin-bottom:24px;}</style></head><body><h1>Tijori AI — ${selectedMonth.month}</h1><div class="meta">Generated: ${new Date().toLocaleString('en-IN')}</div><table border=1 cellpadding=8 style="width:100%;border-collapse:collapse;"><tr><th>Revenue</th><td>${selectedMonth.revenue}</td></tr><tr><th>Expenses</th><td>${selectedMonth.expenses}</td></tr><tr><th>Net Profit</th><td>${selectedMonth.profit}</td></tr><tr><th>Cash Position</th><td>${selectedMonth.cash}</td></tr></table><p style="margin-top:24px;"><b>AI Insight:</b> ${selectedMonth.insight}</p><script>window.print()<\/script></body></html>`);
-      w.document.close();
-    }
-  }, "Export PDF")))), payModal && /*#__PURE__*/React.createElement(TjModal, {
+      React.createElement(AIBadge, null),
+      React.createElement(LiveDot, { color: '#8B5CF6' }),
+      React.createElement("span", {
+        style: { fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }
+      }, selectedMonth.generated_at ? 'Generated: ' + new Date(selectedMonth.generated_at).toLocaleString('en-IN') : 'AI-generated summary')
+    ),
+    React.createElement("div", {
+      style: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginBottom: '16px' }
+    },
+      [
+        ['Paid', '₹' + Number(selectedMonth.paid_amount || 0).toLocaleString('en-IN', {maximumFractionDigits: 0}), '#10B981'],
+        ['Pending', '₹' + Number(selectedMonth.pending_amount || 0).toLocaleString('en-IN', {maximumFractionDigits: 0}), '#E8783B'],
+        ['Total Invoices', selectedMonth.total_invoices != null ? String(selectedMonth.total_invoices) : '—', '#0F172A'],
+        ['Anomalies', selectedMonth.anomaly_count != null ? selectedMonth.anomaly_count + (selectedMonth.critical_anomalies ? ' (' + selectedMonth.critical_anomalies + ' critical)' : '') : '—', selectedMonth.critical_anomalies > 0 ? '#EF4444' : '#64748B']
+      ].map(([l, v, c]) => React.createElement("div", {
+        key: l,
+        style: { background: '#F8F7F5', borderRadius: '10px', padding: '12px' }
+      },
+        React.createElement("div", { style: { fontSize: '10px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' } }, l),
+        React.createElement("div", { style: { fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '20px', color: c, letterSpacing: '-0.5px' } }, v)
+      ))
+    ),
+    selectedMonth.mom_change_pct != null && React.createElement("div", {
+      style: { marginBottom: '14px' }
+    },
+      React.createElement("span", {
+        style: {
+          display: 'inline-flex', alignItems: 'center', gap: '4px',
+          background: selectedMonth.mom_change_pct >= 0 ? '#D1FAE5' : '#FEE2E2',
+          color: selectedMonth.mom_change_pct >= 0 ? '#065F46' : '#991B1B',
+          borderRadius: '999px', padding: '3px 10px', fontSize: '12px', fontWeight: 700,
+          fontFamily: "'Plus Jakarta Sans', sans-serif"
+        }
+      }, selectedMonth.mom_change_pct >= 0 ? '↑' : '↓', ' ', Math.abs(selectedMonth.mom_change_pct).toFixed(1) + '% Month-over-Month change')
+    ),
+    selectedMonth.ai_narrative && React.createElement("div", {
+      style: { background: '#F5F3FF', border: '1px solid #EDE9FE', borderRadius: '10px', padding: '14px', marginBottom: '16px' }
+    },
+      React.createElement("div", {
+        style: { display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }
+      },
+        React.createElement(AIBadge, { small: true }),
+        React.createElement("span", { style: { fontSize: '11px', fontWeight: 700, color: '#5B21B6', fontFamily: "'Plus Jakarta Sans', sans-serif" } }, 'AI Narrative')
+      ),
+      React.createElement("div", {
+        style: { fontSize: '13px', color: '#4C1D95', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.7, whiteSpace: 'pre-wrap' }
+      }, selectedMonth.ai_narrative)
+    ),
+    selectedMonth.top_vendors && selectedMonth.top_vendors.length > 0 && React.createElement("div", {
+      style: { marginBottom: '16px' }
+    },
+      React.createElement("div", {
+        style: { fontSize: '12px', fontWeight: 700, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }
+      }, 'Top Vendors'),
+      React.createElement("div", { style: { marginBottom: '10px' } },
+        React.createElement(SVGBarChart, {
+          items: selectedMonth.top_vendors.map((v, i) => ({ label: v.name, value: v.amount || 0, color: ['#E8783B','#10B981','#3B82F6','#8B5CF6','#F59E0B'][i % 5] })),
+          width: 460, height: selectedMonth.top_vendors.length * 36 + 30
+        })
+      ),
+      React.createElement("table", { style: { width: '100%', borderCollapse: 'collapse', fontSize: '12px', fontFamily: "'Plus Jakarta Sans', sans-serif" } },
+        React.createElement("thead", null,
+          React.createElement("tr", null,
+            ['Vendor', 'Type', 'Amount', 'Invoices'].map(h => React.createElement("th", {
+              key: h,
+              style: { background: '#F8F7F5', padding: '6px 8px', textAlign: 'left', color: '#64748B', fontWeight: 700, borderBottom: '1px solid #E2E8F0' }
+            }, h))
+          )
+        ),
+        React.createElement("tbody", null,
+          selectedMonth.top_vendors.map((v, vi) => React.createElement("tr", { key: vi },
+            React.createElement("td", { style: { padding: '6px 8px', borderBottom: '1px solid #F1F0EE', fontWeight: 600, color: '#0F172A' } }, v.name),
+            React.createElement("td", { style: { padding: '6px 8px', borderBottom: '1px solid #F1F0EE', color: '#64748B' } }, v.type || '—'),
+            React.createElement("td", { style: { padding: '6px 8px', borderBottom: '1px solid #F1F0EE', color: '#10B981', fontWeight: 700 } }, '₹' + Number(v.amount || 0).toLocaleString('en-IN', {maximumFractionDigits: 0})),
+            React.createElement("td", { style: { padding: '6px 8px', borderBottom: '1px solid #F1F0EE', color: '#64748B' } }, v.invoices || 0)
+          ))
+        )
+      )
+    ),
+    selectedMonth.dept_breakdown && selectedMonth.dept_breakdown.length > 0 && React.createElement("div", {
+      style: { marginBottom: '16px' }
+    },
+      React.createElement("div", {
+        style: { fontSize: '12px', fontWeight: 700, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }
+      }, 'Dept Breakdown'),
+      React.createElement(SVGBarChart, {
+        items: selectedMonth.dept_breakdown.map((d, i) => ({ label: d.dept, value: d.amount || 0, color: ['#3B82F6','#E8783B','#10B981','#8B5CF6','#F59E0B','#EF4444'][i % 6] })),
+        width: 460, height: selectedMonth.dept_breakdown.length * 36 + 30
+      })
+    ),
+    selectedMonth.mom_change_pct != null && (() => {
+      const trendVals = (monthlySummaryData && Array.isArray(monthlySummaryData) ? monthlySummaryData : []).map(m => m.paid_amount || 0).filter(v => v > 0);
+      return trendVals.length >= 2 ? React.createElement("div", { style: { marginBottom: '16px' } },
+        React.createElement("div", { style: { fontSize: '12px', fontWeight: 700, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em' } }, 'Paid Trend'),
+        React.createElement(SVGTrendLine, { values: trendVals, width: 460, height: 48, color: '#10B981' })
+      ) : null;
+    })(),
+    React.createElement("div", { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' } },
+      React.createElement(Btn, {
+        variant: 'primary',
+        small: true,
+        onClick: () => { if (selectedMonth) exportToExcel(selectedMonth); }
+      }, '⬇ Export Excel'),
+      React.createElement(Btn, {
+        variant: 'secondary',
+        small: true,
+        onClick: () => {
+          if (!selectedMonth) return;
+          const w = window.open('', '_blank');
+          const vrows = (selectedMonth.top_vendors || []).map(v => '<tr><td>' + v.name + '</td><td>' + (v.type||'') + '</td><td>₹' + Number(v.amount||0).toLocaleString('en-IN') + '</td><td>' + (v.invoices||0) + '</td></tr>').join('');
+          const drows = (selectedMonth.dept_breakdown || []).map(d => '<tr><td>' + d.dept + '</td><td>₹' + Number(d.amount||0).toLocaleString('en-IN') + '</td><td>' + (d.invoices||0) + '</td></tr>').join('');
+          // Build SVG bar chart strings for inline embedding
+          const maxVendorAmt = Math.max(...(selectedMonth.top_vendors||[]).map(v => v.amount||0), 1);
+          const vendorBars = (selectedMonth.top_vendors||[]).map((v,i) => {
+            const bw = Math.round((v.amount||0)/maxVendorAmt*280);
+            const y = 30 + i*32;
+            const colors = ['#E8783B','#10B981','#3B82F6','#8B5CF6','#F59E0B'];
+            return '<text x="0" y="' + (y+14) + '" font-size="11" fill="#374151" font-family="sans-serif">' + (v.name||'').slice(0,18) + '</text><rect x="140" y="' + (y+2) + '" width="' + bw + '" height="18" rx="3" fill="' + colors[i%5] + '" opacity="0.85"/><text x="' + (140+bw+6) + '" y="' + (y+14) + '" font-size="10" fill="#64748B" font-family="sans-serif">₹' + Number(v.amount||0).toLocaleString('en-IN',{maximumFractionDigits:0}) + '</text>';
+          }).join('');
+          const vendorSvgH = 30 + (selectedMonth.top_vendors||[]).length * 32 + 10;
+          const vendorSvg = vendorBars ? '<svg width="460" height="' + vendorSvgH + '" viewBox="0 0 460 ' + vendorSvgH + '">' + vendorBars + '</svg>' : '';
+          const maxDeptAmt = Math.max(...(selectedMonth.dept_breakdown||[]).map(d => d.amount||0), 1);
+          const deptBars = (selectedMonth.dept_breakdown||[]).map((d,i) => {
+            const bw = Math.round((d.amount||0)/maxDeptAmt*280);
+            const y = 30 + i*32;
+            const colors = ['#3B82F6','#E8783B','#10B981','#8B5CF6','#F59E0B','#EF4444'];
+            return '<text x="0" y="' + (y+14) + '" font-size="11" fill="#374151" font-family="sans-serif">' + (d.dept||'').slice(0,18) + '</text><rect x="140" y="' + (y+2) + '" width="' + bw + '" height="18" rx="3" fill="' + colors[i%6] + '" opacity="0.85"/><text x="' + (140+bw+6) + '" y="' + (y+14) + '" font-size="10" fill="#64748B" font-family="sans-serif">₹' + Number(d.amount||0).toLocaleString('en-IN',{maximumFractionDigits:0}) + '</text>';
+          }).join('');
+          const deptSvgH = 30 + (selectedMonth.dept_breakdown||[]).length * 32 + 10;
+          const deptSvg = deptBars ? '<svg width="460" height="' + deptSvgH + '" viewBox="0 0 460 ' + deptSvgH + '">' + deptBars + '</svg>' : '';
+          w.document.write('<!DOCTYPE html><html><head><title>' + selectedMonth.month + ' Summary</title><style>body{font-family:sans-serif;padding:32px;color:#0F172A;}h1{font-size:22px;margin-bottom:4px;}h2{font-size:15px;margin-top:24px;margin-bottom:8px;}.meta{font-size:12px;color:#64748B;margin-bottom:24px;}table{width:100%;border-collapse:collapse;margin-top:8px;}th,td{border:1px solid #E2E8F0;padding:8px;text-align:left;}th{background:#F8F7F5;}p{line-height:1.7;}svg{overflow:visible;}</style></head><body><h1>Tijori AI — ' + selectedMonth.month + '</h1><div class="meta">Generated: ' + (selectedMonth.generated_at ? new Date(selectedMonth.generated_at).toLocaleString('en-IN') : new Date().toLocaleString('en-IN')) + '</div><h2>KPIs</h2><table><tr><th>Paid</th><td>₹' + Number(selectedMonth.paid_amount||0).toLocaleString('en-IN') + '</td><th>Pending</th><td>₹' + Number(selectedMonth.pending_amount||0).toLocaleString('en-IN') + '</td></tr><tr><th>Total Invoices</th><td>' + (selectedMonth.total_invoices||0) + '</td><th>Anomalies</th><td>' + (selectedMonth.anomaly_count||0) + ' (' + (selectedMonth.critical_anomalies||0) + ' critical)</td></tr>' + (selectedMonth.mom_change_pct != null ? '<tr><th>MoM Change</th><td colspan=3>' + (selectedMonth.mom_change_pct >= 0 ? '+' : '') + selectedMonth.mom_change_pct.toFixed(1) + '%</td></tr>' : '') + '</table>' + (selectedMonth.ai_narrative ? '<h2>AI Narrative</h2><p>' + selectedMonth.ai_narrative + '</p>' : '') + (vendorSvg ? '<h2>Top Vendors</h2>' + vendorSvg : '') + (vrows ? '<table><tr><th>Name</th><th>Type</th><th>Amount</th><th>Invoices</th></tr>' + vrows + '</table>' : '') + (deptSvg ? '<h2>Dept Breakdown</h2>' + deptSvg : '') + (drows ? '<table><tr><th>Dept</th><th>Amount</th><th>Invoices</th></tr>' + drows + '</table>' : '') + '<script>window.print()<\/script></body></html>');
+          w.document.close();
+        }
+      }, 'Export PDF')
+    )
+  ),
+  reportModal && React.createElement(TjModal, {
+    open: true,
+    onClose: () => setReportModal(null),
+    title: reportModal.title || 'Quarterly Report',
+    width: 760
+  },
+    React.createElement("div", {
+      style: { marginBottom: '16px' }
+    },
+      React.createElement("div", {
+        style: { fontSize: '13px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '4px' }
+      }, 'Period: ', React.createElement("strong", null, reportModal.period || '—')),
+      React.createElement("div", {
+        style: { fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }
+      }, 'Generated: ', reportModal.generated_at ? new Date(reportModal.generated_at).toLocaleString('en-IN') : '—')
+    ),
+    reportModal.stats && React.createElement("div", {
+      style: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '20px' }
+    },
+      [
+        ['YTD Expenses', '₹' + Number(reportModal.stats.ytd_expenses || 0).toLocaleString('en-IN', {maximumFractionDigits: 0}), '#E8783B'],
+        ['Q Paid', '₹' + Number(reportModal.stats.q_paid || 0).toLocaleString('en-IN', {maximumFractionDigits: 0}), '#10B981'],
+        ['Q Pending', '₹' + Number(reportModal.stats.q_pending_amount || 0).toLocaleString('en-IN', {maximumFractionDigits: 0}), '#F59E0B'],
+        ['Anomalies', (reportModal.stats.anomaly_total || 0) + ' (' + (reportModal.stats.anomaly_critical || 0) + ' critical)', reportModal.stats.anomaly_critical > 0 ? '#EF4444' : '#64748B'],
+        ['GST Estimate', '₹' + Number(reportModal.stats.gst_estimate || 0).toLocaleString('en-IN', {maximumFractionDigits: 0}), '#0F172A'],
+        ['TDS Estimate', '₹' + Number(reportModal.stats.tds_estimate || 0).toLocaleString('en-IN', {maximumFractionDigits: 0}), '#0F172A']
+      ].map(([l, v, c]) => React.createElement("div", {
+        key: l,
+        style: { background: '#F8F7F5', borderRadius: '10px', padding: '12px' }
+      },
+        React.createElement("div", { style: { fontSize: '10px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' } }, l),
+        React.createElement("div", { style: { fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '18px', color: c, letterSpacing: '-0.5px' } }, v)
+      ))
+    ),
+    (() => {
+      // Monthly trend chart
+      const trendSrc = reportModal.monthly_trend && reportModal.monthly_trend.length >= 2
+        ? reportModal.monthly_trend
+        : (monthlySummaryData && Array.isArray(monthlySummaryData) ? monthlySummaryData : []);
+      const trendItems = trendSrc.map(m => ({
+        label: m.month || '',
+        value: m.paid || m.paid_amount || 0,
+        color: '#10B981'
+      })).filter(x => x.value > 0);
+      return trendItems.length >= 2 ? React.createElement("div", { style: { marginBottom: '16px' } },
+        React.createElement("div", { style: { fontSize: '12px', fontWeight: 700, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em' } }, 'Monthly Paid Trend'),
+        React.createElement(SVGBarChart, { items: trendItems, width: 680, height: trendItems.length * 30 + 30 })
+      ) : null;
+    })(),
+    reportModal.top_vendors && reportModal.top_vendors.length > 0 && React.createElement("div", { style: { marginBottom: '16px' } },
+      React.createElement("div", { style: { fontSize: '12px', fontWeight: 700, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em' } }, 'Top Vendors — Chart'),
+      React.createElement(SVGBarChart, {
+        items: reportModal.top_vendors.map((v, i) => ({ label: v.name, value: v.amount || 0, color: ['#E8783B','#10B981','#3B82F6','#8B5CF6','#F59E0B'][i % 5] })),
+        width: 680, height: reportModal.top_vendors.length * 34 + 30
+      })
+    ),
+    reportModal.dept_budgets && reportModal.dept_budgets.length > 0 && React.createElement("div", { style: { marginBottom: '16px' } },
+      React.createElement("div", { style: { fontSize: '12px', fontWeight: 700, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em' } }, 'Dept Budget Utilization'),
+      React.createElement("div", { style: { display: 'flex', justifyContent: 'center' } },
+        React.createElement(SVGDonutChart, {
+          slices: reportModal.dept_budgets.map((d, i) => ({
+            label: d.dept || d.name || '',
+            value: d.spent || d.amount || 0,
+            color: ['#E8783B','#10B981','#3B82F6','#8B5CF6','#F59E0B','#EF4444'][i % 6]
+          })),
+          size: 180
+        })
+      )
+    ),
+    reportModal.content && React.createElement("div", {
+      style: { background: '#F8F7F5', borderRadius: '10px', padding: '16px', marginBottom: '20px', maxHeight: '300px', overflowY: 'auto' }
+    },
+      React.createElement("div", {
+        style: { fontSize: '13px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.8, whiteSpace: 'pre-wrap' }
+      }, reportModal.content)
+    ),
+    reportModal.top_vendors && reportModal.top_vendors.length > 0 && React.createElement("div", {
+      style: { marginBottom: '16px' }
+    },
+      React.createElement("div", {
+        style: { fontSize: '12px', fontWeight: 700, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }
+      }, 'Top Vendors'),
+      React.createElement("table", { style: { width: '100%', borderCollapse: 'collapse', fontSize: '12px', fontFamily: "'Plus Jakarta Sans', sans-serif" } },
+        React.createElement("thead", null,
+          React.createElement("tr", null,
+            ['Vendor', 'Amount', 'Invoices'].map(h => React.createElement("th", {
+              key: h,
+              style: { background: '#F8F7F5', padding: '6px 8px', textAlign: 'left', color: '#64748B', fontWeight: 700, borderBottom: '1px solid #E2E8F0' }
+            }, h))
+          )
+        ),
+        React.createElement("tbody", null,
+          reportModal.top_vendors.map((v, vi) => React.createElement("tr", { key: vi },
+            React.createElement("td", { style: { padding: '6px 8px', borderBottom: '1px solid #F1F0EE', fontWeight: 600, color: '#0F172A' } }, v.name),
+            React.createElement("td", { style: { padding: '6px 8px', borderBottom: '1px solid #F1F0EE', color: '#10B981', fontWeight: 700 } }, '₹' + Number(v.amount || 0).toLocaleString('en-IN', {maximumFractionDigits: 0})),
+            React.createElement("td", { style: { padding: '6px 8px', borderBottom: '1px solid #F1F0EE', color: '#64748B' } }, v.invoices || 0)
+          ))
+        )
+      )
+    ),
+    React.createElement("div", { style: { display: 'flex', justifyContent: 'flex-end', gap: '8px', flexWrap: 'wrap' } },
+      React.createElement(Btn, {
+        variant: 'primary',
+        small: true,
+        onClick: () => exportQuarterlyExcel(reportModal)
+      }, '⬇ Export Excel'),
+      React.createElement(Btn, {
+        variant: 'secondary',
+        small: true,
+        onClick: () => {
+          if (!reportModal) return;
+          const w = window.open('', '_blank');
+          const vrows = (reportModal.top_vendors || []).map(v => '<tr><td>' + (v.name||'') + '</td><td>₹' + Number(v.amount||0).toLocaleString('en-IN') + '</td><td>' + (v.invoices||0) + '</td></tr>').join('');
+          const stats = reportModal.stats || {};
+          // Build SVG vendor chart string
+          const maxVAmt = Math.max(...(reportModal.top_vendors||[]).map(v => v.amount||0), 1);
+          const vBars = (reportModal.top_vendors||[]).map((v,i) => {
+            const bw = Math.round((v.amount||0)/maxVAmt*380);
+            const y = 30 + i*32;
+            const cols = ['#E8783B','#10B981','#3B82F6','#8B5CF6','#F59E0B'];
+            return '<text x="0" y="' + (y+14) + '" font-size="11" fill="#374151" font-family="sans-serif">' + (v.name||'').slice(0,20) + '</text><rect x="150" y="' + (y+2) + '" width="' + bw + '" height="18" rx="3" fill="' + cols[i%5] + '" opacity="0.85"/><text x="' + (150+bw+6) + '" y="' + (y+14) + '" font-size="10" fill="#64748B" font-family="sans-serif">₹' + Number(v.amount||0).toLocaleString('en-IN',{maximumFractionDigits:0}) + '</text>';
+          }).join('');
+          const vSvgH = 30 + (reportModal.top_vendors||[]).length * 32 + 10;
+          const vSvg = vBars ? '<svg width="600" height="' + vSvgH + '" viewBox="0 0 600 ' + vSvgH + '" style="overflow:visible">' + vBars + '</svg>' : '';
+          w.document.write('<!DOCTYPE html><html><head><title>' + (reportModal.title||'Quarterly Report') + '</title><style>body{font-family:sans-serif;padding:32px;color:#0F172A;}h1{font-size:22px;margin-bottom:4px;}h2{font-size:15px;margin-top:24px;margin-bottom:8px;}.meta{font-size:12px;color:#64748B;margin-bottom:24px;}table{width:100%;border-collapse:collapse;margin-top:8px;}th,td{border:1px solid #E2E8F0;padding:8px;text-align:left;}th{background:#F8F7F5;}p{line-height:1.7;}svg{overflow:visible;}</style></head><body><h1>Tijori AI — ' + (reportModal.title||'Quarterly Report') + '</h1><div class="meta">Period: ' + (reportModal.period||'—') + ' | Generated: ' + (reportModal.generated_at ? new Date(reportModal.generated_at).toLocaleString('en-IN') : new Date().toLocaleString('en-IN')) + '</div><h2>Key Metrics</h2><table><tr><th>YTD Expenses</th><td>₹' + Number(stats.ytd_expenses||0).toLocaleString('en-IN') + '</td><th>Q Paid</th><td>₹' + Number(stats.q_paid||0).toLocaleString('en-IN') + '</td></tr><tr><th>Q Pending</th><td>₹' + Number(stats.q_pending_amount||0).toLocaleString('en-IN') + '</td><th>Anomalies</th><td>' + (stats.anomaly_total||0) + ' (' + (stats.anomaly_critical||0) + ' critical)</td></tr><tr><th>GST Estimate</th><td>₹' + Number(stats.gst_estimate||0).toLocaleString('en-IN') + '</td><th>TDS Estimate</th><td>₹' + Number(stats.tds_estimate||0).toLocaleString('en-IN') + '</td></tr></table>' + (reportModal.content ? '<h2>Report Narrative</h2><p>' + reportModal.content.replace(/\n/g,'<br>') + '</p>' : '') + (vSvg ? '<h2>Top Vendors</h2>' + vSvg : '') + (vrows ? '<table><tr><th>Vendor</th><th>Amount</th><th>Invoices</th></tr>' + vrows + '</table>' : '') + '<script>window.print()<\/script></body></html>');
+          w.document.close();
+        }
+      }, 'Export PDF'),
+      React.createElement(Btn, {
+        variant: 'secondary',
+        small: true,
+        onClick: () => setReportModal(null)
+      }, 'Close')
+    )
+  ),
+  payModal && /*#__PURE__*/React.createElement(TjModal, {
     open: true,
     onClose: () => {
       setPayModal(null);
@@ -2466,7 +2946,7 @@ const AIHubScreen = ({
         setSchedProcessing(false);
       }
     }
-  }, schedProcessing ? 'Scheduling…' : `Confirm Schedule — ${schedModal.rec.amount}`))));
+  }, schedProcessing ? 'Scheduling…' : `Confirm Schedule — ${schedModal.rec.amount}`)))));
 };
 Object.assign(window, {
   AIHubScreen
