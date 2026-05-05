@@ -12,6 +12,7 @@ urlpatterns = [
     path("auth/users/export/", auth_views.UserExportView.as_view(), name="user-export"),
     path("auth/users/<uuid:pk>/", auth_views.UserDetailView.as_view(), name="user-detail"),
     path("auth/change-password/", auth_views.ChangePasswordView.as_view(), name="change-password"),
+    path("auth/forgot-password/", auth_views.ForgotPasswordView.as_view(), name="forgot-password"),
     path("auth/departments/", auth_views.DepartmentListView.as_view(), name="department-list"),
     path("auth/groups/", auth_views.GroupListView.as_view(), name="group-list"),
     path("auth/groups/<int:pk>/", auth_views.GroupDetailView.as_view(), name="group-detail"),

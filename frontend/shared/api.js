@@ -35,16 +35,17 @@ class FinanceAPI {
     /**
      * Core fetch wrapper with auth headers
      */
-    async request(endpoint, options = {}) {
+    async request(endpoint, options = {}, retries = 2) {
+        const { timeoutMs = 15000, ...fetchOptions } = options || {};
         const url = `${this.baseURL}${endpoint}`;
         const token = this.getToken();
 
         const headers = {
-            ...(options.headers || {}),
+            ...(fetchOptions.headers || {}),
         };
 
         // Don't set Content-Type for FormData (browser sets multipart boundary)
-        if (!(options.body instanceof FormData)) {
+        if (!(fetchOptions.body instanceof FormData)) {
             headers['Content-Type'] = 'application/json';
         }
 
@@ -52,29 +53,42 @@ class FinanceAPI {
             headers['Authorization'] = `Bearer ${token}`;
         }
 
-        try {
-            const response = await fetch(url, {
-                ...options,
-                headers,
-            });
+        for (let attempt = 0; attempt <= retries; attempt++) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+            
+            try {
+                const response = await fetch(url, {
+                    ...fetchOptions,
+                    headers,
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
 
-            // Handle 401 — try token refresh
-            if (response.status === 401 && this.getRefreshToken()) {
-                const refreshed = await this.refreshToken();
-                if (refreshed) {
-                    headers['Authorization'] = `Bearer ${this.getToken()}`;
-                    const retryResponse = await fetch(url, { ...options, headers });
-                    return this._handleResponse(retryResponse);
-                } else {
-                    this.logout();
-                    return null;
+                // Handle 401 — try token refresh
+                if (response.status === 401 && this.getRefreshToken()) {
+                    const refreshed = await this.refreshToken();
+                    if (refreshed) {
+                        headers['Authorization'] = `Bearer ${this.getToken()}`;
+                        const retryResponse = await fetch(url, { ...fetchOptions, headers });
+                        return this._handleResponse(retryResponse);
+                    } else {
+                        this.logout();
+                        return null;
+                    }
                 }
-            }
 
-            return this._handleResponse(response);
-        } catch (error) {
-            console.error(`API Error [${endpoint}]:`, error);
-            throw error;
+                return this._handleResponse(response);
+            } catch (error) {
+                clearTimeout(timeoutId);
+                if (attempt < retries) {
+                    console.warn(`API retry ${attempt + 1} for ${endpoint}`);
+                    await new Promise(r => setTimeout(r, 1000 * (attempt + 1))); // Exponential backoff
+                    continue;
+                }
+                console.error(`API Error [${endpoint}]:`, error);
+                throw error;
+            }
         }
     }
 
@@ -439,6 +453,15 @@ class FinanceAPI {
 
     async getDeptVariance() {
         return this.request('/invoices/analytics/dept-variance/');
+    }
+
+    async getMonthlySummary({ month = '', regenerate = false, withAI = false } = {}) {
+        const params = new URLSearchParams();
+        if (month) params.set('month', month);
+        if (regenerate) params.set('regenerate', '1');
+        if (withAI) params.set('with_ai', '1');
+        const q = params.toString();
+        return this.request(`/invoices/analytics/monthly-summary/${q ? '?' + q : ''}`, { timeoutMs: 60000 });
     }
 
     // ─── Notifications (from approval queue) ─────────

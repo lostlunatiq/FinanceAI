@@ -386,3 +386,30 @@ class VendorL1Mapping(models.Model):
 
     class Meta:
         unique_together = ("vendor", "l1_user")
+
+
+class MonthlyFinancialSummary(models.Model):
+    """
+    Cached monthly executive summary generated on-demand from CFO dashboard.
+    Stored per month key (YYYY-MM) and reused on page refresh.
+    """
+
+    month_key = models.CharField(max_length=7, unique=True, db_index=True)
+    month_start = models.DateField()
+    summary_payload = models.JSONField(default=dict)
+    generated_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="generated_monthly_summaries",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    generated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-month_start"]
+        indexes = [models.Index(fields=["month_start"])]
+
+    def __str__(self):
+        return f"Monthly Financial Summary {self.month_key}"
