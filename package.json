@@ -6,5 +6,9 @@
   },
   "dependencies": {
     "@babel/standalone": "^7.29.2"
+  },
+  "scripts": {
+    "build:js": "babel js/ --out-dir js/dist/ --presets @babel/preset-react",
+    "start": "bash ./start_dev.sh"
   }
 }
