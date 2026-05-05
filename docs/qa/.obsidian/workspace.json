@@ -1,0 +1,204 @@
+{
+  "main": {
+    "id": "d96808acf40f7bea",
+    "type": "split",
+    "children": [
+      {
+        "id": "b08280fe4b1a778d",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "6d560e76c7c95119",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "02-file-upload-ocr.md",
+                "mode": "preview",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "02-file-upload-ocr"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "16a8d1ad535b5d9a",
+    "type": "split",
+    "children": [
+      {
+        "id": "5429ba51d6d8f64f",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "68c14e4d9edfa28c",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "dd0e6bad4e4fa579",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "82b91b8fe4471603",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "9085d142b928f4cc",
+    "type": "split",
+    "children": [
+      {
+        "id": "1a821357263fe51f",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "ef5037d920383f6d",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "02-file-upload-ocr.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for 02-file-upload-ocr"
+            }
+          },
+          {
+            "id": "7fb61810874e797d",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "02-file-upload-ocr.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from 02-file-upload-ocr"
+            }
+          },
+          {
+            "id": "8f36cacdec1e6721",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "37db1ae48053bf7b",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "76aede9c04a52b4c",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "02-file-upload-ocr.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of 02-file-upload-ocr"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "6d560e76c7c95119",
+  "lastOpenFiles": [
+    "01-auth.md",
+    "14-d365.md",
+    "99-cross-cutting.md",
+    "README.md",
+    "MANIFEST.md",
+    "13-iam.md",
+    "12-audit-rbac.md",
+    "11-ai-feedback.md",
+    "10-notifications.md",
+    "09-nl-query.md",
+    "08-ai-reports.md",
+    "07-analytics.md",
+    "04-anomaly.md",
+    "03-expense-fsm.md",
+    "02-file-upload-ocr.md"
+  ]
+}
