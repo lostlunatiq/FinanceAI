@@ -61,57 +61,57 @@ class Command(BaseCommand):
         # Grade 5 / CFO
         cfo, _ = self._make_user(
             "arjun.sharma", "Arjun", "Sharma", "arjun.sharma@technovance.in",
-            grade=5, dept=depts["Finance"], is_super=True, password="Techno@2026"
+            grade=5, dept=depts["Finance"], is_super=True, password="demo1234"
         )
 
         # Grade 4 — Finance Admin
         fin_admin, _ = self._make_user(
             "priya.nair", "Priya", "Nair", "priya.nair@technovance.in",
-            grade=4, dept=depts["Finance"], is_super=False, password="Techno@2026"
+            grade=4, dept=depts["Finance"], is_super=False, password="demo1234"
         )
 
         # Grade 3 — Finance Manager
         fin_mgr, _ = self._make_user(
             "vikram.mehta", "Vikram", "Mehta", "vikram.mehta@technovance.in",
-            grade=3, dept=depts["Finance"], is_super=False, password="Techno@2026"
+            grade=3, dept=depts["Finance"], is_super=False, password="demo1234"
         )
 
         # Grade 2 — HODs
         eng_hod, _ = self._make_user(
             "divya.krishnan", "Divya", "Krishnan", "divya.krishnan@technovance.in",
-            grade=2, dept=depts["Engineering"], is_super=False, password="Techno@2026"
+            grade=2, dept=depts["Engineering"], is_super=False, password="demo1234"
         )
         ops_hod, _ = self._make_user(
             "rohit.kapoor", "Rohit", "Kapoor", "rohit.kapoor@technovance.in",
-            grade=2, dept=depts["Operations"], is_super=False, password="Techno@2026"
+            grade=2, dept=depts["Operations"], is_super=False, password="demo1234"
         )
         hr_hod, _ = self._make_user(
             "sunita.rao", "Sunita", "Rao", "sunita.rao@technovance.in",
-            grade=2, dept=depts["Human Resources"], is_super=False, password="Techno@2026"
+            grade=2, dept=depts["Human Resources"], is_super=False, password="demo1234"
         )
         mkt_hod, _ = self._make_user(
             "anil.desai", "Anil", "Desai", "anil.desai@technovance.in",
-            grade=2, dept=depts["Marketing"], is_super=False, password="Techno@2026"
+            grade=2, dept=depts["Marketing"], is_super=False, password="demo1234"
         )
 
         # Grade 1 — Employees (2 main employees as required)
         emp1, _ = self._make_user(
             "neha.gupta", "Neha", "Gupta", "neha.gupta@technovance.in",
-            grade=1, dept=depts["Engineering"], is_super=False, password="Techno@2026"
+            grade=1, dept=depts["Engineering"], is_super=False, password="demo1234"
         )
         emp2, _ = self._make_user(
             "rahul.joshi", "Rahul", "Joshi", "rahul.joshi@technovance.in",
-            grade=1, dept=depts["Operations"], is_super=False, password="Techno@2026"
+            grade=1, dept=depts["Operations"], is_super=False, password="demo1234"
         )
 
         # Additional employees for richer data
         emp3, _ = self._make_user(
             "kavita.iyer", "Kavita", "Iyer", "kavita.iyer@technovance.in",
-            grade=1, dept=depts["Marketing"], is_super=False, password="Techno@2026"
+            grade=1, dept=depts["Marketing"], is_super=False, password="demo1234"
         )
         emp4, _ = self._make_user(
             "sanjay.reddy", "Sanjay", "Reddy", "sanjay.reddy@technovance.in",
-            grade=1, dept=depts["Engineering"], is_super=False, password="Techno@2026"
+            grade=1, dept=depts["Engineering"], is_super=False, password="demo1234"
         )
 
         self.stdout.write("  ✅ 11 users created (CFO → Finance Admin → Finance Manager → 4 HODs → 4 Employees)")
@@ -142,7 +142,7 @@ class Command(BaseCommand):
         # Create vendor portal user for vendor 1
         v1_user, v1_u_created = self._make_user(
             "vendor.infosys", "Infosys BPM", "Accounts", "accounts@infosysbpm.in",
-            grade=1, dept=None, is_super=False, password="Vendor@2026"
+            grade=1, dept=None, is_super=False, password="demo1234"
         )
         if v1_u_created:
             vendor1.user = v1_user
@@ -172,7 +172,7 @@ class Command(BaseCommand):
         # Create vendor portal user for vendor 2
         v2_user, v2_u_created = self._make_user(
             "vendor.staples", "Staples India", "Billing", "billing@staples.in",
-            grade=1, dept=None, is_super=False, password="Vendor@2026"
+            grade=1, dept=None, is_super=False, password="demo1234"
         )
         if v2_u_created:
             vendor2.user = v2_user

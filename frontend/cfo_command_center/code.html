@@ -350,7 +350,8 @@
   <div class="flex items-center justify-between">
     <div>
       <h2 class="text-xl font-bold font-headline text-on-surface">Monthly Financial Summaries</h2>
-      <p class="text-xs text-on-surface-variant mt-0.5">Auto-generated on the 1st of each month from live transaction data</p>
+      <p class="text-xs text-on-surface-variant mt-0.5">Generated only on demand and cached in database for reuse on refresh</p>
+      <p id="monthly-summary-last-generated" class="text-[11px] text-on-surface-variant mt-1"></p>
     </div>
     <div class="flex items-center gap-3">
       <button id="regen-summary-btn" class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold primary-gradient text-white hover:opacity-90 transition-opacity">
@@ -548,8 +549,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ─── Cash Flow Chart (real data) ─────────────────────────────────────────
     _loadCashFlowChart();
 
-    // ─── Monthly Financial Summaries ─────────────────────────────────────────
-    _loadMonthlySummaries();
+    // ─── Monthly Financial Summaries (cached from DB; no auto-regeneration) ─
+    _wireMonthlySummaryRegenerateButton();
+    _loadMonthlySummaries({ regenerate: false });
 });
 
 function _riskSeverityStyle(severity) {
@@ -798,127 +800,100 @@ async function _loadCashFlowChart() {
 }
 
 // ─── Monthly Financial Summaries ─────────────────────────────────────────────
-async function _loadMonthlySummaries() {
+function _wireMonthlySummaryRegenerateButton() {
+    const regenBtn = document.getElementById('regen-summary-btn');
+    if (!regenBtn || regenBtn.dataset.bound === '1') return;
+    regenBtn.dataset.bound = '1';
+    regenBtn.addEventListener('click', async () => {
+        regenBtn.disabled = true;
+        regenBtn.innerHTML = '<span class="material-symbols-outlined text-[16px] animate-spin">refresh</span> Generating...';
+        await _loadMonthlySummaries({ regenerate: true });
+        regenBtn.disabled = false;
+        regenBtn.innerHTML = '<span class="material-symbols-outlined text-[16px]">auto_awesome</span> Regenerate Now';
+    });
+}
+
+async function _loadMonthlySummaries({ regenerate = false } = {}) {
     const grid = document.getElementById('monthly-summaries-grid');
     const aiDiv = document.getElementById('monthly-summary-ai');
     const narEl = document.getElementById('monthly-ai-narrative');
+    const hint = document.getElementById('monthly-summary-last-generated');
     if (!grid) return;
 
     try {
-        const [cashData, stats, expenses] = await Promise.all([
-            window.api.getCashFlowForecast(90),
-            window.api.getDashboardStats(),
-            window.api.getInternalExpenses({ limit: 400 }),
-        ]);
+        grid.innerHTML = `<div class="flex items-center justify-center py-12 col-span-3 text-on-surface-variant">
+            <span class="material-symbols-outlined animate-spin mr-2">refresh</span>
+            <span class="text-sm">${regenerate ? 'Generating and storing summaries…' : 'Loading stored summaries…'}</span>
+          </div>`;
 
-        const now = new Date();
-        const months = [];
+        const data = await window.api.getMonthlySummary({ regenerate });
+        const summaries = (Array.isArray(data?.summaries) ? data.summaries : [])
+            .sort((a, b) => String(a.month_key || '').localeCompare(String(b.month_key || '')));
 
-        // Build last 3 month buckets from real expenses
-        for (let m = 2; m >= 0; m--) {
-            const d = new Date(now.getFullYear(), now.getMonth() - m, 1);
-            const next = new Date(now.getFullYear(), now.getMonth() - m + 1, 1);
-            const rows = (Array.isArray(expenses) ? expenses : (expenses?.results || [])).filter(e => {
-                const dt = new Date(e.invoice_date || e.created_at || e.submitted_at);
-                return dt >= d && dt < next;
-            });
-            const revenue = rows
-                .filter(e => ['PAID', 'BOOKED_D365', 'POSTED_D365'].includes(e.status || e._status))
-                .reduce((s, e) => s + Number(e.total_amount || 0), 0);
-            const expense = rows
-                .filter(e => !['REJECTED', 'AUTO_REJECT', 'WITHDRAWN'].includes(e.status || e._status))
-                .reduce((s, e) => s + Number(e.total_amount || 0), 0);
-            months.push({
-                label: d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }),
-                short: d.toLocaleDateString('en-IN', { month: 'short' }),
-                isCurrentMonth: m === 0,
-                revenue,
-                expense,
-            });
+        if (!summaries.length) {
+            grid.innerHTML = '<div class="col-span-3 text-center text-sm text-on-surface-variant py-8">No monthly summaries found. Click Regenerate Now to create and store them.</div>';
+            if (hint) hint.textContent = '';
+            if (aiDiv) aiDiv.classList.add('hidden');
+            return;
         }
 
-        const fmt = n => '₹' + Number(n || 0).toLocaleString('en-IN', {maximumFractionDigits:0});
-        const fmtL = n => '₹' + (Number(n || 0)/100000).toFixed(1) + 'L';
+        const fmt = n => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+        const fmtL = n => '₹' + (Number(n || 0) / 100000).toFixed(1) + 'L';
 
-        const pendingCount = stats?.total_pending || 0;
-
-        grid.innerHTML = months.map((mo, i) => {
-            const isCurrentMonth = mo.isCurrentMonth;
-            const inflow = mo.revenue;
-            const outflow = mo.expense;
-            const net = inflow - outflow;
-            const isPos = net >= 0;
+        grid.innerHTML = summaries.map((mo, idx) => {
+            if (mo.is_generated === false) {
+                return `
+                <div class="bg-surface-container-low rounded-xl p-6 space-y-3">
+                  <div class="text-xs font-bold text-on-surface-variant uppercase tracking-widest">${mo.month_key || '—'}</div>
+                  <div class="text-lg font-headline font-black text-on-surface">${mo.month || 'Month'}</div>
+                  <div class="text-xs text-on-surface-variant">Not generated yet. Use Regenerate Now.</div>
+                </div>`;
+            }
 
             return `
-            <div class="bg-surface-container-low rounded-xl p-6 space-y-4 ${isCurrentMonth ? 'ring-2 ring-primary/30' : ''}" data-month="${mo.label}">
+            <div class="bg-surface-container-low rounded-xl p-6 space-y-4 ${idx === summaries.length - 1 ? 'ring-2 ring-primary/30' : ''}">
               <div class="flex items-center justify-between">
                 <div>
-                  <div class="text-xs font-bold text-on-surface-variant uppercase tracking-widest">${mo.short}</div>
-                  <div class="text-lg font-headline font-black text-on-surface mt-0.5">${mo.label}</div>
+                  <div class="text-xs font-bold text-on-surface-variant uppercase tracking-widest">${(mo.month || '').slice(0, 3)}</div>
+                  <div class="text-lg font-headline font-black text-on-surface mt-0.5">${mo.month || mo.month_key}</div>
                 </div>
-                ${isCurrentMonth ? '<span class="text-[10px] font-bold px-2 py-1 rounded-full bg-primary/10 text-primary">CURRENT</span>' : ''}
+                ${idx === summaries.length - 1 ? '<span class="text-[10px] font-bold px-2 py-1 rounded-full bg-primary/10 text-primary">LATEST</span>' : ''}
               </div>
               <div class="grid grid-cols-2 gap-3">
                 <div class="bg-green-50 rounded-lg p-3">
-                  <div class="text-[10px] font-bold text-green-700 uppercase">Inflow</div>
-                  <div class="text-base font-headline font-black text-green-700 mt-0.5">${fmtL(inflow)}</div>
+                  <div class="text-[10px] font-bold text-green-700 uppercase">Paid</div>
+                  <div class="text-base font-headline font-black text-green-700 mt-0.5">${fmtL(mo.paid_amount)}</div>
                 </div>
                 <div class="bg-red-50 rounded-lg p-3">
-                  <div class="text-[10px] font-bold text-red-600 uppercase">Outflow</div>
-                  <div class="text-base font-headline font-black text-red-600 mt-0.5">${fmtL(outflow)}</div>
+                  <div class="text-[10px] font-bold text-red-600 uppercase">Pending</div>
+                  <div class="text-base font-headline font-black text-red-600 mt-0.5">${fmtL(mo.pending_amount)}</div>
                 </div>
               </div>
               <div class="flex items-center justify-between pt-2 border-t border-outline-variant/20">
-                <span class="text-xs text-on-surface-variant font-medium">Net Position</span>
-                <span class="font-headline font-black text-sm ${isPos ? 'text-green-600' : 'text-red-600'}">${isPos ? '+' : ''}${fmtL(net)}</span>
+                <span class="text-xs text-on-surface-variant font-medium">MoM Change</span>
+                <span class="font-headline font-black text-sm ${(Number(mo.mom_change_pct || 0) >= 0) ? 'text-red-600' : 'text-green-600'}">${Number(mo.mom_change_pct || 0) >= 0 ? '+' : ''}${Number(mo.mom_change_pct || 0).toFixed(1)}%</span>
               </div>
-              ${isCurrentMonth ? `<div class="text-[10px] text-on-surface-variant">${pendingCount} bills pending approval</div>` : ''}
+              <div class="text-[10px] text-on-surface-variant">${mo.total_invoices || 0} invoices · ${fmt(mo.approved_amount || 0)} approved</div>
             </div>`;
         }).join('');
 
-        // Show AI narrative if available
-        if (cashData?.narrative && narEl && aiDiv) {
-            narEl.textContent = cashData.narrative;
-            aiDiv.classList.remove('hidden');
+        const latest = summaries[summaries.length - 1];
+        if (hint) {
+            hint.textContent = latest?.generated_at ? `Last generated: ${new Date(latest.generated_at).toLocaleString('en-IN')}` : '';
         }
 
-        // Wire regenerate button
-        const regenBtn = document.getElementById('regen-summary-btn');
-        if (regenBtn) {
-            const lastGen = localStorage.getItem('monthly_summary_last_generated');
-            if (lastGen) {
-                const hint = document.getElementById('monthly-summary-last-generated');
-                if (hint) hint.textContent = `Last generated: ${new Date(lastGen).toLocaleString('en-IN')}`;
-            }
-            regenBtn.addEventListener('click', async () => {
-                regenBtn.disabled = true;
-                regenBtn.innerHTML = '<span class="material-symbols-outlined text-[16px] animate-spin">refresh</span> Generating...';
-                await _loadMonthlySummaries();
-                localStorage.setItem('monthly_summary_last_generated', new Date().toISOString());
-                regenBtn.disabled = false;
-                regenBtn.innerHTML = '<span class="material-symbols-outlined text-[16px]">auto_awesome</span> Regenerate Now';
-            });
+        const latestNarrative = [...summaries].reverse().find(s => s.ai_narrative);
+        if (latestNarrative && narEl && aiDiv) {
+            narEl.textContent = latestNarrative.ai_narrative;
+            aiDiv.classList.remove('hidden');
+        } else if (aiDiv) {
+            aiDiv.classList.add('hidden');
         }
     } catch (e) {
         grid.innerHTML = '<div class="col-span-3 text-center text-sm text-on-surface-variant py-8">Could not load monthly summaries — check API.</div>';
         console.warn('Monthly summaries error:', e);
     }
 }
-
-// Schedule auto-generation on the 1st of each month
-(function _scheduleMonthlyAutoRegen() {
-    const scheduleNext = () => {
-        const now = new Date();
-        const nextFirst = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 5, 0);
-        const msUntil = Math.max(1000, nextFirst - now);
-        setTimeout(async () => {
-            await _loadMonthlySummaries();
-            localStorage.setItem('monthly_summary_last_generated', new Date().toISOString());
-            scheduleNext();
-        }, msUntil);
-    };
-    scheduleNext();
-})();
 
 // ─── Vendor Payment Optimization ─────────────────────────────────────────────
 let _vpoData = null;

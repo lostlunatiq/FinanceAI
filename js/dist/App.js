@@ -1267,24 +1267,6 @@ const App = () => {
     });
   }, []);
 
-  // ── External navigate events (fired by child screens) ──────────
-  React.useEffect(() => {
-    const handler = e => navigate(e.detail?.screen || e.detail, e.detail?.ctx);
-    window.addEventListener('navigate', handler);
-    return () => window.removeEventListener('navigate', handler);
-  }, [navigate]);
-
-  // ── Profile update events (fired by Settings screen) ─────────────
-  React.useEffect(() => {
-    const handler = e => {
-      if (!e.detail) return;
-      const built = buildUser(e.detail);
-      setUser(built);
-      localStorage.setItem('tj_user', JSON.stringify(built));
-    };
-    window.addEventListener('profile-updated', handler);
-    return () => window.removeEventListener('profile-updated', handler);
-  }, [buildUser]);
   const navigate = React.useCallback((s, ctx) => {
     setNavHistory(prev => [...prev.slice(-19), screen]); // keep last 20
     setScreen(s);
@@ -1307,6 +1289,25 @@ const App = () => {
     setScreen('dashboard');
     setScreenCtx(null);
   };
+
+  // ── External navigate events (fired by child screens) ──────────
+  React.useEffect(() => {
+    const handler = e => navigate(e.detail?.screen || e.detail, e.detail?.ctx);
+    window.addEventListener('navigate', handler);
+    return () => window.removeEventListener('navigate', handler);
+  }, [navigate]);
+
+  // ── Profile update events (fired by Settings screen) ─────────────
+  React.useEffect(() => {
+    const handler = e => {
+      if (!e.detail) return;
+      const built = buildUser(e.detail);
+      setUser(built);
+      localStorage.setItem('tj_user', JSON.stringify(built));
+    };
+    window.addEventListener('profile-updated', handler);
+    return () => window.removeEventListener('profile-updated', handler);
+  }, [buildUser]);
 
   // ── Login success ───────────────────────────────────────────────
   const handleLogin = userData => {

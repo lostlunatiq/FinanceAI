@@ -3,16 +3,19 @@ Finance Automation Analytics Views — 12 new trending features.
 All endpoints use real DB data + optional AI narratives via OpenRouter.
 """
 import logging
+import re
 from datetime import date, timedelta
 from decimal import Decimal
 
 from django.db.models import Sum, Count, Avg, Max, Min, Q, F
 from django.db.models.functions import TruncMonth, TruncWeek, ExtractWeekDay
+from django.db.utils import OperationalError, ProgrammingError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from apps.core.permissions import HasMinimumGrade
 
-from .models import Budget, Expense, Vendor, VendorL1Mapping
+from .models import Budget, Expense, Vendor, VendorL1Mapping, MonthlyFinancialSummary
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +28,18 @@ def _ai_text(prompt: str, fallback: str = "") -> str:
         return resp.get("content", "").strip() or fallback
     except Exception:
         return fallback
+
+
+def _compact_ai_narrative(text: str, max_words: int = 200) -> str:
+    """Normalize LLM output for compact UI cards/panels."""
+    clean = (text or "").strip()
+    clean = re.sub(r"</?[^>]+>", "", clean)
+    clean = re.sub(r"^\s*here\s+is\s+(an?|the)\s+.*?:\s*", "", clean, flags=re.IGNORECASE)
+    clean = re.sub(r"\n{3,}", "\n\n", clean)
+    words = clean.split()
+    if len(words) <= max_words:
+        return clean
+    return " ".join(words[:max_words]).rstrip(" ,.;:") + "..."
 
 
 def _anomaly_desc(ocr_raw) -> str:
@@ -927,7 +942,7 @@ class CommandCenterIntelligenceView(APIView):
     GET /api/v1/invoices/analytics/command-center/
     Aggregated real-time metrics for CFO Command Center.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasMinimumGrade.make(3)]
 
     def get(self, request):
         today = date.today()
@@ -1195,195 +1210,235 @@ Write 4-5 structured paragraphs: (1) Executive Summary, (2) Expense Analysis & T
         })
 
 
-# ─── 13. Monthly Summary ─────────────────────────────────────────────────────
+# ─── Monthly Financial Summary ────────────────────────────────────────────────
 
 class MonthlySummaryView(APIView):
     """
-    POST /api/v1/invoices/analytics/monthly-summary/
-    Returns real expense data + AI-generated executive summary bullets for a given month.
-    Body: { "year": 2026, "month": 3 }
+    GET /api/v1/invoices/analytics/monthly-summary/?month=YYYY-MM
+    Returns cached monthly summaries by default.
+    Pass regenerate=1 to generate/update and store in DB on-demand.
     """
     permission_classes = [IsAuthenticated]
 
-    def post(self, request):
+    def get(self, request):
         import calendar
+
+        month_param = request.query_params.get("month", "")
+        regenerate = str(request.query_params.get("regenerate", "")).lower() in {"1", "true", "yes"}
+        with_ai = str(request.query_params.get("with_ai", "")).lower() in {"1", "true", "yes"}
         today = date.today()
-        year = int(request.data.get("year", today.year))
-        month = int(request.data.get("month", today.month))
 
-        month_start = date(year, month, 1)
-        month_end = date(year, month, calendar.monthrange(year, month)[1])
+        # Build list of months to summarize
+        if month_param:
+            try:
+                if not re.match(r"^\d{4}-(0[1-9]|1[0-2])$", month_param):
+                    raise ValueError("Invalid month format")
+                year, mon = int(month_param[:4]), int(month_param[5:7])
+                months = [(year, mon)]
+            except Exception:
+                months = self._last_n_months(today, 3)
+        else:
+            months = self._last_n_months(today, 3)
 
-        # ── Expense data for the month ────────────────────────────────────────
-        month_qs = Expense.objects.filter(invoice_date__gte=month_start, invoice_date__lte=month_end)
+        results = []
+        for year, mon in months:
+            m_start = date(year, mon, 1)
+            m_end = date(year, mon, calendar.monthrange(year, mon)[1])
+            month_label = m_start.strftime("%B %Y")
+            month_key = m_start.strftime("%Y-%m")
+            cache_available = True
+            try:
+                cached = MonthlyFinancialSummary.objects.filter(month_key=month_key).first()
+            except (OperationalError, ProgrammingError):
+                cached = None
+                cache_available = False
 
-        total_expenses = float(
-            month_qs.filter(_status__in=["PAID", "APPROVED", "BOOKED_D365", "POSTED_D365"])
-            .aggregate(t=Sum("total_amount"))["t"] or 0
-        )
-        paid_expenses = float(
-            month_qs.filter(_status="PAID").aggregate(t=Sum("total_amount"))["t"] or 0
-        )
-        pending_expenses = float(
-            month_qs.exclude(_status__in=["PAID", "REJECTED", "WITHDRAWN", "AUTO_REJECT"])
-            .aggregate(t=Sum("total_amount"))["t"] or 0
-        )
-        invoice_count = month_qs.count()
+            if cached and not regenerate:
+                payload = dict(cached.summary_payload or {})
+                payload.setdefault("month", month_label)
+                payload.setdefault("month_key", month_key)
+                payload["generated_at"] = cached.generated_at.date().isoformat()
+                payload["is_generated"] = True
+                payload["from_cache"] = True
+                results.append(payload)
+                continue
 
-        # ── Monthly budget allocation (annual budget / 12) ────────────────────
-        try:
-            annual_budget = float(
-                Budget.objects.filter(status__in=["active", "draft"])
-                .aggregate(t=Sum("total_amount"))["t"] or 0
+            if not regenerate and not cached:
+                results.append({
+                    "month": month_label,
+                    "month_key": month_key,
+                    "is_generated": False,
+                    "from_cache": False,
+                    "message": (
+                        "Summary table not available. Run migrations, then Regenerate."
+                        if not cache_available
+                        else "Summary not generated yet. Use Regenerate to create and store it."
+                    ),
+                })
+                continue
+
+            qs = Expense.objects.filter(invoice_date__gte=m_start, invoice_date__lte=m_end)
+
+            paid_amount = qs.filter(_status="PAID").aggregate(t=Sum("total_amount"))["t"] or 0
+            pending_amount = qs.filter(_status__in=["PENDING_L1", "PENDING_L2", "PENDING_HOD",
+                "PENDING_FIN_L1", "PENDING_FIN_L2", "PENDING_FIN_HEAD"]).aggregate(t=Sum("total_amount"))["t"] or 0
+            approved_amount = qs.filter(_status="APPROVED").aggregate(t=Sum("total_amount"))["t"] or 0
+            rejected_count = qs.filter(_status="REJECTED").count()
+            total_invoices = qs.count()
+
+            # Top vendors
+            top_vendors = (
+                qs.exclude(vendor__isnull=True)
+                .values("vendor__name", "vendor__vendor_type")
+                .annotate(total=Sum("total_amount"), count=Count("id"))
+                .order_by("-total")[:5]
             )
-        except Exception:
-            annual_budget = 0
-        monthly_budget = round(annual_budget / 12, 0) if annual_budget else 0
-        budget_variance = monthly_budget - total_expenses
 
-        # ── Prior month for MoM comparison ───────────────────────────────────
-        prev_month = month - 1 if month > 1 else 12
-        prev_year = year if month > 1 else year - 1
-        prev_start = date(prev_year, prev_month, 1)
-        prev_end = date(prev_year, prev_month, calendar.monthrange(prev_year, prev_month)[1])
-        prev_expenses = float(
-            Expense.objects.filter(
-                invoice_date__gte=prev_start, invoice_date__lte=prev_end,
-                _status__in=["PAID", "APPROVED", "BOOKED_D365"],
+            # Department breakdown via submitted_by user's department
+            dept_data = (
+                qs.exclude(submitted_by__department__isnull=True)
+                .values("submitted_by__department__name")
+                .annotate(total=Sum("total_amount"), count=Count("id"))
+                .order_by("-total")[:6]
+            )
+
+            # Anomaly count
+            try:
+                from apps.core.models import AnomalyLog
+                anomaly_count = AnomalyLog.objects.filter(
+                    created_at__date__gte=m_start,
+                    created_at__date__lte=m_end
+                ).count()
+                critical_count = AnomalyLog.objects.filter(
+                    created_at__date__gte=m_start,
+                    created_at__date__lte=m_end,
+                    risk_score__gte=80
+                ).count()
+            except Exception:
+                anomaly_count = 0
+                critical_count = 0
+
+            # MoM comparison
+            prev_m = m_start - timedelta(days=1)
+            prev_start = date(prev_m.year, prev_m.month, 1)
+            prev_paid = Expense.objects.filter(
+                _status="PAID", invoice_date__gte=prev_start, invoice_date__lte=prev_m
             ).aggregate(t=Sum("total_amount"))["t"] or 0
-        )
-        mom_pct = round(((total_expenses - prev_expenses) / prev_expenses * 100) if prev_expenses else 0, 1)
+            mom_pct = ((float(paid_amount) - float(prev_paid)) / float(prev_paid) * 100) if prev_paid else 0
 
-        # ── Top departments and vendors ───────────────────────────────────────
-        top_depts = list(
-            month_qs.filter(_status__in=["PAID", "APPROVED"])
-            .values("submitted_by__department__name")
-            .annotate(total=Sum("total_amount"))
-            .order_by("-total")[:3]
-        )
-        top_vendors = list(
-            month_qs.filter(_status__in=["PAID", "APPROVED"])
-            .exclude(vendor__isnull=True)
-            .values("vendor__name")
-            .annotate(total=Sum("total_amount"))
-            .order_by("-total")[:3]
-        )
+            # Budget utilization summary
+            from apps.invoices.models import Budget
+            budget_qs = Budget.objects.filter(
+                start_date__lte=m_end, end_date__gte=m_start
+            ).select_related("department")[:8]
+            budgets = [
+                {"name": b.name, "dept": b.department.name if b.department else "General",
+                 "budget": float(b.total_amount or 0),
+                 "spent": float(getattr(b, "spent_amount", 0) or 0),
+                 "utilization_pct": round(float(getattr(b, "utilization_pct", 0) or 0), 1)}
+                for b in budget_qs
+            ]
 
-        # ── Budget utilization per department ─────────────────────────────────
-        budget_util = []
-        try:
-            for b in Budget.objects.filter(status__in=["active", "draft"]).select_related("department")[:4]:
-                spent = float(
-                    month_qs.filter(_status__in=["PAID", "APPROVED"], submitted_by__department=b.department)
-                    .aggregate(t=Sum("total_amount"))["t"] or 0
-                )
-                alloc = round(float(b.total_amount) / 12, 0)
-                if alloc > 0:
-                    budget_util.append({
-                        "dept": b.department.name if b.department else "General",
-                        "allocated": alloc,
-                        "spent": spent,
-                        "utilization": round(spent / alloc * 100, 1),
-                    })
-        except Exception:
-            pass
+            # AI narrative
+            vendor_lines = "\n".join(
+                f"  {i+1}. {v['vendor__name']} ({v['vendor__vendor_type'] or 'General'}): ₹{float(v['total']):,.2f} ({v['count']} invoices)"
+                for i, v in enumerate(top_vendors)
+            ) or "  No vendor transactions this month"
 
-        # ── Next month pending ────────────────────────────────────────────────
-        next_month = month % 12 + 1
-        next_year = year if month < 12 else year + 1
-        next_start = date(next_year, next_month, 1)
-        next_pending = Expense.objects.filter(
-            invoice_date__gte=next_start,
-            _status__in=["APPROVED", "PENDING_L1", "PENDING_L2", "PENDING_L3", "PENDING"],
-        ).aggregate(t=Sum("total_amount"), cnt=Count("id"))
-        next_pending_amt = float(next_pending["t"] or 0)
-        next_pending_cnt = next_pending["cnt"] or 0
+            dept_lines = "\n".join(
+                f"  {d['submitted_by__department__name']}: ₹{float(d['total']):,.2f} ({d['count']} invoices)"
+                for d in dept_data
+            ) or "  No department data"
 
-        # ── AI bullet points ──────────────────────────────────────────────────
-        dept_lines = "\n".join(
-            f"  {d.get('submitted_by__department__name') or 'General'}: ₹{float(d['total']):,.0f}"
-            for d in top_depts
-        ) or "  No department data"
-        vendor_lines = "\n".join(
-            f"  {v['vendor__name']}: ₹{float(v['total']):,.0f}"
-            for v in top_vendors
-        ) or "  No vendor data"
-        budget_lines = "\n".join(
-            f"  {b['dept']}: ₹{b['spent']:,.0f} spent of ₹{b['allocated']:,.0f} allocated ({b['utilization']}%)"
-            for b in budget_util
-        ) or "  No budget data"
+            prompt = f"""Write a concise 3-paragraph executive financial summary for {month_label}.
+Use this real data:
 
-        month_name = calendar.month_name[month]
-        bullet_prompt = (
-            f"Generate exactly 4 concise CFO executive summary bullet points for {month_name} {year}.\n"
-            f"Each bullet is one sentence. Use specific numbers. Be direct.\n\n"
-            f"EXPENSES: ₹{total_expenses:,.0f} total ({mom_pct:+.1f}% vs prior month)\n"
-            f"  Paid: ₹{paid_expenses:,.0f} | Pending: ₹{pending_expenses:,.0f}\n"
-            f"  Invoices processed: {invoice_count}\n"
-            f"MONTHLY BUDGET: ₹{monthly_budget:,.0f} | Variance: ₹{budget_variance:+,.0f}\n\n"
-            f"TOP DEPARTMENTS:\n{dept_lines}\n\n"
-            f"TOP VENDORS:\n{vendor_lines}\n\n"
-            f"BUDGET UTILIZATION:\n{budget_lines}\n\n"
-            f"Return exactly 4 bullet points, each starting with '•', one per line. No headers."
-        )
-        fallback_bullets = [
-            f"Total expenses of ₹{total_expenses:,.0f} represent a {mom_pct:+.1f}% change vs prior month ({invoice_count} invoices).",
-            f"Paid ₹{paid_expenses:,.0f} with ₹{pending_expenses:,.0f} still pending approval.",
-            f"Monthly budget of ₹{monthly_budget:,.0f} shows ₹{abs(budget_variance):,.0f} {'surplus' if budget_variance >= 0 else 'overrun'}.",
-            (
-                f"Top spend: {top_depts[0].get('submitted_by__department__name') or 'General'} dept at "
-                f"₹{float(top_depts[0]['total']):,.0f}." if top_depts
-                else "Review vendor concentration and department spend patterns."
-            ),
-        ]
-        ai_raw = _ai_text(bullet_prompt, fallback="\n".join(f"• {b}" for b in fallback_bullets))
-        bullets = [
-            line.lstrip("•-· ").strip()
-            for line in ai_raw.strip().split("\n")
-            if line.strip()
-        ][:4] or fallback_bullets
+MONTHLY EXPENSES:
+- Total Paid: ₹{float(paid_amount):,.2f}
+- Pending Approval: ₹{float(pending_amount):,.2f}
+- Approved Awaiting Payment: ₹{float(approved_amount):,.2f}
+- Rejected Invoices: {rejected_count}
+- Total Invoices Processed: {total_invoices}
+- Month-over-Month Change: {mom_pct:+.1f}%
 
-        # ── Next month outlook ────────────────────────────────────────────────
-        next_month_name = calendar.month_name[next_month]
-        outlook_prompt = (
-            f"Write one sentence forecasting the financial outlook for {next_month_name} {next_year}.\n"
-            f"Known: {next_pending_cnt} pending invoices worth ₹{next_pending_amt:,.0f}. "
-            f"Current month trend: {mom_pct:+.1f}% vs prior month. Be specific and actionable."
-        )
-        outlook_fallback = (
-            f"{next_pending_cnt} invoices worth ₹{next_pending_amt:,.0f} are already queued for {next_month_name}. "
-            f"{'Maintain spend discipline given ' + str(abs(mom_pct)) + '% MoM increase.' if mom_pct > 5 else 'Spend trajectory is stable.'}"
-        )
-        outlook = _ai_text(outlook_prompt, fallback=outlook_fallback)
+TOP VENDORS:
+{vendor_lines}
 
-        return Response({
-            "month": f"{month_name} {year}",
-            "year": year,
-            "month_num": month,
-            "expenses": round(total_expenses, 0),
-            "paid_expenses": round(paid_expenses, 0),
-            "pending_expenses": round(pending_expenses, 0),
-            "monthly_budget": round(monthly_budget, 0),
-            "budget_variance": round(budget_variance, 0),
-            "invoice_count": invoice_count,
-            "mom_change_pct": mom_pct,
-            "top_departments": [
-                {"name": d.get("submitted_by__department__name") or "General", "amount": float(d["total"])}
-                for d in top_depts
-            ],
-            "top_vendors": [
-                {"name": v["vendor__name"], "amount": float(v["total"])}
-                for v in top_vendors
-            ],
-            "budget_utilization": budget_util,
-            "ai_bullets": bullets,
-            "next_month_outlook": outlook,
-            "next_month_pending_amount": round(next_pending_amt, 0),
-            "next_month_pending_count": next_pending_cnt,
-        })
+DEPARTMENT SPEND:
+{dept_lines}
+
+RISK: {anomaly_count} anomalies detected ({critical_count} critical)
+
+Write 3 short paragraphs: (1) Month Overview with key numbers, (2) Vendor & Department highlights, (3) Risk signals and next-month action items. Be specific with ₹ amounts. Keep it under 200 words total."""
+
+            fallback = (
+                f"{month_label}: Total paid ₹{float(paid_amount):,.2f} across {total_invoices} invoices "
+                f"({mom_pct:+.1f}% MoM). Pending approval: ₹{float(pending_amount):,.2f}. "
+                f"Anomalies detected: {anomaly_count} ({critical_count} critical). "
+                f"Review vendor concentration and pending high-value approvals."
+            )
+
+            # Keep regeneration fast/reliable by default; enable AI text only when explicitly requested.
+            if with_ai:
+                ai_narrative = _compact_ai_narrative(_ai_text(prompt, fallback=fallback), max_words=200)
+            else:
+                ai_narrative = fallback
+
+            payload = {
+                "month": month_label,
+                "month_key": month_key,
+                "paid_amount": float(paid_amount),
+                "pending_amount": float(pending_amount),
+                "approved_amount": float(approved_amount),
+                "rejected_count": rejected_count,
+                "total_invoices": total_invoices,
+                "mom_change_pct": round(mom_pct, 1),
+                "anomaly_count": anomaly_count,
+                "critical_anomalies": critical_count,
+                "top_vendors": [
+                    {"name": v["vendor__name"], "type": v["vendor__vendor_type"] or "General",
+                     "amount": float(v["total"]), "invoices": v["count"]}
+                    for v in top_vendors
+                ],
+                "dept_breakdown": [
+                    {"dept": d["submitted_by__department__name"], "amount": float(d["total"]), "invoices": d["count"]}
+                    for d in dept_data
+                ],
+                "budgets": budgets,
+                "ai_narrative": ai_narrative,
+                "generated_at": today.isoformat(),
+                "is_generated": True,
+                "from_cache": False,
+            }
+
+            if cache_available:
+                try:
+                    MonthlyFinancialSummary.objects.update_or_create(
+                        month_key=month_key,
+                        defaults={
+                            "month_start": m_start,
+                            "summary_payload": payload,
+                            "generated_by": request.user,
+                        },
+                    )
+                except (OperationalError, ProgrammingError):
+                    pass
+
+            results.append(payload)
+
+        return Response({"summaries": results, "count": len(results), "regenerated": regenerate})
+
+    @staticmethod
+    def _last_n_months(today, n):
+        months = []
+        d = date(today.year, today.month, 1)
+        for _ in range(n):
+            months.append((d.year, d.month))
+            d = (d - timedelta(days=1)).replace(day=1)
+        return months
 
 
-# ─── 14. Annual Financial Report ───────────────────────────────────────────────
+# ─── Annual Financial Report ───────────────────────────────────────────────────
 
 class AnnualReportView(APIView):
     """
