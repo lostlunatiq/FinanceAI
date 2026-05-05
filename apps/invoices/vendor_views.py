@@ -53,7 +53,7 @@ class VendorListView(APIView):
 class VendorCreateView(APIView):
     """POST /api/v1/vendors/create/ — Create vendor + optionally create linked user."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasMinimumGrade.make(3)]
 
     def post(self, request):
         serializer = VendorOnboardSerializer(data=request.data)

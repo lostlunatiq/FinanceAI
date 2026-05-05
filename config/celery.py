@@ -14,6 +14,11 @@ app.autodiscover_tasks()
 
 # --- Periodic tasks (Celery Beat) ---
 app.conf.beat_schedule = {
+    # Auto-generate monthly financial summary on 1st of each month at 6:00 AM IST
+    "auto-generate-monthly-report": {
+        "task": "apps.invoices.tasks.auto_generate_monthly_report",
+        "schedule": crontab(day_of_month=1, hour=6, minute=0),
+    },
 }
 
 app.conf.update(

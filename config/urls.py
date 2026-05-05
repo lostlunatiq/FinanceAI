@@ -26,7 +26,10 @@ def serve_app(request):
     """Serve Tijori AI HTML shell."""
     file_path = os.path.join(settings.BASE_DIR, 'Tijori AI.html')
     if os.path.isfile(file_path):
-        return FileResponse(open(file_path, 'rb'), content_type='text/html')
+        response = FileResponse(open(file_path, 'rb'), content_type='text/html')
+        response['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+        response['Pragma'] = 'no-cache'
+        return response
     raise Http404("App not found")
 
 
@@ -42,7 +45,10 @@ def serve_js(request, path):
     if full_path.is_file():
         ext = full_path.suffix.lower()
         content_type = CONTENT_TYPES.get(ext, 'application/octet-stream')
-        return FileResponse(open(full_path, 'rb'), content_type=content_type)
+        response = FileResponse(open(full_path, 'rb'), content_type=content_type)
+        response['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+        response['Pragma'] = 'no-cache'
+        return response
     raise Http404(f"Not found: js/{path}")
 
 
@@ -71,7 +77,7 @@ urlpatterns = [
     # API routes
     path("api/v1/", include("apps.core.urls")),
     path("api/v1/invoices/", include("apps.invoices.urls")),
-    path("api/v1/d365/", include("apps.d365.urls")),
+    # path("api/v1/d365/", include("apps.d365.urls")),
     path("api/v1/notifications/", include("apps.notifications.urls")),
 
     # New Tijori AI UI — served at root

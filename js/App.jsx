@@ -560,6 +560,13 @@ const App = () => {
       });
   }, []);
 
+  const navigate = React.useCallback((s, ctx) => {
+    setNavHistory(prev => [...prev.slice(-19), screen]);  // keep last 20
+    setScreen(s);
+    setScreenCtx(ctx || null);
+    localStorage.setItem('tj_screen', s);
+  }, [screen]);
+
   // ── External navigate events (fired by child screens) ──────────
   React.useEffect(() => {
     const handler = (e) => navigate(e.detail?.screen || e.detail, e.detail?.ctx);
@@ -578,13 +585,6 @@ const App = () => {
     window.addEventListener('profile-updated', handler);
     return () => window.removeEventListener('profile-updated', handler);
   }, [buildUser]);
-
-   const navigate = React.useCallback((s, ctx) => {
-    setNavHistory(prev => [...prev.slice(-19), screen]);  // keep last 20
-    setScreen(s);
-    setScreenCtx(ctx || null);
-    localStorage.setItem('tj_screen', s);
-  }, [screen]);
 
   const back = () => {
     if (navHistory.length === 0) return;

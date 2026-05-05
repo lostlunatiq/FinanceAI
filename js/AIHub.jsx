@@ -333,6 +333,10 @@ const AIHubScreen = ({ role, onNavigate }) => {
   const [payProcessing, setPayProcessing] = React.useState(false);
   const [schedProcessing, setSchedProcessing] = React.useState(false);
   const [autoGenEnabled, setAutoGenEnabled] = React.useState(true);
+  const [emailConfig, setEmailConfig] = React.useState({ recipients: [], enabled: true });
+  const [emailEditMode, setEmailEditMode] = React.useState(false);
+  const [emailDraft, setEmailDraft] = React.useState('');
+  const [emailSaving, setEmailSaving] = React.useState(false);
 
   const loadMonthlySummaries = async ({ regenerate = false, openLatest = false } = {}) => {
     try {
@@ -362,6 +366,16 @@ const AIHubScreen = ({ role, onNavigate }) => {
       .then(d => setCfData(d))
       .catch(() => {});
     loadMonthlySummaries({ regenerate: false, openLatest: false });
+    // Load email config for auto-report recipients
+    fetch('/api/v1/report-email-config/', {
+      headers: { 'Authorization': 'Bearer ' + (window.TijoriAPI.Auth.getAccess() || '') },
+    })
+      .then(r => r.json())
+      .then(d => {
+        setEmailConfig({ recipients: d.recipients || [], enabled: d.enabled !== false });
+        setAutoGenEnabled(d.enabled !== false);
+      })
+      .catch(() => {});
   }, []);
 
   const handleRerun = async () => {
@@ -424,7 +438,7 @@ const AIHubScreen = ({ role, onNavigate }) => {
 
   const allData = [...pastData, ...forecast];
   const allVals = allData.map(d => d.val);
-  const minV = Math.min(...allVals) - 10, maxV = Math.max(...allVals) + 10;
+  const minV = Math.min(0, Math.min(...allVals) - 10), maxV = Math.max(...allVals) + 10;
   const totalPoints = allData.length;
 
   const toX = (i) => chartPad.l + (i / (totalPoints - 1)) * (W - chartPad.l - chartPad.r);
@@ -735,13 +749,59 @@ const AIHubScreen = ({ role, onNavigate }) => {
         </div>
 
         {/* Schedule settings */}
-        <div style={{ marginTop: '20px', padding: '16px', background: '#F8F7F5', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Auto-generate on 1st of each month</div>
-            <div style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>Sends to: finance@acmecorp.in, cfo@acmecorp.in</div>
-          </div>
-          <div onClick={() => setAutoGenEnabled(!autoGenEnabled)} style={{ width: 44, height: 24, borderRadius: 12, background: autoGenEnabled ? '#E8783B' : '#E2E8F0', cursor: 'pointer', position: 'relative', transition: 'background 200ms' }}>
-            <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'white', position: 'absolute', top: 3, left: autoGenEnabled ? 23 : 3, boxShadow: '0 1px 4px rgba(0,0,0,0.15)', transition: 'left 200ms' }} />
+        <div style={{ marginTop: '20px', padding: '16px', background: '#F8F7F5', borderRadius: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Auto-generate on 1st of each month</div>
+              {!emailEditMode ? (
+                <div style={{ fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  Sends to: {emailConfig.recipients.length > 0 ? emailConfig.recipients.join(', ') : '—'}
+                  <span onClick={() => { setEmailDraft(emailConfig.recipients.join(', ')); setEmailEditMode(true); }} style={{ cursor: 'pointer', color: '#E8783B', fontSize: '11px', fontWeight: 600 }}>Edit</span>
+                </div>
+              ) : (
+                <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <input
+                    value={emailDraft}
+                    onChange={e => setEmailDraft(e.target.value)}
+                    placeholder="email1@co.in, email2@co.in"
+                    style={{ fontSize: '12px', padding: '6px 10px', borderRadius: '8px', border: '1.5px solid #E2E8F0', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', width: '100%', boxSizing: 'border-box' }}
+                  />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button disabled={emailSaving} onClick={async () => {
+                      setEmailSaving(true);
+                      const parsed = emailDraft.split(',').map(e => e.trim()).filter(Boolean);
+                      try {
+                        const r = await fetch('/api/v1/report-email-config/', {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window.TijoriAPI.Auth.getAccess() || '') },
+                          body: JSON.stringify({ recipients: parsed, enabled: autoGenEnabled }),
+                        });
+                        const d = await r.json();
+                        setEmailConfig({ recipients: d.recipients || parsed, enabled: d.enabled !== false });
+                        setEmailEditMode(false);
+                      } catch(e) {}
+                      setEmailSaving(false);
+                    }} style={{ fontSize: '11px', fontWeight: 700, padding: '4px 12px', borderRadius: '6px', border: 'none', background: '#E8783B', color: 'white', cursor: emailSaving ? 'default' : 'pointer', opacity: emailSaving ? 0.6 : 1 }}>
+                      {emailSaving ? 'Saving…' : 'Save'}
+                    </button>
+                    <button onClick={() => setEmailEditMode(false)} style={{ fontSize: '11px', fontWeight: 600, padding: '4px 12px', borderRadius: '6px', border: '1px solid #E2E8F0', background: 'white', color: '#64748B', cursor: 'pointer' }}>Cancel</button>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div onClick={async () => {
+              const next = !autoGenEnabled;
+              setAutoGenEnabled(next);
+              try {
+                await fetch('/api/v1/report-email-config/', {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window.TijoriAPI.Auth.getAccess() || '') },
+                  body: JSON.stringify({ enabled: next }),
+                });
+              } catch(e) {}
+            }} style={{ width: 44, height: 24, borderRadius: 12, background: autoGenEnabled ? '#E8783B' : '#E2E8F0', cursor: 'pointer', position: 'relative', transition: 'background 200ms', flexShrink: 0, marginLeft: '16px' }}>
+              <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'white', position: 'absolute', top: 3, left: autoGenEnabled ? 23 : 3, boxShadow: '0 1px 4px rgba(0,0,0,0.15)', transition: 'left 200ms' }} />
+            </div>
           </div>
         </div>
       </Card>

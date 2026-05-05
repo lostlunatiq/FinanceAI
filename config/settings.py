@@ -12,10 +12,13 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 import os
 from pathlib import Path
+import environ
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+env = environ.Env(DEBUG=(bool, True))
+environ.Env.read_env(BASE_DIR / ".env")
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
@@ -44,16 +47,12 @@ INSTALLED_APPS = [
     "apps.forecast",
     "apps.query",
     "apps.reports",
-    "apps.d365.apps.D365Config",
-    "clickhouse_backend",
+    "apps.notifications.apps.NotificationsConfig",
     "rest_framework",
     "rest_framework_simplejwt",
     "corsheaders",
     "drf_spectacular",
     "django_celery_beat",
-    # "allauth",
-    # "allauth.account",
-    # "allauth.socialaccount",
 ]
 
 MIDDLEWARE = [
@@ -144,8 +143,28 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 AUTH_USER_MODEL = "core.User"
 
-# D365 Settings
+# D365 / Business Central Settings (optional integration)
 D365_BASE_URL = env("D365_BASE_URL", default="https://placeholder.api.businesscentral.dynamics.com/v2.0/placeholder/ODataV4")
 D365_USERNAME = env("D365_USERNAME", default="placeholder")
 D365_PASSWORD = env("D365_PASSWORD", default="placeholder")
 D365_COMPANY_ID = env("D365_COMPANY_ID", default="placeholder")
+
+# AI / OpenRouter
+OPENROUTER_API_KEY = env("OPENROUTER_API_KEY", default="sk-or-placeholder")
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
+# REST Framework
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+}
+
+from datetime import timedelta
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=8),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+}

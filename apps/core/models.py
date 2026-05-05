@@ -248,3 +248,17 @@ class AICopilotLog(models.Model):
 
     class Meta:
         ordering = ["created_at"]
+
+
+class ReportEmailConfig(models.Model):
+    """Stores configurable email recipients for auto-generated reports."""
+    key = models.CharField(max_length=100, unique=True)
+    recipients = models.JSONField(default=list, help_text="List of email addresses")
+    enabled = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True
+    )
+
+    def __str__(self):
+        return f"{self.key}: {', '.join(self.recipients)}"
