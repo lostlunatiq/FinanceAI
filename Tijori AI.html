@@ -55,6 +55,35 @@
     }
 
 
+  /* ── Print Styles ─────────────────────────────────────────────────── */
+  @media print {
+    body { background: white !important; }
+    #root > div > div:first-child { display: none !important; } /* Hide sidebar nav */
+    .no-print, button { display: none !important; }
+    /* Show all report content */
+    div[style*="overflowY: auto"] { overflow: visible !important; max-height: none !important; }
+    div[style*="overflow-y: auto"] { overflow: visible !important; max-height: none !important; }
+    /* Ensure cards print with borders */
+    div[style*="borderRadius"] { break-inside: avoid; }
+    table { break-inside: avoid; }
+    /* Page breaks between major sections */
+    .page-break { page-break-before: always; }
+    /* Header info */
+    @page { margin: 20mm; }
+    /* Make sure charts are visible */
+    canvas, svg { max-width: 100% !important; }
+    /* Print-only header */
+    body::before {
+      content: 'TIJORI AI — Enterprise Financial Intelligence Report — Printed ' attr(data-print-date);
+      display: block;
+      font-family: sans-serif;
+      font-size: 10px;
+      color: #94A3B8;
+      margin-bottom: 12px;
+      border-bottom: 1px solid #E2E8F0;
+      padding-bottom: 8px;
+    }
+  }
   </style>
 </head>
 <body>

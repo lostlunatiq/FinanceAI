@@ -15,6 +15,7 @@ urlpatterns = [
     path("auth/departments/", auth_views.DepartmentListView.as_view(), name="department-list"),
     path("auth/groups/", auth_views.GroupListView.as_view(), name="group-list"),
     path("auth/groups/<int:pk>/", auth_views.GroupDetailView.as_view(), name="group-detail"),
+    path("auth/groups/<int:pk>/policies/", auth_views.GroupPoliciesView.as_view(), name="group-policies"),
     # Files
     path("files/upload/", file_views.FileUploadView.as_view(), name="file-upload"),
     path("files/ocr/", file_views.OCRSyncView.as_view(), name="file-ocr-sync"),
@@ -24,4 +25,7 @@ urlpatterns = [
     path("audit/export/", auth_views.AuditLogExportView.as_view(), name="audit-export"),
     # NL Query
     path("nl-query/", auth_views.NLQueryView.as_view(), name="nl-query"),
+    # Chat Sessions
+    path("chat/sessions/", auth_views.ChatSessionListView.as_view(), name="chat-sessions"),
+    path("chat/sessions/<uuid:session_id>/", auth_views.ChatSessionDetailView.as_view(), name="chat-session-detail"),
 ]

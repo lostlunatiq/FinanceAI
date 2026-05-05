@@ -140,6 +140,7 @@ urlpatterns = [
     path("analytics/audit-sweep/",        analytics_views.AuditSweepView.as_view(),        name="audit-sweep"),
     path("analytics/generate-10q/",       analytics_views.Generate10QView.as_view(),       name="generate-10q"),
     path("analytics/monthly-summary/",    analytics_views.MonthlySummaryView.as_view(),    name="monthly-summary"),
+    path("analytics/annual-report/",      analytics_views.AnnualReportView.as_view(),      name="annual-report"),
     # ─── AI Feedback Loop ────────────────────────────────────────────────────
     path("ai-feedback/", feedback_views.AIFeedbackView.as_view(), name="ai-feedback"),
 ]

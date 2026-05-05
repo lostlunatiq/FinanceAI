@@ -1,6 +1,6 @@
 import uuid
 from django.db import models
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, Group
 
 
 class Department(models.Model):
@@ -190,13 +190,58 @@ class AuditLog(models.Model):
         return result
 
 
+DEFAULT_GROUP_POLICIES = {
+    "Expenses":    {"Submit": False, "View Own": False, "View All": False, "Approve L1": False, "Approve L2": False, "Reject": False, "Export": False},
+    "Vendors":     {"View": False, "Create": False, "Edit": False, "Approve": False, "Delete": False},
+    "Budgets":     {"View Dept": False, "View All": False, "Create": False, "Edit": False, "Allocate": False},
+    "Reports":     {"View Basic": False, "View Full": False, "Export": False, "Analytics": False},
+    "Users & IAM": {"View Users": False, "Create": False, "Edit": False, "Suspend": False, "Delete": False},
+    "AI Tools":    {"NL Query": False, "Anomaly": False, "Forecasts": False},
+}
+
+
+class GroupProfile(models.Model):
+    """Extends Django's built-in Group with assignable policies."""
+    group = models.OneToOneField(Group, on_delete=models.CASCADE, related_name="profile")
+    policies = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "core_group_profile"
+
+    def get_policies(self):
+        import copy
+        base = copy.deepcopy(DEFAULT_GROUP_POLICIES)
+        saved = self.policies or {}
+        for resource, actions in saved.items():
+            if resource in base:
+                base[resource].update(actions)
+        return base
+
+
+class ChatSession(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="chat_sessions")
+    title = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+
+    def __str__(self):
+        return f"{self.user.username} — {self.title or 'Untitled'} ({self.created_at:%Y-%m-%d %H:%M})"
+
+
 class AICopilotLog(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="ai_copilot_logs")
+    session = models.ForeignKey(
+        ChatSession, on_delete=models.CASCADE, null=True, blank=True, related_name="messages"
+    )
     prompt = models.TextField()
     response = models.TextField()
     insight = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["-created_at"]
+        ordering = ["created_at"]

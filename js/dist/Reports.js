@@ -434,6 +434,88 @@ const ReportView = ({
   }
 }, children));
 
+// ─── AI REPORT MODAL ─────────────────────────────────────────────────────────
+const AIReportModal = ({
+  title,
+  content,
+  loading,
+  onClose
+}) => /*#__PURE__*/React.createElement("div", {
+  style: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(0,0,0,0.5)',
+    zIndex: 1000,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '24px'
+  },
+  onClick: onClose
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    background: 'white',
+    borderRadius: '24px',
+    padding: '40px',
+    maxWidth: '800px',
+    width: '100%',
+    maxHeight: '80vh',
+    overflowY: 'auto',
+    boxShadow: '0 24px 64px rgba(0,0,0,0.15)'
+  },
+  onClick: e => e.stopPropagation()
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '24px'
+  }
+}, /*#__PURE__*/React.createElement("h2", {
+  style: {
+    fontFamily: "'Bricolage Grotesque', sans-serif",
+    fontWeight: 800,
+    fontSize: '22px',
+    color: '#0F172A',
+    margin: 0
+  }
+}, title), /*#__PURE__*/React.createElement("button", {
+  onClick: onClose,
+  style: {
+    background: '#F1F5F9',
+    border: 'none',
+    borderRadius: '10px',
+    padding: '8px 14px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    color: '#64748B'
+  }
+}, "\u2715 Close")), loading ? /*#__PURE__*/React.createElement("div", {
+  style: {
+    textAlign: 'center',
+    padding: '60px',
+    color: '#64748B'
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    width: 36,
+    height: 36,
+    border: '3px solid #F1F0EE',
+    borderTopColor: '#E8783B',
+    borderRadius: '50%',
+    animation: 'spin 1s linear infinite',
+    margin: '0 auto 16px'
+  }
+}), "AI is generating your report\u2026") : /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: '14px',
+    lineHeight: 1.8,
+    color: '#374151',
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
+    whiteSpace: 'pre-wrap'
+  }
+}, content)));
+
 // ─── MAIN SCREEN ─────────────────────────────────────────────────────────────
 const LiveReportsScreen = ({
   role,
@@ -445,16 +527,16 @@ const LiveReportsScreen = ({
   const [filterStatus, setFilterStatus] = React.useState('All Statuses');
   const [loading, setLoading] = React.useState(true);
   const [data, setData] = React.useState({
-    tx: [],
-    depts: [],
-    cats: [],
-    trends: []
+    tx: []
   });
   const [exporting, setExporting] = React.useState(false);
   const [sortConfig, setSortConfig] = React.useState({
     key: 'date',
     direction: 'desc'
   });
+  const [aiInsight, setAiInsight] = React.useState('');
+  const [modal, setModal] = React.useState(null); // { title, content, loading }
+  const [sweeping, setSweeping] = React.useState(false);
   const handleSort = key => {
     let direction = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
@@ -469,11 +551,11 @@ const LiveReportsScreen = ({
     const load = async () => {
       setLoading(true);
       try {
-        const [exp, bills] = await Promise.all([window.TijoriAPI.BillsAPI.listExpenses({
+        const [exp, bills, spendData] = await Promise.all([window.TijoriAPI.BillsAPI.listExpenses({
           limit: 800
         }), window.TijoriAPI.BillsAPI.listVendorBills({
           limit: 800
-        })]);
+        }), window.TijoriAPI.AnalyticsAPI.spendIntelligence().catch(() => null)]);
         const all = [...(exp.results || exp || []).map(e => ({
           ...e,
           _type: 'Expense'
@@ -485,7 +567,7 @@ const LiveReportsScreen = ({
           id: r.id,
           date: new Date(r.invoice_date || r.submitted_at || r.created_at),
           amount: parseFloat(r.total_amount || 0),
-          dept: r.department_name || r.department || 'General',
+          dept: r.department || r.department_name || 'General',
           cat: r.expense_category || 'Uncategorized',
           party: r.vendor_name || r.submitted_by_name || 'Internal',
           status: r.status || r._status || 'SUBMITTED',
@@ -495,6 +577,7 @@ const LiveReportsScreen = ({
         setData({
           tx: processed
         });
+        if (spendData && spendData.ai_insight) setAiInsight(spendData.ai_insight);
       } catch (e) {
         console.error(e);
       }
@@ -502,6 +585,50 @@ const LiveReportsScreen = ({
     };
     load();
   }, []);
+
+  // Generate 10-Q AI Report
+  const handle10Q = async () => {
+    setModal({
+      title: '10-Q Regulatory Filing Draft',
+      content: '',
+      loading: true
+    });
+    try {
+      const result = await window.TijoriAPI.AnalyticsAPI.generate10Q();
+      setModal({
+        title: `${result.title || '10-Q Filing Draft'}`,
+        content: result.content || result.sections?.executive_summary || 'No content generated.',
+        loading: false
+      });
+    } catch (e) {
+      setModal({
+        title: '10-Q Filing Draft',
+        content: 'Failed to generate report: ' + e.message,
+        loading: false
+      });
+    }
+  };
+
+  // Run Audit Sweep
+  const handleAuditSweep = async () => {
+    setSweeping(true);
+    try {
+      const result = await window.TijoriAPI.AnalyticsAPI.auditSweep();
+      const msg = result.scanned ? `Audit sweep complete. Scanned ${result.scanned} invoices, flagged ${result.flagged || 0} anomalies.` : JSON.stringify(result, null, 2);
+      setModal({
+        title: 'Audit Sweep Results',
+        content: msg,
+        loading: false
+      });
+    } catch (e) {
+      setModal({
+        title: 'Audit Sweep Results',
+        content: 'Sweep failed: ' + e.message,
+        loading: false
+      });
+    }
+    setSweeping(false);
+  };
 
   // Filter Logic
   const filtered = React.useMemo(() => {
@@ -541,6 +668,7 @@ const LiveReportsScreen = ({
     const deptMap = {},
       catMap = {},
       monthlyMap = {},
+      monthlyCountMap = {},
       vendorMap = {};
     const statusMap = {},
       riskMap = {
@@ -560,14 +688,15 @@ const LiveReportsScreen = ({
       deptMap[t.dept] = (deptMap[t.dept] || 0) + t.amount;
       // 2. Cat Spend
       catMap[t.cat] = (catMap[t.cat] || 0) + t.amount;
-      // 3. Monthly Spend
+      // 3. Monthly Spend + Count (for correct avg calculation)
       const mo = t.date.toLocaleDateString('en-IN', {
         month: 'short',
         year: '2-digit'
       });
       monthlyMap[mo] = (monthlyMap[mo] || 0) + t.amount;
+      monthlyCountMap[mo] = (monthlyCountMap[mo] || 0) + 1;
       // 4. Vendor Spend
-      if (t._type === 'Vendor Bill' || t.party !== 'Internal') {
+      if (t.party !== 'Internal') {
         vendorMap[t.party] = (vendorMap[t.party] || 0) + t.amount;
       }
       // 5. Status Dist
@@ -622,7 +751,8 @@ const LiveReportsScreen = ({
       })).sort((a, b) => b.value - a.value),
       trends: {
         labels: sortedMonths,
-        values: sortedMonths.map(m => monthlyMap[m])
+        values: sortedMonths.map(m => monthlyMap[m]),
+        avgValues: sortedMonths.map(m => monthlyCountMap[m] > 0 ? monthlyMap[m] / monthlyCountMap[m] : 0)
       }
     };
   }, [filtered]);
@@ -649,6 +779,25 @@ const LiveReportsScreen = ({
     }
     setExporting(false);
   };
+
+  // Annual Report state
+  const [annualData, setAnnualData] = React.useState(null);
+  const [annualYear, setAnnualYear] = React.useState(new Date().getFullYear());
+  const [annualLoading, setAnnualLoading] = React.useState(false);
+  const loadAnnualReport = async yr => {
+    setAnnualLoading(true);
+    try {
+      const data = await window.TijoriAPI.AnalyticsAPI.annualReport(yr || annualYear);
+      setAnnualData(data);
+    } catch (e) {
+      console.error('Annual report failed:', e);
+    }
+    setAnnualLoading(false);
+  };
+  React.useEffect(() => {
+    if (activeTab === 'Annual Report' && !annualData) loadAnnualReport(annualYear);
+  }, [activeTab]);
+  const handlePrint = () => window.print();
   const reportTabs = [{
     id: 'Executive Summary',
     icon: '📊'
@@ -667,6 +816,9 @@ const LiveReportsScreen = ({
   }, {
     id: 'Detailed Ledger',
     icon: '📖'
+  }, {
+    id: 'Annual Report',
+    icon: '📅'
   }];
   if (loading) return /*#__PURE__*/React.createElement("div", {
     style: {
@@ -693,7 +845,12 @@ const LiveReportsScreen = ({
       minHeight: 'calc(100vh - 80px)',
       background: '#FBFBFB'
     }
-  }, /*#__PURE__*/React.createElement("div", {
+  }, modal && /*#__PURE__*/React.createElement(AIReportModal, {
+    title: modal.title,
+    content: modal.content,
+    loading: modal.loading,
+    onClose: () => setModal(null)
+  }), /*#__PURE__*/React.createElement("div", {
     style: {
       width: '280px',
       borderRight: '1px solid #F1F0EE',
@@ -885,14 +1042,28 @@ const LiveReportsScreen = ({
   }, activeTab)), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
-      gap: '12px'
+      gap: '12px',
+      flexWrap: 'wrap'
     }
   }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    icon: sweeping ? '⏳' : '🔍',
+    onClick: handleAuditSweep,
+    disabled: sweeping
+  }, sweeping ? 'Sweeping…' : 'Run Audit Sweep'), /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    icon: "\uD83D\uDCCB",
+    onClick: handle10Q
+  }, "Generate 10-Q Report"), /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    icon: "\uD83D\uDDA8\uFE0F",
+    onClick: handlePrint
+  }, "Print Report"), /*#__PURE__*/React.createElement(Btn, {
     variant: "primary",
     icon: exporting ? '⏳' : '📥',
     onClick: handleExport,
     disabled: exporting
-  }, exporting ? 'Exporting…' : 'Export Full Report (XLSX)'))), /*#__PURE__*/React.createElement("div", {
+  }, exporting ? 'Exporting…' : 'Export XLSX'))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'grid',
       gridTemplateColumns: 'repeat(4, 1fr)',
@@ -969,7 +1140,7 @@ const LiveReportsScreen = ({
     }],
     labels: breakdowns.trends.labels
   }), /*#__PURE__*/React.createElement(InsightBlock, {
-    insight: `Overall spend has ${breakdowns.trends.values.slice(-1)[0] > (breakdowns.trends.values.slice(-2)[0] || 0) ? 'accelerated' : 'decelerated'} recently.`
+    insight: aiInsight || `Overall spend has ${breakdowns.trends.values.slice(-1)[0] > (breakdowns.trends.values.slice(-2)[0] || 0) ? 'accelerated' : 'decelerated'} recently. Use "Generate 10-Q Report" for a comprehensive AI analysis.`
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
@@ -1066,7 +1237,7 @@ const LiveReportsScreen = ({
   }, /*#__PURE__*/React.createElement(AdvTrendChart, {
     series: [{
       label: 'Avg Value (₹)',
-      data: breakdowns.trends.values.map(v => v / (filtered.length || 1)),
+      data: breakdowns.trends.avgValues,
       color: '#3B82F6'
     }],
     labels: breakdowns.trends.labels,
@@ -1222,7 +1393,541 @@ const LiveReportsScreen = ({
       color: '#94A3B8',
       fontSize: '12px'
     }
-  }, "Showing top 50 records. Export XLSX for all ", filtered.length, " records.")))));
+  }, "Showing top 50 records. Export XLSX for all ", filtered.length, " records."))), activeTab === 'Annual Report' && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '24px',
+      flexWrap: 'wrap',
+      gap: '12px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '12px'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '13px',
+      fontWeight: 700,
+      color: '#475569'
+    }
+  }, "Financial Year:"), /*#__PURE__*/React.createElement("select", {
+    value: annualYear,
+    onChange: e => setAnnualYear(Number(e.target.value)),
+    style: {
+      padding: '8px 14px',
+      borderRadius: '10px',
+      border: '1.5px solid #E2E8F0',
+      fontSize: '14px',
+      fontWeight: 700,
+      outline: 'none',
+      background: '#FAFAF8'
+    }
+  }, [2026, 2025, 2024, 2023].map(y => /*#__PURE__*/React.createElement("option", {
+    key: y,
+    value: y
+  }, "FY ", y))), /*#__PURE__*/React.createElement(Btn, {
+    variant: "primary",
+    onClick: () => {
+      setAnnualData(null);
+      loadAnnualReport(annualYear);
+    },
+    disabled: annualLoading
+  }, annualLoading ? '⏳ Generating…' : '↻ Load Report')), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: '10px'
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    icon: "\uD83D\uDDA8\uFE0F",
+    onClick: handlePrint
+  }, "Print Annual Report"), annualData && /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    icon: "\uD83D\uDCE5",
+    onClick: () => {
+      if (!window.XLSX) return;
+      const wb = window.XLSX.utils.book_new();
+      const headline = annualData.headline;
+      const summary = [[`TIJORI AI — ANNUAL FINANCIAL REPORT FY ${annualData.year}`], ['Generated', new Date().toLocaleString('en-IN')], [''], ['HEADLINE FIGURES'], ['Total Actual Spend', headline.total_spend], ['Prior Year Spend', headline.prev_year_spend], ['YoY Change %', headline.yoy_change_pct + '%'], ['Total Budget', headline.total_budget], ['Budget Utilization %', headline.budget_utilization_pct + '%'], ['Total Invoices', headline.total_invoices], ['Rejected Invoices', headline.rejected_count], ['High-Risk Flags', headline.flagged_high], ['Estimated GST', headline.gst_total], ['Estimated TDS', headline.tds_total], ['Pending Payables', headline.pending_amount], [''], ['AI EXECUTIVE NARRATIVE'], [annualData.ai_narrative || '']];
+      window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.aoa_to_sheet(summary), 'Annual Summary');
+      const deptSheet = [['Department', 'Budget (₹)', 'Actual (₹)', 'Variance (₹)', 'Variance %', 'Utilization %', 'Status', 'FY Prev Actual', 'YoY %'], ...(annualData.department_performance || []).map(d => [d.department, d.budget, d.actual, d.variance, d.variance_pct + '%', d.utilization_pct + '%', d.status, d.prev_year_actual, d.yoy_change_pct + '%'])];
+      window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.aoa_to_sheet(deptSheet), 'Dept Performance');
+      const vendorSheet = [['Vendor', 'Type', 'Amount (₹)', 'Invoices'], ...(annualData.top_vendors || []).map(v => [v.name, v.type, v.amount, v.invoices])];
+      window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.aoa_to_sheet(vendorSheet), 'Top Vendors');
+      window.XLSX.writeFile(wb, `TijoriAI_Annual_Report_FY${annualData.year}.xlsx`);
+    }
+  }, "Export XLSX"))), annualLoading && /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '80px',
+      textAlign: 'center',
+      color: '#64748B',
+      fontSize: '14px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 40,
+      height: 40,
+      border: '3px solid #F1F0EE',
+      borderTopColor: '#E8783B',
+      borderRadius: '50%',
+      animation: 'spin 1s linear infinite',
+      margin: '0 auto 16px'
+    }
+  }), "Generating annual financial report with AI narrative\u2026"), annualData && !annualLoading && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '32px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(4, 1fr)',
+      gap: '20px'
+    }
+  }, [{
+    label: 'Total Spend',
+    value: fmtCr(annualData.headline.total_spend),
+    sub: `${annualData.headline.yoy_change_pct > 0 ? '+' : ''}${annualData.headline.yoy_change_pct}% vs FY${annualData.prev_year}`,
+    color: '#E8783B'
+  }, {
+    label: 'Budget',
+    value: fmtCr(annualData.headline.total_budget),
+    sub: `${annualData.headline.budget_utilization_pct}% utilized`,
+    color: '#3B82F6'
+  }, {
+    label: 'Total Invoices',
+    value: annualData.headline.total_invoices.toLocaleString(),
+    sub: `${annualData.headline.rejected_count} rejected`,
+    color: '#10B981'
+  }, {
+    label: 'High-Risk Flags',
+    value: annualData.headline.flagged_high,
+    sub: `+ ${annualData.headline.flagged_medium} medium`,
+    color: '#EF4444'
+  }].map((k, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      background: 'white',
+      padding: '20px 24px',
+      borderRadius: '20px',
+      border: '1px solid #F1F0EE',
+      boxShadow: '0 2px 12px rgba(0,0,0,0.03)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '10px',
+      fontWeight: 700,
+      color: '#94A3B8',
+      textTransform: 'uppercase',
+      letterSpacing: '0.1em',
+      marginBottom: '6px'
+    }
+  }, k.label), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 800,
+      fontSize: '26px',
+      color: '#0F172A',
+      letterSpacing: '-0.5px'
+    }
+  }, k.value), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: k.color,
+      fontWeight: 600,
+      marginTop: '4px'
+    }
+  }, k.sub)))), /*#__PURE__*/React.createElement(ReportView, {
+    title: "Executive Summary \u2014 AI Generated",
+    subtitle: `FY ${annualData.year} · Investor-grade narrative`
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'linear-gradient(135deg, #F5F3FF, #EFF6FF)',
+      border: '1px solid #DDD6FE',
+      borderRadius: '14px',
+      padding: '24px',
+      marginBottom: '16px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '10px',
+      fontWeight: 800,
+      color: '#5B21B6',
+      textTransform: 'uppercase',
+      letterSpacing: '0.1em',
+      marginBottom: '12px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px'
+    }
+  }, /*#__PURE__*/React.createElement("span", null, "\u2726"), " AI-Generated Board-Level Summary"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '14px',
+      color: '#1E1B4B',
+      lineHeight: 1.8,
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      whiteSpace: 'pre-wrap'
+    }
+  }, annualData.ai_narrative)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(3, 1fr)',
+      gap: '12px'
+    }
+  }, [{
+    label: 'Pending Payables',
+    value: fmtCr(annualData.headline.pending_amount),
+    count: annualData.headline.pending_count + ' invoices',
+    color: '#F59E0B',
+    cta: 'Review & Approve →'
+  }, {
+    label: 'Estimated GST',
+    value: fmtCr(annualData.headline.gst_total),
+    count: 'Tax obligation',
+    color: '#3B82F6',
+    cta: 'GST Reconciliation →'
+  }, {
+    label: 'Estimated TDS',
+    value: fmtCr(annualData.headline.tds_total),
+    count: 'Withholding tax',
+    color: '#8B5CF6',
+    cta: 'TDS Compliance →'
+  }].map((item, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      background: 'white',
+      borderRadius: '14px',
+      border: '1px solid #F1F0EE',
+      padding: '16px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '10px',
+      fontWeight: 700,
+      color: '#94A3B8',
+      textTransform: 'uppercase',
+      marginBottom: '4px'
+    }
+  }, item.label), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 800,
+      fontSize: '22px',
+      color: item.color
+    }
+  }, item.value), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#64748B',
+      marginTop: '2px'
+    }
+  }, item.count), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: '10px',
+      fontSize: '11px',
+      fontWeight: 700,
+      color: item.color,
+      cursor: 'pointer'
+    }
+  }, item.cta))))), /*#__PURE__*/React.createElement(ReportView, {
+    title: "Quarterly Spend Breakdown",
+    subtitle: `Q1–Q4 FY ${annualData.year} performance`
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(4, 1fr)',
+      gap: '16px'
+    }
+  }, (annualData.quarterly_breakdown || []).map((q, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      background: '#F8FAFC',
+      borderRadius: '14px',
+      padding: '20px',
+      textAlign: 'center',
+      border: '1px solid #E2E8F0'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      fontWeight: 800,
+      color: '#94A3B8',
+      marginBottom: '8px'
+    }
+  }, q.quarter), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 800,
+      fontSize: '20px',
+      color: '#0F172A'
+    }
+  }, fmtCr(q.spend)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#64748B',
+      marginTop: '4px'
+    }
+  }, q.invoices, " invoices"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: '4px',
+      background: '#E2E8F0',
+      borderRadius: '2px',
+      marginTop: '12px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: '100%',
+      width: `${Math.min(100, q.spend / (annualData.headline.total_spend || 1) * 400)}%`,
+      background: donutColors[i],
+      borderRadius: '2px',
+      maxWidth: '100%'
+    }
+  })))))), /*#__PURE__*/React.createElement(ReportView, {
+    title: "Monthly Spend Trend",
+    subtitle: `All 12 months — FY ${annualData.year}`
+  }, /*#__PURE__*/React.createElement(AdvTrendChart, {
+    series: [{
+      label: 'Paid',
+      data: (annualData.monthly_trend || []).map(m => m.paid),
+      color: '#10B981'
+    }],
+    labels: (annualData.monthly_trend || []).map(m => m.month),
+    height: 240
+  })), /*#__PURE__*/React.createElement(ReportView, {
+    title: "Department Performance \u2014 Budget vs Actual",
+    subtitle: "Full-year budget utilization and YoY comparison"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: 'auto'
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: '100%',
+      borderCollapse: 'collapse',
+      fontSize: '13px'
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+    style: {
+      borderBottom: '2px solid #F1F0EE'
+    }
+  }, ['Department', 'Budget', 'Actual Spend', 'Variance', 'Utilization', 'Prior FY', 'YoY Δ', 'Status'].map(h => /*#__PURE__*/React.createElement("th", {
+    key: h,
+    style: {
+      padding: '12px 14px',
+      textAlign: 'left',
+      fontSize: '10px',
+      fontWeight: 800,
+      color: '#94A3B8',
+      textTransform: 'uppercase',
+      letterSpacing: '0.08em'
+    }
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, (annualData.department_performance || []).map((d, i) => /*#__PURE__*/React.createElement("tr", {
+    key: i,
+    style: {
+      borderBottom: '1px solid #F8F7F5'
+    }
+  }, /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '14px',
+      fontWeight: 700,
+      color: '#0F172A'
+    }
+  }, d.department), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '14px',
+      fontFamily: "'JetBrains Mono', monospace",
+      color: '#64748B'
+    }
+  }, fmtCr(d.budget)), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '14px',
+      fontFamily: "'JetBrains Mono', monospace",
+      fontWeight: 700,
+      color: '#0F172A'
+    }
+  }, fmtCr(d.actual)), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '14px',
+      fontFamily: "'JetBrains Mono', monospace",
+      fontWeight: 700,
+      color: d.variance > 0 ? '#EF4444' : '#10B981'
+    }
+  }, d.variance > 0 ? '+' : '', fmtCr(Math.abs(d.variance))), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '14px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: '60px',
+      height: '6px',
+      background: '#F1F5F9',
+      borderRadius: '3px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: '100%',
+      width: `${Math.min(100, d.utilization_pct)}%`,
+      background: d.utilization_pct > 100 ? '#EF4444' : d.utilization_pct > 80 ? '#F59E0B' : '#10B981',
+      borderRadius: '3px'
+    }
+  })), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '11px',
+      fontWeight: 700
+    }
+  }, d.utilization_pct, "%"))), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '14px',
+      fontFamily: "'JetBrains Mono', monospace",
+      color: '#64748B'
+    }
+  }, fmtCr(d.prev_year_actual)), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '14px',
+      fontFamily: "'JetBrains Mono', monospace",
+      fontWeight: 700,
+      color: d.yoy_change_pct >= 0 ? '#EF4444' : '#10B981'
+    }
+  }, d.yoy_change_pct > 0 ? '+' : '', d.yoy_change_pct, "%"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '14px'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      padding: '3px 10px',
+      borderRadius: '20px',
+      fontSize: '10px',
+      fontWeight: 800,
+      background: d.status === 'OVER_BUDGET' ? '#FEE2E2' : d.status === 'ON_TRACK' ? '#D1FAE5' : '#E0F2FE',
+      color: d.status === 'OVER_BUDGET' ? '#991B1B' : d.status === 'ON_TRACK' ? '#065F46' : '#0369A1'
+    }
+  }, d.status.replace('_', ' '))))))))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: '32px'
+    }
+  }, /*#__PURE__*/React.createElement(ReportView, {
+    title: "Top Vendors by Annual Spend",
+    subtitle: "Key supplier relationships"
+  }, /*#__PURE__*/React.createElement(AdvBarChart, {
+    data: (annualData.top_vendors || []).slice(0, 8).map(v => ({
+      label: v.name,
+      value: v.amount,
+      count: v.invoices
+    })),
+    height: 320
+  })), /*#__PURE__*/React.createElement(ReportView, {
+    title: "Annual Risk & Compliance Summary",
+    subtitle: "Fraud detection and policy adherence"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '14px'
+    }
+  }, [{
+    label: 'Total Invoices Processed',
+    value: annualData.risk_summary.total_invoices,
+    color: '#3B82F6',
+    icon: '📋'
+  }, {
+    label: 'High-Risk Flags (AI)',
+    value: annualData.risk_summary.high_risk,
+    color: '#EF4444',
+    icon: '🚨'
+  }, {
+    label: 'Medium-Risk Flags',
+    value: annualData.risk_summary.medium_risk,
+    color: '#F59E0B',
+    icon: '⚠️'
+  }, {
+    label: 'Rejected Invoices',
+    value: annualData.risk_summary.rejected,
+    color: '#DC2626',
+    icon: '❌'
+  }, {
+    label: 'Clean / Compliant',
+    value: `${annualData.risk_summary.clean_pct}%`,
+    color: '#10B981',
+    icon: '✅'
+  }].map((item, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: '12px 16px',
+      background: '#F8FAFC',
+      borderRadius: '12px',
+      border: '1px solid #E2E8F0'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '16px'
+    }
+  }, item.icon), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '13px',
+      color: '#475569',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, item.label)), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontFamily: "'JetBrains Mono', monospace",
+      fontWeight: 800,
+      fontSize: '16px',
+      color: item.color
+    }
+  }, item.value)))), /*#__PURE__*/React.createElement(InsightBlock, {
+    insight: `FY ${annualData.year}: ${annualData.risk_summary.clean_pct}% of invoices processed cleanly. ${annualData.risk_summary.high_risk} high-risk flags were detected — review these for potential fraud or compliance violations.`,
+    severity: annualData.risk_summary.high_risk > 5 ? 'warning' : 'info'
+  })))), !annualData && !annualLoading && /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: 'center',
+      padding: '80px',
+      color: '#64748B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '48px',
+      marginBottom: '16px'
+    }
+  }, "\uD83D\uDCC5"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '18px',
+      fontWeight: 700,
+      color: '#0F172A',
+      marginBottom: '8px'
+    }
+  }, "Annual Financial Report"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '14px',
+      marginBottom: '24px'
+    }
+  }, "Select a year and click \"Load Report\" to generate the full investor-grade annual summary."), /*#__PURE__*/React.createElement(Btn, {
+    variant: "primary",
+    onClick: () => loadAnnualReport(annualYear)
+  }, "Generate FY ", annualYear, " Report")))));
 };
 const ReportsScreen = LiveReportsScreen;
 Object.assign(window, {
