@@ -35,15 +35,15 @@ class Command(BaseCommand):
 
         # ─── Users ───────────────────────────────────────────────────────────
         user_specs = [
-            ("l1_approver", "Neha Gupta", 1, engineering, False),
-            ("hod", "Suresh Reddy", 2, engineering, False),
-            ("fin_manager", "Anita Desai", 3, finance, False),
-            ("fin_admin", "Vikram Singh", 4, finance, False),
-            ("cfo", "Kavita Menon", 4, finance, True),
+            ("l1_approver", "Neha Gupta", 1, engineering, False, False),
+            ("hod", "Suresh Reddy", 2, engineering, False, False),
+            ("fin_manager", "Anita Desai", 3, finance, False, False),
+            ("fin_admin", "Vikram Singh", 4, finance, False, True),
+            ("cfo", "Kavita Menon", 4, finance, True, True),
         ]
 
         users = {}
-        for username, full_name, grade, dept, is_super in user_specs:
+        for username, full_name, grade, dept, is_super, is_staff in user_specs:
             first, last = full_name.split(" ", 1)
             user, created = User.objects.get_or_create(
                 username=username,
@@ -55,17 +55,16 @@ class Command(BaseCommand):
                     "department": dept,
                     "is_active": True,
                     "is_superuser": is_super,
-                    "is_staff": is_super,
+                    "is_staff": is_staff,
                 },
             )
             if created:
                 user.set_password("demo1234")
                 user.save()
             else:
-                if is_super and not user.is_superuser:
-                    user.is_superuser = True
-                    user.is_staff = True
-                    user.save(update_fields=["is_superuser", "is_staff"])
+                user.is_active = True
+                user.is_superuser = is_super
+                user.is_staff = is_staff
                 user.set_password("demo1234")
                 user.save()
             users[username] = user
@@ -127,6 +126,21 @@ class Command(BaseCommand):
         for spec in auth_specs:
             ApprovalAuthority.objects.get_or_create(grade=spec["grade"], defaults={**spec, "updated_by": users["fin_admin"]})
         self.stdout.write("  ✅ Approval authorities seeded")
-        
-        self.stdout.write(self.style.SUCCESS("\n🎉 Core structure seeded successfully! Removed dummy vendors and expenses."))
+
+        # ─── Demo Vendor ─────────────────────────────────────────────────────
+        from apps.core.models import Vendor
+        Vendor.objects.get_or_create(
+            gstin="29AABCT1332L1ZD",
+            defaults={
+                "name": "Technovance Solutions Pvt Ltd",
+                "vendor_type": "company",
+                "pan": "AABCT1332L",
+                "email": "accounts@technovance.in",
+                "phone": "9876543210",
+                "status": "active",
+            },
+        )
+        self.stdout.write("  ✅ Demo vendor seeded")
+
+        self.stdout.write(self.style.SUCCESS("\n🎉 Core structure seeded successfully!"))
 

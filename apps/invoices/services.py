@@ -499,15 +499,6 @@ def transition_expense(
             request=request,
         )
 
-        # 7. Trigger D365 push for approved expenses (non-internal vendors)
-        if new_status == "APPROVED" and expense.vendor.vendor_type != "internal":
-            from django.db import transaction
-            from apps.d365.tasks import push_invoice_to_d365
-            
-            def _delay_d365_push():
-                push_invoice_to_d365.delay(str(expense.id))
-            
-            # Delay the task until after the transaction commits to avoid race conditions
-            transaction.on_commit(_delay_d365_push)
+        # D365 push placeholder (integration not yet implemented)
 
     return expense

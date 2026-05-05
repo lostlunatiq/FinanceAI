@@ -1525,3 +1525,62 @@ class NotificationsView(APIView):
             'unread_count': high_count,
             'total': len(notifs),
         })
+
+
+class ReportEmailConfigView(APIView):
+    """
+    GET  /api/v1/report-email-config/  — get current config
+    PUT  /api/v1/report-email-config/  — update recipients + enabled flag
+    Requires Grade 4+ (Finance Admin / CFO).
+    """
+    permission_classes = [IsAuthenticated, HasMinimumGrade.make(4)]
+
+    DEFAULT_KEY = "monthly_report"
+
+    def _get_or_create(self):
+        from .models import ReportEmailConfig
+        obj, _ = ReportEmailConfig.objects.get_or_create(
+            key=self.DEFAULT_KEY,
+            defaults={
+                "recipients": ["finance@company.in", "cfo@company.in"],
+                "enabled": True,
+            },
+        )
+        return obj
+
+    def get(self, request):
+        obj = self._get_or_create()
+        return Response({
+            "key": obj.key,
+            "recipients": obj.recipients,
+            "enabled": obj.enabled,
+            "updated_at": obj.updated_at.isoformat() if obj.updated_at else None,
+        })
+
+    def put(self, request):
+        obj = self._get_or_create()
+        recipients = request.data.get("recipients")
+        enabled = request.data.get("enabled")
+
+        if recipients is not None:
+            if not isinstance(recipients, list):
+                return Response({"error": "recipients must be a list"}, status=400)
+            # Basic email validation
+            import re
+            for email in recipients:
+                if not re.match(r"[^@]+@[^@]+\.[^@]+", str(email)):
+                    return Response({"error": f"Invalid email: {email}"}, status=400)
+            obj.recipients = recipients
+
+        if enabled is not None:
+            obj.enabled = bool(enabled)
+
+        obj.updated_by = request.user
+        obj.save()
+
+        return Response({
+            "key": obj.key,
+            "recipients": obj.recipients,
+            "enabled": obj.enabled,
+            "updated_at": obj.updated_at.isoformat(),
+        })

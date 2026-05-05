@@ -29,4 +29,6 @@ urlpatterns = [
     # Chat Sessions
     path("chat/sessions/", auth_views.ChatSessionListView.as_view(), name="chat-sessions"),
     path("chat/sessions/<uuid:session_id>/", auth_views.ChatSessionDetailView.as_view(), name="chat-session-detail"),
+    # Report Email Config
+    path("report-email-config/", auth_views.ReportEmailConfigView.as_view(), name="report-email-config"),
 ]

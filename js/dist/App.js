@@ -1266,29 +1266,12 @@ const App = () => {
       setAuthed(false);
     });
   }, []);
-
   const navigate = React.useCallback((s, ctx) => {
     setNavHistory(prev => [...prev.slice(-19), screen]); // keep last 20
     setScreen(s);
     setScreenCtx(ctx || null);
     localStorage.setItem('tj_screen', s);
   }, [screen]);
-  const back = () => {
-    if (navHistory.length === 0) return;
-    const prev = navHistory[navHistory.length - 1];
-    setNavHistory(h => h.slice(0, -1));
-    setScreen(prev);
-    setScreenCtx(null);
-    localStorage.setItem('tj_screen', prev);
-  };
-  const handleLogout = () => {
-    window.TijoriAPI.Auth.clear();
-    setAuthed(false);
-    setRoleKey(null);
-    setUser(null);
-    setScreen('dashboard');
-    setScreenCtx(null);
-  };
 
   // ── External navigate events (fired by child screens) ──────────
   React.useEffect(() => {
@@ -1308,6 +1291,22 @@ const App = () => {
     window.addEventListener('profile-updated', handler);
     return () => window.removeEventListener('profile-updated', handler);
   }, [buildUser]);
+  const back = () => {
+    if (navHistory.length === 0) return;
+    const prev = navHistory[navHistory.length - 1];
+    setNavHistory(h => h.slice(0, -1));
+    setScreen(prev);
+    setScreenCtx(null);
+    localStorage.setItem('tj_screen', prev);
+  };
+  const handleLogout = () => {
+    window.TijoriAPI.Auth.clear();
+    setAuthed(false);
+    setRoleKey(null);
+    setUser(null);
+    setScreen('dashboard');
+    setScreenCtx(null);
+  };
 
   // ── Login success ───────────────────────────────────────────────
   const handleLogin = userData => {

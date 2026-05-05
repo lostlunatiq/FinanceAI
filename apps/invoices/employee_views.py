@@ -803,7 +803,7 @@ class InternalExpenseListView(APIView):
 class AnomalyListView(APIView):
     """GET /api/v1/finance/anomalies/ — Expenses with anomaly flags."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasMinimumGrade.make(3)]
 
     def get(self, request):
         from apps.core.permissions import hod_dept_filter

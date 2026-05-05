@@ -72,7 +72,7 @@ const AnomalyScreen = ({
       entity
     } = markSafeModal;
     if (!markSafeNote.trim()) {
-      alert('Please enter a reason for marking this anomaly as safe.');
+      window.ModalUtils.show('Please enter a reason for marking this anomaly as safe.', 'error');
       return;
     }
     setMarkSafeLoading(true);
@@ -107,7 +107,7 @@ const AnomalyScreen = ({
         if (activePanel && activePanel.rawId === rawId) setActivePanel(null);
       }
     } catch (e) {
-      alert("Failed to mark safe: " + (e.message || 'Server error'));
+      window.ModalUtils.show("Failed to mark safe: " + (e.message || 'Server error'), 'error');
     } finally {
       setMarkSafeLoading(false);
     }
@@ -137,13 +137,13 @@ const AnomalyScreen = ({
         if (activePanel && activePanel.rawId === id) setActivePanel(null);
       }
     } catch (e) {
-      alert("Failed to escalate: " + e.message);
+      window.ModalUtils.show("Failed to escalate: " + e.message, 'error');
     }
   };
   const handleReviewAll = () => {
     const openAnomalies = anomalies.filter(a => a.status !== 'RESOLVED');
     if (openAnomalies.length === 0) {
-      alert('No open anomalies to review.');
+      window.ModalUtils.show('No open anomalies to review.', 'info');
       return;
     }
     setReviewQueue(openAnomalies);
@@ -599,7 +599,7 @@ const AnomalyScreen = ({
       variant: "green",
       small: true,
       onClick: () => openMarkSafeModal(a)
-    }, "Mark Safe"), a.score > 80 && role !== "CFO" && /*#__PURE__*/React.createElement(Btn, {
+    }, "Mark Safe"), a.score > 80 && /*#__PURE__*/React.createElement(Btn, {
       variant: "destructive",
       small: true,
       onClick: () => handleEscalate(a.rawId)
@@ -979,7 +979,7 @@ const AnomalyScreen = ({
       display: 'flex',
       gap: '8px'
     }
-  }, role !== "CFO" && /*#__PURE__*/React.createElement(Btn, {
+  }, /*#__PURE__*/React.createElement(Btn, {
     variant: "primary",
     style: {
       flex: 1
