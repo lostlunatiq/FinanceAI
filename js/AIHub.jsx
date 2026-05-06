@@ -618,7 +618,7 @@ const AIHubScreen = ({ role, onNavigate }) => {
 
             {/* Zero / shortfall line */}
             <line x1={chartPad.l} y1={toY(0)} x2={W - chartPad.r} y2={toY(0)} stroke="#EF4444" strokeWidth="1" strokeDasharray="4,4" opacity="0.5" />
-            <text x={chartPad.l + 4} y={toY(0) - 4} fontSize="9" fill="#EF4444" fontFamily="Plus Jakarta Sans" opacity="0.7">Shortfall Zone</text>
+            <text x={chartPad.l + 100} y={toY(0) - 6} fontSize="9" fill="#EF4444" fontFamily="Plus Jakarta Sans" opacity="0.7" textAnchor="start">Shortfall Zone Naman</text>
 
             {/* X labels */}
             {allData.map((d, i) => (

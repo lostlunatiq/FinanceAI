@@ -1299,13 +1299,8 @@ const LiveReportsScreen = ({ role, onNavigate }) => {
 
             {/* legacy placeholder replaced — three views above handle annualData */}
             {false && annualData && !annualLoading && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
-                {[
-                  { label: 'Total Spend', value: fmtCr(annualData.headline.total_spend), sub: `${annualData.headline.yoy_change_pct > 0 ? '+' : ''}${annualData.headline.yoy_change_pct}% vs FY${annualData.prev_year}`, color: '#E8783B' },
-                  { label: 'Budget', value: fmtCr(annualData.headline.total_budget), sub: `${annualData.headline.budget_utilization_pct}% utilized`, color: '#3B82F6' },
-                  { label: 'Total Invoices', value: annualData.headline.total_invoices.toLocaleString(), sub: `${annualData.headline.rejected_count} rejected`, color: '#10B981' },
-                  { label: 'High-Risk Flags', value: annualData.headline.flagged_high, sub: `+ ${annualData.headline.flagged_medium} medium`, color: '#EF4444' },
-                ].map((k, i) => (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
                   {[
                     { label: 'Total Spend', value: fmtCr(annualData.headline.total_spend), sub: `${annualData.headline.yoy_change_pct > 0 ? '+' : ''}${annualData.headline.yoy_change_pct}% vs FY${annualData.prev_year}`, color: '#E8783B' },
                     { label: 'Budget', value: fmtCr(annualData.headline.total_budget), sub: `${annualData.headline.budget_utilization_pct}% utilized`, color: '#3B82F6' },
@@ -1320,7 +1315,6 @@ const LiveReportsScreen = ({ role, onNavigate }) => {
                   ))}
                 </div>
 
-                {/* AI Narrative */}
                 <ReportView title="Executive Summary — AI Generated" subtitle={`FY ${annualData.year} · Investor-grade narrative`}>
                   <div style={{ background: 'linear-gradient(135deg, #F5F3FF, #EFF6FF)', border: '1px solid #DDD6FE', borderRadius: '14px', padding: '24px', marginBottom: '16px' }}>
                     <div style={{ fontSize: '10px', fontWeight: 800, color: '#5B21B6', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1441,7 +1435,7 @@ const LiveReportsScreen = ({ role, onNavigate }) => {
                     <InsightBlock insight={`FY ${annualData.year}: ${annualData.risk_summary.clean_pct}% of invoices processed cleanly. ${annualData.risk_summary.high_risk} high-risk flags were detected — review these for potential fraud or compliance violations.`} severity={annualData.risk_summary.high_risk > 5 ? 'warning' : 'info'} />
                   </ReportView>
                 </div>
-              </div>
+              </>
             )}
 
             {!annualData && !annualLoading && (

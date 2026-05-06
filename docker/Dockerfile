@@ -32,12 +32,12 @@ RUN uv sync --frozen --no-install-project
 # now copy rest
 COPY . .
 
-RUN echo "Hello Naman"
-
-COPY docker/entrypoint.sh /entrypoint.sh
-RUN sed -i 's/\r//' /entrypoint.sh && chmod +x /entrypoint.sh
+# RUN echo "Hello Naman"
+#
+# COPY docker/entrypoint.sh /entrypoint.sh
+# RUN sed -i 's/\r//' /entrypoint.sh && chmod +x /entrypoint.sh
 
 EXPOSE 8000
 
-ENTRYPOINT ["/entrypoint.sh"]
+# ENTRYPOINT ["/entrypoint.sh"]
 CMD ["uvicorn", "config.asgi:application", "--host", "0.0.0.0", "--port", "8000", "--reload"]
