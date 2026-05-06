@@ -344,7 +344,18 @@ const AIHubScreen = ({ role, onNavigate }) => {
         },
       });
       const d = await r.json();
-      const summaries = Array.isArray(d?.summaries) ? d.summaries : [];
+      const rawSummaries = Array.isArray(d?.summaries) ? d.summaries : Array.isArray(d) ? d : [];
+
+      // Transform backend data to match SummaryMonthCard expectations
+      const summaries = rawSummaries.map(s => ({
+        month: s.month || '',
+        status: s.is_generated ? 'AUTO_GEN' : 'REVIEWED',
+        revenue: s.total_revenue ? '₹' + Number(s.total_revenue).toLocaleString('en-IN') : '₹0',
+        expenses: s.totals?.total_pending ? '₹' + Number(s.totals.total_pending).toLocaleString('en-IN') : '₹0',
+        profit: s.profit ? (s.profit < 0 ? '-₹' : '₹') + Math.abs(s.profit).toLocaleString('en-IN') : '₹0',
+        cash: s.paid_amount ? '₹' + Number(s.paid_amount).toLocaleString('en-IN') : '₹0',
+        insight: s.ai_narrative || 'Financial summary for ' + (s.month || 'this month'),
+      }));
       setMonthlySummaries(summaries);
       if (openLatest && summaries.length > 0) {
         setSelectedMonth(summaries[0]);
@@ -352,6 +363,7 @@ const AIHubScreen = ({ role, onNavigate }) => {
       }
       return summaries;
     } catch (e) {
+      console.error('Error loading summaries:', e);
       setMonthlySummaries([]);
       return [];
     }
@@ -617,8 +629,8 @@ const AIHubScreen = ({ role, onNavigate }) => {
             })}
 
             {/* Zero / shortfall line */}
-            <line x1={chartPad.l} y1={toY(0)} x2={W - chartPad.r} y2={toY(0)} stroke="#EF4444" strokeWidth="1" strokeDasharray="4,4" opacity="0.5" />
-            <text x={chartPad.l + 100} y={toY(0) - 6} fontSize="9" fill="#EF4444" fontFamily="Plus Jakarta Sans" opacity="0.7" textAnchor="start">Shortfall Zone Naman</text>
+            {/* <line x1={chartPad.l} y1={toY(0)} x2={W - chartPad.r} y2={toY(0)-194} stroke="#EF4444" strokeWidth="1" strokeDasharray="4,4" opacity="0.5" /> */}
+            {/* <text x={chartPad.l + 100} y={toY(0) - 200} fontSize="9" fill="#EF4444" fontFamily="Plus Jakarta Sans" opacity="0.7" textAnchor="start">Shortfall Zone Naman</text> */}
 
             {/* X labels */}
             {allData.map((d, i) => (
