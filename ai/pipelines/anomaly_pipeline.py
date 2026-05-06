@@ -11,10 +11,7 @@ Pipeline:
 import json
 import logging
 import os
-from datetime import date, timedelta
-from decimal import Decimal
 
-from django.conf import settings
 import httpx
 
 try:
@@ -58,20 +55,21 @@ def _mask_pii(text: str) -> str:
         return text # Fail open but log heavily
 
 def _get_historical_context(vendor, exclude_pk):
-    from apps.invoices.models import Expense
     from django.db.models import Avg, StdDev
-    
+
+    from apps.invoices.models import Expense
+
     past_expenses = Expense.objects.filter(
         vendor=vendor,
         _status__in=["APPROVED", "PAID", "BOOKED_D365", "POSTED_D365"]
     ).exclude(pk=exclude_pk)
-    
+
     stats = past_expenses.aggregate(
         avg_amount=Avg("total_amount"),
         std_amount=StdDev("total_amount"),
     )
     count = past_expenses.count()
-    
+
     # Get recent 5
     recent = list(past_expenses.order_by("-invoice_date")[:5].values("invoice_number", "invoice_date", "total_amount"))
     # Format list explicitly
@@ -80,10 +78,10 @@ def _get_historical_context(vendor, exclude_pk):
             r['total_amount'] = float(r['total_amount'])
         if r.get('invoice_date'):
             r['invoice_date'] = str(r['invoice_date'])
-            
+
     avg_amt = float(stats['avg_amount']) if stats['avg_amount'] else 0
     std_amt = float(stats['std_amount']) if stats['std_amount'] else 0
-    
+
     # Format to string and mask
     context_str = f"Vendor: {vendor.name}, Historical Vendor Data (Count: {count}, Avg Amount: {avg_amt}, StdDev: {std_amt}). Recent Invoices: {json.dumps(recent)}"
     return _mask_pii(context_str)
@@ -125,7 +123,7 @@ def run_anomaly_checks(expense) -> dict:
 
     # 1. Prepare historical context
     history_context = _get_historical_context(expense.vendor, expense.pk)
-    
+
     # 2. Load past feedback for this vendor
     feedback_context = _get_anomaly_feedback_context(expense.vendor.name)
 
@@ -191,22 +189,22 @@ def run_anomaly_checks(expense) -> dict:
             response.raise_for_status()
             result_json = response.json()
             content = result_json["choices"][0]["message"]["content"]
-            
+
             # Clean up markdown if any
             if content.startswith("```json"):
                 content = content[7:-3]
             elif content.startswith("```"):
                 content = content[3:-3]
-                
+
             parsed = json.loads(content.strip())
-            
+
             logger.info(f"LLM Anomaly Result: {parsed.get('severity')}")
             return {
                 "severity": parsed.get("severity", "NONE"),
                 "flags": parsed.get("flags", []),
                 "total_score": parsed.get("score", 0)
             }
-            
+
     except Exception as e:
         logger.error(f"LLM Anomaly Pipeline failed: {e}", exc_info=True)
         return {"severity": "NONE", "flags": [{"type": "SYSTEM_ERROR", "severity": "MEDIUM", "message": "Anomaly AI unavailable."}], "total_score": 0}

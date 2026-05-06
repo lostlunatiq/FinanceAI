@@ -1,9 +1,10 @@
-from rest_framework import status
-from rest_framework.views import APIView
-from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
 from .models import Notification, NotificationPreference
-from .serializers import NotificationSerializer, NotificationPreferenceSerializer
+from .serializers import NotificationPreferenceSerializer, NotificationSerializer
+
 
 class NotificationListView(APIView):
     permission_classes = [IsAuthenticated]
@@ -13,11 +14,11 @@ class NotificationListView(APIView):
         unread_only = request.query_params.get('unread') == 'true'
         if unread_only:
             qs = qs.filter(is_read=False)
-            
+
         unread_count = Notification.objects.filter(user=request.user, is_read=False).count()
         limit = int(request.query_params.get('limit', 50))
         notifications = qs[:limit]
-        
+
         serializer = NotificationSerializer(notifications, many=True)
         return Response({
             'notifications': serializer.data,

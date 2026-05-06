@@ -6,17 +6,20 @@ GET /api/v1/invoices/budgets/<id>/utilization/
 GET /api/v1/forecasting/cashflow/
 """
 
-from rest_framework.views import APIView
-from rest_framework.response import Response
+import logging
+from decimal import Decimal
+
+from django.db.models import Count, Sum
+from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-from django.shortcuts import get_object_or_404
-from django.db.models import Sum, Count, Avg
-from decimal import Decimal
-import logging
-from .models import Budget, Expense
-from apps.core.utils import log_audit_event
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
 from apps.core.permissions import HasMinimumGrade
+from apps.core.utils import log_audit_event
+
+from .models import Budget, Expense
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +73,9 @@ class BudgetListView(APIView):
         return Response(result)
 
     def post(self, request):
-        from .models import Budget
         from apps.core.models import Department
+
+        from .models import Budget
         data = request.data
 
         try:
@@ -195,7 +199,7 @@ class BudgetUtilizationView(APIView):
     permission_classes = [IsAuthenticated, HasMinimumGrade.make(4)]
 
     def get(self, request, pk):
-        from .models import Budget, Expense
+        from .models import Budget
         b = get_object_or_404(Budget, pk=pk)
         grade = request.user.employee_grade or 0
         if grade == 2 and b.department_id != request.user.department_id:
@@ -307,11 +311,9 @@ class CashFlowForecastView(APIView):
 
 def _build_cashflow_forecast(days: int = 90) -> dict:
     """Build cash flow forecast from DB expense data."""
-    import pandas as pd
-    import numpy as np
     from datetime import date, timedelta
-    from .models import Expense
-    from django.db.models.functions import TruncDate
+
+    import numpy as np
 
     today = date.today()
 
@@ -350,7 +352,7 @@ def _build_cashflow_forecast(days: int = 90) -> dict:
     # Generate forecast
     forecast_days = []
     running_balance = 0
-    
+
     # Calculate dynamic opening balance from total active budget minus paid expenses
     total_budget = float(Budget.objects.filter(status__in=["active", "draft"]).aggregate(t=Sum("total_amount"))["t"] or 10000000)
     total_paid = float(Expense.objects.filter(_status="PAID").aggregate(t=Sum("total_amount"))["t"] or 0)

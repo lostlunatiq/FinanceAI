@@ -9,7 +9,6 @@ from typing import Any, Dict, Optional
 
 from asgiref.sync import iscoroutinefunction, markcoroutinefunction
 
-
 # Thread-local storage used by audit_service.get_request_context()
 _thread_local = threading.local()
 

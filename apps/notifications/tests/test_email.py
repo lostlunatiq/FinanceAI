@@ -1,10 +1,10 @@
-import pytest
 from unittest.mock import patch
+
+import pytest
 from django.core import mail
 from django.test import override_settings
 
 from apps.core.models import User
-
 
 # ── render_alert_email ────────────────────────────────────────────────────────
 
@@ -84,9 +84,10 @@ class TestSendEmailTask:
 class TestRedirectEmailBackend:
     @override_settings(EMAIL_REDIRECT_TO="catchall@example.com")
     def test_rewrites_recipient_to_redirect_address(self):
-        from apps.notifications.backends import RedirectEmailBackend
         from django.core.mail import EmailMultiAlternatives
         from django.core.mail.backends.smtp import EmailBackend
+
+        from apps.notifications.backends import RedirectEmailBackend
 
         backend = RedirectEmailBackend()
         msg = EmailMultiAlternatives("Subject", "body", "from@example.com", ["original@example.com"])
@@ -98,9 +99,10 @@ class TestRedirectEmailBackend:
 
     @override_settings(EMAIL_REDIRECT_TO="catchall@example.com")
     def test_strips_cc_and_bcc(self):
-        from apps.notifications.backends import RedirectEmailBackend
         from django.core.mail import EmailMultiAlternatives
         from django.core.mail.backends.smtp import EmailBackend
+
+        from apps.notifications.backends import RedirectEmailBackend
 
         backend = RedirectEmailBackend()
         msg = EmailMultiAlternatives(

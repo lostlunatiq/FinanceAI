@@ -964,11 +964,18 @@ const DashboardScreen = ({
     style: {
       display: 'flex',
       flexDirection: 'column',
+      gap: '12px',
+      gridColumn: 'span 2'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
       gap: '12px'
     }
   }, /*#__PURE__*/React.createElement("div", {
     onClick: runLoading.q ? undefined : handleGenerate10Q,
     style: {
+      flex: 1,
       background: runLoading.q ? '#F8F7F5' : 'white',
       borderRadius: '16px',
       padding: '22px 20px',
@@ -1009,7 +1016,51 @@ const DashboardScreen = ({
       fontFamily: "'Plus Jakarta Sans', sans-serif",
       marginTop: '8px'
     }
-  }, runLoading.q ? 'Generating…' : 'Run now →')), modal10Q && /*#__PURE__*/React.createElement("div", {
+  }, runLoading.q ? 'Generating…' : 'Run now →')), /*#__PURE__*/React.createElement("div", {
+    onClick: runLoading.sweep ? undefined : handleAuditSweep,
+    style: {
+      flex: 1,
+      background: runLoading.sweep ? '#F8F7F5' : 'white',
+      borderRadius: '16px',
+      padding: '22px 20px',
+      boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+      cursor: runLoading.sweep ? 'wait' : 'pointer',
+      opacity: runLoading.sweep ? 0.7 : 1,
+      transition: 'all 200ms'
+    },
+    onMouseEnter: e => {
+      if (!runLoading.sweep) e.currentTarget.style.boxShadow = '0 8px 32px rgba(232,120,59,0.25)';
+    },
+    onMouseLeave: e => e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.06)'
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '4px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '15px',
+      color: '#0F172A'
+    }
+  }, "\u2B21 Audit Sweep"), /*#__PURE__*/React.createElement(AIBadge, null)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Full-spectrum transaction scan"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#E8783B',
+      fontWeight: 600,
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginTop: '8px'
+    }
+  }, runLoading.sweep ? 'Scanning…' : 'Run now →'))), modal10Q && /*#__PURE__*/React.createElement("div", {
     style: {
       background: modal10Q.error ? '#FEF2F2' : '#F0FDF4',
       border: `1px solid ${modal10Q.error ? '#FECACA' : '#A7F3D0'}`,
@@ -1079,50 +1130,7 @@ const DashboardScreen = ({
       overflowY: 'auto',
       whiteSpace: 'pre-wrap'
     }
-  }, modal10Q.content || JSON.stringify(modal10Q, null, 2))), /*#__PURE__*/React.createElement("div", {
-    onClick: runLoading.sweep ? undefined : handleAuditSweep,
-    style: {
-      background: runLoading.sweep ? '#F8F7F5' : 'white',
-      borderRadius: '16px',
-      padding: '22px 20px',
-      boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
-      cursor: runLoading.sweep ? 'wait' : 'pointer',
-      opacity: runLoading.sweep ? 0.7 : 1,
-      transition: 'all 200ms'
-    },
-    onMouseEnter: e => {
-      if (!runLoading.sweep) e.currentTarget.style.boxShadow = '0 8px 32px rgba(232,120,59,0.25)';
-    },
-    onMouseLeave: e => e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.06)'
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: '4px'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontFamily: "'Bricolage Grotesque', sans-serif",
-      fontWeight: 700,
-      fontSize: '15px',
-      color: '#0F172A'
-    }
-  }, "\u2B21 Audit Sweep"), /*#__PURE__*/React.createElement(AIBadge, null)), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: '11px',
-      color: '#94A3B8',
-      fontFamily: "'Plus Jakarta Sans', sans-serif"
-    }
-  }, "Full-spectrum transaction scan"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: '12px',
-      color: '#E8783B',
-      fontWeight: 600,
-      fontFamily: "'Plus Jakarta Sans', sans-serif",
-      marginTop: '8px'
-    }
-  }, runLoading.sweep ? 'Scanning…' : 'Run now →')), sweepResult && /*#__PURE__*/React.createElement("div", {
+  }, modal10Q.content || JSON.stringify(modal10Q, null, 2))), sweepResult && /*#__PURE__*/React.createElement("div", {
     style: {
       background: sweepResult.error ? '#FEF2F2' : '#F0FDF4',
       border: `1px solid ${sweepResult.error ? '#FECACA' : '#A7F3D0'}`,

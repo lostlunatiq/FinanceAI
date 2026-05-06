@@ -3,8 +3,6 @@ Development settings — runs everything locally WITHOUT Docker.
 SQLite database, no ClickHouse, no Redis, no Celery.
 OCR tasks run synchronously. Frontend served by Django.
 """
-import os
-from pathlib import Path
 
 # ─── Base import with overrides ─────────────────────────────────
 # We import from base but override everything that requires Docker

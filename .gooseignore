@@ -1,0 +1,19 @@
+# Don't let Goose read these — saves tokens and prevents accidents
+node_modules/
+venv/
+.env
+*.pyc
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+staticfiles/
+media/
+*.min.js
+*.min.css
+.coverage
+htmlcov/
+.DS_Store
+*.log
+*.sql
+*.dump
+docs/superpowers/plans/*.md

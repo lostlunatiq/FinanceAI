@@ -1,7 +1,9 @@
-from rest_framework.views import APIView
-from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
 from .models import Notification
+
 
 class NotificationListView(APIView):
     permission_classes = [IsAuthenticated]
@@ -9,9 +11,9 @@ class NotificationListView(APIView):
     def get(self, request):
         limit = min(int(request.query_params.get("limit", 20)), 50)
         notifs = Notification.objects.filter(user=request.user).order_by("-created_at")
-        
+
         unread_count = notifs.filter(is_read=False).count()
-        
+
         results = []
         for n in notifs[:limit]:
             # Derive dot color and navTarget similar to what frontend did
@@ -45,7 +47,7 @@ class NotificationListView(APIView):
                 "dot": dot,
                 "navTarget": navTarget
             })
-            
+
         return Response({
             "results": results,
             "unread_count": unread_count,

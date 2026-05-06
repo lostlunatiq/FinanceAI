@@ -1,21 +1,20 @@
-from django.db.models import Sum, Q, Count
+from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404
 from rest_framework import status
-from rest_framework.views import APIView
-from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from apps.core.permissions import HasMinimumGrade
 from apps.core.utils import log_audit_event
-from .models import Vendor, Expense, ExpenseApprovalStep, STEP_TO_STATUS
-from .vendor_serializers import (
-    VendorOnboardSerializer,
-    VendorDetailSerializer,
-    VendorBillListSerializer,
-    VendorBillDetailSerializer,
-    DashboardStatsSerializer,
-)
 
+from .models import Expense, ExpenseApprovalStep, Vendor
+from .vendor_serializers import (
+    VendorBillDetailSerializer,
+    VendorBillListSerializer,
+    VendorDetailSerializer,
+    VendorOnboardSerializer,
+)
 
 # ─── Vendor CRUD (Admin/Finance) ────────────────────────────────────────────
 
@@ -242,7 +241,7 @@ class VendorBillsView(APIView):
 
     def post(self, request):
         from .serializers import ExpenseSubmitSerializer
-        from .services import transition_expense, InvalidTransition
+        from .services import InvalidTransition, transition_expense
 
         # Resolve vendor: from logged-in user's vendor_profile, or explicit vendor field
         data = request.data.copy()
@@ -277,7 +276,7 @@ class VendorBillsView(APIView):
 
         # Auto-advance SUBMITTED → PENDING_L1 and create first approval step
         try:
-            from .services import STATUS_TO_NEXT_STATUS, create_initial_approval_step
+            from .services import create_initial_approval_step
 
             expense = transition_expense(
                 expense, "PENDING_L1", request.user, "Auto-started approval", skip_sod=True
@@ -342,6 +341,7 @@ class OCRExtractView(APIView):
 
     def post(self, request):
         from apps.invoices.models import FileRef
+
         from .tasks import run_ocr_standalone
 
         file_id = request.data.get("file_id")
@@ -367,6 +367,7 @@ class OCRResultView(APIView):
 
     def get(self, request, task_id):
         from celery.result import AsyncResult
+
         from apps.invoices.models import Expense
 
         # Check ownership: find the expense associated with this task ID
@@ -378,12 +379,12 @@ class OCRResultView(APIView):
                 is_owner = True
             elif hasattr(expense.vendor, 'user') and expense.vendor.user == request.user:
                 is_owner = True
-                
+
             if not is_owner and not request.user.is_superuser:
                  return Response({"error": "Not allowed to view this task result."}, status=status.HTTP_403_FORBIDDEN)
         except Expense.DoesNotExist:
-            # If the task isn't linked to an expense yet (standalone), 
-            # we should ideally track ownership elsewhere, but for now, 
+            # If the task isn't linked to an expense yet (standalone),
+            # we should ideally track ownership elsewhere, but for now,
             # fail safe if it's not superuser.
             if not request.user.is_superuser:
                  return Response({"error": "Task not found or not authorized."}, status=status.HTTP_404_NOT_FOUND)

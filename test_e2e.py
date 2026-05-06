@@ -7,8 +7,8 @@ import django
 django.setup()
 
 from rest_framework.test import APIClient
-from apps.invoices.models import Expense
 
+from apps.invoices.models import Expense
 
 USERS = {
     "Vendor": ("vendor1", "demo1234"),

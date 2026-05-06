@@ -9,6 +9,11 @@
   },
   "scripts": {
     "build:js": "babel js/ --out-dir js/dist/ --presets @babel/preset-react",
-    "start": "bash ./start_dev.sh"
+    "build:js:watch": "babel js/ --out-dir js/dist/ --presets @babel/preset-react --watch",
+    "start": "bash ./start_dev.sh",
+    "dev": "npm run build:js:watch",
+    "docker:build": "docker compose build --no-cache",
+    "docker:up": "npm run build:js && docker compose up",
+    "docker:down": "docker compose down"
   }
 }

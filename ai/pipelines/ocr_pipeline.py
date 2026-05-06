@@ -6,13 +6,11 @@ PDF Support: Uses PyMuPDF (fitz) to render each PDF page to PNG at 200 DPI.
 Multi-page: Processes all pages and merges extracted data.
 """
 
+import base64
 import json
 import logging
 import os
-import io
-import base64
 from dataclasses import dataclass, field
-from typing import Optional
 
 from django.conf import settings
 
@@ -103,8 +101,9 @@ def pdf_to_images(file_path: str) -> list[tuple[bytes, str]]:
 
     # ── Fallback: pdf2image (uses system poppler/pdftoppm) ────────────
     try:
-        from pdf2image import convert_from_path
         from io import BytesIO
+
+        from pdf2image import convert_from_path
 
         pages = convert_from_path(file_path, dpi=200, fmt="png")
         images = []
@@ -349,7 +348,7 @@ def run(file_path: str, media_type: str = "image/jpeg", process_all_pages: bool 
 
         )
 
- 
+
     except Exception as e:
         result.error = f"OCR pipeline error: {e}"
         logger.error(result.error, exc_info=True)

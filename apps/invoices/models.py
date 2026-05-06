@@ -1,7 +1,8 @@
 import uuid
-from django.db import models
-from apps.core.models import User, Department, AuditLog, Vendor, FileRef, VENDOR_STATUS_CHOICES
 
+from django.db import models
+
+from apps.core.models import FileRef, User, Vendor
 
 EXPENSE_STATUS_CHOICES = [
     ("DRAFT", "Draft"),
@@ -160,13 +161,13 @@ class Expense(models.Model):
             from django.db import transaction
             from django.db.models import Max
             from django.utils import timezone
-            
+
             with transaction.atomic():
                 # Lock the table to prevent race conditions
                 Expense.objects.select_for_update().filter(
                     ref_no__startswith=f"BILL-{timezone.now().year}-"
                 ).first()
-                
+
                 last = Expense.objects.filter(
                     ref_no__startswith=f"BILL-{timezone.now().year}-"
                 ).aggregate(Max("ref_no"))["ref_no__max"]

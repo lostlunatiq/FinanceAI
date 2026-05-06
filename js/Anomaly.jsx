@@ -302,7 +302,7 @@ const AnomalyScreen = ({ role, onNavigate }) => {
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <Btn variant="primary" small onClick={() => setActivePanel(a)}>Investigate</Btn>
                       {a.status !== 'RESOLVED' && <Btn variant="green" small onClick={() => openMarkSafeModal(a)}>Mark Safe</Btn>}
-                      {a.score > 80 && <Btn variant="destructive" small onClick={() => handleEscalate(a.rawId)}>Escalate</Btn>}
+                      {a.score > 80 && role !== 'CFO' && <Btn variant="destructive" small onClick={() => handleEscalate(a.rawId)}>Escalate</Btn>}
                     </div>
                   </td>
                 </tr>
@@ -431,7 +431,7 @@ const AnomalyScreen = ({ role, onNavigate }) => {
             </div>
 
             <div style={{ display: 'flex', gap: '8px' }}>
-              <Btn variant="primary" style={{ flex: 1 }} onClick={() => handleEscalate(activePanel.rawId)}>Escalate to CFO</Btn>
+              {role !== 'CFO' && <Btn variant="primary" style={{ flex: 1 }} onClick={() => handleEscalate(activePanel.rawId)}>Escalate to CFO</Btn>}
               <Btn variant="green" style={{ flex: 1 }} onClick={() => openMarkSafeModal(activePanel)}>Mark as Safe</Btn>
             </div>
             <button onClick={() => setFeedbackTarget(activePanel)}

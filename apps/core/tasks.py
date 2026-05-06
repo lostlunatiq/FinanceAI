@@ -1,5 +1,7 @@
 import logging
+
 from celery import shared_task
+
 from .models import AuditLog
 
 logger = logging.getLogger(__name__)

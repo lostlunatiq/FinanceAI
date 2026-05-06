@@ -1,15 +1,15 @@
-from rest_framework import status
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
-from django.shortcuts import get_object_or_404
 from django.db.models import Q
+from django.shortcuts import get_object_or_404
+from rest_framework import status
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
+from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
 
-from .auth_serializers import LoginSerializer, UserProfileSerializer, RegisterUserSerializer
+from .auth_serializers import LoginSerializer, RegisterUserSerializer, UserProfileSerializer
+from .models import AuditLog, User
 from .permissions import HasMinimumGrade
-from .models import User, AuditLog
 from .utils import log_audit_event
 
 BUSINESS_ENTITY_TYPES = {"Expense", "Vendor", "Budget", "ExpenseQuery", "ApprovalAuthority"}
@@ -322,7 +322,8 @@ class ForgotPasswordView(APIView):
     throttle_classes = [AnonRateThrottle]
 
     def post(self, request):
-        import secrets, string
+        import secrets
+        import string
         username = (request.data.get("username") or "").strip()
         if not username:
             return Response({"detail": "Username is required."}, status=status.HTTP_400_BAD_REQUEST)
@@ -704,7 +705,7 @@ class ChatSessionDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, session_id):
-        from apps.core.models import ChatSession, AICopilotLog
+        from apps.core.models import AICopilotLog, ChatSession
         try:
             session = ChatSession.objects.get(id=session_id, user=request.user)
         except ChatSession.DoesNotExist:
@@ -809,12 +810,15 @@ def _fmt_invoice_full(inv, include_steps=True):
 
 def _run_nl_query(question: str, user, session_id=None) -> dict:
     """Intelligent NL query — smart context enrichment + conversation history + real DB data."""
-    from ai.tools.openrouter_client import call_text_model
-    from apps.invoices.models import Expense, Vendor, ExpenseApprovalStep, ExpenseQuery, Budget
-    from django.db.models import Sum, Count, Q
-    from django.utils import timezone
+    import json
+    import re
     from datetime import timedelta
-    import json, re
+
+    from django.db.models import Count, Q, Sum
+    from django.utils import timezone
+
+    from ai.tools.openrouter_client import call_text_model
+    from apps.invoices.models import Budget, Expense, ExpenseApprovalStep, Vendor
 
     is_vendor = hasattr(user, "vendor_profile") and user.vendor_profile is not None
     is_cfo    = user.is_superuser
@@ -899,7 +903,7 @@ def _run_nl_query(question: str, user, session_id=None) -> dict:
                 ctx_lines.append(f"  Total Spend: ₹{v_total:,.0f} | Paid: ₹{v_paid:,.0f} | Outstanding: ₹{v_pending:,.0f}")
                 ctx_lines.append(f"  Anomaly Flags (HIGH/CRITICAL): {v_expenses.filter(anomaly_severity__in=['HIGH','CRITICAL']).count()}")
 
-                ctx_lines.append(f"  ALL INVOICES:")
+                ctx_lines.append("  ALL INVOICES:")
                 for inv in v_expenses.order_by("-invoice_date"):
                     ctx_lines.append(_fmt_invoice_full(inv, include_steps=True))
                     ctx_lines.append("")
@@ -941,14 +945,14 @@ def _run_nl_query(question: str, user, session_id=None) -> dict:
 
     # ── VENDOR-SPECIFIC context (when user IS a vendor) ──────────────────────────
     if is_vendor:
-        ctx_lines.append(f"\nALL MY INVOICES:")
+        ctx_lines.append("\nALL MY INVOICES:")
         for inv in expense_qs.order_by("-invoice_date"):
             ctx_lines.append(_fmt_invoice_full(inv, include_steps=True))
             ctx_lines.append("")
 
     # ── EMPLOYEE context ─────────────────────────────────────────────────────────
     if not is_vendor and not is_cfo and grade <= 2:
-        ctx_lines.append(f"\nMY EXPENSES:")
+        ctx_lines.append("\nMY EXPENSES:")
         for e in expense_qs.order_by("-invoice_date"):
             ctx_lines.append(_fmt_invoice_full(e, include_steps=True))
             ctx_lines.append("")
@@ -1037,7 +1041,8 @@ Using ONLY the financial data above, answer the question. Return valid JSON only
         parsed["model"] = response.get("model", "")
         return parsed
     except Exception as _nl_err:
-        import logging, traceback
+        import logging
+        import traceback
         logging.getLogger("apps").error("_run_nl_query failed: %s\n%s", _nl_err, traceback.format_exc())
         # Minimal fallback
         return {
@@ -1046,7 +1051,9 @@ Using ONLY the financial data above, answer the question. Return valid JSON only
         }
 
 from django.contrib.auth.models import Group
+
 from .auth_serializers import GroupSerializer
+
 
 class GroupListView(APIView):
     permission_classes = [IsAuthenticated, HasMinimumGrade.make(4)]
@@ -1167,9 +1174,11 @@ class GroupPoliciesView(APIView):
         return Response({"group_id": pk, "group_name": group.name, "policies": profile.get_policies()})
 
 
-from rest_framework.permissions import IsAdminUser
-from django.http import HttpResponse
 import csv
+
+from django.http import HttpResponse
+from rest_framework.permissions import IsAdminUser
+
 
 class AuditLogExportView(APIView):
     """
@@ -1287,8 +1296,10 @@ class NotificationsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from django.utils import timezone
         from datetime import timedelta
+
+        from django.utils import timezone
+
         from apps.invoices.models import Expense, ExpenseApprovalStep
 
         user = request.user

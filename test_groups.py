@@ -1,11 +1,14 @@
 import os
+
 import django
+
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 django.setup()
 
-from apps.core.models import User
 from django.contrib.auth.models import Group
+
 from apps.core.auth_serializers import UserProfileSerializer
+from apps.core.models import User
 
 u = User.objects.first()
 g, _ = Group.objects.get_or_create(name='TestGroup')

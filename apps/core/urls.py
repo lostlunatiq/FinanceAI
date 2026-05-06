@@ -1,5 +1,6 @@
 # apps/core/urls.py
 from django.urls import path
+
 from . import auth_views, file_views
 
 urlpatterns = [

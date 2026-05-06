@@ -1,11 +1,10 @@
-import uuid
-from django.utils import timezone
-from django.db import transaction
-from django.db import OperationalError, ProgrammingError
+from django.db import OperationalError, ProgrammingError, transaction
 from django.db.models import Sum
-from apps.core.models import AuditLog
+from django.utils import timezone
+
 from apps.core.utils import log_audit_event
-from .models import Expense, ExpenseApprovalStep, VendorL1Mapping, VALID_TRANSITIONS, STEP_TO_STATUS
+
+from .models import STEP_TO_STATUS, VALID_TRANSITIONS, Expense, ExpenseApprovalStep, VendorL1Mapping
 
 
 class InvalidTransition(Exception):
@@ -274,6 +273,7 @@ def build_query_ai_suggestion(expense, question: str) -> str:
 
 def _find_approver_for_level(level: int):
     from apps.core.models import User
+
     from .models import GRADE_FOR_STEP
 
     min_grade = GRADE_FOR_STEP.get(level, 1)
@@ -292,6 +292,7 @@ def _find_approver_for_level(level: int):
 
 def create_initial_approval_step(expense):
     from apps.core.models import User
+
     from .models import GRADE_FOR_STEP
 
     mapping = VendorL1Mapping.objects.filter(vendor=expense.vendor, is_primary=True).first()
@@ -365,7 +366,7 @@ def superior_override_approve(expense: Expense, actor, reason: str = "") -> Expe
     All skipped levels are recorded as "Skipped via Higher Authority".
     Requires actor grade >= 4 or superuser.
     """
-    from .models import GRADE_FOR_STEP, STEP_TO_STATUS
+    from .models import GRADE_FOR_STEP
 
     actor_grade = actor.employee_grade or 1
     if not (actor.is_superuser or actor_grade >= 4):

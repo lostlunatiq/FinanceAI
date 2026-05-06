@@ -4,7 +4,7 @@ Handles OCR extraction and anomaly detection as background jobs.
 """
 
 import logging
-from dataclasses import asdict
+
 from celery import shared_task
 
 logger = logging.getLogger(__name__)
@@ -202,6 +202,7 @@ def auto_generate_monthly_report(self):
     Generates the previous month's financial summary and emails it to configured recipients.
     """
     import datetime
+
     from django.utils import timezone
 
     today = timezone.now().date()
@@ -251,8 +252,8 @@ Login at http://localhost:8000 to view the full report.
 """
 
         # Send emails
-        from django.core.mail import send_mail
         from django.conf import settings
+        from django.core.mail import send_mail
 
         from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@financeai.in")
         send_mail(

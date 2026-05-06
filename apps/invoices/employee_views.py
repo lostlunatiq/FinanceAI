@@ -1,22 +1,23 @@
-from django.utils import timezone
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import status
-from rest_framework.views import APIView
-from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from apps.core.permissions import HasMinimumGrade
-from apps.notifications.dispatcher import notify_user, notify_role, notify_finance_team
+from apps.notifications.dispatcher import notify_finance_team, notify_role, notify_user
+
 from .models import (
+    STEP_TO_STATUS,
     ApprovalAuthority,
     Expense,
     ExpenseApprovalStep,
     ExpenseQuery,
-    STEP_TO_STATUS,
 )
-from .vendor_serializers import VendorBillDetailSerializer, VendorBillListSerializer
 from .services import (
-    build_action_permissions,
+    InvalidTransition,
+    SoDViolation,
     build_query_ai_suggestion,
     can_user_respond_to_query,
     can_user_take_step_action,
@@ -27,9 +28,8 @@ from .services import (
     get_monthly_actor_spend,
     get_settlement_limit,
     transition_expense,
-    InvalidTransition,
-    SoDViolation,
 )
+from .vendor_serializers import VendorBillDetailSerializer, VendorBillListSerializer
 
 
 def _hod_dept_check(user, expense):
@@ -651,7 +651,6 @@ class InternalExpenseListView(APIView):
     }
 
     def _scoped_qs(self, user):
-        from django.db.models import Q
         grade = user.employee_grade or 1
         qs = Expense.objects.filter(vendor__name="Internal Expense").select_related("vendor", "submitted_by").order_by("-created_at")
         if user.is_superuser or grade >= 4:
@@ -705,10 +704,12 @@ class InternalExpenseListView(APIView):
 
     def post(self, request):
         """Submit internal employee expense (no external vendor needed)."""
-        from .models import Vendor
         from datetime import date
         from decimal import Decimal, InvalidOperation
+
         from apps.core.models import FileRef
+
+        from .models import Vendor
 
         user = request.user
         grade = user.employee_grade or 1
@@ -937,8 +938,8 @@ def _send_payment_notification(expense, utr, method, amount, paid_by):
     import logging
     logger = logging.getLogger(__name__)
     try:
-        from django.core.mail import send_mail
         from django.conf import settings
+        from django.core.mail import send_mail
         vendor_email = None
         recipient_name = "Vendor"
         if expense.vendor_id and hasattr(expense.vendor, 'email'):
@@ -978,8 +979,8 @@ def _send_schedule_notification(expense, scheduled_date, note, scheduled_by):
     import logging
     logger = logging.getLogger(__name__)
     try:
-        from django.core.mail import send_mail
         from django.conf import settings
+        from django.core.mail import send_mail
         vendor_email = None
         recipient_name = "Vendor"
         if expense.vendor_id and hasattr(expense.vendor, 'email'):
@@ -1016,8 +1017,8 @@ def _send_approval_notification(expense, status_str, reason, actor):
     """Send approval/rejection notification to the expense submitter."""
     import logging
     try:
-        from django.core.mail import send_mail
         from django.conf import settings
+        from django.core.mail import send_mail
         if not expense.submitted_by_id:
             return
         recipient = expense.submitted_by.email
@@ -1081,8 +1082,9 @@ class ARRemindView(APIView):
 
     def post(self, request, pk):
         expense = get_object_or_404(Expense, pk=pk)
-        from apps.core.models import AuditLog
         import logging
+
+        from apps.core.models import AuditLog
         logger = logging.getLogger(__name__)
 
         customer_name = expense.vendor.name if expense.vendor_id else "Customer"
@@ -1105,8 +1107,8 @@ class ARRemindView(APIView):
 
         # Try to send email (works if email backend is configured)
         try:
-            from django.core.mail import send_mail
             from django.conf import settings
+            from django.core.mail import send_mail
             from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@tijori.ai")
             vendor_email = expense.vendor.email if expense.vendor_id and hasattr(expense.vendor, 'email') else None
             recipient = vendor_email or request.user.email or "finance@tijori.ai"
@@ -1326,7 +1328,7 @@ class SettlePaymentView(APIView):
         )
         # ─── Notify vendor / submitter via email ──────────────────────────────
         _send_payment_notification(expense, payment_utr, payment_method, float(expense.total_amount or 0), request.user)
-        
+
         if expense.submitted_by:
             notify_user(
                 user=expense.submitted_by,
@@ -1337,7 +1339,7 @@ class SettlePaymentView(APIView):
                 entity_type="Expense",
                 entity_id=expense.id
             )
-        
+
         # Notify Finance Team (Audit purposes)
         notify_finance_team(
             title="Payment Recorded",
@@ -1367,7 +1369,7 @@ class SuperiorOverrideApproveView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
-        from .services import superior_override_approve, InsufficientRole
+        from .services import InsufficientRole, superior_override_approve
 
         expense = get_object_or_404(Expense, pk=pk)
         reason = request.data.get("reason", "Approved by superior authority")

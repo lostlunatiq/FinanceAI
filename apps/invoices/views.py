@@ -1,20 +1,17 @@
-from django.utils import timezone
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import status
-from rest_framework.views import APIView
-from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from apps.core.permissions import HasMinimumGrade
-
-from .models import Expense, ExpenseApprovalStep, STEP_TO_STATUS, VALID_TRANSITIONS, Vendor
+from .models import STEP_TO_STATUS, Expense, ExpenseApprovalStep, Vendor
 from .serializers import (
-    ExpenseSubmitSerializer,
-    ExpenseDetailSerializer,
     ApprovalActionSerializer,
-    VendorSerializer,
+    ExpenseDetailSerializer,
+    ExpenseSubmitSerializer,
 )
-from .services import transition_expense, InvalidTransition, SoDViolation, can_user_take_step_action
+from .services import InvalidTransition, SoDViolation, can_user_take_step_action, transition_expense
 
 
 class ExpenseSubmitView(APIView):
@@ -127,7 +124,7 @@ class ApprovalActionView(APIView):
 
     def post(self, request, pk):
         expense = get_object_or_404(Expense, pk=pk)
-        
+
         if not can_user_take_step_action(request.user, expense):
             return Response(
                 {"error": "You are not authorized to take action on this invoice at its current step."},
@@ -145,7 +142,7 @@ class ApprovalActionView(APIView):
             current_step = expense.current_step or 1
             next_step = current_step + 1
             new_status = STEP_TO_STATUS.get(next_step, "APPROVED")
-            
+
             # --- New Feature: TDS/GST Policy Compliance Check ---
             # If the vendor has a TDS section, the invoice should have TDS deducted.
             if expense.vendor.tds_section and float(expense.tds_amount) <= 0:

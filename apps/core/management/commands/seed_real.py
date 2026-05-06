@@ -10,13 +10,11 @@ Usage:
 """
 
 import os
-import uuid
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 
 from django.core.management.base import BaseCommand
-from django.utils import timezone
 
 
 class Command(BaseCommand):
@@ -26,8 +24,8 @@ class Command(BaseCommand):
         parser.add_argument("--flush", action="store_true", help="Clear existing demo data first")
 
     def handle(self, *args, **options):
-        from apps.core.models import User, Department, Vendor, FileRef
-        from apps.invoices.models import Expense, ExpenseApprovalStep, Budget
+        from apps.core.models import Department, FileRef, User, Vendor
+        from apps.invoices.models import Budget, Expense
 
         if options["flush"]:
             self.stdout.write("🗑️  Flushing existing data...")

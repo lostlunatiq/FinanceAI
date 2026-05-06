@@ -1,7 +1,8 @@
+from apps.core.models import User
+
+from .email_utils import render_alert_email
 from .models import Notification, NotificationPreference
 from .tasks import send_email_task
-from .email_utils import render_alert_email
-from apps.core.models import User
 
 
 def _get_prefs(user):

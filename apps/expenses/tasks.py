@@ -4,8 +4,8 @@ from celery import shared_task
 
 @shared_task(bind=True, max_retries=3)
 def run_ocr_pipeline(self, expense_id: str):
-    from apps.invoices.models import Expense
     from ai.agents.ocr_agent import run as ocr_run
+    from apps.invoices.models import Expense
 
     try:
         expense = Expense.objects.get(id=expense_id)

@@ -5,17 +5,17 @@ All endpoints use real DB data + optional AI narratives via OpenRouter.
 import logging
 import re
 from datetime import date, timedelta
-from decimal import Decimal
 
-from django.db.models import Sum, Count, Avg, Max, Min, Q, F
-from django.db.models.functions import TruncMonth, TruncWeek, ExtractWeekDay
+from django.db.models import Avg, Count, Q, Sum
+from django.db.models.functions import TruncMonth
 from django.db.utils import OperationalError, ProgrammingError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
 from apps.core.permissions import HasMinimumGrade
 
-from .models import Budget, Expense, Vendor, VendorL1Mapping, MonthlyFinancialSummary
+from .models import Budget, Expense, MonthlyFinancialSummary, Vendor
 
 logger = logging.getLogger(__name__)
 
@@ -744,7 +744,6 @@ def _check_policy(expense) -> list:
                 "message": "Invoice submitted on weekend — review for urgency",
             })
     # Rule: same vendor, same amount in last 30 days (potential duplicate)
-    from django.db.models import Count as DCount
     similar_count = Expense.objects.filter(
         vendor=expense.vendor,
         total_amount=expense.total_amount,
@@ -946,7 +945,7 @@ class CommandCenterIntelligenceView(APIView):
 
     def get(self, request):
         today = date.today()
-        
+
         # 1. Risk Watch Feed (Top 5 high severity anomalies + velocity spikes)
         risk_watch = []
         anomalies = Expense.objects.filter(anomaly_severity__in=["HIGH", "CRITICAL"]).select_related("vendor").order_by("-created_at")[:5]
@@ -959,15 +958,15 @@ class CommandCenterIntelligenceView(APIView):
                 "desc": _anomaly_desc(a.ocr_raw),
                 "time": "live"
             })
-            
+
         # 2. Treasury Health Index Calculation
         out_total = float(Expense.objects.exclude(_status__in=["PAID", "REJECTED"]).aggregate(t=Sum("total_amount"))["t"] or 0)
         paid_30 = float(Expense.objects.filter(_status="PAID", d365_paid_at__gte=today-timedelta(days=30)).aggregate(t=Sum("total_amount"))["t"] or 0)
-        
+
         liquidity = 95 if out_total < 5000000 else 75 if out_total < 15000000 else 55
         solvency = 80 if paid_30 > out_total * 0.2 else 60
         global_health = round((liquidity + solvency) / 2)
-        
+
         treasury = {
             "global_index": global_health,
             "liquidity": "Excellent" if liquidity >= 85 else "Good" if liquidity >= 70 else "Stable",
@@ -978,7 +977,7 @@ class CommandCenterIntelligenceView(APIView):
         # 3. Cashflow mini-forecast (7 days)
         from .budget_views import _build_cashflow_forecast
         cf = _build_cashflow_forecast(days=30)
-        
+
         return Response({
             "risk_watch": risk_watch,
             "treasury": treasury,
@@ -1012,8 +1011,7 @@ class Generate10QView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        from django.db.models import FloatField
-        from apps.invoices.models import Budget, Department
+        from apps.invoices.models import Budget
 
         today = date.today()
         quarter = (today.month - 1) // 3 + 1

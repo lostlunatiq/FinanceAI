@@ -1,0 +1,31 @@
+# FinanceAI ClickHouse Migration — Project Context
+
+## Tech Stack
+- Django 5.x, PostgreSQL 16, Celery + Redis, React frontend
+- clickhouse-connect==0.15.1 already in requirements
+- Existing partial ClickHouse scaffolding: apps/core/routers.py, apps/core/management/commands/init_clickhouse.py
+- Docker Compose already exists
+
+## Key Existing Files (DO NOT break these)
+- apps/core/models.py:134 — AuditLog model (being replaced)
+- apps/core/views/auth_views.py:167 — AuditLogListView (being rewritten)
+- apps/invoices/views/analytics_views.py — all analytics views (being rewritten)
+- apps/invoices/services.py — transition_expense() and other business logic
+- js/Secondary.jsx:1126 — AuditScreen frontend
+- docker-compose.yml — add ClickHouse service here
+
+## Existing AI Pipeline Functions (wrap these, don't replace)
+- apps/invoices/ai/ocr_pipeline.py
+- apps/invoices/ai/anomaly_pipeline.py
+- apps/invoices/ai/forecast_pipeline.py
+- apps/invoices/ai/query_agent.py
+- apps/invoices/ai/build_query_ai_suggestion()
+
+## Coding Standards
+- Use black formatting (88 char line length)
+- Django imports: stdlib → third-party → django → local
+- All models need Meta: db_table, ordering, verbose_name
+- All views need explicit permission_classes
+- All Celery tasks need explicit name= parameter
+- Never use bare except:
+- Type hints on all new functions

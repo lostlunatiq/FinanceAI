@@ -1,6 +1,7 @@
-from django.db import models
-from django.conf import settings
 import uuid
+
+from django.conf import settings
+from django.db import models
 
 
 class NotificationPreference(models.Model):
@@ -31,14 +32,14 @@ class Notification(models.Model):
     message = models.TextField()
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='LOW')
     nav_target = models.CharField(max_length=100, blank=True, null=True)
-    
+
     # Metadata for deep linking
     entity_type = models.CharField(max_length=50, blank=True, null=True)
     entity_id = models.UUIDField(blank=True, null=True)
-    
+
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     # Visual cues
     dot_color = models.CharField(max_length=20, default='#F59E0B')
     action_url = models.URLField(max_length=500, blank=True, null=True)

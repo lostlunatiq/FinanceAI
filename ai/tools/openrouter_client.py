@@ -168,8 +168,6 @@ def encode_image_to_base64(file_path: str) -> tuple[str, str]:
     if ext == ".pdf":
         # For PDFs, try to convert first page to image
         try:
-            from PIL import Image
-            import io
 
             # Simple approach: read PDF as-is (many vision models support PDF directly)
             with open(file_path, "rb") as f:

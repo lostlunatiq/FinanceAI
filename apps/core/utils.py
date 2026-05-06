@@ -1,7 +1,7 @@
 import functools
 import logging
 import time
-from enum import Enum
+
 from django.db import models
 from django.db.models.base import ModelBase
 

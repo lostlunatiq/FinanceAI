@@ -1,5 +1,5 @@
-from django.core.management.base import BaseCommand
 from apps.core.clickhouse import ensure_schema
+from django.core.management.base import BaseCommand
 
 
 class Command(BaseCommand):

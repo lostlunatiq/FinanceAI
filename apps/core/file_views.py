@@ -1,12 +1,13 @@
 import os
 import uuid
-from rest_framework import status
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.parsers import MultiPartParser, FormParser
+
 from django.conf import settings
 from django.http import FileResponse, Http404
+from rest_framework import status
+from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from apps.invoices.models import FileRef
 
@@ -60,7 +61,7 @@ class FileUploadView(APIView):
         with open(full_path, "wb+") as dest:
             for chunk in file_obj.chunks():
                 dest.write(chunk)
-                
+
         # Validate MIME type with python-magic
         try:
             import magic

@@ -1,5 +1,6 @@
-import requests
 import os
+
+import requests
 
 BASE_URL = "http://localhost:8008/api/v1"
 
@@ -26,7 +27,7 @@ with open("fake.pdf", "rb") as f:
 # The prompt says test large files. Let's create a 10MB dummy file.
 with open("large.pdf", "wb") as f:
     f.write(b"0" * (10 * 1024 * 1024))
-    
+
 with open("large.pdf", "rb") as f:
     ur = requests.post(f"{BASE_URL}/files/upload/", headers=headers, files={"file": ("large.pdf", f, "application/pdf")})
     print(f"Large file upload (10MB): Status {ur.status_code}, Response {ur.text}")

@@ -1,6 +1,7 @@
 # apps/invoices/urls.py
 from django.urls import path
-from . import views, vendor_views, employee_views, budget_views, analytics_views, feedback_views
+
+from . import analytics_views, budget_views, employee_views, feedback_views, vendor_views, views
 
 urlpatterns = [
     # ─── Original expense endpoints ──────────────────────────────

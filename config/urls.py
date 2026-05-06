@@ -1,12 +1,13 @@
 """
 URL configuration for FinanceAI project.
 """
-from django.contrib import admin
-from django.urls import path, include
+import os
+
 from django.conf import settings
 from django.conf.urls.static import static
+from django.contrib import admin
 from django.http import FileResponse, Http404
-import os
+from django.urls import include, path
 
 CONTENT_TYPES = {
     '.html': 'text/html',
@@ -38,10 +39,10 @@ def serve_js(request, path):
     import pathlib
     root = pathlib.Path(settings.BASE_DIR, 'js').resolve()
     full_path = (root / path).resolve()
-    
+
     if not str(full_path).startswith(str(root)):
         raise Http404(f"Not found: js/{path}")
-        
+
     if full_path.is_file():
         ext = full_path.suffix.lower()
         content_type = CONTENT_TYPES.get(ext, 'application/octet-stream')
@@ -57,13 +58,13 @@ def serve_legacy_frontend(request, path=""):
     import pathlib
     if not path or path.endswith('/'):
         path = path.rstrip('/') + '/code.html' if path else 'financeai_login/code.html'
-        
+
     root = pathlib.Path(settings.BASE_DIR, 'frontend').resolve()
     full_path = (root / path).resolve()
-    
+
     if not str(full_path).startswith(str(root)):
         raise Http404(f"Frontend file not found: {path}")
-        
+
     if full_path.is_file():
         ext = full_path.suffix.lower()
         content_type = CONTENT_TYPES.get(ext, 'application/octet-stream')

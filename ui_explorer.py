@@ -1,7 +1,7 @@
 import asyncio
 import json
-import traceback
 from urllib.parse import urlparse
+
 from playwright.async_api import async_playwright
 
 ROLES = [
@@ -60,8 +60,8 @@ async def explore_page(page, url, role, results):
             disabled: b.disabled
         }));
     }""")
-    
-    # We won't click all buttons to avoid state corruption/navigation loops, 
+
+    # We won't click all buttons to avoid state corruption/navigation loops,
     # but we log if there are errors visible on the page
     body_text = await page.content()
     if "An error occurred" in body_text or "Failed to fetch" in body_text or "undefined" in body_text.lower():
@@ -81,14 +81,14 @@ async def explore_page(page, url, role, results):
 
 async def main():
     results = []
-    
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
-        
+
         for username, password, role in ROLES:
             context = await browser.new_context()
             page = await context.new_page()
-            
+
             # Setup error listeners
             page.on("console", lambda msg: results.append({
                 "Role": role, "Page / Module": page.url, "Button / Feature": "Console",
@@ -96,14 +96,14 @@ async def main():
                 "Steps to Reproduce": "Load page", "Expected Behavior": "No console errors",
                 "Actual Behavior": msg.text
             }) if msg.type == "error" else None)
-            
+
             page.on("pageerror", lambda exc: results.append({
                 "Role": role, "Page / Module": page.url, "Button / Feature": "JS Exception",
                 "Issue Type": "UI", "Severity": "High",
                 "Steps to Reproduce": "Load page", "Expected Behavior": "No JS errors",
                 "Actual Behavior": str(exc)
             }))
-            
+
             print(f"Testing Role: {role} ({username})")
             try:
                 await page.goto(f"{BASE_URL}/frontend/financeai_login/code.html")
@@ -111,7 +111,7 @@ async def main():
                 await page.fill("input[type='password']", password)
                 await page.click("button:has-text('Sign In')")
                 await page.wait_for_timeout(2000)
-                
+
                 # Check login success
                 if "login" in page.url:
                     error_msg = await page.evaluate("() => { const el = document.getElementById('login-error'); return el ? el.innerText : null; }")
@@ -124,11 +124,11 @@ async def main():
                     })
                     await context.close()
                     continue
-                
+
                 # We start exploration from the redirected page (dashboard)
                 visited = set()
                 to_visit = [urlparse(page.url).path]
-                
+
                 # To prevent endless loop, limit to max 15 pages per role
                 max_pages = 15
                 while to_visit and len(visited) < max_pages:
@@ -136,13 +136,13 @@ async def main():
                     if current_path in visited:
                         continue
                     visited.add(current_path)
-                    
+
                     new_links = await explore_page(page, f"{BASE_URL}{current_path}", role, results)
                     if new_links:
                         for link in new_links:
                             if link not in visited and link not in to_visit:
                                 to_visit.append(link)
-                
+
             except Exception as e:
                 print(f"  Exception: {e}")
                 results.append({
@@ -152,9 +152,9 @@ async def main():
                 })
             finally:
                 await context.close()
-                
+
         await browser.close()
-        
+
     with open("ui_test_report_data.json", "w") as f:
         json.dump(results, f, indent=2)
     print("Done. Wrote results to ui_test_report_data.json")

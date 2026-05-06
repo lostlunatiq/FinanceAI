@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import Vendor, Expense, ExpenseApprovalStep, ExpenseQuery
+
+from .models import Expense, ExpenseQuery, Vendor
 
 
 class VendorOnboardSerializer(serializers.ModelSerializer):

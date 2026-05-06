@@ -1,5 +1,6 @@
-from rest_framework import serializers
 from django.contrib.auth import authenticate
+from rest_framework import serializers
+
 from apps.core.models import User
 
 
@@ -19,6 +20,7 @@ class LoginSerializer(serializers.Serializer):
 
 from django.contrib.auth.models import Group
 
+
 class GroupSerializer(serializers.ModelSerializer):
     policies = serializers.SerializerMethodField()
 
@@ -31,8 +33,9 @@ class GroupSerializer(serializers.ModelSerializer):
         try:
             return obj.profile.get_policies()
         except GroupProfile.DoesNotExist:
-            from .models import DEFAULT_GROUP_POLICIES
             import copy
+
+            from .models import DEFAULT_GROUP_POLICIES
             return copy.deepcopy(DEFAULT_GROUP_POLICIES)
 
 

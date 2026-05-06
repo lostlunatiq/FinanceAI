@@ -1,13 +1,12 @@
 import datetime
+
 import pytest
 from django.urls import reverse
 from rest_framework.test import APIClient
 
-from apps.core.models import AuditLog, Department, User
+from apps.core.models import AuditLog, Department, User, Vendor
 from apps.core.permissions import hod_dept_filter
-from apps.invoices.models import Budget, Expense, ExpenseApprovalStep
-from apps.core.models import Vendor
-
+from apps.invoices.models import Budget, Expense
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 

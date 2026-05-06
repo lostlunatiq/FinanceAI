@@ -1,6 +1,6 @@
-import requests
-import json
 import sys
+
+import requests
 
 BASE_URL = "http://localhost:8000/api/v1"
 
@@ -24,10 +24,10 @@ def main():
     # Login as CFO (assuming credentials from seed or default)
     print("Logging in...")
     login_resp = requests.post(f"{BASE_URL}/auth/login/", json={
-        "username": "cfo", 
+        "username": "cfo",
         "password": "demo1234"
     })
-    
+
     if login_resp.status_code != 200:
         # Try another common user from seed
         login_resp = requests.post(f"{BASE_URL}/auth/login/", json={
@@ -38,7 +38,7 @@ def main():
     if login_resp.status_code != 200:
         print("Could not login. Ensure the server is running and seeded.")
         sys.exit(1)
-        
+
     token = login_resp.json()["access"]
     print("Login Successful.")
 

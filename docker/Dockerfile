@@ -10,7 +10,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   libffi-dev \
   shared-mime-info \
   poppler-utils \
-  && rm -rf /var/lib/apt/lists/*
+  fonts-liberation \
+  fonts-dejavu-core \
+  fonts-noto-core \
+  && rm -rf /var/lib/apt/lists/* \
+  && fc-cache -fv
 
 WORKDIR /app
 
@@ -31,7 +35,7 @@ COPY . .
 RUN echo "Hello Naman"
 
 COPY docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN sed -i 's/\r//' /entrypoint.sh && chmod +x /entrypoint.sh
 
 EXPOSE 8000
 

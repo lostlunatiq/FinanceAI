@@ -1,5 +1,5 @@
+
 import requests
-import json
 
 BASE_URL = "http://localhost:8008/api/v1"
 
@@ -43,27 +43,27 @@ for username, password, role in USERS:
         print(f"[{role}] LOGIN FAILED for {username}")
         continue
     token = r.json().get("access")
-    
+
     print(f"\n--- Testing {role} ({username}) ---")
     headers = {"Authorization": f"Bearer {token}"}
-    
+
     for ep_name, method, path in ENDPOINTS:
         url = f"{BASE_URL}{path}"
         if method == "GET":
             res = requests.get(url, headers=headers)
         elif method == "POST":
             res = requests.post(url, headers=headers, json={})
-            
+
         print(f"{ep_name:<25}: {res.status_code}")
-        
-        # We can flag if someone who shouldn't have access gets a 200, 
+
+        # We can flag if someone who shouldn't have access gets a 200,
         # or if an API crashes with 500
         if res.status_code >= 500:
             results.append((role, ep_name, "API Error 500", res.text))
-        
+
         if role.startswith("Employee") and ep_name in ["Audit Logs", "Analytics Command Center", "Finance Vendor Bills"] and res.status_code == 200:
             results.append((role, ep_name, "Permission Leak", "Employee accessed restricted endpoint"))
-            
+
         if role.startswith("Vendor") and ep_name in ["User List", "Budgets", "Audit Logs", "Finance Vendor Bills"] and res.status_code == 200:
             results.append((role, ep_name, "Permission Leak", "Vendor accessed internal endpoint"))
 

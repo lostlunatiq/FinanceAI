@@ -1,8 +1,8 @@
-import requests
 import os
-import json
 import time
 from datetime import datetime
+
+import requests
 
 BASE_URL = "http://localhost:8008/api/v1"
 
@@ -31,31 +31,31 @@ def upload_and_submit(username, file_paths):
         print(f"Failed to login {username}")
         return
     user_headers = {"Authorization": f"Bearer {token}"}
-    
+
     is_vendor = "vendor" in username
 
     for fpath in file_paths:
         if not os.path.exists(fpath):
             print(f"File not found: {fpath}")
             continue
-            
+
         print(f"[{username}] Processing {fpath}...")
         with open(fpath, "rb") as f:
             ur = requests.post(f"{BASE_URL}/files/upload/", headers=user_headers, files={"file": (os.path.basename(fpath), f, "application/pdf")})
-        
+
         if ur.status_code != 201:
             print("Upload failed", ur.text)
             continue
         file_id = ur.json()["id"]
-        
+
         print(f"  Running OCR on {file_id}...")
         ocr_r = requests.post(f"{BASE_URL}/files/ocr/", json={"file_id": file_id}, headers=user_headers)
         if ocr_r.status_code != 200:
             print("OCR failed", ocr_r.text)
             continue
-        
+
         extr = ocr_r.json().get("extracted_fields", {})
-        
+
         def clean_date(d):
             if not d: return "2026-04-10"
             d = str(d).strip()
@@ -79,12 +79,12 @@ def upload_and_submit(username, file_paths):
             "igst": extr.get("igst") or 0.0,
             "business_purpose": extr.get("business_purpose") or f"Enterprise Expense: {os.path.basename(fpath)}"
         }
-        
+
         if is_vendor:
             sr = requests.post(f"{BASE_URL}/invoices/vendor/bills/", json=submit_data, headers=user_headers)
         else:
             sr = requests.post(f"{BASE_URL}/invoices/submit/", json=submit_data, headers=user_headers)
-        
+
         if sr.status_code == 201:
             print("  Successfully submitted", sr.json().get("ref_no", "Bill created"))
         else:

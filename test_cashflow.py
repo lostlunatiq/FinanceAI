@@ -1,9 +1,12 @@
-import os, django
+import os
+
+import django
+
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
 django.setup()
+import requests
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
-import requests
 
 User = get_user_model()
 u = User.objects.get(username="arjun.sharma")

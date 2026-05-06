@@ -1,8 +1,10 @@
 import json
+
+from django.contrib.auth.models import Group
 from django.test import RequestFactory
+
 from apps.core.auth_views import UserDetailView
 from apps.core.models import User
-from django.contrib.auth.models import Group
 
 u = User.objects.filter(is_superuser=True).first()
 target_u = User.objects.exclude(is_superuser=True).first()

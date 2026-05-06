@@ -1,0 +1,50 @@
+name: Validate JS Build
+
+on:
+  pull_request:
+    paths:
+      - 'js/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/validate-build.yml'
+
+jobs:
+  validate-js-build:
+    runs-on: ubuntu-latest
+    name: Ensure JS dist is up-to-date with source
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build JS from source
+        run: npm run build:js
+
+      - name: Check if dist is up-to-date
+        run: |
+          if git diff --quiet js/dist/; then
+            echo "✅ SUCCESS: JS dist files are up-to-date with source"
+            exit 0
+          else
+            echo "❌ FAILED: JS source changed but dist/ is out of sync"
+            echo ""
+            echo "You modified JSX files but forgot to rebuild."
+            echo ""
+            echo "Run this locally and push the rebuilt dist files:"
+            echo "  npm run build:js"
+            echo "  git add js/dist/"
+            echo "  git push"
+            echo ""
+            echo "Diff:"
+            git diff --name-status js/dist/
+            exit 1
+          fi

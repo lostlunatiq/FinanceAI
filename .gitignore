@@ -215,5 +215,10 @@ __marimo__/
 # Node.js
 node_modules/
 
+# JavaScript build artifacts — DO NOT COMMIT
+js/dist/
+js/node_modules/
+# Note: package-lock.json is committed for reproducibility
+
 # Aider
 .aider*

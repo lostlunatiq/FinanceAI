@@ -1,9 +1,10 @@
 import json
+
+from django.contrib.auth.models import Group
 from django.test import RequestFactory
-from rest_framework.request import Request
+
 from apps.core.auth_views import UserDetailView
 from apps.core.models import User
-from django.contrib.auth.models import Group
 
 u = User.objects.filter(is_superuser=True).first()
 target_u = User.objects.exclude(is_superuser=True).first()
@@ -16,7 +17,6 @@ request = factory.patch('/api/v1/auth/users/{}/'.format(target_u.id), data=json.
 
 # Important: Need to authenticate using force_authenticate for rest_framework
 from rest_framework.test import force_authenticate
-from rest_framework.views import APIView
 
 view = UserDetailView.as_view()
 force_authenticate(request, user=u)
