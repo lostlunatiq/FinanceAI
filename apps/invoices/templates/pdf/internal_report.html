@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Our Year in Numbers FY {{ year }} — Tijori AI</title>
+<style>
+@page {
+  size: A4;
+  margin: 2.2cm 1.8cm 2.6cm 1.8cm;
+  @top-left {
+    content: "TIJORI AI  ·  FY {{ year }}  ·  Our Year in Numbers";
+    font-family: "Liberation Sans", Helvetica, Arial, sans-serif;
+    font-size: 7pt; color: #94A3B8; padding-top: 8pt;
+  }
+  @top-right {
+    content: "Internal Report";
+    font-family: "Liberation Sans", Helvetica, Arial, sans-serif;
+    font-size: 7pt; font-weight: bold; color: #10B981; padding-top: 8pt;
+  }
+  @bottom-center {
+    content: "Page " counter(page) " of " counter(pages);
+    font-family: "Liberation Sans", Helvetica, Arial, sans-serif;
+    font-size: 7pt; color: #64748B; padding-bottom: 8pt;
+  }
+  @bottom-left {
+    content: "{{ confidentiality }}";
+    font-family: "Liberation Sans", Helvetica, Arial, sans-serif;
+    font-size: 6pt; color: #94A3B8; padding-bottom: 8pt;
+  }
+}
+@page :first {
+  margin: 1cm;
+  @top-left { content: none; } @top-right { content: none; }
+  @bottom-center { content: none; } @bottom-left { content: none; }
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: "Liberation Sans", Helvetica, Arial, sans-serif; font-size: 9.5pt; color: #1E293B; line-height: 1.6; }
+
+/* Cover */
+.cover { background: #0B2818; min-height: 275mm; padding: 2.5cm 2cm; page-break-after: always; break-after: page; }
+.c-logo { font-size: 12pt; font-weight: bold; color: #10B981; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 4pt; }
+.c-sub  { font-size: 7pt; color: #475569; letter-spacing: 0.18em; text-transform: uppercase; }
+.c-sp   { height: 55mm; }
+.c-badge{ display: inline-block; background: #10B981; color: white; font-size: 7.5pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.14em; padding: 5pt 12pt; border-radius: 2pt; margin-bottom: 14pt; }
+.c-title{ font-size: 30pt; font-weight: bold; color: white; line-height: 1.1; margin-bottom: 10pt; }
+.c-fy   { font-size: 14pt; font-weight: bold; color: #10B981; letter-spacing: 3pt; margin-bottom: 14pt; }
+.c-quote{ font-size: 10pt; color: #94A3B8; font-style: italic; line-height: 1.5; margin-bottom: 16pt; }
+.c-rule { width: 50pt; height: 2.5pt; background: #10B981; margin-bottom: 0; }
+.c-foot { margin-top: 40pt; border-top: 1pt solid #1E3A2F; padding-top: 14pt; }
+.c-by   { font-size: 7.5pt; color: #475569; line-height: 1.7; }
+
+/* Sections */
+.section { page-break-before: always; break-before: page; padding-top: 4pt; }
+.sec-eyebrow { font-size: 7.5pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.16em; color: #10B981; margin-bottom: 3pt; }
+.sec-rule { border: none; border-top: 2pt solid #10B981; margin: 10pt 0 18pt 0; }
+
+/* Headings */
+h1 { font-size: 18pt; font-weight: bold; color: #0B2818; margin: 0 0 4pt 0; line-height: 1.15; }
+h2 { font-size: 11pt; font-weight: bold; color: #1E293B; margin: 18pt 0 6pt 0; padding-bottom: 4pt; border-bottom: 1pt solid #F1F0EE; }
+h3 { font-size: 9.5pt; font-weight: bold; color: #475569; margin: 10pt 0 4pt 0; }
+p  { margin: 0 0 8pt 0; line-height: 1.65; color: #374151; font-size: 9.5pt; }
+
+/* Tables */
+table { width: 100%; border-collapse: collapse; margin-bottom: 14pt; font-size: 8.5pt; page-break-inside: avoid; }
+thead th { text-align: left; padding: 8pt 10pt; font-size: 7.5pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.08em; color: #64748B; background: #F0FDF4; border-bottom: 1.5pt solid #D1FAE5; border-top: 1.5pt solid #D1FAE5; }
+tbody td { padding: 8pt 10pt; border-bottom: 0.5pt solid #F1F5F9; vertical-align: middle; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:nth-child(even) td { background: #FAFAF9; }
+.num { font-family: "Liberation Mono", "Courier New", monospace; font-weight: bold; }
+
+/* Callout */
+.callout { border-left: 3.5pt solid #10B981; background: #F0FDF4; padding: 11pt 14pt; margin: 10pt 0; font-size: 9pt; line-height: 1.7; color: #064E3B; page-break-inside: avoid; }
+.callout strong { color: #0B2818; }
+
+/* Milestone block */
+.milestone { border-left: 3.5pt solid #10B981; padding: 10pt 14pt; margin: 8pt 0; background: #F8FAFC; page-break-inside: avoid; }
+.ms-title { font-size: 10pt; font-weight: bold; color: #0B2818; margin-bottom: 3pt; }
+.ms-body  { font-size: 9pt; color: #374151; line-height: 1.6; }
+
+/* Narrative */
+.narrative { border: 1pt solid #D1FAE5; border-left: 4pt solid #10B981; background: #F0FDF4; padding: 16pt 18pt; font-size: 10pt; line-height: 1.82; color: #064E3B; white-space: pre-wrap; page-break-inside: avoid; }
+
+/* Progress bar */
+.pbar-wrap { display: flex; align-items: center; gap: 6pt; }
+.pbar-bg   { width: 80pt; height: 6pt; background: #E2E8F0; border-radius: 3pt; overflow: hidden; }
+.pbar-fill { height: 100%; border-radius: 3pt; }
+.chart-wrap { margin: 8pt 0 12pt 0; }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div>
+    <div class="c-logo">Tijori AI</div>
+    <div class="c-sub">Enterprise Financial Intelligence Platform</div>
+  </div>
+  <div class="c-sp"></div>
+  <div>
+    <div class="c-badge">For Our Team</div>
+    <div class="c-title">Our Year<br>in Numbers</div>
+    <div class="c-fy">FY {{ year }}</div>
+    <div class="c-quote">
+      "A transparent look at how we spent,<br>
+      where we grew, and what it means for all of us."
+    </div>
+    <div class="c-rule"></div>
+  </div>
+  <div class="c-foot">
+    <div class="c-by">
+      Shared with you by the Finance Team &nbsp;·&nbsp; Tijori AI Platform &nbsp;·&nbsp; {{ generated_at }}<br>
+      {{ confidentiality }}
+    </div>
+  </div>
+</div>
+
+
+<!-- ══ SECTION 1 — COMPANY HEALTH ══ -->
+<div class="section">
+  <div class="sec-eyebrow">Section 1 of 4</div>
+  <h1>Company Financial Health — FY {{ year }}</h1>
+  <p>
+    A plain-English summary of how the company performed financially this year.
+    No jargon — just the numbers that matter and what they mean for all of us.
+  </p>
+  <hr class="sec-rule">
+
+  <h2>Financial Health Score</h2>
+  <p>
+    Our Financial Health Score combines budget discipline, invoice quality, and compliance rate into a single number out of 100.
+    A score above 75 means we're doing well.
+  </p>
+  <div style="text-align:center;margin:16pt 0;">{{ health_ring|safe }}</div>
+  <div class="callout">
+    <strong>FY {{ year }} Financial Health: {{ health_label }} ({{ health_score }}/100)</strong><br>
+    This score is based on three factors: how well we stayed within our approved budgets,
+    how cleanly our invoices were processed ({{ headline.clean_pct }}% compliance rate),
+    and how efficiently we handled approvals and payments.
+    {% if health_score >= 85 %}Our financial performance this year was excellent — great discipline across all teams.
+    {% elif health_score >= 70 %}We had a good year financially, with some areas for improvement heading into FY {{ year|add:1 }}.
+    {% else %}There are some areas where we can do better — the department stories section explains more.{% endif %}
+  </div>
+
+  <h2>Key Numbers — FY {{ year }} at a Glance</h2>
+  <table>
+    <thead>
+      <tr><th>What We Measured</th><th>The Number</th><th>What It Means</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Total Company Spend</strong></td>
+        <td class="num" style="color:#E8783B;">{{ headline.total_spend_fmt }}</td>
+        <td>Every ₹ invested across all teams to keep the business running and growing</td>
+      </tr>
+      <tr>
+        <td><strong>Budget Used</strong></td>
+        <td class="num" style="color:#3B82F6;">{{ headline.util_pct }}%</td>
+        <td>Of our {{ headline.total_budget_fmt }} approved budget — {% if headline.util_pct < 90 %}we were disciplined with our spending{% else %}we used almost all available budget{% endif %}</td>
+      </tr>
+      <tr>
+        <td><strong>Invoices Processed</strong></td>
+        <td class="num">{{ headline.total_invoices }}</td>
+        <td>Supplier invoices handled automatically through our AI finance system — about {{ headline.total_invoices|add:0 }} per year</td>
+      </tr>
+      <tr>
+        <td><strong>Clean Invoice Rate</strong></td>
+        <td class="num" style="color:#10B981;">{{ headline.clean_pct }}%</td>
+        <td>Invoices that went through without any problems — our standard of financial integrity</td>
+      </tr>
+      <tr>
+        <td><strong>Suspicious Invoices Caught</strong></td>
+        <td class="num" style="color:#EF4444;">{{ headline.flagged_high }}</td>
+        <td>Invoices flagged by AI before any money left the company — protecting our finances</td>
+      </tr>
+      <tr>
+        <td><strong>Year-over-Year Change</strong></td>
+        <td class="num" style="color:{{ headline.yoy_color }};">{{ headline.yoy_sign }}{{ headline.yoy_pct }}%</td>
+        <td>How our total spending changed compared to last year (FY {{ prev_year }})</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>How Our Spending Moved Through the Year</h2>
+  <p>Each bar below shows what we spent each month. You can see when our business was busiest and when things quieted down:</p>
+  <div class="chart-wrap">{{ chart_monthly|safe }}</div>
+</div>
+
+
+<!-- ══ SECTION 2 — WHERE WE SPENT ══ -->
+<div class="section">
+  <div class="sec-eyebrow">Section 2 of 4</div>
+  <h1>Where Did the Money Go?</h1>
+  <p>
+    Every rupee we spend is an investment in making the company work better.
+    Here's a plain-English breakdown of where it went — and why it matters to you.
+  </p>
+  <hr class="sec-rule">
+
+  <h2>Spending by Category</h2>
+  <p>How our operating budget was distributed across different types of spend:</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Category</th>
+        <th>Amount Spent</th>
+        <th>% of Total</th>
+        <th>What This Covers</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in top_categories %}
+      <tr>
+        <td style="font-weight:bold;">{{ c.category }}</td>
+        <td class="num" style="color:#10B981;">{{ c.amount_fmt }}</td>
+        <td class="num">{{ c.pct }}%</td>
+        <td style="color:#64748B;">Infrastructure, services and tools in this area that teams rely on</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Quarterly Rhythm</h2>
+  <p>When we spent through the year — and how much each quarter contributed:</p>
+  <div class="chart-wrap">{{ chart_quarterly|safe }}</div>
+  <table>
+    <thead>
+      <tr><th>Quarter</th><th>What We Spent</th><th>Invoices</th><th>Notes</th></tr>
+    </thead>
+    <tbody>
+      {% for q in quarters %}
+      <tr>
+        <td style="font-weight:bold;">{{ q.quarter }}</td>
+        <td class="num" style="color:#10B981;">{{ q.spend_fmt }}</td>
+        <td class="num">{{ q.invoices }}</td>
+        <td style="color:#64748B;">Paid and settled</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+
+<!-- ══ SECTION 3 — DEPARTMENT STORIES ══ -->
+<div class="section">
+  <div class="sec-eyebrow">Section 3 of 4</div>
+  <h1>Department Spotlights</h1>
+  <p>
+    Every department plays a role in keeping our finances healthy.
+    Here's a plain-English look at each team's year — the numbers, what they mean, and how they performed against their approved budget.
+  </p>
+  <hr class="sec-rule">
+
+  <h2>How Each Team Did — Budget vs Actual</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Department</th>
+        <th>Budget Given</th>
+        <th>Actually Spent</th>
+        <th>Difference</th>
+        <th>Budget Used</th>
+        <th>How They Did</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in dept_performance %}
+      <tr>
+        <td style="font-weight:bold;">{{ d.department }}</td>
+        <td class="num" style="color:#64748B;">{{ d.budget_fmt }}</td>
+        <td class="num" style="font-weight:bold;">{{ d.actual_fmt }}</td>
+        <td class="num" style="color:{{ d.variance_color }};font-weight:bold;">{{ d.variance_sign }}{{ d.variance_fmt }}</td>
+        <td>
+          <div class="pbar-wrap">
+            <div class="pbar-bg">
+              <div class="pbar-fill" style="width:{% if d.utilization_pct > 100 %}100{% else %}{{ d.utilization_pct|floatformat:0 }}{% endif %}%;background:{{ d.util_color }};"></div>
+            </div>
+            <span style="font-size:8pt;font-weight:bold;color:{{ d.util_color }};">{{ d.utilization_pct }}%</span>
+          </div>
+        </td>
+        <td style="color:{{ d.status_color }};font-weight:bold;">
+          {% if d.status == 'OVER_BUDGET' %}Over budget — under review
+          {% elif d.status == 'ON_TRACK' %}Exactly on target ✓
+          {% else %}Under budget — well done! ✓{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Department Stories</h2>
+  {% for d in dept_performance %}
+  <div class="milestone">
+    <div class="ms-title">{{ d.department }}</div>
+    <div class="ms-body">
+      This team spent <strong>{{ d.actual_fmt }}</strong> against an approved budget of <strong>{{ d.budget_fmt }}</strong> —
+      {% if d.status == 'OVER_BUDGET' %}
+      finishing <strong>{{ d.variance_fmt }}</strong> over budget ({{ d.variance_pct|floatformat:1 }}% overrun).
+      The Finance team is reviewing the variance with the department head.
+      {% elif d.status == 'ON_TRACK' %}
+      landing exactly on target. Outstanding budget planning and execution by this team.
+      {% else %}
+      finishing <strong>{{ d.variance_fmt }}</strong> under budget — excellent cost discipline.
+      This team sets the standard for responsible spending across the company.
+      {% endif %}
+      Year-on-year comparison: spending {% if d.yoy_change_pct >= 0 %}increased{% else %}decreased{% endif %} by <strong>{{ d.yoy_sign }}{{ d.yoy_change_pct }}%</strong> vs FY {{ prev_year }}.
+    </div>
+  </div>
+  {% endfor %}
+
+  {% if efficient_dept %}
+  <h2>🏆 Team Recognition</h2>
+  <div class="callout">
+    <strong>Most Efficient Team: {{ efficient_dept.department }}</strong><br>
+    Finished the year {{ efficient_dept.variance_fmt }} under budget — the best budget performance of any department in FY {{ year }}.
+    This is what excellent financial discipline looks like. Well done!
+  </div>
+  {% endif %}
+</div>
+
+
+<!-- ══ SECTION 4 — MILESTONES & FORWARD LOOK ══ -->
+<div class="section">
+  <div class="sec-eyebrow">Section 4 of 4</div>
+  <h1>Year Highlights &amp; What's Next</h1>
+  <p>
+    A celebration of what we achieved in FY {{ year }} and an honest, optimistic look at where we're heading.
+  </p>
+  <hr class="sec-rule">
+
+  <h2>FY {{ year }} — The Year in Numbers</h2>
+  <table>
+    <thead>
+      <tr><th>Achievement</th><th>Number</th><th>Why It Matters</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>📋 Invoices Processed</strong></td>
+        <td class="num" style="color:#10B981;">{{ headline.total_invoices }}</td>
+        <td>Supplier relationships managed and paid — each one tracked and verified</td>
+      </tr>
+      <tr>
+        <td><strong>✅ Clean Invoice Rate</strong></td>
+        <td class="num" style="color:#10B981;">{{ headline.clean_pct }}%</td>
+        <td>Our standard of financial integrity — the best rate we've achieved</td>
+      </tr>
+      <tr>
+        <td><strong>🏢 Departments Tracked</strong></td>
+        <td class="num" style="color:#3B82F6;">{{ dept_performance|length }}</td>
+        <td>Cost centres budgeted, tracked, and reported throughout the year</td>
+      </tr>
+      <tr>
+        <td><strong>🤖 Threats Caught by AI</strong></td>
+        <td class="num" style="color:#EF4444;">{{ headline.flagged_high }}</td>
+        <td>Suspicious invoices caught before any money left — protecting our company</td>
+      </tr>
+      <tr>
+        <td><strong>💰 Budget Used</strong></td>
+        <td class="num" style="color:#E8783B;">{{ headline.util_pct }}%</td>
+        <td>Of our approved budget was invested productively across all teams</td>
+      </tr>
+      <tr>
+        <td><strong>📈 Spend Change vs Last Year</strong></td>
+        <td class="num" style="color:{{ headline.yoy_color }};">{{ headline.yoy_sign }}{{ headline.yoy_pct }}%</td>
+        <td>How our spending changed — reflecting the company's growth trajectory</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>FY {{ year }} Milestones</h2>
+  <div class="callout">
+    <strong>💼 Financial Operations</strong><br>
+    Processed {{ headline.total_invoices }} supplier invoices through our AI-powered AP system with {{ headline.clean_pct }}% accuracy.
+    Our automated pipeline handled everything from OCR extraction to 3-level approval routing.
+  </div>
+  <div class="callout">
+    <strong>🔒 Financial Security</strong><br>
+    The Tijori AI fraud detection engine screened every single invoice before payment.
+    {{ headline.flagged_high }} high-risk transactions were caught and quarantined — protecting the company from potential financial loss.
+  </div>
+  <div class="callout">
+    <strong>📊 Transparency &amp; Compliance</strong><br>
+    For the first time, every department had real-time budget tracking with automated alerts.
+    Finance reporting that used to take days now takes minutes — and everyone can see the numbers.
+  </div>
+  {% if dept_performance %}
+  <div class="callout">
+    <strong>🏆 Team Financial Discipline</strong><br>
+    {% with top=dept_performance|first %}
+    Our largest investment area was <strong>{{ top.department }}</strong> at {{ top.actual_fmt }},
+    driving core operations and growth.
+    {% endwith %}
+    {% if efficient_dept %}
+    Most efficient team: <strong>{{ efficient_dept.department }}</strong>,
+    finishing {{ efficient_dept.variance_fmt }} under budget.
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <h2>A Message from Finance — Looking Ahead</h2>
+  <div class="narrative">{{ ai_narrative }}</div>
+
+  <h2>About This Report</h2>
+  <table>
+    <tbody>
+      <tr>
+        <td style="color:#64748B;font-weight:bold;width:140pt;padding:8pt 10pt;border-bottom:0.5pt solid #F1F5F9;">Report For</td>
+        <td style="padding:8pt 10pt;border-bottom:0.5pt solid #F1F5F9;">All employees — internal distribution</td>
+      </tr>
+      <tr>
+        <td style="color:#64748B;font-weight:bold;padding:8pt 10pt;border-bottom:0.5pt solid #F1F5F9;">Financial Year</td>
+        <td style="padding:8pt 10pt;border-bottom:0.5pt solid #F1F5F9;">FY {{ year }} — 1 January to 31 December {{ year }}</td>
+      </tr>
+      <tr>
+        <td style="color:#64748B;font-weight:bold;padding:8pt 10pt;border-bottom:0.5pt solid #F1F5F9;">Prepared By</td>
+        <td style="padding:8pt 10pt;border-bottom:0.5pt solid #F1F5F9;">Finance Team &nbsp;·&nbsp; Tijori AI Platform</td>
+      </tr>
+      <tr>
+        <td style="color:#64748B;font-weight:bold;padding:8pt 10pt;">Generated</td>
+        <td style="padding:8pt 10pt;">{{ generated_at }} &nbsp;·&nbsp; {{ confidentiality }}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</body>
+</html>

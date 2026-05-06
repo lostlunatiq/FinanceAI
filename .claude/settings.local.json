@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(USE_SQLITE=true DJANGO_SETTINGS_MODULE=config.settings.dev .venv/Scripts/python manage.py migrate --no-input)",
+      "Bash(USE_SQLITE=true DJANGO_SETTINGS_MODULE=config.settings.dev .venv/Scripts/python manage.py seed_demo)",
+      "Bash(PYTHONIOENCODING=utf-8 USE_SQLITE=true DJANGO_SETTINGS_MODULE=config.settings.dev .venv/Scripts/python manage.py seed_demo)",
+      "Bash(PYTHONIOENCODING=utf-8 USE_SQLITE=true DJANGO_SETTINGS_MODULE=config.settings.dev .venv/Scripts/python manage.py makemigrations --no-input)",
+      "Bash(PYTHONIOENCODING=utf-8 USE_SQLITE=true DJANGO_SETTINGS_MODULE=config.settings.dev .venv/Scripts/python -c \"from django.db import connection; cursor = connection.cursor\\(\\); cursor.execute\\(\\\\\"PRAGMA table_info\\(invoices_expenseapprovalstep\\)\\\\\"\\); print\\([r[1] for r in cursor.fetchall\\(\\)]\\)\")",
+      "Bash(PYTHONIOENCODING=utf-8 USE_SQLITE=true DJANGO_SETTINGS_MODULE=config.settings.dev .venv/Scripts/python manage.py migrate --no-input)",
+      "Bash(PYTHONIOENCODING=utf-8 USE_SQLITE=true DJANGO_SETTINGS_MODULE=config.settings.dev .venv/Scripts/python manage.py runserver 0.0.0.0:8000)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8000/)",
+      "Bash(curl *)",
+      "Bash(npm run *)",
+      "Bash(npx vite *)",
+      "Bash(npm --version)",
+      "Bash(\"../../node_modules/.bin/vite\" --port 5173)",
+      "Bash(/c/Users/arun.parmal/OneDrive - SS Supply Chain Solutions P Ltd/Desktop/Kube Kitchen/Hackathon/Final product/FinanceAI/frontend/finance-ai-platform/node_modules/.bin/vite *)",
+      "Bash(node *)",
+      "Bash(rm -rf node_modules package-lock.json)",
+      "Bash(npm install *)",
+      "Bash(python manage.py showmigrations)",
+      "Bash(.venv/Scripts/python.exe manage.py showmigrations)",
+      "Bash(.venv/Scripts/python.exe manage.py migrate)",
+      "Bash(.venv/Scripts/python.exe -c \"import requests; r = requests.get\\('http://localhost:8008/api/v1/'\\); print\\(r.status_code\\)\")",
+      "Bash(.venv/Scripts/pip.exe install *)",
+      "Bash(.venv/Scripts/python.exe -c \"import requests; r = requests.get\\('http://localhost:8008/api/v1/auth/login/', timeout=3\\); print\\(r.status_code\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"import requests; r = requests.get\\('http://localhost:8008/api/v1/auth/login/', timeout=5\\); print\\('Server up:', r.status_code\\)\")",
+      "Bash(.venv/Scripts/python.exe e2e_seed_real.py)",
+      "Bash(.venv/Scripts/python.exe manage.py shell -c \"from apps.core.models import Department; print\\(list\\(Department.objects.values\\('id','name'\\)\\)\\)\")",
+      "Bash(docker compose *)",
+      "Bash(netstat -ano)",
+      "Bash(findstr \":8000 \")",
+      "Bash(findstr LISTENING)",
+      "Bash(findstr \":8008 \")",
+      "Bash(Get-Process \"Docker Desktop\" -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object Name, Id)",
+      "Bash(grep -v \"^.*//.*$\")",
+      "Bash(dir \"C:\\\\Users\\\\arun.parmal\\\\OneDrive - SS Supply Chain Solutions P Ltd\\\\Desktop\\\\Kube Kitchen\\\\Hackathon\\\\Final product\\\\FinanceAI\")",
+      "Bash(npx babel *)",
+      "Bash(node_modules/.bin/babel js/App.jsx --out-file js/dist/App.js --presets @babel/preset-react)"
+    ]
+  }
+}

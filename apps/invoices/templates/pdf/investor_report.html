@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Annual Financial Report FY {{ year }} — Tijori AI</title>
+<style>
+/* ── Page Setup ─────────────────────────────────────────────────────────── */
+@page {
+  size: A4;
+  margin: 2.2cm 1.8cm 2.6cm 1.8cm;
+  @top-left {
+    content: "TIJORI AI  ·  Annual Financial Report  ·  FY {{ year }}";
+    font-family: "Liberation Sans", Helvetica, Arial, sans-serif;
+    font-size: 7pt;
+    color: #94A3B8;
+    padding-top: 8pt;
+  }
+  @top-right {
+    content: "Investor Report";
+    font-family: "Liberation Sans", Helvetica, Arial, sans-serif;
+    font-size: 7pt;
+    font-weight: bold;
+    color: #E8783B;
+    padding-top: 8pt;
+  }
+  @bottom-center {
+    content: "Page " counter(page) " of " counter(pages);
+    font-family: "Liberation Sans", Helvetica, Arial, sans-serif;
+    font-size: 7pt;
+    color: #64748B;
+    padding-bottom: 8pt;
+  }
+  @bottom-left {
+    content: "{{ confidentiality }}";
+    font-family: "Liberation Sans", Helvetica, Arial, sans-serif;
+    font-size: 6pt;
+    color: #94A3B8;
+    padding-bottom: 8pt;
+  }
+}
+@page :first {
+  margin: 1cm;
+  @top-left   { content: none; }
+  @top-right  { content: none; }
+  @bottom-center { content: none; }
+  @bottom-left   { content: none; }
+}
+
+/* ── Reset ──────────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: "Liberation Sans", Helvetica, Arial, sans-serif;
+  font-size: 9.5pt;
+  color: #1E293B;
+  line-height: 1.6;
+}
+
+/* ── Cover Page ─────────────────────────────────────────────────────────── */
+.cover {
+  background: #0B1628;
+  min-height: 275mm;
+  padding: 2.5cm 2cm;
+  page-break-after: always;
+  break-after: page;
+}
+.cover-logo     { font-size: 12pt; font-weight: bold; color: #E8783B; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 4pt; }
+.cover-logo-sub { font-size: 7pt;  color: #475569; letter-spacing: 0.18em; text-transform: uppercase; }
+.cover-spacer   { height: 60mm; }
+.cover-badge {
+  display: inline-block;
+  background: #E8783B;
+  color: white;
+  font-size: 7.5pt;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  padding: 5pt 12pt;
+  border-radius: 2pt;
+  margin-bottom: 14pt;
+}
+.cover-title    { font-size: 32pt; font-weight: bold; color: white; line-height: 1.1; letter-spacing: -0.5pt; margin-bottom: 10pt; }
+.cover-fy       { font-size: 14pt; font-weight: bold; color: #E8783B; letter-spacing: 3pt; margin-bottom: 18pt; }
+.cover-rule     { width: 50pt; height: 2.5pt; background: #E8783B; margin-bottom: 16pt; }
+.cover-stats    { font-size: 8pt; color: #94A3B8; line-height: 1.9; }
+.cover-footer   { margin-top: 40pt; border-top: 1pt solid #1E3A5F; padding-top: 14pt; }
+.cover-conf-lbl { font-size: 6.5pt; font-weight: bold; color: #EF4444; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 5pt; }
+.cover-disc     { font-size: 6pt; color: #334155; line-height: 1.6; }
+
+/* ── Section Breaks ─────────────────────────────────────────────────────── */
+.section {
+  page-break-before: always;
+  break-before: page;
+  padding-top: 4pt;
+}
+
+/* ── Section Header ─────────────────────────────────────────────────────── */
+.sec-eyebrow {
+  font-size: 7.5pt;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: #E8783B;
+  margin-bottom: 3pt;
+}
+.sec-rule { border: none; border-top: 2pt solid #E8783B; margin: 10pt 0 18pt 0; }
+
+/* ── Heading Hierarchy ──────────────────────────────────────────────────── */
+h1 {
+  font-size: 18pt;
+  font-weight: bold;
+  color: #0B1628;
+  letter-spacing: -0.3pt;
+  margin: 0 0 4pt 0;
+  line-height: 1.15;
+}
+h2 {
+  font-size: 11pt;
+  font-weight: bold;
+  color: #1E293B;
+  margin: 18pt 0 6pt 0;
+  padding-bottom: 4pt;
+  border-bottom: 1pt solid #F1F0EE;
+}
+h3 {
+  font-size: 9.5pt;
+  font-weight: bold;
+  color: #475569;
+  margin: 12pt 0 4pt 0;
+}
+p { margin: 0 0 8pt 0; line-height: 1.65; color: #374151; font-size: 9.5pt; }
+
+/* ── Tables ─────────────────────────────────────────────────────────────── */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 14pt;
+  font-size: 8.5pt;
+  page-break-inside: avoid;
+}
+thead th {
+  text-align: left;
+  padding: 8pt 10pt;
+  font-size: 7.5pt;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748B;
+  background: #F8FAFC;
+  border-bottom: 1.5pt solid #E2E8F0;
+  border-top: 1.5pt solid #E2E8F0;
+}
+tbody td {
+  padding: 8pt 10pt;
+  border-bottom: 0.5pt solid #F1F5F9;
+  vertical-align: middle;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:nth-child(even) td { background: #FAFAF9; }
+.num { font-family: "Liberation Mono", "Courier New", monospace; font-weight: bold; }
+
+/* ── Highlight Block ────────────────────────────────────────────────────── */
+.callout {
+  border-left: 3.5pt solid #E8783B;
+  background: #FFF8F5;
+  padding: 11pt 14pt;
+  margin: 12pt 0;
+  font-size: 9pt;
+  line-height: 1.7;
+  color: #374151;
+  page-break-inside: avoid;
+}
+.callout strong { color: #0B1628; }
+
+/* ── Narrative Block ────────────────────────────────────────────────────── */
+.narrative {
+  border: 1pt solid #DDD6FE;
+  border-left: 4pt solid #8B5CF6;
+  background: #F5F3FF;
+  padding: 16pt 18pt;
+  font-size: 10pt;
+  line-height: 1.82;
+  color: #1E1B4B;
+  white-space: pre-wrap;
+  page-break-inside: avoid;
+  margin-top: 10pt;
+}
+
+/* ── KPI Table ──────────────────────────────────────────────────────────── */
+.kpi-table td:first-child { font-weight: bold; width: 180pt; }
+.kpi-table td { padding: 9pt 10pt; }
+
+/* ── Progress Bar ───────────────────────────────────────────────────────── */
+.pbar-wrap { display: flex; align-items: center; gap: 6pt; }
+.pbar-bg   { width: 55pt; height: 5pt; background: #E2E8F0; border-radius: 3pt; overflow: hidden; }
+.pbar-fill { height: 100%; border-radius: 3pt; }
+
+/* ── Inline Chart Container ─────────────────────────────────────────────── */
+.chart-wrap { margin: 8pt 0 12pt 0; }
+
+/* ── Status Badge ───────────────────────────────────────────────────────── */
+.badge {
+  display: inline-block;
+  padding: 2pt 8pt;
+  border-radius: 20pt;
+  font-size: 7pt;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════
+     COVER PAGE
+══════════════════════════════════════════════════════════════ -->
+<div class="cover">
+  <div>
+    <div class="cover-logo">Tijori AI</div>
+    <div class="cover-logo-sub">Enterprise Financial Intelligence Platform</div>
+  </div>
+
+  <div class="cover-spacer"></div>
+
+  <div>
+    <div class="cover-badge">Annual Investor Report</div>
+    <div class="cover-title">Annual<br>Financial<br>Report</div>
+    <div class="cover-fy">FY {{ year }}</div>
+    <div class="cover-rule"></div>
+    <div class="cover-stats">
+      Financial Year &nbsp;·&nbsp; 1 January – 31 December {{ year }}<br>
+      Total Expenditure &nbsp;·&nbsp; {{ headline.total_spend_fmt }}&nbsp; ({{ headline.yoy_sign }}{{ headline.yoy_pct }}% YoY)<br>
+      Budget Utilisation &nbsp;·&nbsp; {{ headline.util_pct }}% of {{ headline.total_budget_fmt }}<br>
+      Invoices Processed &nbsp;·&nbsp; {{ headline.total_invoices }}&nbsp; &nbsp;|&nbsp; &nbsp;Compliance Rate: {{ headline.clean_pct }}%<br>
+      Generated &nbsp;·&nbsp; {{ generated_at }}
+    </div>
+  </div>
+
+  <div class="cover-footer">
+    <div class="cover-conf-lbl">{{ confidentiality }}</div>
+    <div class="cover-disc">
+      This document contains forward-looking statements and financial estimates prepared by the Tijori AI platform.
+      Past performance is not indicative of future results. All figures are in Indian Rupees (INR/₹) unless stated otherwise.
+      For authorised distribution only. Unauthorised reproduction or disclosure is prohibited.
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     SECTION 1 — FINANCIAL HIGHLIGHTS
+══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="sec-eyebrow">Section 1 of 6</div>
+  <h1>Financial Highlights</h1>
+  <p>
+    Consolidated financial summary for FY {{ year }} (1 January – 31 December {{ year }}).
+    All figures are verified against operational data. Prior year comparatives refer to FY {{ prev_year }}.
+  </p>
+  <hr class="sec-rule">
+
+  <h2>Key Performance Indicators — FY {{ year }}</h2>
+  <table class="kpi-table">
+    <thead>
+      <tr>
+        <th>Metric</th>
+        <th>FY {{ year }}</th>
+        <th>FY {{ prev_year }}</th>
+        <th>Change</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Total Operational Expenditure</td>
+        <td class="num" style="color:#E8783B;">{{ headline.total_spend_fmt }}</td>
+        <td class="num" style="color:#94A3B8;">{{ headline.prev_spend_fmt }}</td>
+        <td class="num" style="color:{{ headline.yoy_color }};">{{ headline.yoy_sign }}{{ headline.yoy_pct }}%</td>
+        <td>Year-over-year change in operating cost base</td>
+      </tr>
+      <tr>
+        <td>Approved Annual Budget</td>
+        <td class="num" style="color:#3B82F6;">{{ headline.total_budget_fmt }}</td>
+        <td class="num" style="color:#94A3B8;">—</td>
+        <td class="num" style="color:{{ headline.util_color }};">{{ headline.util_pct }}% utilised</td>
+        <td>Finance Committee approved allocation for FY {{ year }}</td>
+      </tr>
+      <tr>
+        <td>Total Invoices Processed</td>
+        <td class="num">{{ headline.total_invoices }}</td>
+        <td class="num" style="color:#94A3B8;">—</td>
+        <td class="num" style="color:#EF4444;">{{ headline.rejected_count }} rejected</td>
+        <td>All invoices through automated AP pipeline</td>
+      </tr>
+      <tr>
+        <td>Compliance Rate</td>
+        <td class="num" style="color:#10B981;">{{ headline.clean_pct }}%</td>
+        <td class="num" style="color:#94A3B8;">—</td>
+        <td style="color:#EF4444;">{{ headline.flagged_high }} high-risk flags</td>
+        <td>Invoices processed without AI anomaly detection</td>
+      </tr>
+      <tr>
+        <td>Pending Payables (AP Pipeline)</td>
+        <td class="num" style="color:#F59E0B;">{{ headline.pending_amount_fmt }}</td>
+        <td class="num" style="color:#94A3B8;">—</td>
+        <td class="num">{{ headline.pending_count }} invoices</td>
+        <td>Outstanding amounts awaiting final approval</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Tax Obligations — FY {{ year }}</h2>
+  <table>
+    <thead>
+      <tr><th>Tax Head</th><th>Estimated Amount</th><th>Applicable Basis</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Goods &amp; Services Tax (CGST + SGST / IGST)</strong></td>
+        <td class="num" style="color:#3B82F6;">{{ headline.gst_fmt }}</td>
+        <td>On total vendor-paid expenditure at applicable rates</td>
+        <td style="color:#64748B;">Estimated</td>
+      </tr>
+      <tr>
+        <td><strong>Tax Deducted at Source (Sec. 194C / 194J)</strong></td>
+        <td class="num" style="color:#8B5CF6;">{{ headline.tds_fmt }}</td>
+        <td>On applicable vendor payments — TDS deducted at source</td>
+        <td style="color:#64748B;">Estimated</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <strong>Financial Position Overview — FY {{ year }}</strong><br>
+    Total operational expenditure of <strong>{{ headline.total_spend_fmt }}</strong> represents a
+    <strong style="color:{{ headline.yoy_color }};">{{ headline.yoy_sign }}{{ headline.yoy_pct }}%</strong> change versus FY {{ prev_year }}.
+    Budget utilisation of <strong>{{ headline.util_pct }}%</strong> against the approved
+    <strong>{{ headline.total_budget_fmt }}</strong> reflects
+    {% if headline.util_pct > 100 %}an overrun requiring immediate corrective action and a revised forecast for FY {{ year|add:1 }}.
+    {% elif headline.util_pct > 90 %}near-full deployment of capital — proactive monitoring is recommended for the upcoming planning cycle.
+    {% elif headline.util_pct > 75 %}disciplined capital deployment within approved policy limits.
+    {% else %}conservative expenditure with significant headroom available for strategic reinvestment.{% endif %}
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     SECTION 2 — EXPENDITURE TREND & QUARTERLY ANALYSIS
+══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="sec-eyebrow">Section 2 of 6</div>
+  <h1>Expenditure Trend &amp; Quarterly Analysis</h1>
+  <p>
+    Monthly and quarterly expenditure patterns across FY {{ year }}, with prior-year comparison.
+    Seasonality, Q4 acceleration, and month-on-month velocity are analysed below.
+  </p>
+  <hr class="sec-rule">
+
+  <h2>12-Month Expenditure Trend — FY {{ year }} vs FY {{ prev_year }}</h2>
+  <p>
+    The chart below plots monthly paid expenditure (solid line = FY {{ year }}, dashed = FY {{ prev_year }}).
+    Seasonal business cycles and year-end spend acceleration are clearly visible.
+  </p>
+  <div class="chart-wrap">{{ chart_monthly|safe }}</div>
+
+  <h2>Quarterly Spend Breakdown</h2>
+  <p>FY {{ year }} expenditure by quarter with invoice volume:</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Quarter</th>
+        <th>Period</th>
+        <th>FY {{ year }} Spend</th>
+        <th>Invoices Processed</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for q in quarters %}
+      <tr>
+        <td style="font-weight:bold;font-size:11pt;">{{ q.quarter }}</td>
+        <td style="color:#64748B;font-size:8.5pt;">
+          {% if q.quarter == 'Q1' %}January – March {{ year }}
+          {% elif q.quarter == 'Q2' %}April – June {{ year }}
+          {% elif q.quarter == 'Q3' %}July – September {{ year }}
+          {% else %}October – December {{ year }}{% endif %}
+        </td>
+        <td class="num" style="color:#E8783B;">{{ q.spend_fmt }}</td>
+        <td class="num">{{ q.invoices }}</td>
+        <td style="color:#64748B;">Paid and settled</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Spend by Department — FY {{ year }}</h2>
+  <p>Horizontal bar chart showing actual paid expenditure per cost centre:</p>
+  <div class="chart-wrap">{{ chart_dept|safe }}</div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     SECTION 3 — DEPARTMENT BUDGET vs ACTUAL
+══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="sec-eyebrow">Section 3 of 6</div>
+  <h1>Department Performance — Budget vs Actual</h1>
+  <p>
+    Full-year budget utilisation and variance analysis by cost centre for FY {{ year }}.
+    Includes prior-year comparison and year-over-year growth rates.
+    Departments are sorted by actual expenditure (highest first).
+  </p>
+  <hr class="sec-rule">
+
+  <h2>Budget Utilisation &amp; Variance Analysis</h2>
+  <p>
+    <strong>Variance</strong> = Actual Spend − Approved Budget.
+    Positive variance (red) indicates overspend; negative variance (green) indicates underspend.
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>Department</th>
+        <th>Budget</th>
+        <th>Actual Spend</th>
+        <th>Variance</th>
+        <th>Utilisation</th>
+        <th>FY {{ prev_year }} Actual</th>
+        <th>YoY Δ</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in dept_performance %}
+      <tr>
+        <td style="font-weight:bold;">{{ d.department }}</td>
+        <td class="num" style="color:#64748B;">{{ d.budget_fmt }}</td>
+        <td class="num" style="font-weight:bold;">{{ d.actual_fmt }}</td>
+        <td class="num" style="color:{{ d.variance_color }};font-weight:bold;">
+          {{ d.variance_sign }}{{ d.variance_fmt }}
+        </td>
+        <td>
+          <div class="pbar-wrap">
+            <div class="pbar-bg">
+              <div class="pbar-fill" style="width:{% if d.utilization_pct > 100 %}100{% else %}{{ d.utilization_pct|floatformat:0 }}{% endif %}%;background:{{ d.util_color }};"></div>
+            </div>
+            <span style="font-size:8pt;font-weight:bold;color:{{ d.util_color }};">{{ d.utilization_pct }}%</span>
+          </div>
+        </td>
+        <td class="num" style="color:#94A3B8;">{{ d.prev_fmt }}</td>
+        <td class="num" style="color:{{ d.yoy_color }};font-weight:bold;">{{ d.yoy_sign }}{{ d.yoy_change_pct }}%</td>
+        <td>
+          <span class="badge" style="background:{{ d.status_bg }};color:{{ d.status_color }};">
+            {{ d.status_label }}
+          </span>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Budget Utilisation Gauges</h2>
+  <p>Ring gauges showing percentage of approved budget consumed per department:</p>
+  <div style="margin-top:8pt;">
+    {% for r in dept_rings %}
+    <div style="display:inline-block;text-align:center;margin:6pt 10pt 6pt 0;width:85pt;vertical-align:top;">
+      {{ r.ring|safe }}
+      <div style="font-size:7.5pt;font-weight:bold;color:#475569;margin-top:4pt;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:85pt;">{{ r.name }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     SECTION 4 — PROCUREMENT & VENDOR ANALYSIS
+══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="sec-eyebrow">Section 4 of 6</div>
+  <h1>Procurement &amp; Vendor Analysis</h1>
+  <p>
+    Supplier spend concentration, category distribution, and procurement risk assessment for FY {{ year }}.
+    Vendor dependency and spend diversification are evaluated against industry benchmarks.
+  </p>
+  <hr class="sec-rule">
+
+  <h2>Top Vendors by Annual Spend</h2>
+  <p>Vendors ranked by total paid amount during FY {{ year }}. Bar width is proportional to spend share:</p>
+  <div class="chart-wrap">{{ chart_vendors|safe }}</div>
+
+  <h2>Vendor Detail — Top 10 by Paid Amount</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Vendor Name</th>
+        <th>Category</th>
+        <th>FY {{ year }} Amount</th>
+        <th>% of Total Spend</th>
+        <th>Invoices</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in top_vendors %}
+      <tr>
+        <td style="font-weight:bold;">{{ v.name }}</td>
+        <td style="color:#64748B;">{{ v.type }}</td>
+        <td class="num" style="color:#8B5CF6;">{{ v.amount_fmt }}</td>
+        <td class="num">{{ v.pct }}%</td>
+        <td class="num" style="color:#94A3B8;">{{ v.invoices }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Spend by Category — Distribution</h2>
+  <p>Operating cost composition showing procurement category mix for FY {{ year }}:</p>
+  <div style="margin:8pt 0 12pt 0;">
+    <div style="display:inline-block;vertical-align:top;">{{ chart_categories|safe }}</div>
+    <div style="display:inline-block;vertical-align:top;margin-left:20pt;">
+      <table style="width:220pt;margin-bottom:0;">
+        <thead>
+          <tr><th>Category</th><th>Amount</th><th>Share</th><th>Invoices</th></tr>
+        </thead>
+        <tbody>
+          {% for c in top_categories %}
+          <tr>
+            <td>{{ c.category }}</td>
+            <td class="num" style="color:#E8783B;">{{ c.amount_fmt }}</td>
+            <td class="num">{{ c.pct }}%</td>
+            <td class="num" style="color:#94A3B8;">{{ c.invoices }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <h2>Vendor Concentration Assessment</h2>
+  <div class="callout">
+    <strong>Concentration Risk Level: {{ conc_label }}</strong> —
+    Top 3 vendors account for <strong>{{ top3_vendor_pct }}%</strong> of total procurement spend for FY {{ year }}.
+    {% if conc_label == 'High' %}
+    This concentration level exceeds the recommended 60% threshold. The organisation faces meaningful supply chain and
+    pricing risk from over-dependence on a small number of suppliers. A formal vendor diversification strategy is
+    recommended as a priority initiative for FY {{ year|add:1 }}.
+    {% elif conc_label == 'Moderate' %}
+    Concentration is at a moderate level (40–60%). The current supplier mix is within acceptable parameters.
+    Gradual diversification across tier-2 vendors is advisable to reduce single-source dependency over the next 12 months.
+    {% else %}
+    Procurement is well-diversified across the vendor base. No corrective action is required.
+    Continued quarterly monitoring of vendor concentration will maintain this healthy procurement balance.
+    {% endif %}
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     SECTION 5 — RISK & COMPLIANCE
+══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="sec-eyebrow">Section 5 of 6</div>
+  <h1>Risk &amp; Compliance</h1>
+  <p>
+    AI-driven invoice fraud detection outcomes and regulatory compliance metrics for FY {{ year }}.
+    All invoices are screened through the Tijori AI multi-layer anomaly detection engine before payment authorisation.
+  </p>
+  <hr class="sec-rule">
+
+  <h2>Invoice Risk Classification Summary</h2>
+  <p>
+    A total of <strong>{{ risk.total_invoices }}</strong> invoices were processed during FY {{ year }}.
+    The AI fraud engine assigned a risk score to each invoice, classifying them as follows:
+  </p>
+
+  <div style="text-align:center;margin:12pt 0 16pt 0;">{{ chart_risk|safe }}</div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Risk Classification</th>
+        <th>Count</th>
+        <th>Description</th>
+        <th>Action Taken</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong style="color:#10B981;">Clean / Compliant</strong></td>
+        <td class="num" style="color:#10B981;">{{ risk.clean_pct }}%</td>
+        <td>No anomalies detected — passed all AI checks</td>
+        <td style="color:#64748B;">Processed automatically through standard workflow</td>
+      </tr>
+      <tr>
+        <td><strong style="color:#F59E0B;">Medium Risk</strong></td>
+        <td class="num" style="color:#F59E0B;">{{ risk.medium_risk }}</td>
+        <td>Anomaly score 50–79; pattern deviation detected</td>
+        <td style="color:#64748B;">Finance team manual review before approval</td>
+      </tr>
+      <tr>
+        <td><strong style="color:#EF4444;">High Risk</strong></td>
+        <td class="num" style="color:#EF4444;">{{ risk.high_risk }}</td>
+        <td>Anomaly score ≥80; potential fraud indicator</td>
+        <td style="color:#EF4444;font-weight:bold;">Escalated — Audit Committee review required</td>
+      </tr>
+      <tr>
+        <td><strong style="color:#DC2626;">Auto-Rejected</strong></td>
+        <td class="num" style="color:#DC2626;">{{ risk.rejected }}</td>
+        <td>Failed hard compliance rules — auto-rejected</td>
+        <td style="color:#64748B;">Invoice voided; vendor notified</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Compliance Observation</h2>
+  <div class="callout">
+    FY {{ year }} compliance rate: <strong>{{ risk.clean_pct }}%</strong> of all {{ risk.total_invoices }} invoices
+    were processed without AI-detected anomalies.
+    {% if risk.high_risk > 10 %}
+    The <strong>{{ risk.high_risk }}</strong> high-severity flags represent an elevated risk volume requiring a formal
+    Audit Committee review and documented resolution before year-end financial close.
+    {% elif risk.high_risk > 0 %}
+    The <strong>{{ risk.high_risk }}</strong> high-severity flags have been escalated for Finance team review.
+    All flagged invoices must be formally resolved before the financial year close.
+    {% else %}
+    No high-severity anomalies were detected — reflecting strong adherence to procurement policy and vendor management standards.
+    {% endif %}
+    Automated rejection of <strong>{{ risk.rejected }}</strong> non-compliant invoices prevented potentially
+    irregular expenditure from entering the AP settlement pipeline.
+  </div>
+
+  <h2>Tax Obligations &amp; Pending Settlements</h2>
+  <table>
+    <thead>
+      <tr><th>Obligation</th><th>Amount</th><th>Basis of Calculation</th><th>Remarks</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>GST (CGST + SGST / IGST)</strong></td>
+        <td class="num" style="color:#3B82F6;">{{ headline.gst_fmt }}</td>
+        <td>Applicable rates on vendor-paid expenditure</td>
+        <td style="color:#64748B;">Estimated; reconciliation required</td>
+      </tr>
+      <tr>
+        <td><strong>TDS (Sec. 194C / 194J)</strong></td>
+        <td class="num" style="color:#8B5CF6;">{{ headline.tds_fmt }}</td>
+        <td>Withholding tax on applicable payments</td>
+        <td style="color:#64748B;">Deducted at source</td>
+      </tr>
+      <tr>
+        <td><strong>Pending Payables</strong></td>
+        <td class="num" style="color:#F59E0B;">{{ headline.pending_amount_fmt }}</td>
+        <td>{{ headline.pending_count }} invoices in approval pipeline</td>
+        <td style="color:#F59E0B;">Settlement pending — clearance required</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     SECTION 6 — AI EXECUTIVE SUMMARY
+══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="sec-eyebrow">Section 6 of 6</div>
+  <h1>Executive Summary</h1>
+  <p>
+    The following narrative was generated by the Tijori AI platform using FY {{ year }} operational and financial data.
+    It is presented in investor-grade language, suitable for board presentation, regulatory filing, and investor communication.
+  </p>
+  <hr class="sec-rule">
+
+  <h2>FY {{ year }} Annual Financial Report — Executive Narrative</h2>
+  <div class="narrative">{{ ai_narrative }}</div>
+
+  <h2>Report Information &amp; Distribution</h2>
+  <table>
+    <tbody>
+      <tr>
+        <td style="color:#64748B;font-weight:bold;width:160pt;padding:8pt 10pt;border-bottom:0.5pt solid #F1F5F9;">Report Type</td>
+        <td style="font-weight:bold;padding:8pt 10pt;border-bottom:0.5pt solid #F1F5F9;">Annual Investor Financial Report — External Disclosure</td>
+      </tr>
+      <tr>
+        <td style="color:#64748B;font-weight:bold;padding:8pt 10pt;border-bottom:0.5pt solid #F1F5F9;">Financial Year</td>
+        <td style="font-weight:bold;padding:8pt 10pt;border-bottom:0.5pt solid #F1F5F9;">FY {{ year }} — 1 January to 31 December {{ year }}</td>
+      </tr>
+      <tr>
+        <td style="color:#64748B;font-weight:bold;padding:8pt 10pt;border-bottom:0.5pt solid #F1F5F9;">Platform</td>
+        <td style="padding:8pt 10pt;border-bottom:0.5pt solid #F1F5F9;">Tijori AI Enterprise Financial Intelligence</td>
+      </tr>
+      <tr>
+        <td style="color:#64748B;font-weight:bold;padding:8pt 10pt;border-bottom:0.5pt solid #F1F5F9;">Generated On</td>
+        <td style="font-weight:bold;padding:8pt 10pt;border-bottom:0.5pt solid #F1F5F9;">{{ generated_at }}</td>
+      </tr>
+      <tr>
+        <td style="color:#64748B;font-weight:bold;padding:8pt 10pt;">Distribution</td>
+        <td style="font-weight:bold;padding:8pt 10pt;">{{ confidentiality }}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</body>
+</html>

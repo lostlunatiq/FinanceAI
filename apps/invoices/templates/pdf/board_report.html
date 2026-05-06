@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Board Strategic Financial Review FY {{ year }} — Tijori AI</title>
+<style>
+@page {
+  size: A4;
+  margin: 2.2cm 1.8cm 2.6cm 1.8cm;
+  @top-left {
+    content: "TIJORI AI  ·  Board Strategic Financial Review  ·  FY {{ year }}";
+    font-family: "Liberation Sans", Helvetica, Arial, sans-serif;
+    font-size: 7pt; color: #94A3B8; padding-top: 8pt;
+  }
+  @top-right {
+    content: "BOARD CONFIDENTIAL";
+    font-family: "Liberation Sans", Helvetica, Arial, sans-serif;
+    font-size: 7pt; font-weight: bold; color: #1D4ED8; padding-top: 8pt;
+  }
+  @bottom-center {
+    content: "Page " counter(page) " of " counter(pages);
+    font-family: "Liberation Sans", Helvetica, Arial, sans-serif;
+    font-size: 7pt; color: #64748B; padding-bottom: 8pt;
+  }
+  @bottom-left {
+    content: "{{ confidentiality }}";
+    font-family: "Liberation Sans", Helvetica, Arial, sans-serif;
+    font-size: 6pt; color: #94A3B8; padding-bottom: 8pt;
+  }
+}
+@page :first {
+  margin: 1cm;
+  @top-left { content: none; } @top-right { content: none; }
+  @bottom-center { content: none; } @bottom-left { content: none; }
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: "Liberation Sans", Helvetica, Arial, sans-serif; font-size: 9.5pt; color: #1E293B; line-height: 1.6; }
+
+/* Cover */
+.cover { background: #0B1628; min-height: 275mm; padding: 2.5cm 2cm; page-break-after: always; break-after: page; }
+.c-logo { font-size: 12pt; font-weight: bold; color: #1D4ED8; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 4pt; }
+.c-sub  { font-size: 7pt; color: #475569; letter-spacing: 0.18em; text-transform: uppercase; }
+.c-sp   { height: 55mm; }
+.c-badge{ display: inline-block; background: #1D4ED8; color: white; font-size: 7.5pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.14em; padding: 5pt 12pt; border-radius: 2pt; margin-bottom: 8pt; }
+.c-conf { display: inline-block; border: 1pt solid #EF4444; color: #EF4444; font-size: 7pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.1em; padding: 3pt 9pt; border-radius: 2pt; margin-bottom: 14pt; }
+.c-title{ font-size: 30pt; font-weight: bold; color: white; line-height: 1.1; margin-bottom: 10pt; }
+.c-fy   { font-size: 14pt; font-weight: bold; color: #1D4ED8; letter-spacing: 3pt; margin-bottom: 16pt; }
+.c-rule { width: 50pt; height: 2.5pt; background: #1D4ED8; margin-bottom: 16pt; }
+.c-stats{ font-size: 8pt; color: #94A3B8; line-height: 1.9; }
+.c-foot { margin-top: 40pt; border-top: 1pt solid #1E3A5F; padding-top: 14pt; }
+.c-clbl { font-size: 6.5pt; font-weight: bold; color: #EF4444; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 5pt; }
+.c-disc { font-size: 6pt; color: #334155; line-height: 1.6; }
+
+/* Sections */
+.section { page-break-before: always; break-before: page; padding-top: 4pt; }
+.sec-eyebrow { font-size: 7.5pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.16em; color: #1D4ED8; margin-bottom: 3pt; }
+.sec-rule { border: none; border-top: 2pt solid #1D4ED8; margin: 10pt 0 18pt 0; }
+
+/* Headings */
+h1 { font-size: 18pt; font-weight: bold; color: #0B1628; margin: 0 0 4pt 0; line-height: 1.15; }
+h2 { font-size: 11pt; font-weight: bold; color: #1E293B; margin: 18pt 0 6pt 0; padding-bottom: 4pt; border-bottom: 1pt solid #F1F0EE; }
+h3 { font-size: 9.5pt; font-weight: bold; color: #475569; margin: 10pt 0 4pt 0; }
+p  { margin: 0 0 8pt 0; line-height: 1.65; color: #374151; font-size: 9.5pt; }
+
+/* Tables */
+table { width: 100%; border-collapse: collapse; margin-bottom: 14pt; font-size: 8.5pt; page-break-inside: avoid; }
+thead th { text-align: left; padding: 8pt 10pt; font-size: 7.5pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.08em; color: #64748B; background: #F8FAFC; border-bottom: 1.5pt solid #E2E8F0; border-top: 1.5pt solid #E2E8F0; }
+tbody td { padding: 8pt 10pt; border-bottom: 0.5pt solid #F1F5F9; vertical-align: middle; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:nth-child(even) td { background: #FAFAF9; }
+.num { font-family: "Liberation Mono", "Courier New", monospace; font-weight: bold; }
+
+/* Alert boxes */
+.alert-high   { border-left: 4pt solid #EF4444; background: #FEF2F2; padding: 11pt 14pt; margin: 8pt 0; page-break-inside: avoid; }
+.alert-medium { border-left: 4pt solid #F59E0B; background: #FFFBEB; padding: 11pt 14pt; margin: 8pt 0; page-break-inside: avoid; }
+.alert-title  { font-size: 10pt; font-weight: bold; margin-bottom: 4pt; }
+.alert-high   .alert-title { color: #991B1B; }
+.alert-medium .alert-title { color: #92400E; }
+.alert-body   { font-size: 8.5pt; line-height: 1.65; }
+.alert-high   .alert-body  { color: #7F1D1D; }
+.alert-medium .alert-body  { color: #78350F; }
+
+/* Callout */
+.callout { border-left: 3.5pt solid #1D4ED8; background: #EFF6FF; padding: 11pt 14pt; margin: 12pt 0; font-size: 9pt; line-height: 1.7; color: #1E3A5F; page-break-inside: avoid; }
+.callout strong { color: #0B1628; }
+
+/* Recommendation */
+.rec-box { border-left: 3.5pt solid #10B981; background: #F0FDF4; padding: 11pt 14pt; margin: 10pt 0; page-break-inside: avoid; }
+.rec-item { font-size: 9pt; color: #064E3B; line-height: 1.65; margin-bottom: 6pt; padding-left: 14pt; }
+.rec-item:last-child { margin-bottom: 0; }
+
+/* Narrative */
+.narrative { border: 1pt solid #BFDBFE; border-left: 4pt solid #1D4ED8; background: #EFF6FF; padding: 16pt 18pt; font-size: 10pt; line-height: 1.82; color: #1E3A5F; white-space: pre-wrap; page-break-inside: avoid; }
+
+/* Progress bar */
+.pbar-wrap { display: flex; align-items: center; gap: 6pt; }
+.pbar-bg   { width: 55pt; height: 5pt; background: #E2E8F0; border-radius: 3pt; overflow: hidden; }
+.pbar-fill { height: 100%; border-radius: 3pt; }
+.badge { display: inline-block; padding: 2pt 8pt; border-radius: 20pt; font-size: 7pt; font-weight: bold; text-transform: uppercase; }
+.chart-wrap { margin: 8pt 0 12pt 0; }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div>
+    <div class="c-logo">Tijori AI</div>
+    <div class="c-sub">Enterprise Financial Intelligence Platform</div>
+  </div>
+  <div class="c-sp"></div>
+  <div>
+    <div class="c-badge">Board of Directors</div><br>
+    <div class="c-conf">⚠ Board Confidential</div>
+    <div class="c-title">Strategic<br>Financial<br>Review</div>
+    <div class="c-fy">FY {{ year }}</div>
+    <div class="c-rule"></div>
+    <div class="c-stats">
+      Total Expenditure &nbsp;·&nbsp; {{ headline.total_spend_fmt }} &nbsp;({{ headline.yoy_sign }}{{ headline.yoy_pct }}% YoY)<br>
+      Budget Utilisation &nbsp;·&nbsp; {{ headline.util_pct }}% of {{ headline.total_budget_fmt }}<br>
+      High-Risk Flags &nbsp;&nbsp;&nbsp;·&nbsp; {{ headline.flagged_high }} invoices requiring audit review<br>
+      Generated &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;·&nbsp; {{ generated_at }}
+    </div>
+  </div>
+  <div class="c-foot">
+    <div class="c-clbl">{{ confidentiality }}</div>
+    <div class="c-disc">Prepared exclusively for the Board of Directors. Contains material non-public financial information. Unauthorised disclosure is strictly prohibited. All figures in Indian Rupees (₹).</div>
+  </div>
+</div>
+
+
+<!-- ══ SECTION 1 — EXECUTIVE DASHBOARD ══ -->
+<div class="section">
+  <div class="sec-eyebrow">Section 1 of 5</div>
+  <h1>Executive Dashboard</h1>
+  <p>
+    Complete FY {{ year }} financial performance summary for the Board. All critical KPIs consolidated for strategic decision-making.
+    Figures represent FY {{ year }} operational data as of {{ generated_at }}.
+  </p>
+  <hr class="sec-rule">
+
+  <h2>Board KPI Summary — FY {{ year }}</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>KPI</th>
+        <th>FY {{ year }} Actual</th>
+        <th>Prior Year / Benchmark</th>
+        <th>Status</th>
+        <th>Board Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Total Operational Expenditure</strong></td>
+        <td class="num" style="color:#E8783B;">{{ headline.total_spend_fmt }}</td>
+        <td class="num" style="color:#94A3B8;">{{ headline.prev_spend_fmt }}</td>
+        <td style="color:{{ headline.yoy_color }};font-weight:bold;">{{ headline.yoy_sign }}{{ headline.yoy_pct }}% YoY</td>
+        <td style="color:#64748B;">Year-on-year cost trajectory</td>
+      </tr>
+      <tr>
+        <td><strong>Budget Utilisation</strong></td>
+        <td class="num" style="color:{{ headline.util_color }};">{{ headline.util_pct }}%</td>
+        <td class="num" style="color:#94A3B8;">{{ headline.total_budget_fmt }} approved</td>
+        <td style="color:{{ headline.util_color }};font-weight:bold;">{% if headline.util_pct > 100 %}Overrun{% elif headline.util_pct > 90 %}Near Limit{% else %}On Track{% endif %}</td>
+        <td style="color:#64748B;">Against FY {{ year }} approved budget</td>
+      </tr>
+      <tr>
+        <td><strong>Invoice Compliance Rate</strong></td>
+        <td class="num" style="color:#10B981;">{{ headline.clean_pct }}%</td>
+        <td class="num" style="color:#94A3B8;">Industry: ~92%</td>
+        <td style="color:#10B981;font-weight:bold;">{% if headline.clean_pct >= 92 %}Above Benchmark{% else %}Below Benchmark{% endif %}</td>
+        <td style="color:#64748B;">AI-screened clean invoice rate</td>
+      </tr>
+      <tr>
+        <td><strong>High-Risk Anomaly Flags</strong></td>
+        <td class="num" style="color:#EF4444;">{{ headline.flagged_high }}</td>
+        <td class="num" style="color:#94A3B8;">+ {{ headline.flagged_medium }} medium</td>
+        <td style="font-weight:bold;{% if headline.flagged_high > 5 %}color:#EF4444;{% else %}color:#10B981;{% endif %}">{% if headline.flagged_high > 5 %}Elevated{% else %}Acceptable{% endif %}</td>
+        <td style="color:#64748B;">Audit Committee review required</td>
+      </tr>
+      <tr>
+        <td><strong>Pending Payables (AP)</strong></td>
+        <td class="num" style="color:#F59E0B;">{{ headline.pending_amount_fmt }}</td>
+        <td class="num" style="color:#94A3B8;">{{ headline.pending_count }} invoices</td>
+        <td style="color:#F59E0B;font-weight:bold;">Action Required</td>
+        <td style="color:#64748B;">Clearance needed for financial close</td>
+      </tr>
+      <tr>
+        <td><strong>Invoices Processed</strong></td>
+        <td class="num">{{ headline.total_invoices }}</td>
+        <td class="num" style="color:#94A3B8;">{{ headline.rejected_count }} rejected</td>
+        <td style="color:#10B981;font-weight:bold;">Operational</td>
+        <td style="color:#64748B;">Full AP pipeline throughput</td>
+      </tr>
+      <tr>
+        <td><strong>GST Obligation (est.)</strong></td>
+        <td class="num" style="color:#3B82F6;">{{ headline.gst_fmt }}</td>
+        <td class="num" style="color:#94A3B8;">—</td>
+        <td style="color:#64748B;">Estimated</td>
+        <td style="color:#64748B;">Reconciliation required</td>
+      </tr>
+      <tr>
+        <td><strong>TDS Obligation (est.)</strong></td>
+        <td class="num" style="color:#8B5CF6;">{{ headline.tds_fmt }}</td>
+        <td class="num" style="color:#94A3B8;">—</td>
+        <td style="color:#64748B;">Estimated</td>
+        <td style="color:#64748B;">Deducted at source</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Monthly Expenditure Trend — FY {{ year }}</h2>
+  <p>Paid expenditure per month. Seasonal business cycles and Q4 acceleration are clearly visible:</p>
+  <div class="chart-wrap">{{ chart_monthly|safe }}</div>
+
+  <h2>Quarterly Performance</h2>
+  <table>
+    <thead>
+      <tr><th>Quarter</th><th>FY {{ year }} Spend</th><th>Invoices</th><th>Notes</th></tr>
+    </thead>
+    <tbody>
+      {% for q in quarters %}
+      <tr>
+        <td style="font-weight:bold;font-size:11pt;">{{ q.quarter }}</td>
+        <td class="num" style="color:#E8783B;">{{ q.spend_fmt }}</td>
+        <td class="num">{{ q.invoices }}</td>
+        <td style="color:#64748B;">Paid and settled</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+
+<!-- ══ SECTION 2 — DECISIONS REQUIRED ══ -->
+<div class="section">
+  <div class="sec-eyebrow">Section 2 of 5</div>
+  <h1>Decisions Required by the Board</h1>
+  <p>
+    The following items have been identified by Tijori AI as requiring board-level oversight, directive, or formal resolution.
+    High-severity items must be addressed before financial year close.
+  </p>
+  <hr class="sec-rule">
+
+  {% if decisions %}
+    <h2>High-Priority Items — Immediate Action Required</h2>
+    {% for d in decisions %}
+    <div class="alert-{{ d.severity }}">
+      <div class="alert-title">{% if d.severity == 'high' %}🚨{% else %}⚠️{% endif %} {{ d.title }}</div>
+      <div class="alert-body">{{ d.detail }}</div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="callout">
+      <strong>✓ No Critical Board Actions Required</strong><br>
+      All departments are operating within approved financial parameters for FY {{ year }}.
+      No immediate board intervention is required. Regular quarterly review cycle may proceed as planned.
+    </div>
+  {% endif %}
+
+  <h2>Vendor Concentration Analysis</h2>
+  <p>Top 3 vendors account for <strong>{{ top3_vendor_pct }}%</strong> of total procurement — Concentration Risk: <strong style="color:{{ conc_color }};">{{ conc_label }}</strong></p>
+  <div class="callout">
+    {% if conc_label == 'High' %}
+    Vendor concentration exceeds the 60% recommended threshold. The board should approve a supplier diversification mandate for FY {{ year|add:1 }} to reduce supply chain and pricing risk. A formal vendor panel review is recommended.
+    {% elif conc_label == 'Moderate' %}
+    Concentration is at a moderate level. The board should note the dependency and direct the procurement team to introduce at least 2 new strategic vendors in the next 12 months.
+    {% else %}
+    Procurement diversification is healthy. No board directive required on vendor concentration at this time.
+    {% endif %}
+  </div>
+</div>
+
+
+<!-- ══ SECTION 3 — BUDGET vs ACTUAL ══ -->
+<div class="section">
+  <div class="sec-eyebrow">Section 3 of 5</div>
+  <h1>Department Budget vs Actual — Traffic Light View</h1>
+  <p>
+    Full-year budget utilisation and variance analysis by cost centre.
+    Sorted by status severity. Red = over budget (immediate review). Amber = approaching limit. Green = on track.
+  </p>
+  <hr class="sec-rule">
+
+  <h2>Department Performance Table — FY {{ year }}</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Status</th>
+        <th>Department</th>
+        <th>Budget</th>
+        <th>Actual Spend</th>
+        <th>Variance</th>
+        <th>Utilisation</th>
+        <th>FY {{ prev_year }}</th>
+        <th>YoY Δ</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in dept_performance %}
+      <tr>
+        <td style="color:{{ d.status_color }};font-weight:bold;font-size:11pt;">
+          {% if d.status == 'OVER_BUDGET' %}🔴{% elif d.status == 'ON_TRACK' %}🟡{% else %}🟢{% endif %}
+        </td>
+        <td style="font-weight:bold;">{{ d.department }}</td>
+        <td class="num" style="color:#64748B;">{{ d.budget_fmt }}</td>
+        <td class="num" style="font-weight:bold;">{{ d.actual_fmt }}</td>
+        <td class="num" style="color:{{ d.variance_color }};font-weight:bold;">{{ d.variance_sign }}{{ d.variance_fmt }}</td>
+        <td>
+          <div class="pbar-wrap">
+            <div class="pbar-bg">
+              <div class="pbar-fill" style="width:{% if d.utilization_pct > 100 %}100{% else %}{{ d.utilization_pct|floatformat:0 }}{% endif %}%;background:{{ d.util_color }};"></div>
+            </div>
+            <span style="font-size:8pt;font-weight:bold;color:{{ d.util_color }};">{{ d.utilization_pct }}%</span>
+          </div>
+        </td>
+        <td class="num" style="color:#94A3B8;">{{ d.prev_fmt }}</td>
+        <td class="num" style="color:{{ d.yoy_color }};font-weight:bold;">{{ d.yoy_sign }}{{ d.yoy_change_pct }}%</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Department Spend Distribution</h2>
+  <div class="chart-wrap">{{ chart_dept|safe }}</div>
+
+  <h2>Top Vendors by Spend</h2>
+  <div class="chart-wrap">{{ chart_vendors|safe }}</div>
+</div>
+
+
+<!-- ══ SECTION 4 — RISK REGISTER ══ -->
+<div class="section">
+  <div class="sec-eyebrow">Section 4 of 5</div>
+  <h1>Risk Register &amp; Compliance</h1>
+  <p>
+    FY {{ year }} fraud detection outcomes and compliance metrics.
+    All {{ risk.total_invoices }} invoices processed through the Tijori AI multi-layer anomaly detection engine.
+  </p>
+  <hr class="sec-rule">
+
+  <h2>Risk Classification</h2>
+  <div style="text-align:center;margin:10pt 0 16pt 0;">{{ chart_risk|safe }}</div>
+
+  <table>
+    <thead>
+      <tr><th>Classification</th><th>Count</th><th>Action Required</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong style="color:#10B981;">✓ Clean / Compliant</strong></td>
+        <td class="num" style="color:#10B981;">{{ risk.clean_pct }}%</td>
+        <td style="color:#64748B;">No action — processed automatically</td>
+      </tr>
+      <tr>
+        <td><strong style="color:#F59E0B;">⚠ Medium Risk</strong></td>
+        <td class="num" style="color:#F59E0B;">{{ risk.medium_risk }}</td>
+        <td style="color:#64748B;">Finance team manual review before approval</td>
+      </tr>
+      <tr>
+        <td><strong style="color:#EF4444;">✕ High Risk</strong></td>
+        <td class="num" style="color:#EF4444;">{{ risk.high_risk }}</td>
+        <td style="color:#EF4444;font-weight:bold;">Audit Committee formal review and sign-off required</td>
+      </tr>
+      <tr>
+        <td><strong style="color:#DC2626;">✕ Rejected</strong></td>
+        <td class="num" style="color:#DC2626;">{{ risk.rejected }}</td>
+        <td style="color:#64748B;">Auto-rejected by compliance engine — vendor notified</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Board Recommendations for FY {{ year|add:1 }}</h2>
+  <div class="rec-box">
+    <div style="font-size:9pt;font-weight:bold;color:#065F46;margin-bottom:10pt;">Recommended Board Directives</div>
+    <div class="rec-item">1. &nbsp;Mandate quarterly budget variance reviews for all departments, with Finance alerts when utilisation exceeds 85% of approved allocation.</div>
+    <div class="rec-item">2. &nbsp;Direct the Finance &amp; Audit Committee to formally resolve all {{ risk.high_risk }} high-severity risk flags and confirm written resolution before financial year close.</div>
+    <div class="rec-item">3. &nbsp;Approve settlement of pending payables totalling {{ headline.pending_amount_fmt }} ({{ headline.pending_count }} invoices) within 30 days to protect vendor relationships.</div>
+    {% if conc_label != 'Low' %}
+    <div class="rec-item">4. &nbsp;Approve a vendor diversification programme for FY {{ year|add:1 }} to address the {{ top3_vendor_pct }}% spend concentration in top 3 suppliers.</div>
+    {% endif %}
+    <div class="rec-item">5. &nbsp;Review and formally adopt FY {{ year|add:1 }} departmental budgets incorporating YoY variance learnings from this report.</div>
+  </div>
+</div>
+
+
+<!-- ══ SECTION 5 — STRATEGIC COMMENTARY ══ -->
+<div class="section">
+  <div class="sec-eyebrow">Section 5 of 5</div>
+  <h1>Strategic Commentary &amp; Forward Outlook</h1>
+  <p>
+    AI-generated strategic briefing for the Board of Directors. Presents FY {{ year }} outcomes through a
+    decision-oriented lens with forward-looking recommendations for FY {{ year|add:1 }}.
+  </p>
+  <hr class="sec-rule">
+
+  <h2>Board-Level Strategic Summary — FY {{ year }}</h2>
+  <div class="narrative">{{ ai_narrative }}</div>
+
+  <h2>Key Metrics at a Glance</h2>
+  <table>
+    <tbody>
+      <tr>
+        <td style="color:#64748B;font-weight:bold;width:160pt;padding:8pt 10pt;border-bottom:0.5pt solid #F1F5F9;">Total Expenditure</td>
+        <td style="font-weight:bold;padding:8pt 10pt;border-bottom:0.5pt solid #F1F5F9;">{{ headline.total_spend_fmt }} &nbsp;({{ headline.yoy_sign }}{{ headline.yoy_pct }}% vs FY {{ prev_year }})</td>
+      </tr>
+      <tr>
+        <td style="color:#64748B;font-weight:bold;padding:8pt 10pt;border-bottom:0.5pt solid #F1F5F9;">Budget Utilisation</td>
+        <td style="padding:8pt 10pt;border-bottom:0.5pt solid #F1F5F9;">{{ headline.util_pct }}% of {{ headline.total_budget_fmt }} approved budget</td>
+      </tr>
+      <tr>
+        <td style="color:#64748B;font-weight:bold;padding:8pt 10pt;border-bottom:0.5pt solid #F1F5F9;">Compliance</td>
+        <td style="padding:8pt 10pt;border-bottom:0.5pt solid #F1F5F9;">{{ headline.clean_pct }}% clean rate — {{ risk.high_risk }} high-risk flags — {{ risk.rejected }} rejected</td>
+      </tr>
+      <tr>
+        <td style="color:#64748B;font-weight:bold;padding:8pt 10pt;border-bottom:0.5pt solid #F1F5F9;">Report Classification</td>
+        <td style="font-weight:bold;padding:8pt 10pt;border-bottom:0.5pt solid #F1F5F9;">Board Strategic Financial Review — FY {{ year }}</td>
+      </tr>
+      <tr>
+        <td style="color:#64748B;font-weight:bold;padding:8pt 10pt;">Generated</td>
+        <td style="padding:8pt 10pt;">{{ generated_at }} &nbsp;|&nbsp; {{ confidentiality }}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</body>
+</html>

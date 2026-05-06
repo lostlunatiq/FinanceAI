@@ -46,6 +46,16 @@ services:
       timeout: 3s
       retries: 5
 
+  # Compiles JSX → js/dist/ before the web server starts.
+  # Uses the official Node image so the Python image stays lean.
+  build-js:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: sh -c "npm install --silent && npm run build:js"
+    restart: "no"
+
   migrate:
     <<: *django-common
     entrypoint: []
@@ -61,6 +71,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      build-js:
+        condition: service_completed_successfully
     command: uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
@@ -75,7 +87,6 @@ services:
       migrate:
         condition: service_completed_successfully
     entrypoint: []
-    # Consume all queues in dev; split into separate workers per queue in production
     command: celery -A config worker -Q default,ocr,anomaly,analytics --loglevel=info
 
   celery-beat:

@@ -1,6 +1,6 @@
 # apps/invoices/urls.py
 from django.urls import path
-from . import views, vendor_views, employee_views, budget_views, analytics_views, feedback_views
+from . import views, vendor_views, employee_views, budget_views, analytics_views, feedback_views, pdf_views
 
 urlpatterns = [
     # ─── Original expense endpoints ──────────────────────────────
@@ -141,6 +141,7 @@ urlpatterns = [
     path("analytics/generate-10q/",       analytics_views.Generate10QView.as_view(),       name="generate-10q"),
     path("analytics/monthly-summary/",    analytics_views.MonthlySummaryView.as_view(),    name="monthly-summary"),
     path("analytics/annual-report/",      analytics_views.AnnualReportView.as_view(),      name="annual-report"),
+    path("analytics/annual-report-pdf/",  pdf_views.AnnualReportPDFView.as_view(),          name="annual-report-pdf"),
     # ─── AI Feedback Loop ────────────────────────────────────────────────────
     path("ai-feedback/", feedback_views.AIFeedbackView.as_view(), name="ai-feedback"),
 ]
