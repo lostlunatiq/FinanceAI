@@ -54,6 +54,12 @@ const APHubScreen = ({ role: propRole, onNavigate }) => {
   const [category, setCategory] = React.useState('Infrastructure');
   const [aiAccepted, setAiAccepted] = React.useState(false);
   const [stats, setStats] = React.useState(null);
+  const [payModal, setPayModal] = React.useState(null); // { invoice }
+  const [payForm, setPayForm] = React.useState({ method: 'NEFT', utr: '', notes: '' });
+  const [payLoading, setPayLoading] = React.useState(false);
+  const [payError, setPayError] = React.useState('');
+  const [paySuccess, setPaySuccess] = React.useState('');
+  const [myAuthority, setMyAuthority] = React.useState(null);
 
   // Load queue (pending vendor bills) + full vendor bill history for filter views
   const loadBills = () => {
@@ -77,15 +83,46 @@ const APHubScreen = ({ role: propRole, onNavigate }) => {
 
   const loadAuthority = () => {
     const { BillsAPI } = window.TijoriAPI;
-    BillsAPI.approvalAuthority().then(data => setAuthorityLimits(data || [])).catch(() => {});
+    BillsAPI.approvalAuthority().then(data => {
+      setAuthorityLimits(data || []);
+      // Find current user's authority
+      const grade = parseInt(localStorage.getItem('tj_grade') || '1');
+      const mine = (data || []).find(a => a.grade === grade);
+      setMyAuthority(mine || null);
+    }).catch(() => {});
+  };
+
+  const handlePayClick = (inv) => {
+    setPayForm({ method: 'NEFT', utr: '', notes: '' });
+    setPayError('');
+    setPaySuccess('');
+    setPayModal(inv);
+  };
+
+  const confirmPay = async () => {
+    const { BillsAPI } = window.TijoriAPI;
+    if (!payForm.utr.trim()) { setPayError('UTR / Transaction ID is required.'); return; }
+    setPayLoading(true); setPayError('');
+    try {
+      await BillsAPI.settle(payModal.rawId, payForm.utr.trim(), payForm.method, payForm.notes);
+      setPaySuccess(`Payment of ${payModal.amount} processed via ${payForm.method}. UTR: ${payForm.utr}`);
+      setTimeout(() => { setPayModal(null); setPaySuccess(''); loadBills(); }, 2500);
+    } catch (err) {
+      setPayError(err.message || 'Payment failed.');
+    } finally {
+      setPayLoading(false);
+    }
   };
 
   React.useEffect(() => { loadBills(); loadAuthority(); }, []);
 
   // Dynamic role — use prop (from AppShell) or fall back to localStorage
   const currentRole = propRole || localStorage.getItem('tj_role') || 'CFO';
+  const currentGrade = parseInt(localStorage.getItem('tj_grade') || '1');
   const isL1 = currentRole === 'AP Clerk';
   const canManageAuthority = currentRole === 'Finance Admin' || currentRole === 'CFO';
+  const canPay = currentRole === 'Finance Manager' || currentRole === 'Finance Admin' || currentRole === 'CFO';
+  const fmtLimitLabel = (limit) => limit == null ? 'Unlimited' : limit >= 100000 ? `₹${(limit/100000).toFixed(0)}L` : `₹${(limit/1000).toFixed(0)}K`;
 
   const filters = ['ALL', 'PENDING', 'APPROVED', 'PAID', 'REJECTED', 'QUERY_RAISED', 'ANOMALY'];
 
@@ -342,7 +379,10 @@ const APHubScreen = ({ role: propRole, onNavigate }) => {
                       {inv._raw?.action_permissions?.can_approve && <Btn variant="green" small onClick={() => handleAction('approve', inv)}>Approve</Btn>}
                       {inv._raw?.action_permissions?.can_reject && <Btn variant="destructive" small onClick={() => handleAction('reject', inv)}>Reject</Btn>}
                       {inv._raw?.action_permissions?.can_query && <Btn variant="purple" small onClick={() => handleAction('query', inv)}>Query</Btn>}
-                      {(!inv._raw?.action_permissions?.can_approve && !inv._raw?.action_permissions?.can_reject && !inv._raw?.action_permissions?.can_query) && <span style={{ fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>—</span>}
+                      {canPay && inv._raw?.action_permissions?.can_settle && (
+                        <Btn small onClick={() => handlePayClick(inv)} style={{ background: 'linear-gradient(135deg,#10B981,#059669)', color: 'white', border: 'none' }}>💳 Pay</Btn>
+                      )}
+                      {(!inv._raw?.action_permissions?.can_approve && !inv._raw?.action_permissions?.can_reject && !inv._raw?.action_permissions?.can_query && !(canPay && inv._raw?.action_permissions?.can_settle)) && <span style={{ fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>—</span>}
                     </div>
                   </td>
                 </tr>
@@ -464,6 +504,72 @@ const APHubScreen = ({ role: propRole, onNavigate }) => {
           </TjModal>
         );
       })()}
+
+      {/* ── Pay Modal ── */}
+      {payModal && (
+        <TjModal open={!!payModal} onClose={() => { setPayModal(null); setPayError(''); setPaySuccess(''); }} title="💳 Process Payment" accentColor="#059669" width={480}>
+          {/* Invoice summary */}
+          <div style={{ marginBottom: '16px', padding: '14px', background: '#F0FDF4', borderRadius: '10px', border: '1px solid #BBF7D0' }}>
+            <div style={{ fontSize: '12px', color: '#166534', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '2px' }}>Invoice</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', color: '#E8783B' }}>{payModal.id}</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{payModal.vendor}</div>
+            <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '22px', color: '#059669', letterSpacing: '-1px', marginTop: '4px' }}>{payModal.amount}</div>
+          </div>
+
+          {/* Authority limit info */}
+          {myAuthority && (
+            <div style={{ marginBottom: '14px', padding: '10px 14px', background: '#FFF7ED', borderRadius: '8px', border: '1px solid #FDE68A', fontSize: '12px', color: '#92400E', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              Your payment authority limit: <strong>{fmtLimitLabel(myAuthority.settlement_limit)}</strong>
+              {myAuthority.settlement_limit && parseFloat(payModal._raw?.total_amount || 0) > parseFloat(myAuthority.settlement_limit)
+                ? <span style={{ color: '#DC2626', fontWeight: 700 }}> ⚠ Exceeds your limit — CFO approval required</span>
+                : <span style={{ color: '#059669', fontWeight: 600 }}> ✓ Within your limit</span>
+              }
+            </div>
+          )}
+
+          {paySuccess ? (
+            <div style={{ padding: '20px', textAlign: 'center', background: '#F0FDF4', borderRadius: '10px', color: '#166534', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '14px', fontWeight: 600 }}>
+              ✓ {paySuccess}
+            </div>
+          ) : (
+            <>
+              {/* Payment method */}
+              <div style={{ marginBottom: '14px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '6px' }}>Payment Method</div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {['NEFT', 'RTGS', 'IMPS', 'Cheque'].map(m => (
+                    <button key={m} onClick={() => setPayForm(f => ({ ...f, method: m }))}
+                      style={{ padding: '7px 16px', borderRadius: '8px', border: `2px solid ${payForm.method === m ? '#059669' : '#E2E8F0'}`, background: payForm.method === m ? '#ECFDF5' : 'white', color: payForm.method === m ? '#059669' : '#64748B', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* UTR */}
+              <div style={{ marginBottom: '14px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '6px' }}>UTR / Transaction ID *</div>
+                <input value={payForm.utr} onChange={e => setPayForm(f => ({ ...f, utr: e.target.value }))}
+                  placeholder="e.g. HDFC0000123456789"
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #E2E8F0', fontSize: '13px', fontFamily: "'JetBrains Mono', monospace", outline: 'none', boxSizing: 'border-box' }} />
+              </div>
+              {/* Notes */}
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '6px' }}>Payment Notes (optional)</div>
+                <textarea value={payForm.notes} onChange={e => setPayForm(f => ({ ...f, notes: e.target.value }))} rows={2}
+                  placeholder="Any notes about this payment…"
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #E2E8F0', fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif", resize: 'none', outline: 'none', boxSizing: 'border-box' }} />
+              </div>
+              {payError && <div style={{ marginBottom: '12px', padding: '10px 14px', background: '#FEF2F2', borderRadius: '8px', color: '#991B1B', fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>⚠ {payError}</div>}
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <Btn variant="secondary" onClick={() => setPayModal(null)}>Cancel</Btn>
+                <Btn onClick={confirmPay} disabled={payLoading || !payForm.utr.trim()} style={{ background: payLoading ? '#94A3B8' : 'linear-gradient(135deg,#10B981,#059669)', color: 'white', border: 'none', padding: '10px 24px', borderRadius: '8px', fontWeight: 700, cursor: payLoading ? 'not-allowed' : 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '14px' }}>
+                  {payLoading ? 'Processing…' : '✓ Confirm Payment'}
+                </Btn>
+              </div>
+            </>
+          )}
+        </TjModal>
+      )}
     </div>
   );
 };

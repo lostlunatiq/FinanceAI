@@ -568,7 +568,7 @@ class AuditLogListView(APIView):
       - date_to         : ISO date filter (inclusive)
     """
 
-    permission_classes = [IsAuthenticated, HasMinimumGrade.make(3)]
+    permission_classes = [IsAuthenticated, HasMinimumGrade.make(2)]
 
     def get(self, request):
         user = request.user
@@ -942,6 +942,109 @@ def _run_nl_query(question: str, user, session_id=None) -> dict:
         for d in delayed:
             days_late = (timezone.now().date() - d.invoice_date).days
             ctx_lines.append(f"  {d.ref_no} | {d.vendor.name if d.vendor else 'N/A'} | ₹{float(d.total_amount):,.0f} | {days_late}d overdue | Status: {d._status}")
+
+        # ── ALL INVOICES FULL DETAIL (CFO/Finance Admin) ─────────────────────────
+        ctx_lines.append("\nALL INVOICES (FULL DETAIL):")
+        all_invoices = Expense.objects.select_related(
+            "vendor", "submitted_by", "submitted_by__department"
+        ).order_by("-invoice_date")
+        for inv in all_invoices:
+            ctx_lines.append(_fmt_invoice_full(inv, include_steps=True))
+            ctx_lines.append("")
+
+        # ── CASHFLOW FORECAST ─────────────────────────────────────────────────────
+        try:
+            from apps.invoices.budget_views import _build_cashflow_forecast
+            cf = _build_cashflow_forecast(days=30)
+            ctx_lines.append("\nCASHFLOW FORECAST (30-DAY):")
+            ctx_lines.append(f"  Opening Balance: ₹{float(cf.get('opening_balance', 0)):,.0f}")
+            ctx_lines.append(f"  Projected Closing Balance: ₹{float(cf.get('projected_closing_balance', 0)):,.0f}")
+            ctx_lines.append(f"  Total Projected Inflow: ₹{float(cf.get('total_projected_inflow', 0)):,.0f}")
+            ctx_lines.append(f"  Total Projected Outflow: ₹{float(cf.get('total_projected_outflow', 0)):,.0f}")
+            ctx_lines.append(f"  Net Cashflow: ₹{float(cf.get('net_cashflow', 0)):,.0f}")
+            ctx_lines.append(f"  Narrative Summary: {cf.get('summary', '')}")
+            # Daily forecast first 10 days
+            ctx_lines.append("  Daily Forecast (next 10 days):")
+            for day in (cf.get("daily_forecast") or [])[:10]:
+                ctx_lines.append(
+                    f"    {day['date']}: Inflow ₹{float(day['projected_inflow']):,.0f} | "
+                    f"Outflow ₹{float(day['projected_outflow']):,.0f} | "
+                    f"Net ₹{float(day['net_cashflow']):,.0f} | "
+                    f"Balance ₹{float(day['running_balance']):,.0f}"
+                )
+            # Risk highlights
+            risks = cf.get("risk_highlights") or []
+            if risks:
+                ctx_lines.append("  Risk Highlights:")
+                for r in risks:
+                    ctx_lines.append(f"    {r.get('date','')}: {r.get('description','')} (severity: {r.get('severity','')})")
+        except Exception:
+            pass
+
+        # ── MONTHLY SUMMARY (last 3 months) ──────────────────────────────────────
+        try:
+            from datetime import date as _date
+            today_d = timezone.now().date()
+            ctx_lines.append("\nMONTHLY FINANCIAL SUMMARY (LAST 3 MONTHS):")
+            for i in range(3):
+                # Calculate month key for i months ago
+                month_offset = (today_d.month - 1 - i)
+                yr = today_d.year + (month_offset // 12)
+                mo = (month_offset % 12) + 1
+                mkey = f"{yr:04d}-{mo:02d}"
+                from apps.invoices.models import Expense as _Exp
+                from django.db.models import Sum as _Sum, Count as _Count
+                import calendar as _cal
+                m_start = _date(yr, mo, 1)
+                m_end = _date(yr, mo, _cal.monthrange(yr, mo)[1])
+                mqs = _Exp.objects.filter(invoice_date__gte=m_start, invoice_date__lte=m_end)
+                paid_amt = float(mqs.filter(_status="PAID").aggregate(t=_Sum("total_amount"))["t"] or 0)
+                pending_amt = float(mqs.filter(_status__in=["PENDING_L1","PENDING_L2","PENDING_HOD","PENDING_FIN_L1","PENDING_FIN_L2","PENDING_FIN_HEAD"]).aggregate(t=_Sum("total_amount"))["t"] or 0)
+                total_cnt = mqs.count()
+                ctx_lines.append(f"  {m_start.strftime('%B %Y')}: Paid ₹{paid_amt:,.0f} | Pending ₹{pending_amt:,.0f} | {total_cnt} invoices total")
+        except Exception:
+            pass
+
+        # ── DEPARTMENT VARIANCE ───────────────────────────────────────────────────
+        try:
+            from apps.core.models import Department
+            ctx_lines.append("\nDEPARTMENT SPEND vs BUDGET (YTD):")
+            year_now = timezone.now().year
+            year_start = timezone.now().date().replace(month=1, day=1)
+            for dept in Department.objects.all():
+                actual = float(
+                    Expense.objects.filter(
+                        submitted_by__department=dept,
+                        invoice_date__gte=year_start,
+                        _status__in=["APPROVED","PAID","BOOKED_D365","POSTED_D365"],
+                    ).aggregate(t=Sum("total_amount"))["t"] or 0
+                )
+                budget_amt = float(
+                    Budget.objects.filter(department=dept, fiscal_year=year_now, status="active")
+                    .aggregate(t=Sum("total_amount"))["t"] or 0
+                )
+                variance = actual - budget_amt
+                status_flag = "OVER_BUDGET" if variance > 0 else "UNDER_BUDGET" if variance < 0 else "ON_TRACK"
+                ctx_lines.append(
+                    f"  {dept.name}: Budget ₹{budget_amt:,.0f} | Actual ₹{actual:,.0f} | "
+                    f"Variance ₹{abs(variance):,.0f} {'over' if variance > 0 else 'under'} [{status_flag}]"
+                )
+        except Exception:
+            pass
+
+        # ── ALL EMPLOYEES (CFO/Finance Admin) ─────────────────────────────────────
+        try:
+            from django.contrib.auth import get_user_model
+            _User = get_user_model()
+            ctx_lines.append("\nALL EMPLOYEES:")
+            for emp in _User.objects.filter(is_active=True).select_related("department").exclude(vendor_profile__isnull=False).order_by("employee_grade", "first_name"):
+                dept_name = emp.department.name if emp.department_id else "N/A"
+                ctx_lines.append(
+                    f"  {emp.get_full_name() or emp.username} | Grade: {emp.employee_grade or 'N/A'} | "
+                    f"Dept: {dept_name} | Email: {emp.email or 'N/A'}"
+                )
+        except Exception:
+            pass
 
     # ── VENDOR-SPECIFIC context (when user IS a vendor) ──────────────────────────
     if is_vendor:

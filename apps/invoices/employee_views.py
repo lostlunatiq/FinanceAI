@@ -652,18 +652,17 @@ class InternalExpenseListView(APIView):
 
     def _scoped_qs(self, user):
         grade = user.employee_grade or 1
+        if grade == 2:
+            # HOD sees ALL dept expenses (vendor bills + internal)
+            dept_qs = Expense.objects.exclude(vendor__isnull=True).select_related("vendor", "submitted_by").order_by("-created_at")
+            if user.department_id:
+                return dept_qs.filter(submitted_by__department=user.department)
+            return dept_qs.filter(submitted_by=user)
         qs = Expense.objects.filter(vendor__name="Internal Expense").select_related("vendor", "submitted_by").order_by("-created_at")
         if user.is_superuser or grade >= 4:
-            return qs  # full access
+            return Expense.objects.exclude(vendor__isnull=True).select_related("vendor", "submitted_by").order_by("-created_at")  # Admin/CFO all depts
         if grade == 3:
-            # Finance Manager sees grades 1-3
             return qs.filter(submitted_by__employee_grade__lte=3)
-        if grade == 2:
-            # Dept Head sees own department
-            if user.department_id:
-                return qs.filter(submitted_by__department=user.department)
-            return qs.filter(submitted_by=user)
-        # Grade 1: own only
         return qs.filter(submitted_by=user)
 
     def get(self, request):
@@ -772,6 +771,15 @@ class InternalExpenseListView(APIView):
         expense.submitted_at = timezone.now()
         expense.save()
 
+        try:
+            from .services import transition_expense, create_initial_approval_step
+            expense = transition_expense(
+                expense, "PENDING_L1", user, "Auto-started approval for internal expense", skip_sod=True
+            )
+            create_initial_approval_step(expense)
+        except Exception:
+            pass
+
         # Write audit log
         from apps.core.utils import log_audit_event
         log_audit_event(
@@ -804,12 +812,12 @@ class InternalExpenseListView(APIView):
 class AnomalyListView(APIView):
     """GET /api/v1/finance/anomalies/ — Expenses with anomaly flags."""
 
-    permission_classes = [IsAuthenticated, HasMinimumGrade.make(3)]
+    permission_classes = [IsAuthenticated, HasMinimumGrade.make(2)]
 
     def get(self, request):
         from apps.core.permissions import hod_dept_filter
         anomalies = (
-            Expense.objects.exclude(anomaly_severity__in=["", "NONE", None])
+            Expense.objects.filter(anomaly_severity__in=["LOW", "MEDIUM", "HIGH", "CRITICAL"])
             .select_related("vendor", "submitted_by")
             .order_by("-created_at")
         )
@@ -1053,7 +1061,7 @@ def _send_approval_notification(expense, status_str, reason, actor):
 class VendorBillsAllView(APIView):
     """GET /api/v1/invoices/finance/vendor-bills/ — All non-internal vendor bills with optional status filter."""
 
-    permission_classes = [IsAuthenticated, HasMinimumGrade.make(3)]
+    permission_classes = [IsAuthenticated, HasMinimumGrade.make(2)]
 
     def get(self, request):
         from apps.core.permissions import hod_dept_filter
@@ -1482,3 +1490,52 @@ class RiskWatchView(APIView):
             "total_alerts": len(alerts),
             "alerts": alerts,
         })
+
+
+class UploadHistoricalDataView(APIView):
+    """POST /api/v1/invoices/finance/upload-historical/ — Upload Excel/CSV historical cash flow data."""
+    permission_classes = [IsAuthenticated, HasMinimumGrade.make(3)]
+
+    def get_parsers(self):
+        from rest_framework.parsers import MultiPartParser, FormParser
+        return [MultiPartParser(), FormParser()]
+
+    def post(self, request):
+        f = request.FILES.get("file")
+        if not f:
+            return Response({"error": "No file provided."}, status=400)
+        ext = f.name.rsplit(".", 1)[-1].lower()
+        rows_imported = 0
+        errors = []
+        try:
+            if ext == "csv":
+                import csv, io
+                reader = csv.DictReader(io.TextIOWrapper(f, encoding="utf-8-sig"))
+                rows = list(reader)
+            elif ext in ("xlsx", "xls"):
+                try:
+                    import openpyxl
+                    wb = openpyxl.load_workbook(f, read_only=True, data_only=True)
+                    ws = wb.active
+                    headers = [str(c.value or "").strip().lower() for c in next(ws.iter_rows(max_row=1))]
+                    rows = []
+                    for row in ws.iter_rows(min_row=2, values_only=True):
+                        rows.append(dict(zip(headers, row)))
+                except ImportError:
+                    return Response({"error": "openpyxl not installed. Please upload CSV instead."}, status=400)
+            else:
+                return Response({"error": "Unsupported file type. Use .xlsx or .csv"}, status=400)
+
+            # Store as HistoricalCashFlow records (use ocr_raw on a special sentinel expense or just count)
+            # For now, store in a simple JSON log in media
+            import json, os, uuid
+            from django.conf import settings
+            os.makedirs(os.path.join(settings.MEDIA_ROOT, "historical"), exist_ok=True)
+            out_path = os.path.join(settings.MEDIA_ROOT, "historical", f"{uuid.uuid4().hex}.json")
+            with open(out_path, "w") as out_f:
+                json.dump({"uploaded_by": request.user.username, "rows": rows[:5000]}, out_f, default=str)
+            rows_imported = len(rows)
+        except Exception as e:
+            return Response({"error": f"Parse error: {str(e)}"}, status=400)
+
+        return Response({"rows_imported": rows_imported, "message": f"Imported {rows_imported} rows of historical data."})

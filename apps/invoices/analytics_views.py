@@ -62,16 +62,22 @@ class SpendIntelligenceView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        user = request.user
+        grade = user.employee_grade or 0
         today = date.today()
         start_ytd = today.replace(month=1, day=1)
         start_prev = (today.replace(month=1, day=1) - timedelta(days=1)).replace(month=1, day=1)
 
-        # Current YTD spend by vendor type
+        # Current YTD spend by vendor type — exclude internal (no-vendor) expenses
         ytd_qs = Expense.objects.filter(
             _status__in=["PAID", "APPROVED", "BOOKED_D365", "POSTED_D365"],
             invoice_date__gte=start_ytd,
             invoice_date__lte=today,
+            vendor__isnull=False,          # ← exclude internal expenses
         )
+        # Grade 2 HOD: scope to own department only
+        if grade == 2 and not user.is_superuser and user.department_id:
+            ytd_qs = ytd_qs.filter(submitted_by__department=user.department)
 
         by_vendor_type = (
             ytd_qs.values("vendor__vendor_type")
@@ -86,27 +92,35 @@ class SpendIntelligenceView(APIView):
             _status__in=["PAID", "APPROVED", "BOOKED_D365", "POSTED_D365"],
             invoice_date__gte=prior_start,
             invoice_date__lte=prior_end,
+            vendor__isnull=False,          # ← exclude internal expenses
         )
+        if grade == 2 and not user.is_superuser and user.department_id:
+            prior_qs = prior_qs.filter(submitted_by__department=user.department)
         prior_total = float(prior_qs.aggregate(t=Sum("total_amount"))["t"] or 0)
         ytd_total = float(ytd_qs.aggregate(t=Sum("total_amount"))["t"] or 0)
         yoy_change_pct = round(((ytd_total - prior_total) / prior_total * 100) if prior_total else 0, 1)
 
         # Monthly trend last 6 months
         six_months_ago = today - timedelta(days=180)
+        monthly_qs = Expense.objects.filter(
+            _status__in=["PAID", "APPROVED", "BOOKED_D365", "POSTED_D365"],
+            invoice_date__gte=six_months_ago,
+            vendor__isnull=False,          # ← exclude internal expenses
+        )
+        if grade == 2 and not user.is_superuser and user.department_id:
+            monthly_qs = monthly_qs.filter(submitted_by__department=user.department)
         monthly = (
-            Expense.objects.filter(
-                _status__in=["PAID", "APPROVED", "BOOKED_D365", "POSTED_D365"],
-                invoice_date__gte=six_months_ago,
-            )
+            monthly_qs
             .annotate(month=TruncMonth("invoice_date"))
             .values("month")
             .annotate(total=Sum("total_amount"), count=Count("id"))
             .order_by("month")
         )
 
-        # Top vendors
+        # Top vendors — only real vendors (vendor__isnull=False already applied via ytd_qs)
         top_vendors = (
-            ytd_qs.values("vendor__name", "vendor__vendor_type")
+            ytd_qs.exclude(vendor__name__iexact="internal")
+            .values("vendor__name", "vendor__vendor_type")
             .annotate(total=Sum("total_amount"), count=Count("id"))
             .order_by("-total")[:5]
         )
@@ -250,6 +264,8 @@ class PaymentPredictionView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        user = request.user
+        grade = user.employee_grade or 0
         # Calculate avg time from SUBMITTED → PAID from historical data
         paid = Expense.objects.filter(
             _status="PAID",
@@ -261,13 +277,16 @@ class PaymentPredictionView(APIView):
             times = [(e.d365_paid_at - e.submitted_at).days for e in paid if e.d365_paid_at and e.submitted_at]
             avg_days = round(sum(times) / len(times)) if times else 14
         else:
-            avg_days = 14  # Default assumption
+            avg_days = 14
 
-        # Pending invoices
-        pending = Expense.objects.filter(
+        # Pending invoices — scope by department for HOD
+        pending_qs = Expense.objects.filter(
             _status__in=["PENDING_L1", "PENDING_L2", "PENDING_HOD", "PENDING_FIN_L1", "PENDING_FIN_L2", "PENDING_FIN_HEAD", "APPROVED"],
             submitted_at__isnull=False,
-        ).select_related("vendor")[:50]
+        ).select_related("vendor")
+        if grade == 2 and not user.is_superuser and user.department_id:
+            pending_qs = pending_qs.filter(submitted_by__department=user.department)
+        pending = pending_qs[:50]
 
         predictions = []
         today = date.today()
@@ -280,9 +299,11 @@ class PaymentPredictionView(APIView):
             confidence = max(0.4, 0.95 - (remaining_days / 30) * 0.3)
             total_pending_amount += float(e.total_amount)
 
+            if not e.vendor_id:  # skip internal expenses
+                continue
             predictions.append({
                 "ref_no": e.ref_no,
-                "vendor": e.vendor.name if e.vendor_id else "Internal",
+                "vendor": e.vendor.name,
                 "amount": float(e.total_amount),
                 "current_status": e._status,
                 "days_in_system": days_in_system,
@@ -563,8 +584,8 @@ class WorkingCapitalView(APIView):
                 aging["61_90"] += amt; aging_count["61_90"] += 1
             else:
                 aging["over_90"] += amt; aging_count["over_90"] += 1
-                vendor_name = e.vendor.name if e.vendor_id else "Internal"
-                overdue_vendors.append({"vendor": vendor_name, "ref_no": e.ref_no, "days": days_old, "amount": amt})
+                if e.vendor_id:  # ← skip internal expenses (no vendor)
+                    overdue_vendors.append({"vendor": e.vendor.name, "ref_no": e.ref_no, "days": days_old, "amount": amt})
 
         overdue_vendors.sort(key=lambda x: x["days"], reverse=True)
         total_outstanding = sum(aging.values())
@@ -1468,16 +1489,25 @@ class AnnualReportView(APIView):
                 continue
             variance = actual_amt - budget_amt
             total_budget += budget_amt
+            if budget_amt == 0:
+                # No budget configured — can't determine over/under; flag separately
+                status = "NO_BUDGET"
+                variance_pct = 0.0
+                util_pct = 0.0
+            else:
+                status = "OVER_BUDGET" if variance > 0 else "ON_TRACK" if variance == 0 else "UNDER_BUDGET"
+                variance_pct = round(variance / budget_amt * 100, 1)
+                util_pct = round(actual_amt / budget_amt * 100, 1)
             dept_performance.append({
                 "department": dept.name,
                 "budget": round(budget_amt, 0),
                 "actual": round(actual_amt, 0),
                 "variance": round(variance, 0),
-                "variance_pct": round(variance / budget_amt * 100, 1) if budget_amt else 0,
+                "variance_pct": variance_pct,
                 "prev_year_actual": round(prev_actual, 0),
                 "yoy_change_pct": round((actual_amt - prev_actual) / prev_actual * 100, 1) if prev_actual else 0,
-                "status": "OVER_BUDGET" if variance > 0 else "ON_TRACK" if variance == 0 else "UNDER_BUDGET",
-                "utilization_pct": round(actual_amt / budget_amt * 100, 1) if budget_amt else 0,
+                "status": status,
+                "utilization_pct": util_pct,
             })
         dept_performance.sort(key=lambda x: x["actual"], reverse=True)
 

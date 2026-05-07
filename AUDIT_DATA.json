@@ -1,0 +1,321 @@
+{
+  "Vendor": [
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "url": "http://localhost:8000/frontend/audit_log/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "url": "http://localhost:8000/frontend/anomaly_detection/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "url": "http://localhost:8000/frontend/budget_management/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://localhost:8000/frontend/cash_flow_forecast/code.html"
+    },
+    {
+      "type": "HTTPStatus",
+      "text": "Status 404",
+      "url": "/frontend/cash_flow_forecast/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://localhost:8000/frontend/user_management/code.html"
+    },
+    {
+      "type": "HTTPStatus",
+      "text": "Status 404",
+      "url": "/frontend/user_management/code.html"
+    },
+    {
+      "type": "PageError",
+      "text": "AUTH is not defined",
+      "url": "http://localhost:8000/frontend/ap_match_fraud_control_1/code.html"
+    },
+    {
+      "type": "PageError",
+      "text": "AUTH is not defined",
+      "url": "http://localhost:8000/frontend/ap_match_fraud_control_2/code.html"
+    }
+  ],
+  "Employee": [
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://localhost:8000/frontend/vendor_portal/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "url": "http://localhost:8000/frontend/audit_log/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "url": "http://localhost:8000/frontend/anomaly_detection/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "url": "http://localhost:8000/frontend/budget_management/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://localhost:8000/frontend/cash_flow_forecast/code.html"
+    },
+    {
+      "type": "HTTPStatus",
+      "text": "Status 404",
+      "url": "/frontend/cash_flow_forecast/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://localhost:8000/frontend/user_management/code.html"
+    },
+    {
+      "type": "HTTPStatus",
+      "text": "Status 404",
+      "url": "/frontend/user_management/code.html"
+    },
+    {
+      "type": "PageError",
+      "text": "AUTH is not defined",
+      "url": "http://localhost:8000/frontend/ap_match_fraud_control_1/code.html"
+    },
+    {
+      "type": "PageError",
+      "text": "AUTH is not defined",
+      "url": "http://localhost:8000/frontend/ap_match_fraud_control_2/code.html"
+    }
+  ],
+  "L1 Approver": [
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://localhost:8000/frontend/vendor_portal/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "url": "http://localhost:8000/frontend/audit_log/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "url": "http://localhost:8000/frontend/anomaly_detection/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "url": "http://localhost:8000/frontend/budget_management/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://localhost:8000/frontend/cash_flow_forecast/code.html"
+    },
+    {
+      "type": "HTTPStatus",
+      "text": "Status 404",
+      "url": "/frontend/cash_flow_forecast/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://localhost:8000/frontend/user_management/code.html"
+    },
+    {
+      "type": "HTTPStatus",
+      "text": "Status 404",
+      "url": "/frontend/user_management/code.html"
+    },
+    {
+      "type": "PageError",
+      "text": "AUTH is not defined",
+      "url": "http://localhost:8000/frontend/ap_match_fraud_control_1/code.html"
+    },
+    {
+      "type": "PageError",
+      "text": "AUTH is not defined",
+      "url": "http://localhost:8000/frontend/ap_match_fraud_control_2/code.html"
+    }
+  ],
+  "HOD": [
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://localhost:8000/frontend/vendor_portal/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "url": "http://localhost:8000/frontend/audit_log/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "url": "http://localhost:8000/frontend/anomaly_detection/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "url": "http://localhost:8000/frontend/budget_management/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://localhost:8000/frontend/cash_flow_forecast/code.html"
+    },
+    {
+      "type": "HTTPStatus",
+      "text": "Status 404",
+      "url": "/frontend/cash_flow_forecast/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://localhost:8000/frontend/user_management/code.html"
+    },
+    {
+      "type": "HTTPStatus",
+      "text": "Status 404",
+      "url": "/frontend/user_management/code.html"
+    },
+    {
+      "type": "PageError",
+      "text": "AUTH is not defined",
+      "url": "http://localhost:8000/frontend/ap_match_fraud_control_1/code.html"
+    },
+    {
+      "type": "PageError",
+      "text": "AUTH is not defined",
+      "url": "http://localhost:8000/frontend/ap_match_fraud_control_2/code.html"
+    }
+  ],
+  "Finance Manager": [
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://localhost:8000/frontend/vendor_portal/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "url": "http://localhost:8000/frontend/budget_management/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://localhost:8000/frontend/cash_flow_forecast/code.html"
+    },
+    {
+      "type": "HTTPStatus",
+      "text": "Status 404",
+      "url": "/frontend/cash_flow_forecast/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://localhost:8000/frontend/user_management/code.html"
+    },
+    {
+      "type": "HTTPStatus",
+      "text": "Status 404",
+      "url": "/frontend/user_management/code.html"
+    },
+    {
+      "type": "PageError",
+      "text": "AUTH is not defined",
+      "url": "http://localhost:8000/frontend/ap_match_fraud_control_1/code.html"
+    },
+    {
+      "type": "PageError",
+      "text": "AUTH is not defined",
+      "url": "http://localhost:8000/frontend/ap_match_fraud_control_2/code.html"
+    }
+  ],
+  "Finance Admin": [
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://localhost:8000/frontend/vendor_portal/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://localhost:8000/frontend/cash_flow_forecast/code.html"
+    },
+    {
+      "type": "HTTPStatus",
+      "text": "Status 404",
+      "url": "/frontend/cash_flow_forecast/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://localhost:8000/frontend/user_management/code.html"
+    },
+    {
+      "type": "HTTPStatus",
+      "text": "Status 404",
+      "url": "/frontend/user_management/code.html"
+    },
+    {
+      "type": "PageError",
+      "text": "AUTH is not defined",
+      "url": "http://localhost:8000/frontend/ap_match_fraud_control_1/code.html"
+    },
+    {
+      "type": "PageError",
+      "text": "AUTH is not defined",
+      "url": "http://localhost:8000/frontend/ap_match_fraud_control_2/code.html"
+    }
+  ],
+  "CFO": [
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://localhost:8000/frontend/vendor_portal/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://localhost:8000/frontend/cash_flow_forecast/code.html"
+    },
+    {
+      "type": "HTTPStatus",
+      "text": "Status 404",
+      "url": "/frontend/cash_flow_forecast/code.html"
+    },
+    {
+      "type": "ConsoleError",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://localhost:8000/frontend/user_management/code.html"
+    },
+    {
+      "type": "HTTPStatus",
+      "text": "Status 404",
+      "url": "/frontend/user_management/code.html"
+    },
+    {
+      "type": "PageError",
+      "text": "AUTH is not defined",
+      "url": "http://localhost:8000/frontend/ap_match_fraud_control_1/code.html"
+    },
+    {
+      "type": "PageError",
+      "text": "AUTH is not defined",
+      "url": "http://localhost:8000/frontend/ap_match_fraud_control_2/code.html"
+    }
+  ]
+}

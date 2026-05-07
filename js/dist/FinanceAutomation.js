@@ -1692,8 +1692,6 @@ Object.assign(window, {
   SpendAnalyticsScreen,
   WorkingCapitalScreen,
   VendorRiskScreen,
-  GSTReconScreen,
-  TDSComplianceScreen,
   PolicyComplianceScreen,
   DeptVarianceScreen,
   POMatchScreen

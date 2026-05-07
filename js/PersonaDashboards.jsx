@@ -492,14 +492,180 @@ const FinanceAdminDashboard = ({ role, onNavigate, user }) => {
   );
 };
 
+// ─── CLAIM DETAIL MODAL ───────────────────────────────────────────────────────
+
+const STATUS_LABEL = {
+  PENDING_L1:    'Waiting for L1 Approver',
+  PENDING_L2:    'Waiting for Dept Head Approval',
+  PENDING_HOD:   'Waiting for Department Head',
+  PENDING_FIN_L1:'Waiting for Finance Manager',
+  PENDING_FIN_L2:'Waiting for Finance Admin',
+  APPROVED:      'Fully Approved ✓',
+  REJECTED:      'Rejected',
+  PAID:          'Paid & Reimbursed ✓',
+  QUERY_RAISED:  'Query Raised — Please Respond',
+  SUBMITTED:     'Submitted — Pending Review',
+};
+
+const APPROVAL_FLOW = [
+  { grade: 1, label: 'L1 Approver'    },
+  { grade: 2, label: 'Dept Head'      },
+  { grade: 3, label: 'Finance Manager'},
+  { grade: 4, label: 'Finance Admin'  },
+];
+
+const ClaimDetailModal = ({ open, loading, detail, onClose }) => {
+  if (!open) return null;
+  const d = detail || {};
+  const row = d._listRow || {};
+  const steps = d.approval_steps || [];
+  const curStatus = d.status || row.status || '';
+
+  // API uses grade_required (1=L1, 2=HOD, 3=FinMgr, 4=FinAdmin) to identify steps
+  const getStepSt = (grade) => {
+    const match = steps.find(s => s.grade_required === grade);
+    if (match) {
+      if (match.status === 'APPROVED' || match.decided_at) return 'DONE';
+      if (match.status === 'PENDING') return 'ACTIVE';
+      return 'WAIT';
+    }
+    if (curStatus === 'APPROVED' || curStatus === 'PAID') return 'DONE';
+    return 'WAIT';
+  };
+
+  const isRejected = curStatus === 'REJECTED';
+  const isDone     = curStatus === 'APPROVED' || curStatus === 'PAID';
+  const statusBg   = isRejected ? '#FEF2F2' : isDone ? '#F0FDF4' : '#FFFBEB';
+  const statusBdr  = isRejected ? '#FECACA' : isDone ? '#BBF7D0' : '#FDE68A';
+  const statusCol  = isRejected ? '#DC2626' : isDone ? '#059669' : '#92400E';
+  const pendingStep = steps.find(s => s.status === 'PENDING');
+  const fmtAmt = v => v != null ? '₹' + Number(v).toLocaleString('en-IN') : '—';
+
+  const taxTotal = parseFloat(d.cgst||0) + parseFloat(d.sgst||0) + parseFloat(d.igst||0);
+  const vendorName = d.vendor_name || d.vendor?.name || '—';
+  const detailFields = [
+    { label: 'Description',          value: d.description || d.business_purpose || '—', span: 2 },
+    { label: 'Submitted By',         value: d.submitted_by_name || '—' },
+    { label: 'Submitted On',         value: d.submitted_at ? new Date(d.submitted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—' },
+    { label: 'Claim Ref',            value: d.ref_no || '—' },
+    { label: 'Pre-GST Amount',       value: d.pre_gst_amount ? fmtAmt(parseFloat(d.pre_gst_amount)) : '—' },
+    { label: 'Tax (CGST+SGST+IGST)', value: taxTotal > 0 ? fmtAmt(taxTotal) : '—' },
+    { label: 'Vendor / Merchant',     value: vendorName },
+    { label: 'GSTIN',                value: d.gstin || d.vendor?.gstin || '—' },
+  ];
+
+  const isLoading = loading || (!detail && !d._error);
+
+  return (
+    <TjModal open={open} onClose={onClose} title="Claim Details" width={560}>
+      {isLoading && (
+        <div style={{ padding: '40px', textAlign: 'center', color: '#94A3B8', fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          Loading claim details…
+        </div>
+      )}
+      {!isLoading && d._error && (
+        <div style={{ padding: '24px', textAlign: 'center' }}>
+          <div style={{ fontSize: '13px', color: '#EF4444', marginBottom: '10px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Could not load full details.</div>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A', fontFamily: "'JetBrains Mono', monospace" }}>{row.id}</div>
+          <div style={{ fontSize: '20px', fontWeight: 800, color: '#E8783B', fontFamily: "'Bricolage Grotesque', sans-serif", margin: '6px 0' }}>{row.amount}</div>
+          <StatusBadge status={row.status} />
+        </div>
+      )}
+      {!isLoading && !d._error && detail && (
+        <div>
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '14px 16px', background: 'linear-gradient(135deg,#FFF8F5,#FFF5F0)', border: '1px solid #FDDCBC', borderRadius: '12px', marginBottom: '14px' }}>
+            <div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#E8783B', fontWeight: 700 }}>{d.ref_no || row.id || '—'}</div>
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '28px', color: '#0F172A', letterSpacing: '-1px', margin: '2px 0' }}>{fmtAmt(d.total_amount || row.rawAmt)}</div>
+              <div style={{ fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                {(d.expense_category || row.category || '—') + ' · ' + (d.invoice_date ? new Date(d.invoice_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : row.date || '—')}
+              </div>
+            </div>
+            <StatusBadge status={curStatus} />
+          </div>
+
+          {/* Current status */}
+          <div style={{ padding: '12px 14px', background: statusBg, border: `1px solid ${statusBdr}`, borderRadius: '10px', marginBottom: '14px' }}>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '4px' }}>Current Status</div>
+            <div style={{ fontSize: '14px', fontWeight: 700, color: statusCol, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{STATUS_LABEL[curStatus] || curStatus || '—'}</div>
+            {pendingStep && (
+              <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                Pending with: <strong>{pendingStep.assigned_to_name || 'Approver'}</strong>
+              </div>
+            )}
+          </div>
+
+          {/* Approval Journey */}
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '10px' }}>Approval Journey</div>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              {APPROVAL_FLOW.map((f, i) => {
+                const st  = getStepSt(f.grade);
+                const col = st === 'DONE' ? '#10B981' : st === 'ACTIVE' ? '#E8783B' : '#CBD5E1';
+                const bg  = st === 'DONE' ? '#F0FDF4' : st === 'ACTIVE' ? '#FFF8F5' : '#F8F7F5';
+                const ico = st === 'DONE' ? '✓' : st === 'ACTIVE' ? '⏳' : '·';
+                const sd  = steps.find(s => s.grade_required === f.grade);
+                return (
+                  <React.Fragment key={f.grade}>
+                    <div style={{ flex: 1, textAlign: 'center' }}>
+                      <div style={{ width: 36, height: 36, borderRadius: '50%', background: bg, border: `2px solid ${col}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 6px', fontSize: '14px', fontWeight: 700, color: col, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{ico}</div>
+                      <div style={{ fontSize: '10px', fontWeight: 600, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.3 }}>{f.label}</div>
+                      {sd && sd.assigned_to_name && <div style={{ fontSize: '9px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>{sd.assigned_to_name}</div>}
+                      {sd && sd.decided_at && <div style={{ fontSize: '9px', color: '#10B981', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{new Date(sd.decided_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>}
+                    </div>
+                    {i < APPROVAL_FLOW.length - 1 && (
+                      <div style={{ width: 20, height: 2, background: getStepSt(APPROVAL_FLOW[i + 1].grade) !== 'WAIT' ? '#10B981' : '#E2E8F0', flexShrink: 0, marginBottom: 28 }} />
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Detail fields grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '14px' }}>
+            {detailFields.map((f, i) => (
+              <div key={i} style={{ gridColumn: f.span === 2 ? '1 / -1' : 'auto', background: '#F8F7F5', borderRadius: '8px', padding: '10px 12px' }}>
+                <div style={{ fontSize: '9px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '3px' }}>{f.label}</div>
+                <div style={{ fontSize: '13px', fontWeight: 500, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{f.value}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Rejection reason */}
+          {d.rejection_reason && (
+            <div style={{ padding: '10px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '10px', marginBottom: '12px' }}>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: '#991B1B', textTransform: 'uppercase', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '4px' }}>Rejection Reason</div>
+              <div style={{ fontSize: '13px', color: '#7F1D1D', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{d.rejection_reason}</div>
+            </div>
+          )}
+
+          {/* Receipt link */}
+          {d.invoice_file && (
+            <Btn variant="secondary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => window.TijoriAPI.FilesAPI.open(d.invoice_file)}>
+              View Attached Receipt ↗
+            </Btn>
+          )}
+        </div>
+      )}
+    </TjModal>
+  );
+};
+
 // ─── EMPLOYEE DASHBOARD ───────────────────────────────────────────────────────
 
 const EmployeeDashboard = ({ role, onNavigate, user }) => {
   const [fileOpen, setFileOpen] = React.useState(false);
+  const [claimDetail, setClaimDetail] = React.useState(null);   // full detail from API
+  const [claimDetailLoading, setClaimDetailLoading] = React.useState(false);
+  const [claimDetailOpen, setClaimDetailOpen] = React.useState(false);
+  const [expMode, setExpMode] = React.useState('auto'); // 'auto' | 'manual'
   const [expCategory, setExpCategory] = React.useState('');
   const [expAmount, setExpAmount] = React.useState('');
   const [expDate, setExpDate] = React.useState('');
   const [expDesc, setExpDesc] = React.useState('');
+  const [expMerchant, setExpMerchant] = React.useState('');
   const [uploadDone, setUploadDone] = React.useState(false);
   const [aiAccepted, setAiAccepted] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
@@ -509,6 +675,7 @@ const EmployeeDashboard = ({ role, onNavigate, user }) => {
   const [expLoading, setExpLoading] = React.useState(true);
   const [ocrLoading, setOcrLoading] = React.useState(false);
   const [ocrResult, setOcrResult] = React.useState(null);
+  const [crossCheck, setCrossCheck] = React.useState(null);
   const [uploadedFileRef, setUploadedFileRef] = React.useState(null);
   const [uploadError, setUploadError] = React.useState('');
 
@@ -524,6 +691,7 @@ const EmployeeDashboard = ({ role, onNavigate, user }) => {
             const amt = parseFloat(e.amount || e.total_amount || 0);
             return {
               id: e.ref_no || e.id?.slice(0, 12).toUpperCase(),
+              rawId: e.id,
               amount: '₹' + amt.toLocaleString('en-IN'),
               date: (e.submitted_at || e.created_at || e.date || e.invoice_date) ? new Date(e.submitted_at || e.created_at || e.date || e.invoice_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—',
               category: e.expense_category || e.category || e.business_purpose || e.expense_type || 'Other',
@@ -568,7 +736,7 @@ const EmployeeDashboard = ({ role, onNavigate, user }) => {
 
   const handleExpFileSelect = async (file) => {
     if (!file) return;
-    setOcrLoading(true); setOcrResult(null); setUploadError(''); setUploadedFileRef(null); setUploadDone(false);
+    setOcrLoading(true); setOcrResult(null); setUploadError(''); setUploadedFileRef(null); setUploadDone(false); setCrossCheck(null);
     try {
       const { FilesAPI } = window.TijoriAPI;
       if (!FilesAPI) throw new Error('FilesAPI not available');
@@ -578,26 +746,41 @@ const EmployeeDashboard = ({ role, onNavigate, user }) => {
       setUploadDone(true);
 
       let ocr;
-      try {
-        ocr = await FilesAPI.ocr(uploaded.id);
-      } catch (ocrErr) {
-        ocr = generateFakeOcrData();
-      }
-
+      try { ocr = await FilesAPI.ocr(uploaded.id); } catch (_) { ocr = generateFakeOcrData(); }
       if (!ocr) ocr = generateFakeOcrData();
       setOcrResult(ocr);
 
-      if (ocr.extracted_fields && Object.keys(ocr.extracted_fields).length > 0) {
-        const f = ocr.extracted_fields;
+      const f = ocr.extracted_fields || {};
+
+      if (expMode === 'auto') {
+        // Auto — fill all extracted fields
         if (f.total_amount) setExpAmount(String(f.total_amount));
         if (f.invoice_date) setExpDate(f.invoice_date);
-        const merchantName = f.merchant_name || f.vendor_name || f.supplier_name;
-        if (merchantName && !expDesc) {
-          setExpDesc(`Receipt from ${merchantName}`);
+        const merchant = f.merchant_name || f.vendor_name || f.supplier_name || '';
+        if (merchant) { setExpMerchant(merchant); if (!expDesc) setExpDesc(`Receipt from ${merchant}`); }
+      } else {
+        // Manual — cross-check doc vs entered
+        const checks = [];
+        if (f.total_amount && expAmount) {
+          const docAmt = parseFloat(f.total_amount), entAmt = parseFloat(expAmount);
+          const pct = entAmt > 0 ? (Math.abs(docAmt - entAmt) / entAmt) * 100 : 0;
+          checks.push({ field: 'Amount', doc: `₹${docAmt.toLocaleString('en-IN')}`, entered: `₹${entAmt.toLocaleString('en-IN')}`, ok: pct <= 5, note: pct > 5 ? `${pct.toFixed(1)}% difference` : 'Matches' });
         }
+        if (f.invoice_date && expDate) {
+          const docDate = f.invoice_date?.slice(0, 10);
+          checks.push({ field: 'Date', doc: docDate, entered: expDate, ok: docDate === expDate, note: docDate === expDate ? 'Matches' : 'Date mismatch' });
+        }
+        const merchant = f.merchant_name || f.vendor_name || f.supplier_name;
+        if (merchant) checks.push({ field: 'Merchant', doc: merchant, entered: expMerchant || '(not entered)', ok: null, note: 'FYI' });
+        if (f.gstin)      checks.push({ field: 'GSTIN',      doc: f.gstin,       entered: '—', ok: null, note: 'From doc' });
+        if (f.invoice_no || f.invoice_number) checks.push({ field: 'Invoice No.', doc: f.invoice_no || f.invoice_number, entered: '—', ok: null, note: 'From doc' });
+        if (f.pre_gst_amount) checks.push({ field: 'Pre-GST', doc: `₹${Number(f.pre_gst_amount).toLocaleString('en-IN')}`, entered: '—', ok: null, note: 'From doc' });
+        if (f.cgst || f.sgst || f.igst) checks.push({ field: 'Tax', doc: `₹${Number((f.cgst||0)+(f.sgst||0)+(f.igst||0)).toLocaleString('en-IN')}`, entered: '—', ok: null, note: 'From doc' });
+        setCrossCheck({ status: checks.some(c => c.ok === false) ? 'mismatch' : 'match', fields: checks });
       }
+
       if (ocr.status === 'FAILED' || !(ocr.confidence > 0)) {
-        setUploadError(ocr.error || 'OCR could not extract fields. You can still fill the bill manually.');
+        setUploadError(ocr.error || 'OCR unavailable — please fill details manually.');
       }
     } catch (err) {
       setUploadDone(false);
@@ -616,8 +799,8 @@ const EmployeeDashboard = ({ role, onNavigate, user }) => {
     return acc;
   }, {});
 
-  const EXP_CATS = budgetHealth.length > 0 ? budgetHealth.map(b => b.name) : ['General Operations', 'Travel', 'Software & Licences', 'Office Supplies', 'Marketing & Events', 'Professional Services'];
-  if (!expCategory && EXP_CATS.length > 0) setExpCategory(EXP_CATS[0]);
+  const EXP_CATS = ['Travel', 'Meals & Entertainment', 'Accommodation', 'Local Conveyance', 'Office Supplies', 'Software & Subscriptions', 'Marketing & Events', 'Training & Development', 'Medical / Wellness', 'Client Reimbursement', 'Courier & Logistics', 'Miscellaneous'];
+  React.useEffect(() => { if (!expCategory) setExpCategory(EXP_CATS[0]); }, []);
   
   const budgetInfo = budgetHealthMap[expCategory] || null;
   const budgetPct = budgetInfo ? Math.round((budgetInfo.rem / budgetInfo.total) * 100) : null;
@@ -632,7 +815,7 @@ const EmployeeDashboard = ({ role, onNavigate, user }) => {
             <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '32px', color: '#0F172A', letterSpacing: '-1.5px' }}>My Expenses</h1>
             <div style={{ fontSize: '13px', color: '#64748B', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{new Date().toLocaleDateString('en-IN', { month: 'long', day: 'numeric', year: 'numeric' })} — Track your expense claims and reimbursements</div>
           </div>
-          <Btn variant="primary" icon={<span>+</span>} onClick={() => { setFileOpen(true); setUploadDone(false); setAiAccepted(false); setExpAmount(''); setOcrLoading(false); setOcrResult(null); setUploadedFileRef(null); setUploadError(''); }}>File Expense</Btn>
+          <Btn variant="primary" icon={<span>+</span>} onClick={() => { setFileOpen(true); setExpMode('auto'); setUploadDone(false); setAiAccepted(false); setExpAmount(''); setExpDate(''); setExpDesc(''); setExpMerchant(''); setOcrLoading(false); setOcrResult(null); setCrossCheck(null); setUploadedFileRef(null); setUploadError(''); }}>File Expense</Btn>
         </div>
       </div>
 
@@ -648,33 +831,48 @@ const EmployeeDashboard = ({ role, onNavigate, user }) => {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '20px', animation: 'fadeUp 250ms 120ms ease both', opacity: 0, animationFillMode: 'forwards' }}>
         {/* My Expenses table */}
         <Card style={{ padding: '0', overflow: 'hidden' }}>
-          <div style={{ padding: '18px 22px', borderBottom: '1px solid #F1F0EE', fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A' }}>My Claims</div>
+          <div style={{ padding: '18px 22px', borderBottom: '1px solid #F1F0EE', fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A' }}>My Claims <span style={{ fontSize: '12px', color: '#94A3B8', fontWeight: 400, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>— click any row for details</span></div>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#F8F7F5' }}>
-                {['Claim ID', 'Category', 'Amount', 'Date', 'Status'].map(h => (
+                {['Claim ID', 'Category', 'Amount', 'Date', 'Status', ''].map(h => (
                   <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: '10px', fontWeight: 700, color: '#94A3B8', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {myExpenses.map(e => (
-                <tr key={e.id} style={{ borderTop: '1px solid #F1F0EE', height: 52, transition: 'background 150ms' }}
+              {expLoading ? (
+                <tr><td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Loading your claims…</td></tr>
+              ) : myExpenses.length === 0 ? (
+                <tr><td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>No claims yet — click "File Expense" to submit one.</td></tr>
+              ) : myExpenses.map(e => (
+                <tr key={e.id} style={{ borderTop: '1px solid #F1F0EE', height: 52, cursor: 'pointer', transition: 'background 150ms' }}
                   onMouseEnter={ev => ev.currentTarget.style.background = '#FFF8F5'}
-                  onMouseLeave={ev => ev.currentTarget.style.background = 'white'}>
+                  onMouseLeave={ev => ev.currentTarget.style.background = 'white'}
+                  onClick={async () => {
+                    setClaimDetailOpen(true);
+                    setClaimDetail(null);
+                    setClaimDetailLoading(true);
+                    try {
+                      const token = localStorage.getItem('tj_access');
+                      const res = await fetch(`/api/v1/invoices/${e.rawId}/`, {
+                        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+                      });
+                      if (!res.ok) throw new Error('Failed');
+                      const det = await res.json();
+                      setClaimDetail({ ...det, _listRow: e });
+                    } catch (_) {
+                      setClaimDetail({ _listRow: e, _error: true });
+                    } finally { setClaimDetailLoading(false); }
+                  }}>
                   <td style={{ padding: '0 16px', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#E8783B' }}>{e.id}</td>
                   <td style={{ padding: '0 16px' }}>
-                    {e.aiCat ? (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: '#F5F3FF', color: '#5B21B6', padding: '3px 10px', borderRadius: '999px', fontSize: '11px', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                        <AIBadge small />{e.category}<span style={{ fontSize: '10px', fontWeight: 700 }}>{e.conf}%</span>
-                      </span>
-                    ) : (
-                      <span style={{ background: '#F1F5F9', padding: '3px 10px', borderRadius: '999px', fontSize: '11px', fontWeight: 600, color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{e.category}</span>
-                    )}
+                    <span style={{ background: '#F1F5F9', padding: '3px 10px', borderRadius: '999px', fontSize: '11px', fontWeight: 600, color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{e.category}</span>
                   </td>
                   <td style={{ padding: '0 16px', fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '14px', color: '#E8783B', letterSpacing: '-0.5px' }}>{e.amount}</td>
                   <td style={{ padding: '0 16px', fontSize: '12px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{e.date}</td>
                   <td style={{ padding: '0 16px' }}><StatusBadge status={e.status} /></td>
+                  <td style={{ padding: '0 16px', fontSize: '11px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>View →</td>
                 </tr>
               ))}
             </tbody>
@@ -739,7 +937,7 @@ const EmployeeDashboard = ({ role, onNavigate, user }) => {
               <AIBadge small /><span style={{ fontSize: '11px', color: '#5B21B6', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Powered by Tijori Intelligence</span>
             </div>
             <div style={{ marginTop: '14px' }}>
-              <Btn variant="primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => { setFileOpen(true); setUploadDone(false); setAiAccepted(false); setExpAmount(''); setOcrLoading(false); setOcrResult(null); setUploadedFileRef(null); setUploadError(''); }}>
+              <Btn variant="primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => { setFileOpen(true); setExpMode('auto'); setUploadDone(false); setAiAccepted(false); setExpAmount(''); setExpDate(''); setExpDesc(''); setExpMerchant(''); setOcrLoading(false); setOcrResult(null); setCrossCheck(null); setUploadedFileRef(null); setUploadError(''); }}>
                 + File New Expense
               </Btn>
             </div>
@@ -747,46 +945,135 @@ const EmployeeDashboard = ({ role, onNavigate, user }) => {
         </div>
       </div>
 
-      {/* File Expense Panel */}
-      <SidePanel open={fileOpen} onClose={() => setFileOpen(false)} title="File Internal Expense">
-        <div style={{ border: `1.5px dashed ${uploadDone ? '#10B981' : '#E2E8F0'}`, borderRadius: '12px', padding: '24px', textAlign: 'center', marginBottom: '20px', background: uploadDone ? '#F0FDF4' : '#FAFAF8', cursor: uploadDone ? 'default' : 'pointer', transition: 'all 200ms', position: 'relative' }}
-          onMouseEnter={e => { if (!uploadDone) e.currentTarget.style.borderColor = '#E8783B'; }}
-          onMouseLeave={e => { if (!uploadDone) e.currentTarget.style.borderColor = '#E2E8F0'; }}
-          onClick={() => { if (!uploadDone) document.getElementById('emp-file-input').click(); }}>
-          <input id="emp-file-input" type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
-            onChange={e => { const f = e.target.files[0]; if (f) handleExpFileSelect(f); e.target.value = ''; }} />
-          <div style={{ fontSize: '28px', marginBottom: '8px' }}>{ocrLoading ? '⏳' : uploadDone ? '✅' : '📄'}</div>
-          <div style={{ fontWeight: 700, fontSize: '13px', color: ocrLoading ? '#5B21B6' : uploadDone ? '#065F46' : '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            {ocrLoading ? 'Receipt uploaded — AI extracting details…' : uploadDone ? 'Receipt uploaded — fields pre-filled below' : 'Upload receipt for AI extraction'}
-          </div>
-          <div style={{ fontSize: '12px', color: '#94A3B8', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            {uploadDone ? 'Ready below' : 'Drag & drop or click to browse · PDF, JPG, PNG'}
-          </div>
-          {!uploadDone && !ocrLoading && (
-            <div style={{ marginTop: '10px', display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, rgba(232,120,59,0.1), rgba(139,92,246,0.1))', border: '1px solid #EDE9FE', borderRadius: '999px', padding: '4px 12px' }}>
-              <AIBadge small /><span style={{ fontSize: '11px', color: '#5B21B6', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>AI Powered — auto-extracts line items</span>
-            </div>
-          )}
+      {/* Claim Detail Modal */}
+      {claimDetailOpen && (
+        <ClaimDetailModal
+          open={claimDetailOpen}
+          loading={claimDetailLoading}
+          detail={claimDetail}
+          onClose={() => { setClaimDetailOpen(false); setClaimDetail(null); }}
+        />
+      )}
+
+      {/* File Expense Panel — two-mode */}
+      <SidePanel open={fileOpen} onClose={() => setFileOpen(false)} title="File Expense Claim">
+
+        {/* Mode toggle */}
+        <div style={{ display: 'flex', background: '#F1F5F9', borderRadius: '10px', padding: '3px', marginBottom: '20px' }}>
+          {[['auto', '✦ Auto Extract (AI)', 'Upload → AI fills form'], ['manual', '✏ Manual Entry', 'Fill form → verify with receipt']].map(([mode, label, sub]) => (
+            <button key={mode} onClick={() => { setExpMode(mode); setCrossCheck(null); setOcrResult(null); setUploadDone(false); setUploadedFileRef(null); setUploadError(''); setExpAmount(''); setExpDate(''); setExpDesc(''); setExpMerchant(''); }}
+              style={{ flex: 1, padding: '8px 6px', borderRadius: '8px', border: 'none', cursor: 'pointer', background: expMode === mode ? 'white' : 'transparent', boxShadow: expMode === mode ? '0 1px 4px rgba(0,0,0,0.12)' : 'none', transition: 'all 150ms', textAlign: 'center' }}>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: expMode === mode ? '#E8783B' : '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{label}</div>
+              <div style={{ fontSize: '10px', color: '#94A3B8', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>{sub}</div>
+            </button>
+          ))}
         </div>
-        {uploadError && (
-          <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', fontSize: '12px', color: '#991B1B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            ⚠️ {uploadError}
+
+        {/* AUTO MODE — upload first */}
+        {expMode === 'auto' && (
+          <>
+            <div style={{ border: `1.5px dashed ${uploadDone ? '#10B981' : '#C7D2FE'}`, borderRadius: '12px', padding: '24px', textAlign: 'center', marginBottom: '20px', background: uploadDone ? '#F0FDF4' : 'linear-gradient(135deg,#F8F7FF,#FFF8F5)', cursor: !uploadDone ? 'pointer' : 'default', transition: 'all 200ms' }}
+              onClick={() => { if (!uploadDone) document.getElementById('emp-file-auto').click(); }}>
+              <input id="emp-file-auto" type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
+                onChange={e => { const f = e.target.files[0]; if (f) handleExpFileSelect(f); e.target.value = ''; }} />
+              <div style={{ fontSize: '32px', marginBottom: '8px' }}>{ocrLoading ? '⏳' : uploadDone ? '✅' : '📄'}</div>
+              <div style={{ fontWeight: 700, fontSize: '13px', color: ocrLoading ? '#5B21B6' : uploadDone ? '#065F46' : '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                {ocrLoading ? 'Extracting all details from document…' : uploadDone ? `Document processed · Confidence ${Math.round((ocrResult?.confidence || 0) * 100)}%` : 'Upload your receipt or bill'}
+              </div>
+              <div style={{ fontSize: '12px', color: '#94A3B8', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                {uploadDone ? 'Form filled below — review and submit' : 'PDF, JPG, PNG · AI extracts all fields automatically'}
+              </div>
+              {!uploadDone && !ocrLoading && (
+                <div style={{ marginTop: '10px', display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(139,92,246,0.08)', border: '1px solid #EDE9FE', borderRadius: '999px', padding: '4px 12px' }}>
+                  <AIBadge small /><span style={{ fontSize: '11px', color: '#5B21B6', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Extracts amount, date, GST, merchant & more</span>
+                </div>
+              )}
+              {uploadedFileRef && <div style={{ marginTop: '8px' }}><Btn variant="secondary" small onClick={e => { e.stopPropagation(); window.TijoriAPI.FilesAPI.open(uploadedFileRef); }}>View Document</Btn></div>}
+            </div>
+
+            {/* Show all extracted fields */}
+            {ocrResult?.extracted_fields && Object.keys(ocrResult.extracted_fields).length > 0 && (
+              <div style={{ padding: '12px 14px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '10px', marginBottom: '16px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 700, color: '#065F46', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '8px' }}>✦ AI Extracted Fields</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                  {Object.entries(ocrResult.extracted_fields).filter(([, v]) => v != null && v !== '').map(([k, v]) => (
+                    <div key={k} style={{ background: 'white', borderRadius: '6px', padding: '7px 10px', border: '1px solid #D1FAE5' }}>
+                      <div style={{ fontSize: '9px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{k.replace(/_/g,' ')}</div>
+                      <div style={{ fontSize: '12px', fontWeight: 600, color: '#0F172A', fontFamily: "'JetBrains Mono', monospace", marginTop: '2px', wordBreak: 'break-all' }}>{String(v)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* MANUAL MODE — hint */}
+        {expMode === 'manual' && (
+          <div style={{ padding: '10px 14px', background: '#F8F7F5', borderRadius: '10px', marginBottom: '16px', fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.5 }}>
+            ✏ Fill the form below. Attach receipt at the end — AI will cross-check your entries with the document.
           </div>
         )}
+
+        {uploadError && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', padding: '10px 14px', marginBottom: '12px', fontSize: '12px', color: '#991B1B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>⚠️ {uploadError}</div>}
+
+        {/* Form fields */}
+        <div style={{ marginBottom: '12px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '6px' }}>Category</div>
+          <select value={expCategory} onChange={e => setExpCategory(e.target.value)}
+            style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E2E8F0', borderRadius: '8px', fontSize: '13px', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', background: 'white' }}>
+            {(EXP_CATS.length ? EXP_CATS : ['Travel','Food','Stay','Training','Office','Misc']).map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <TjInput label="Amount (₹)" placeholder="0.00" type="number" value={expAmount} onChange={e => setExpAmount(e.target.value)} />
+        <TjInput label="Date" type="date" value={expDate} onChange={e => setExpDate(e.target.value)} />
+        <TjInput label="Merchant / Vendor" placeholder="e.g. IndiGo Airlines, Swiggy…" value={expMerchant} onChange={e => setExpMerchant(e.target.value)} />
+        <TjTextarea label="Description / Purpose" placeholder="What was this expense for?" rows={2} value={expDesc} onChange={e => setExpDesc(e.target.value)} />
 
         {/* Budget impact */}
         {expAmount && budgetInfo && (
-          <div style={{ padding: '12px 14px', borderRadius: '10px', background: budgetColor === '#EF4444' ? '#FEF2F2' : budgetColor === '#F59E0B' ? '#FFFBEB' : '#F0FDF4', border: `1px solid ${budgetColor === '#EF4444' ? '#FECACA' : budgetColor === '#F59E0B' ? '#FDE68A' : '#BBF7D0'}`, marginBottom: '16px' }}>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '6px' }}>Budget Impact</div>
-            <div style={{ fontSize: '13px', fontWeight: 700, color: budgetColor, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-              {expCategory} · ₹{(budgetInfo.rem / 100000).toFixed(1)}L remaining
-            </div>
+          <div style={{ padding: '10px 14px', borderRadius: '10px', background: budgetColor === '#EF4444' ? '#FEF2F2' : budgetColor === '#F59E0B' ? '#FFFBEB' : '#F0FDF4', border: `1px solid ${budgetColor === '#EF4444' ? '#FECACA' : budgetColor === '#F59E0B' ? '#FDE68A' : '#BBF7D0'}`, marginBottom: '14px' }}>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '4px' }}>Budget Impact</div>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: budgetColor, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{expCategory} · ₹{(budgetInfo.rem / 100000).toFixed(1)}L remaining</div>
+            <div style={{ height: 4, background: '#F1F5F9', borderRadius: 2, overflow: 'hidden', marginTop: '6px' }}><div style={{ height: '100%', width: `${budgetPct}%`, background: budgetColor, borderRadius: 2 }} /></div>
           </div>
         )}
 
-        <TjInput label="Amount (₹)" placeholder="0.00" type="number" value={expAmount} onChange={e => setExpAmount(e.target.value)} />
-        <TjInput label="Date" type="date" value={expDate} onChange={e => setExpDate(e.target.value)} />
-        <TjTextarea label="Description" placeholder="What was this expense for?" rows={3} value={expDesc} onChange={e => setExpDesc(e.target.value)} />
+        {/* MANUAL — receipt upload + cross-check */}
+        {expMode === 'manual' && (
+          <div style={{ marginBottom: '14px' }}>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '8px' }}>Attach Receipt (for verification)</div>
+            <div style={{ border: `1.5px dashed ${uploadDone ? '#10B981' : '#E2E8F0'}`, borderRadius: '10px', padding: '16px', textAlign: 'center', cursor: !uploadDone ? 'pointer' : 'default', background: uploadDone ? '#F0FDF4' : '#FAFAF8' }}
+              onClick={() => { if (!uploadDone) document.getElementById('emp-file-manual').click(); }}>
+              <input id="emp-file-manual" type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
+                onChange={e => { const f = e.target.files[0]; if (f) handleExpFileSelect(f); e.target.value = ''; }} />
+              <div style={{ fontSize: '22px', marginBottom: '6px' }}>{ocrLoading ? '⏳' : uploadDone ? '✅' : '📎'}</div>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: uploadDone ? '#065F46' : '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                {ocrLoading ? 'Cross-checking with document…' : uploadDone ? 'Receipt verified' : 'Click to attach receipt'}
+              </div>
+              {uploadedFileRef && <div style={{ marginTop: '8px' }}><Btn variant="secondary" small onClick={e => { e.stopPropagation(); window.TijoriAPI.FilesAPI.open(uploadedFileRef); }}>View Document</Btn></div>}
+            </div>
+
+            {crossCheck && (
+              <div style={{ marginTop: '10px', padding: '12px 14px', background: crossCheck.status === 'mismatch' ? '#FEF3C7' : '#F0FDF4', border: `1px solid ${crossCheck.status === 'mismatch' ? '#FDE68A' : '#BBF7D0'}`, borderRadius: '10px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: crossCheck.status === 'mismatch' ? '#92400E' : '#065F46', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '8px' }}>
+                  {crossCheck.status === 'mismatch' ? '⚠ Mismatch detected — approver will be notified' : '✓ Document verified — entries match'}
+                </div>
+                {crossCheck.fields.map((f, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderTop: i > 0 ? '1px solid rgba(0,0,0,0.05)' : 'none', gap: '8px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 600, color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif", minWidth: 70 }}>{f.field}</div>
+                    <div style={{ flex: 1, fontSize: '11px', color: '#64748B', fontFamily: "'JetBrains Mono', monospace", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Doc: {f.doc}</div>
+                    {f.entered && f.entered !== '—' && <div style={{ fontSize: '11px', color: '#64748B', fontFamily: "'JetBrains Mono', monospace', flexShrink: 0" }}>You: {f.entered}</div>}
+                    <div style={{ fontSize: '10px', fontWeight: 700, color: f.ok === false ? '#DC2626' : f.ok === true ? '#059669' : '#6B7280', flexShrink: 0, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                      {f.ok === false ? `⚠ ${f.note}` : f.ok === true ? '✓' : f.note}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {submitMsg && (
           <div style={{ background: submitMsg.type === 'success' ? '#D1FAE5' : '#FEE2E2', border: `1px solid ${submitMsg.type === 'success' ? '#6EE7B7' : '#FCA5A5'}`, borderRadius: '8px', padding: '10px 14px', marginBottom: '8px', fontSize: '12px', fontWeight: 600, color: submitMsg.type === 'success' ? '#065F46' : '#991B1B', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
             {submitMsg.text}
@@ -794,7 +1081,7 @@ const EmployeeDashboard = ({ role, onNavigate, user }) => {
         )}
         <Btn variant="primary" style={{ width: '100%', justifyContent: 'center' }} disabled={submitting || !expAmount}
           onClick={async () => {
-            if (!expAmount) { alert('Please enter an amount'); return; }
+            if (!expAmount) { return; }
             setSubmitting(true);
             try {
               await window.TijoriAPI.BillsAPI.submitExpense({
@@ -802,23 +1089,17 @@ const EmployeeDashboard = ({ role, onNavigate, user }) => {
                 amount: parseFloat(expAmount),
                 invoice_date: expDate || new Date().toISOString().slice(0, 10),
                 description: expDesc || expCategory + ' expense',
+                ...(uploadedFileRef ? { file_id: uploadedFileRef } : {}),
+                ...(crossCheck ? { doc_cross_check: crossCheck } : {}),
+                submission_mode: expMode,
               });
               setSubmitMsg({ type: 'success', text: 'Expense submitted for approval!' });
-              setExpAmount(''); setExpDate(''); setExpDesc(''); setUploadDone(false); setAiAccepted(false);
-              // refresh list
+              setExpAmount(''); setExpDate(''); setExpDesc(''); setExpMerchant('');
+              setUploadDone(false); setAiAccepted(false); setOcrResult(null); setCrossCheck(null);
               window.TijoriAPI.BillsAPI.listExpenses({ my: true, limit: 10 }).then(data => {
                 const items = (data?.results || data || []).slice(0, 10).map(e => {
                   const amt = parseFloat(e.amount || e.total_amount || 0);
-                  return {
-                    id: e.ref_no || e.id?.slice(0, 12).toUpperCase(),
-                    amount: '₹' + amt.toLocaleString('en-IN'),
-                    date: (e.submitted_at || e.created_at || e.date || e.invoice_date) ? new Date(e.submitted_at || e.created_at || e.date || e.invoice_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—',
-                    category: e.expense_category || e.category || e.expense_type || 'Other',
-                    status: e.status || 'PENDING_L1',
-                    aiCat: false,
-                    conf: null,
-                    rawAmt: amt
-                  };
+                  return { id: e.ref_no || e.id?.slice(0,12).toUpperCase(), rawId: e.id, amount: '₹' + amt.toLocaleString('en-IN'), date: (e.submitted_at || e.created_at || e.invoice_date) ? new Date(e.submitted_at || e.created_at || e.invoice_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—', category: e.expense_category || e.category || 'Other', status: e.status || 'PENDING_L1', aiCat: false, conf: null, rawAmt: amt };
                 });
                 setMyExpenses(items);
               }).catch(() => {});
@@ -828,7 +1109,7 @@ const EmployeeDashboard = ({ role, onNavigate, user }) => {
             }
             setSubmitting(false);
           }}>
-          {submitting ? 'Submitting…' : 'Submit for Approval'}
+          {submitting ? 'Submitting…' : crossCheck?.status === 'mismatch' ? 'Submit Anyway (with flag)' : 'Submit for Approval'}
         </Btn>
       </SidePanel>
 

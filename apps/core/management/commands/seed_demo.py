@@ -35,6 +35,8 @@ class Command(BaseCommand):
 
         # ─── Users ───────────────────────────────────────────────────────────
         user_specs = [
+            ("employee1", "Demo Employee", 1, engineering, False),
+            ("vendor1", "Demo Vendor", 1, None, False),
             ("l1_approver", "Neha Gupta", 1, engineering, False),
             ("hod", "Suresh Reddy", 2, engineering, False),
             ("fin_manager", "Anita Desai", 3, finance, False),
@@ -70,6 +72,21 @@ class Command(BaseCommand):
                 user.save()
             users[username] = user
         self.stdout.write("  ✅ Core users ready")
+
+        # ─── Vendor Profiles ──────────────────────────────────────────────────
+        vendor_prof, _ = Vendor.objects.get_or_create(
+            name="Global Logistics Corp",
+            defaults={
+                "email": "ap@globallogistics.com",
+                "status": "ACTIVE",
+                "is_approved": True,
+                "user": users["vendor1"],
+            }
+        )
+        if not vendor_prof.user:
+            vendor_prof.user = users["vendor1"]
+            vendor_prof.save(update_fields=["user"])
+        self.stdout.write("  ✅ Vendor profiles ready")
 
         # ─── Budgets ─────────────────────────────────────────────────────────
         budget_specs = [

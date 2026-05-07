@@ -1,5 +1,53 @@
 // Tijori AI — CFO Command Center Dashboard
 
+const InteractiveCashFlow = ({ months, projected, bandHigh, bandLow, cw, ch, px, py, minV, maxV }) => {
+  const linePath = projected.map((v, i) => `${i === 0 ? 'M' : 'L'} ${px(i)} ${py(v)}`).join(' ');
+  const bandPath = [
+    ...bandHigh.map((v, i) => `${i === 0 ? 'M' : 'L'} ${px(i)} ${py(v)}`),
+    ...[...bandLow].reverse().map((v, i) => `L ${px(bandLow.length - 1 - i)} ${py(v)}`),
+    'Z'
+  ].join(' ');
+  return (
+    <Card style={{ padding: '24px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+        <div>
+          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A' }}>90-Day Cash Flow Projection</div>
+          <div style={{ fontSize: '12px', color: '#94A3B8', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>With 85% confidence bands · Live</div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '11px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 500 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ width: 10, height: 3, background: '#E8783B', borderRadius: 2, display: 'inline-block' }} />Projected</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ width: 10, height: 10, background: 'rgba(232,120,59,0.2)', borderRadius: 2, display: 'inline-block' }} />Confidence Band</span>
+        </div>
+      </div>
+      <div style={{ position: 'relative' }}>
+        <svg width="100%" viewBox={`0 0 ${cw} ${ch}`} style={{ overflow: 'visible' }}>
+          {[0, 0.25, 0.5, 0.75, 1].map((t, i) => {
+            const yy = 20 + t * (ch - 40);
+            const val = (maxV - t * (maxV - minV)).toFixed(1);
+            return (
+              <g key={i}>
+                <line x1={48} y1={yy} x2={cw - 24} y2={yy} stroke="#F1F0EE" strokeWidth="1" />
+                <text x={40} y={yy + 4} fontSize="9" fill="#94A3B8" textAnchor="end" fontFamily="Plus Jakarta Sans">{val}</text>
+              </g>
+            );
+          })}
+          {months.map((m, i) => (
+            <text key={i} x={px(i)} y={ch - 4} fontSize="10" fill="#94A3B8" textAnchor="middle" fontFamily="Plus Jakarta Sans">{m}</text>
+          ))}
+          <path d={bandPath} fill="rgba(232,120,59,0.12)" />
+          <path d={linePath} fill="none" stroke="#E8783B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" filter="url(#glow)" />
+          {projected.map((v, i) => (
+            <circle key={i} cx={px(i)} cy={py(v)} r="4" fill="white" stroke="#E8783B" strokeWidth="2" />
+          ))}
+          <defs>
+            <filter id="glow"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          </defs>
+        </svg>
+      </div>
+    </Card>
+  );
+};
+
 const AIActionCard = ({ ac }) => {
   const [hov, setHov] = React.useState(false);
   return (
@@ -51,13 +99,7 @@ const DashboardScreen = ({ role, onNavigate }) => {
       setIntel(i);
 
       const expenses = Array.isArray(exp) ? exp : (exp?.results || []);
-      const tdsLiab = expenses.filter(e => e.status !== 'PAID').reduce((sum, e) => sum + parseFloat(e.tds_amount || 0), 0);
-      const gstLiab = expenses.filter(e => e.status !== 'PAID' && e.gstin).reduce((sum, e) => sum + parseFloat(e.total_amount || 0) * 0.18, 0);
-      setComplianceData({ 
-        tds: tdsLiab, 
-        gst: gstLiab, 
-        count: expenses.filter(e => e.status !== 'PAID' && (parseFloat(e.tds_amount) > 0 || e.gstin)).length 
-      });
+
     } catch (e) {}
     setLoading(false);
   }, []);
@@ -214,55 +256,7 @@ const DashboardScreen = ({ role, onNavigate }) => {
       {/* Main bento */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: '20px', marginBottom: '20px', animation: 'fadeUp 300ms 240ms ease both', opacity: 0, animationFillMode: 'forwards' }}>
         {/* Cash flow chart */}
-        <Card style={{ padding: '24px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
-            <div>
-              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A' }}>90-Day Cash Flow Projection</div>
-              <div style={{ fontSize: '12px', color: '#94A3B8', marginTop: '4px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>With 85% confidence bands · Updated 12m ago</div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '11px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 500 }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ width: 10, height: 3, background: '#E8783B', borderRadius: 2, display: 'inline-block' }} />Projected</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ width: 10, height: 10, background: 'rgba(232,120,59,0.2)', borderRadius: 2, display: 'inline-block' }} />Confidence Band</span>
-            </div>
-          </div>
-          <div style={{ position: 'relative' }}>
-            <svg width="100%" viewBox={`0 0 ${cw} ${ch}`} style={{ overflow: 'visible' }}>
-              {/* Grid lines */}
-              {[0, 0.25, 0.5, 0.75, 1].map((t, i) => {
-                const yy = 20 + t * (ch - 40);
-                const val = Math.round(maxV - t * (maxV - minV));
-                return (
-                  <g key={i}>
-                    <line x1={48} y1={yy} x2={cw - 24} y2={yy} stroke="#F1F0EE" strokeWidth="1" />
-                    <text x={40} y={yy + 4} fontSize="9" fill="#94A3B8" textAnchor="end" fontFamily="Plus Jakarta Sans">{val}</text>
-                  </g>
-                );
-              })}
-              {/* X labels */}
-              {months.map((m, i) => (
-                <text key={i} x={px(i)} y={ch - 4} fontSize="10" fill="#94A3B8" textAnchor="middle" fontFamily="Plus Jakarta Sans">{m}</text>
-              ))}
-              {/* Confidence band */}
-              <path d={bandPath} fill="rgba(232,120,59,0.12)" />
-              {/* Projected line */}
-              <path d={linePath} fill="none" stroke="#E8783B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" filter="url(#glow)" />
-              {/* Data points */}
-              {projected.map((v, i) => (
-                <circle key={i} cx={px(i)} cy={py(v)} r="4" fill="white" stroke="#E8783B" strokeWidth="2" />
-              ))}
-              <defs>
-                <filter id="glow"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-              </defs>
-            </svg>
-            {/* Floating insight */}
-            <div style={{ position: 'absolute', top: '20%', right: '22%', background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(8px)', border: '1px solid #F1F0EE', borderRadius: '12px', padding: '10px 14px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
-              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '13px', color: '#E8783B' }}>⚡ Critical Peak</div>
-               <div style={{ fontSize: '11px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>
-                 <span id="current-month-year">Loading...</span>: ₹5.2Cr projected
-               </div>
-            </div>
-          </div>
-        </Card>
+        <InteractiveCashFlow months={months} projected={projected} bandHigh={bandHigh} bandLow={bandLow} cw={cw} ch={ch} px={px} py={py} minV={minV} maxV={maxV} />
 
         {/* Risk Watch */}
         <Card style={{ padding: '0', overflow: 'hidden' }}>
@@ -329,24 +323,6 @@ const DashboardScreen = ({ role, onNavigate }) => {
           </div>
         </Card>
 
-        {/* Treasury & Compliance */}
-        <Card style={{ padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gridColumn: 'span 1' }}>
-          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '17px', color: '#0F172A', marginBottom: '12px' }}>Treasury & Compliance</div>
-          <div style={{ fontSize: '12px', color: '#64748B', fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: '16px' }}>Estimated Tax Liabilities (TDS/GST)</div>
-          
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #F8F7F5' }}>
-            <span style={{ fontSize: '13px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>TDS Payable</span>
-            <span style={{ fontSize: '14px', fontWeight: 700, color: '#E8783B', fontFamily: "'Bricolage Grotesque', sans-serif" }}>{fmtAmt(complianceData.tds)}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #F8F7F5' }}>
-            <span style={{ fontSize: '13px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Estimated GST Input</span>
-            <span style={{ fontSize: '14px', fontWeight: 700, color: '#10B981', fontFamily: "'Bricolage Grotesque', sans-serif" }}>{fmtAmt(complianceData.gst)}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0' }}>
-            <span style={{ fontSize: '13px', color: '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Compliance Invoices</span>
-            <span style={{ background: '#F1F5F9', color: '#475569', padding: '2px 8px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{complianceData.count} Pending</span>
-          </div>
-        </Card>
 
         {/* AI Action Cards with inline output */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', gridColumn: 'span 2' }}>

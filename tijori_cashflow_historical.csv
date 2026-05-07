@@ -1,0 +1,182 @@
+date,amount,type,description
+2025-05-02,1223424.0,outflow,Monthly Salary - All Employees (via payroll)
+2025-05-03,39453.0,outflow,"Software Subscriptions - Slack, Jira, Figma, Zoom"
+2025-05-05,185000,outflow,"Office Rent - Prestige Tech Park, Bengaluru"
+2025-05-07,770379.0,inflow,Customer receipt - Reliance Industries
+2025-05-07,32772.0,outflow,TDS Payment - Income Tax Dept (Challan 281)
+2025-05-07,10562.0,outflow,Internet & Utilities - Airtel Leased Line
+2025-05-09,92795.0,outflow,AWS Cloud Services - Monthly invoice
+2025-05-11,491861.0,inflow,Customer receipt - Infosys Ltd
+2025-05-12,46166.0,outflow,Group Health Insurance - ICICI Lombard
+2025-05-20,56061.0,outflow,GST Payment - GSTN portal (GSTR-3B)
+2025-05-21,193910.0,inflow,Customer receipt - HDFC Bank
+2025-05-21,51781.0,outflow,Professional Fees - CA & Legal Advisory
+2025-05-29,10532.0,inflow,FD Interest Income - HDFC Bank
+2025-06-03,30743.0,outflow,"Software Subscriptions - Slack, Jira, Figma, Zoom"
+2025-06-04,1354630.0,outflow,Monthly Salary - All Employees (via payroll)
+2025-06-04,11494.0,outflow,Internet & Utilities - Airtel Leased Line
+2025-06-05,509730.0,inflow,Customer receipt - TCS Consultancy
+2025-06-05,185000,outflow,"Office Rent - Prestige Tech Park, Bengaluru"
+2025-06-07,34945.0,outflow,TDS Payment - Income Tax Dept (Challan 281)
+2025-06-10,96754.0,outflow,AWS Cloud Services - Monthly invoice
+2025-06-12,165760.0,inflow,Advance payment - New project onboarding
+2025-06-12,83666.0,outflow,Marketing Agency - Digital campaigns
+2025-06-15,164428.0,inflow,Customer receipt - Zomato India
+2025-06-15,146698.0,outflow,Advance Tax Payment - Income Tax Dept
+2025-06-16,195475.0,inflow,Customer receipt - HDFC Bank
+2025-06-16,113283.0,outflow,Hardware/Equipment Purchase - Laptops & Peripherals
+2025-06-20,64116.0,outflow,GST Payment - GSTN portal (GSTR-3B)
+2025-06-20,20368.0,outflow,Travel & Conveyance - Employee reimbursements
+2025-06-21,487448.0,inflow,Customer receipt - Infosys Ltd
+2025-06-29,9759.0,inflow,FD Interest Income - HDFC Bank
+2025-07-02,1257262.0,outflow,Monthly Salary - All Employees (via payroll)
+2025-07-05,185000,outflow,"Office Rent - Prestige Tech Park, Bengaluru"
+2025-07-05,26890.0,outflow,"Software Subscriptions - Slack, Jira, Figma, Zoom"
+2025-07-07,29589.0,outflow,TDS Payment - Income Tax Dept (Challan 281)
+2025-07-08,109278.0,outflow,AWS Cloud Services - Monthly invoice
+2025-07-08,11567.0,outflow,Internet & Utilities - Airtel Leased Line
+2025-07-09,126226.0,inflow,Customer receipt - Ola Cabs
+2025-07-12,517486.0,inflow,Customer receipt - Wipro Digital
+2025-07-13,55981.0,inflow,GST Input Tax Credit Refund - GSTN
+2025-07-20,71047.0,outflow,GST Payment - GSTN portal (GSTR-3B)
+2025-07-22,19715.0,outflow,Travel & Conveyance - Employee reimbursements
+2025-07-24,290106.0,inflow,Customer receipt - HDFC Bank
+2025-07-29,9946.0,inflow,FD Interest Income - HDFC Bank
+2025-08-02,1415276.0,outflow,Monthly Salary - All Employees (via payroll)
+2025-08-03,37647.0,outflow,"Software Subscriptions - Slack, Jira, Figma, Zoom"
+2025-08-05,185000,outflow,"Office Rent - Prestige Tech Park, Bengaluru"
+2025-08-07,42301.0,outflow,TDS Payment - Income Tax Dept (Challan 281)
+2025-08-08,153596.0,inflow,Customer receipt - Zomato India
+2025-08-08,11513.0,outflow,Internet & Utilities - Airtel Leased Line
+2025-08-09,99510.0,outflow,AWS Cloud Services - Monthly invoice
+2025-08-11,889011.0,inflow,Customer receipt - Reliance Industries
+2025-08-13,56021.0,outflow,Group Health Insurance - ICICI Lombard
+2025-08-17,127713.0,outflow,Marketing Agency - Digital campaigns
+2025-08-20,70391.0,outflow,GST Payment - GSTN portal (GSTR-3B)
+2025-08-20,56165.0,outflow,Professional Fees - CA & Legal Advisory
+2025-08-22,248549.0,inflow,Customer receipt - HDFC Bank
+2025-08-22,193904.0,inflow,Customer receipt - PhonePe
+2025-08-29,8545.0,inflow,FD Interest Income - HDFC Bank
+2025-09-02,1334845.0,outflow,Monthly Salary - All Employees (via payroll)
+2025-09-04,567992.0,inflow,Customer receipt - TCS Consultancy
+2025-09-04,11752.0,outflow,Internet & Utilities - Airtel Leased Line
+2025-09-05,185000,outflow,"Office Rent - Prestige Tech Park, Bengaluru"
+2025-09-05,27507.0,outflow,"Software Subscriptions - Slack, Jira, Figma, Zoom"
+2025-09-07,167052.0,inflow,Customer receipt - Ola Cabs
+2025-09-07,39727.0,outflow,TDS Payment - Income Tax Dept (Challan 281)
+2025-09-09,113076.0,inflow,Customer receipt - Byju's Learning
+2025-09-12,879599.0,inflow,Customer receipt - Reliance Industries
+2025-09-12,115517.0,outflow,AWS Cloud Services - Monthly invoice
+2025-09-13,314667.0,inflow,Customer receipt - HDFC Bank
+2025-09-14,271794.0,inflow,Advance payment - New project onboarding
+2025-09-15,128565.0,outflow,Advance Tax Payment - Income Tax Dept
+2025-09-20,78958.0,outflow,GST Payment - GSTN portal (GSTR-3B)
+2025-09-20,212838.0,outflow,Hardware/Equipment Purchase - Laptops & Peripherals
+2025-09-29,8917.0,inflow,FD Interest Income - HDFC Bank
+2025-10-03,27266.0,outflow,"Software Subscriptions - Slack, Jira, Figma, Zoom"
+2025-10-04,1312872.0,outflow,Monthly Salary - All Employees (via payroll)
+2025-10-04,8748.0,outflow,Internet & Utilities - Airtel Leased Line
+2025-10-05,185000,outflow,"Office Rent - Prestige Tech Park, Bengaluru"
+2025-10-07,42123.0,outflow,TDS Payment - Income Tax Dept (Challan 281)
+2025-10-09,77358.0,outflow,AWS Cloud Services - Monthly invoice
+2025-10-13,243839.0,inflow,Customer receipt - HDFC Bank
+2025-10-13,78584.0,inflow,GST Input Tax Credit Refund - GSTN
+2025-10-16,81683.0,outflow,Marketing Agency - Digital campaigns
+2025-10-17,511447.0,inflow,Customer receipt - Wipro Digital
+2025-10-20,269589.0,inflow,Customer receipt - PhonePe
+2025-10-20,77157.0,outflow,GST Payment - GSTN portal (GSTR-3B)
+2025-10-20,17338.0,outflow,Travel & Conveyance - Employee reimbursements
+2025-10-21,362933.0,inflow,Customer receipt - TCS Consultancy
+2025-10-21,155527.0,inflow,Customer receipt - Ola Cabs
+2025-10-26,118132.0,inflow,Customer receipt - Zomato India
+2025-10-29,10241.0,inflow,FD Interest Income - HDFC Bank
+2025-11-03,1316756.0,outflow,Monthly Salary - All Employees (via payroll)
+2025-11-03,27719.0,outflow,"Software Subscriptions - Slack, Jira, Figma, Zoom"
+2025-11-05,185000,outflow,"Office Rent - Prestige Tech Park, Bengaluru"
+2025-11-06,11302.0,outflow,Internet & Utilities - Airtel Leased Line
+2025-11-07,281797.0,inflow,Advance payment - New project onboarding
+2025-11-07,43508.0,outflow,TDS Payment - Income Tax Dept (Challan 281)
+2025-11-08,787640.0,inflow,Customer receipt - Reliance Industries
+2025-11-11,305539.0,inflow,Customer receipt - HDFC Bank
+2025-11-12,41364.0,outflow,Group Health Insurance - ICICI Lombard
+2025-11-13,67979.0,outflow,AWS Cloud Services - Monthly invoice
+2025-11-13,51105.0,outflow,Professional Fees - CA & Legal Advisory
+2025-11-17,99041.0,inflow,Customer receipt - Ola Cabs
+2025-11-20,81138.0,outflow,GST Payment - GSTN portal (GSTR-3B)
+2025-11-22,184908.0,inflow,Customer receipt - Nykaa Fashion
+2025-11-29,10126.0,inflow,FD Interest Income - HDFC Bank
+2025-12-02,1241578.0,outflow,Monthly Salary - All Employees (via payroll)
+2025-12-04,147675.0,inflow,Customer receipt - Byju's Learning
+2025-12-05,185000,outflow,"Office Rent - Prestige Tech Park, Bengaluru"
+2025-12-06,683958.0,inflow,Customer receipt - Reliance Industries
+2025-12-06,28561.0,outflow,"Software Subscriptions - Slack, Jira, Figma, Zoom"
+2025-12-07,28052.0,outflow,TDS Payment - Income Tax Dept (Challan 281)
+2025-12-07,9428.0,outflow,Internet & Utilities - Airtel Leased Line
+2025-12-11,91475.0,outflow,AWS Cloud Services - Monthly invoice
+2025-12-15,149671.0,outflow,Advance Tax Payment - Income Tax Dept
+2025-12-17,152195.0,outflow,Marketing Agency - Digital campaigns
+2025-12-18,105898.0,outflow,Hardware/Equipment Purchase - Laptops & Peripherals
+2025-12-20,61585.0,outflow,GST Payment - GSTN portal (GSTR-3B)
+2025-12-21,122728.0,inflow,Customer receipt - Nykaa Fashion
+2025-12-23,36842.0,outflow,Travel & Conveyance - Employee reimbursements
+2025-12-24,339885.0,inflow,Customer receipt - HDFC Bank
+2025-12-29,13558.0,inflow,FD Interest Income - HDFC Bank
+2026-01-02,1217130.0,outflow,Monthly Salary - All Employees (via payroll)
+2026-01-05,185000,outflow,"Office Rent - Prestige Tech Park, Bengaluru"
+2026-01-07,30877.0,outflow,TDS Payment - Income Tax Dept (Challan 281)
+2026-01-07,22914.0,outflow,"Software Subscriptions - Slack, Jira, Figma, Zoom"
+2026-01-08,102137.0,outflow,AWS Cloud Services - Monthly invoice
+2026-01-08,9362.0,outflow,Internet & Utilities - Airtel Leased Line
+2026-01-13,93039.0,inflow,GST Input Tax Credit Refund - GSTN
+2026-01-14,85717.0,inflow,Customer receipt - Ola Cabs
+2026-01-20,497230.0,inflow,Customer receipt - Infosys Ltd
+2026-01-20,64408.0,outflow,GST Payment - GSTN portal (GSTR-3B)
+2026-01-22,206286.0,inflow,Customer receipt - PhonePe
+2026-01-29,8481.0,inflow,FD Interest Income - HDFC Bank
+2026-02-03,1233114.0,outflow,Monthly Salary - All Employees (via payroll)
+2026-02-05,185000,outflow,"Office Rent - Prestige Tech Park, Bengaluru"
+2026-02-06,322422.0,inflow,Customer receipt - TCS Consultancy
+2026-02-07,164652.0,inflow,Advance payment - New project onboarding
+2026-02-07,48010.0,outflow,TDS Payment - Income Tax Dept (Challan 281)
+2026-02-07,28886.0,outflow,"Software Subscriptions - Slack, Jira, Figma, Zoom"
+2026-02-09,10351.0,outflow,Internet & Utilities - Airtel Leased Line
+2026-02-09,55818.0,outflow,Group Health Insurance - ICICI Lombard
+2026-02-10,113448.0,outflow,AWS Cloud Services - Monthly invoice
+2026-02-14,201837.0,inflow,Customer receipt - Zomato India
+2026-02-14,109562.0,outflow,Marketing Agency - Digital campaigns
+2026-02-16,568425.0,inflow,Customer receipt - Reliance Industries
+2026-02-17,59467.0,outflow,Professional Fees - CA & Legal Advisory
+2026-02-17,23727.0,outflow,Travel & Conveyance - Employee reimbursements
+2026-02-20,61310.0,outflow,GST Payment - GSTN portal (GSTR-3B)
+2026-02-23,519629.0,inflow,Customer receipt - Wipro Digital
+2026-02-24,228000.0,inflow,Customer receipt - HDFC Bank
+2026-03-01,9279.0,inflow,FD Interest Income - HDFC Bank
+2026-03-03,1211022.0,outflow,Monthly Salary - All Employees (via payroll)
+2026-03-05,105614.0,inflow,Customer receipt - Zomato India
+2026-03-05,185000,outflow,"Office Rent - Prestige Tech Park, Bengaluru"
+2026-03-06,34901.0,outflow,"Software Subscriptions - Slack, Jira, Figma, Zoom"
+2026-03-07,34287.0,outflow,TDS Payment - Income Tax Dept (Challan 281)
+2026-03-09,10046.0,outflow,Internet & Utilities - Airtel Leased Line
+2026-03-10,107412.0,outflow,AWS Cloud Services - Monthly invoice
+2026-03-13,158655.0,outflow,Hardware/Equipment Purchase - Laptops & Peripherals
+2026-03-14,595331.0,inflow,Customer receipt - Reliance Industries
+2026-03-15,203460.0,outflow,Advance Tax Payment - Income Tax Dept
+2026-03-20,258165.0,inflow,Customer receipt - HDFC Bank
+2026-03-20,80485.0,outflow,GST Payment - GSTN portal (GSTR-3B)
+2026-03-24,165291.0,inflow,Customer receipt - Ola Cabs
+2026-03-29,10541.0,inflow,FD Interest Income - HDFC Bank
+2026-04-03,1443459.0,outflow,Monthly Salary - All Employees (via payroll)
+2026-04-05,495742.0,inflow,Customer receipt - Wipro Digital
+2026-04-05,185000,outflow,"Office Rent - Prestige Tech Park, Bengaluru"
+2026-04-05,39995.0,outflow,"Software Subscriptions - Slack, Jira, Figma, Zoom"
+2026-04-07,47459.0,outflow,TDS Payment - Income Tax Dept (Challan 281)
+2026-04-07,8587.0,outflow,Internet & Utilities - Airtel Leased Line
+2026-04-10,654620.0,inflow,Customer receipt - Infosys Ltd
+2026-04-13,84006.0,inflow,GST Input Tax Credit Refund - GSTN
+2026-04-13,73500.0,outflow,AWS Cloud Services - Monthly invoice
+2026-04-14,149168.0,outflow,Marketing Agency - Digital campaigns
+2026-04-15,142424.0,inflow,Customer receipt - Byju's Learning
+2026-04-18,23805.0,outflow,Travel & Conveyance - Employee reimbursements
+2026-04-20,94048.0,outflow,GST Payment - GSTN portal (GSTR-3B)
+2026-04-25,146447.0,inflow,Customer receipt - PhonePe
+2026-04-29,13305.0,inflow,FD Interest Income - HDFC Bank

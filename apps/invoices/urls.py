@@ -1,7 +1,8 @@
 # apps/invoices/urls.py
 from django.urls import path
 
-from . import analytics_views, budget_views, employee_views, feedback_views, vendor_views, views
+from . import analytics_views, ar_views, budget_views, employee_views, feedback_views, vendor_views, views
+
 
 urlpatterns = [
     # ─── Original expense endpoints ──────────────────────────────
@@ -79,6 +80,7 @@ urlpatterns = [
     ),
     path("finance/anomalies/", employee_views.AnomalyListView.as_view(), name="finance-anomalies"),
     path("finance/vendor-bills/", employee_views.VendorBillsAllView.as_view(), name="finance-vendor-bills"),
+    path("finance/upload-historical/", employee_views.UploadHistoricalDataView.as_view(), name="finance-upload-historical"),
     path(
         "finance/approval-authority/",
         employee_views.ApprovalAuthorityView.as_view(),
@@ -144,4 +146,13 @@ urlpatterns = [
     path("analytics/annual-report/",      analytics_views.AnnualReportView.as_view(),      name="annual-report"),
     # ─── AI Feedback Loop ────────────────────────────────────────────────────
     path("ai-feedback/", feedback_views.AIFeedbackView.as_view(), name="ai-feedback"),
+
+    # ─── Accounts Receivable (AR) ─────────────────────────────────────────────
+    path("ar/dashboard/",                         ar_views.ARDashboardView.as_view(),           name="ar-dashboard"),
+    path("ar/customers/",                         ar_views.ARCustomerListView.as_view(),        name="ar-customer-list"),
+    path("ar/customers/<uuid:pk>/",               ar_views.ARCustomerDetailView.as_view(),      name="ar-customer-detail"),
+    path("ar/invoices/",                          ar_views.ARInvoiceListView.as_view(),         name="ar-invoice-list"),
+    path("ar/invoices/<uuid:pk>/",                ar_views.ARInvoiceDetailView.as_view(),       name="ar-invoice-detail"),
+    path("ar/invoices/<uuid:pk>/upload/",         ar_views.ARInvoiceUploadView.as_view(),       name="ar-invoice-upload"),
+    path("ar/invoices/<uuid:pk>/payment/",        ar_views.ARRecordPaymentView.as_view(),       name="ar-record-payment"),
 ]

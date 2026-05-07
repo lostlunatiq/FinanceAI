@@ -481,6 +481,10 @@ class FinanceAPI {
             }));
         } catch { return []; }
     }
+
+    async approvalAuthority() {
+        return this.request('/invoices/finance/approval-authority/');
+    }
 }
 
 // Global singleton

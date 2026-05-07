@@ -48,9 +48,12 @@ const ARScreen = ({ onNavigate }) => {
           const age = Math.floor((now - due) / (1000 * 60 * 60 * 24));
           const amt = Number(b.total_amount || 0);
           const backendStatus = b.status || b._status || '';
+          const isApproved = backendStatus === 'APPROVED';
           let status;
           if (['PAID', 'POSTED_D365', 'BOOKED_D365'].includes(backendStatus)) {
             status = 'PAID';
+          } else if (['PENDING_D365', 'BOOKED_D365'].includes(backendStatus)) {
+            status = 'PARTIALLY_PAID';
           } else if (age > 0 && !['SUBMITTED', 'PENDING_L1', 'PENDING_L2', 'PENDING_HOD', 'PENDING_FIN_L1', 'PENDING_FIN_L2', 'PENDING_FIN_HEAD', 'PENDING_CFO'].includes(backendStatus)) {
             status = 'OVERDUE';
           } else {
@@ -67,6 +70,7 @@ const ARScreen = ({ onNavigate }) => {
             status,
             rawId: b.id,
             backendStatus,
+            canSettle: isApproved,  // Only APPROVED bills can be settled
           };
         });
         setInvoiceList(mapped);
@@ -92,10 +96,15 @@ const ARScreen = ({ onNavigate }) => {
 
   const [remindMsg, setRemindMsg] = React.useState('');
   const [remindLoading, setRemindLoading] = React.useState(null);
+
+  // Filter logic — robust match for all status values
   const filtered = invoiceList.filter(inv => {
     if (filter === 'All') return true;
-    const f = filter.toUpperCase().replace(' ', '_');
-    return inv.status === f;
+    if (filter === 'Unpaid') return inv.status === 'UNPAID';
+    if (filter === 'Overdue') return inv.status === 'OVERDUE';
+    if (filter === 'Paid') return inv.status === 'PAID';
+    if (filter === 'Partial') return inv.status === 'PARTIALLY_PAID';
+    return inv.status === filter.toUpperCase();
   });
 
   // Compute real KPIs from invoice list
@@ -193,6 +202,7 @@ const ARScreen = ({ onNavigate }) => {
                 { label: `All (${invoiceList.length})`, val: 'All' },
                 { label: `Unpaid (${invoiceList.filter(i => i.status === 'UNPAID').length})`, val: 'Unpaid' },
                 { label: `Overdue (${invoiceList.filter(i => i.status === 'OVERDUE').length})`, val: 'Overdue' },
+                { label: `Partial (${invoiceList.filter(i => i.status === 'PARTIALLY_PAID').length})`, val: 'Partial' },
                 { label: `Paid (${invoiceList.filter(i => i.status === 'PAID').length})`, val: 'Paid' },
               ].map(f => (
                 <button key={f.val} onClick={() => setFilter(f.val)}
@@ -224,8 +234,24 @@ const ARScreen = ({ onNavigate }) => {
                   </td>
                   <td style={{ padding: '0 14px' }}><ARStatusBadge status={inv.status} /></td>
                   <td style={{ padding: '0 14px' }}>
-                    <div style={{ display: 'flex', gap: '5px' }}>
-                      {['APPROVED', 'UNPAID', 'OVERDUE'].includes(inv.status) && inv.status !== 'PAID' && <Btn variant="green" small onClick={() => { setRecordPaymentModal(inv); setPaymentForm({ amount: '', date: new Date().toISOString().slice(0,10), utr: '' }); setPaymentMsg(''); }}>Record Payment</Btn>}
+                    <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                      {/* Only APPROVED bills can be settled — backend enforces this */}
+                      {inv.canSettle && inv.status !== 'PAID' && (
+                        <Btn variant="green" small onClick={() => {
+                          setRecordPaymentModal(inv);
+                          setPaymentForm({ amount: '', date: new Date().toISOString().slice(0,10), utr: '' });
+                          setPaymentMsg('');
+                        }}>Record Payment</Btn>
+                      )}
+                      {/* Bills in approval flow — show pending indicator */}
+                      {!inv.canSettle && inv.status !== 'PAID' && (
+                        <span style={{ fontSize: '10px', color: '#F59E0B', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700,
+                          background: '#FEF3C7', padding: '2px 8px', borderRadius: '999px', whiteSpace: 'nowrap' }}
+                          title="This bill is pending approval in AP Hub">
+                          ⏳ Awaiting Approval
+                        </span>
+                      )}
+                      {/* Send reminder for overdue bills */}
                       {inv.status === 'OVERDUE' && (
                         <Btn variant="secondary" small disabled={remindLoading === inv.rawId} onClick={async () => {
                           if (!inv.rawId) { setRemindMsg(`Reminder logged for ${inv.customer}`); setTimeout(() => setRemindMsg(''), 3000); return; }
@@ -276,11 +302,14 @@ const ARScreen = ({ onNavigate }) => {
         </div>
       )}
       {recordPaymentModal && (
-        <TjModal open onClose={() => setRecordPaymentModal(null)} title="Record Payment" accentColor="#065F46" width={440}>
+        <TjModal open onClose={() => setRecordPaymentModal(null)} title="Record Vendor Payment" accentColor="#065F46" width={440}>
           <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '10px', padding: '14px', marginBottom: '16px' }}>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#10B981' }}>{recordPaymentModal.id}</div>
             <div style={{ fontWeight: 700, fontSize: '14px', color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: '2px' }}>{recordPaymentModal.customer}</div>
             <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '22px', color: '#10B981', letterSpacing: '-1px', marginTop: '4px' }}>{recordPaymentModal.amount}</div>
+            <div style={{ fontSize: '11px', color: '#065F46', marginTop: '6px', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>
+              ✓ Approved — ready for settlement via NEFT/RTGS
+            </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
             <div style={{ flex: 1 }}>
@@ -305,14 +334,28 @@ const ARScreen = ({ onNavigate }) => {
               setPaymentMsg('Processing...');
               try {
                 await window.TijoriAPI.BillsAPI.settle(inv.rawId, paymentForm.utr, 'NEFT', '');
-                setInvoiceList(list => list.map(i => i.id === inv.id ? {...i, status: 'PAID'} : i));
-                setPaymentMsg('✓ Payment recorded successfully! Email notification sent.');
-                setTimeout(() => { setRecordPaymentModal(null); setPaymentMsg(''); }, 1200);
-                setTimeout(() => loadData(), 2500);
+
+                // ✅ Mark PAID in-place — invoice stays visible, does NOT disappear
+                setInvoiceList(list => list.map(i =>
+                  i.id === inv.id ? { ...i, status: 'PAID', canSettle: false } : i
+                ));
+
+                // Switch filter to 'All' so user can see the newly PAID invoice
+                setFilter('All');
+
+                setPaymentMsg('✓ Payment of ₹' + enteredAmt.toLocaleString('en-IN') + ' recorded! Invoice marked PAID.');
+
+                // Close modal after 2s — invoice stays in list
+                setTimeout(() => {
+                  setRecordPaymentModal(null);
+                  setPaymentMsg('');
+                  // Refresh from backend after modal closes
+                  loadData();
+                }, 2000);
               } catch(e) {
                 const msg = e.message || '';
                 if (msg.includes('approved') || msg.includes('status') || msg.includes('400')) {
-                  setPaymentMsg('⚠ This bill must be approved in AP Hub before payment can be recorded.');
+                  setPaymentMsg('⚠ This bill must be first approved in AP Hub.');
                 } else {
                   setPaymentMsg('Payment failed: ' + (msg || 'Server error'));
                 }

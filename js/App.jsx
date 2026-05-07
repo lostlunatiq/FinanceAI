@@ -10,8 +10,8 @@ const gradeToRoleKey = (grade, isSuperuser, isVendor, username, dept) => {
   if (isSuperuser)   return 'CFO';
   if (grade >= 4)    return 'Finance Admin';
   if (grade >= 3)    return 'Finance Manager';
-  if (grade >= 2)    return 'Finance Manager';
-  
+  if (grade >= 2)    return 'Dept Head';
+
   // Grade 1 logic: Finance dept or specific l1_approver get Clerk view, others get Employee view
   if (dept === 'Finance' || username === 'l1_approver') return 'AP Clerk';
   return 'Employee';
@@ -28,11 +28,15 @@ const ROLE_CONFIG = {
   },
   'Finance Admin': {
     homeScreen: 'dashboard',
-    nav: ['dashboard','ai-hub','ap-hub','ar','expenses','vendors','budget','guardrails','anomaly','gst-recon','tds-compliance','policy-compliance','reports','iam','audit','settings'],
+    nav: ['dashboard','ai-hub','ap-hub','ar','expenses','vendors','budget','guardrails','anomaly','policy-compliance','reports','iam','audit','settings'],
   },
   'Finance Manager': {
     homeScreen: 'fm-home',
     nav: ['fm-home','ai-hub','ap-hub','expenses','budget','guardrails','anomaly','spend-analytics','dept-variance','po-match','reports','audit','settings'],
+  },
+  'Dept Head': {
+    homeScreen: 'fm-home',
+    nav: ['fm-home','ai-hub','ap-hub','expenses','budget','anomaly','audit','settings'],
   },
   'AP Clerk': {
     homeScreen: 'clerk-home',
@@ -40,12 +44,22 @@ const ROLE_CONFIG = {
   },
   'Employee': {
     homeScreen: 'emp-home',
-    nav: ['emp-home','expenses','settings'],
+    nav: ['emp-home','settings'],
   },
   'Vendor': {
     homeScreen: 'vendor-portal',
     nav: ['vendor-portal','settings'],
   },
+};
+
+const getCopilotLabel = (roleKey) => {
+  if (roleKey === 'CFO')            return 'CFO Copilot';
+  if (roleKey === 'Finance Admin')  return 'Finance Admin Copilot';
+  if (roleKey === 'Finance Manager')return 'Finance Manager Copilot';
+  if (roleKey === 'Dept Head')      return 'Department Copilot';
+  if (roleKey === 'Vendor')         return 'Vendor Assistant';
+  if (roleKey === 'Employee')       return 'Expense Assistant';
+  return 'My Copilot';
 };
 
 const NAV_LABELS = {
@@ -54,7 +68,7 @@ const NAV_LABELS = {
   'clerk-home':       { label: 'My Queue',               icon: '⬡' },
   'emp-home':         { label: 'My Expenses',            icon: '⬡' },
   'vendor-portal':    { label: 'Vendor Portal',          icon: '⬡' },
-  'ai-hub':           { label: 'CFO Copilot',            icon: '✦' },
+  'ai-hub':           { label: 'AI Copilot',             icon: '✦' },
   'ap-hub':           { label: 'Accounts Payable',       icon: '◈' },
   'ar':               { label: 'Accounts Receivable',    icon: '◇' },
   'expenses':         { label: 'Expense Management',     icon: '◉' },
@@ -64,8 +78,6 @@ const NAV_LABELS = {
   'spend-analytics':  { label: 'Spend Intelligence',     icon: '◆' },
   'working-capital':  { label: 'Working Capital',        icon: '◐' },
   'vendor-risk':      { label: 'Vendor Risk',            icon: '◬' },
-  'gst-recon':        { label: 'GST Reconciliation',     icon: '◧' },
-  'tds-compliance':   { label: 'TDS Compliance',         icon: '◩' },
   'policy-compliance':{ label: 'Policy Compliance',      icon: '◭' },
   'dept-variance':    { label: 'Dept Variance',          icon: '◱' },
   'po-match':         { label: 'PO Matching',            icon: '◳' },
@@ -95,13 +107,12 @@ const BREADCRUMBS = {
   'ar':                 ['Accounts Receivable'],
   'ar-raise':           ['Accounts Receivable', 'Raise Invoice'],
   'ar-customer':        ['Accounts Receivable', 'Customer Detail'],
-  'ai-hub':             ['CFO Copilot'],
+  'ai-hub':             ['__COPILOT__'],
   'reports':            ['Reports & Analytics'],
   'spend-analytics':    ['AI Intelligence', 'Spend Analysis'],
   'working-capital':    ['AI Intelligence', 'Working Capital'],
   'vendor-risk':        ['AI Intelligence', 'Vendor Risk Score'],
-  'gst-recon':          ['Compliance', 'GST Reconciliation'],
-  'tds-compliance':     ['Compliance', 'TDS Tracker'],
+
   'policy-compliance':  ['Compliance', 'Policy Check'],
   'dept-variance':      ['Analytics', 'Dept Variance'],
   'po-match':           ['Operations', 'PO Matching'],
@@ -271,13 +282,16 @@ const AppShell = ({ roleKey, screen, onNavigate, onBack, canGoBack, onLogout, us
             if (!item) return null;
             const active = screen === id || (id === 'ap-hub' && screen === 'ap-match');
             const badge  = navBadges[id];   // ✅ live from backend
+            const label  = id === 'ai-hub' ? getCopilotLabel(roleKey)
+                         : (id === 'expenses' && roleKey === 'Employee') ? 'My Expenses'
+                         : item.label;
             return (
               <button key={id} onClick={() => onNavigate(id)}
                 style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px', borderRadius: '8px', border: 'none', cursor: 'pointer', background: active ? '#1E293B' : 'transparent', color: active ? 'white' : '#475569', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: active ? 600 : 500, fontSize: '13px', textAlign: 'left', transition: 'all 150ms ease', marginBottom: '2px', borderLeft: `3px solid ${active ? '#E8783B' : 'transparent'}` }}
                 onMouseEnter={e => { if (!active) { e.currentTarget.style.background = '#1E293B44'; e.currentTarget.style.color = '#CBD5E1'; }}}
                 onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#475569'; }}}>
                 <span style={{ fontSize: '14px', opacity: active ? 1 : 0.6, color: active ? '#E8783B' : 'inherit', fontFamily: 'monospace', flexShrink: 0 }}>{item.icon}</span>
-                <span style={{ flex: 1 }}>{item.label}</span>
+                <span style={{ flex: 1 }}>{label}</span>
                 {badge && (
                   <span style={{ background: badge.color, color: 'white', borderRadius: '999px', fontSize: '9px', fontWeight: 700, padding: '1px 6px', flexShrink: 0 }}>
                     {badge.count}
@@ -334,7 +348,11 @@ const AppShell = ({ roleKey, screen, onNavigate, onBack, canGoBack, onLogout, us
             {(BREADCRUMBS[screen] || []).map((crumb, i, arr) => (
               <React.Fragment key={i}>
                 <span style={{ color: '#CBD5E1' }}>›</span>
-                <span style={{ color: i === arr.length - 1 ? '#0F172A' : '#94A3B8', fontWeight: i === arr.length - 1 ? 600 : 400 }}>{crumb}</span>
+                <span style={{ color: i === arr.length - 1 ? '#0F172A' : '#94A3B8', fontWeight: i === arr.length - 1 ? 600 : 400 }}>
+                  {crumb === '__COPILOT__' ? getCopilotLabel(roleKey)
+                   : (crumb === 'Expense Management' && roleKey === 'Employee') ? 'My Expenses'
+                   : crumb}
+                </span>
               </React.Fragment>
             ))}
           </div>
@@ -489,10 +507,8 @@ const SCREEN_MAP = {
   'spend-analytics':    (nav, back, roleKey, ctx) => React.createElement(SpendAnalyticsScreen,    { role: roleKey, onNavigate: nav, onBack: back }),
   'working-capital':    (nav, back, roleKey, ctx) => React.createElement(WorkingCapitalScreen,    { role: roleKey, onNavigate: nav, onBack: back }),
   'vendor-risk':        (nav, back, roleKey, ctx) => React.createElement(VendorRiskScreen,        { role: roleKey, onNavigate: nav, onBack: back }),
-  'gst-recon':          (nav, back, roleKey, ctx) => React.createElement(GSTReconScreen,          { role: roleKey, onNavigate: nav, onBack: back }),
-  'tds-compliance':     (nav, back, roleKey, ctx) => React.createElement(TDSComplianceScreen,     { role: roleKey, onNavigate: nav, onBack: back }),
-  'policy-compliance':  (nav, back, roleKey, ctx) => React.createElement(PolicyComplianceScreen,  { role: roleKey, onNavigate: nav, onBack: back }),
   'dept-variance':      (nav, back, roleKey, ctx) => React.createElement(DeptVarianceScreen,      { role: roleKey, onNavigate: nav, onBack: back }),
+  'policy-compliance':  (nav, back, roleKey, ctx) => React.createElement(PolicyComplianceScreen,  { role: roleKey, onNavigate: nav, onBack: back }),
   'po-match':           (nav, back, roleKey, ctx) => React.createElement(POMatchScreen,           { role: roleKey, onNavigate: nav, onBack: back }),
 };
 

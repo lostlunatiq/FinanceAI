@@ -301,6 +301,18 @@ async function _loadNotifications(dropdown, badge) {
 // ─── AI Chatbot Bubble (Floating, all pages) ──────────────────────────────────
 (function _injectChatbot() {
     const isVendor = typeof AUTH !== 'undefined' ? AUTH.isVendor() : false;
+    const isSuperuser = typeof AUTH !== 'undefined' ? AUTH.isSuperuser() : false;
+    const grade = typeof AUTH !== 'undefined' ? AUTH.getGrade() : 1;
+
+    function _getCopilotName() {
+        if (isVendor)        return 'Vendor Assistant';
+        if (isSuperuser)     return 'CFO Copilot';
+        if (grade >= 4)      return 'Finance Admin Copilot';
+        if (grade === 3)     return 'Finance Manager Copilot';
+        if (grade === 2)     return 'Department Copilot';
+        return 'Expense Assistant';
+    }
+    const copilotName = _getCopilotName();
 
     const bubble = document.createElement('div');
     bubble.id = 'ai-chatbot-root';
@@ -328,9 +340,9 @@ async function _loadNotifications(dropdown, badge) {
       #chat-body.show-history #history-panel { transform:translateX(0); }
       /* Chat messages */
       #chat-messages { flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:10px; }
-      .chat-msg { max-width:85%; padding:9px 13px; border-radius:12px; font-size:13px; line-height:1.5; white-space:pre-wrap; word-break:break-word; }
+      .chat-msg { max-width:85%; padding:9px 13px; border-radius:12px; font-size:13px; line-height:1.5; word-break:break-word; }
       .chat-msg.ai { background:#f0f4f4; color:#1b1c1c; border-bottom-left-radius:4px; align-self:flex-start; }
-      .chat-msg.user { background:linear-gradient(135deg,#00535b,#006d77); color:#fff; border-bottom-right-radius:4px; align-self:flex-end; }
+      .chat-msg.user { background:linear-gradient(135deg,#00535b,#006d77); color:#fff; border-bottom-right-radius:4px; align-self:flex-end; white-space:pre-wrap; }
       .chat-msg.loading { background:#f0f4f4; color:#6f797a; font-style:italic; align-self:flex-start; }
       #chat-input-row { display:flex; gap:8px; padding:10px 14px; border-top:1px solid #e4eaeb; background:#fafafa; flex-shrink:0; }
       #chat-input { flex:1; border:1px solid #bec8ca; border-radius:24px; padding:8px 14px; font-size:13px;
@@ -378,8 +390,8 @@ async function _loadNotifications(dropdown, badge) {
         </button>
         <span class="material-symbols-outlined" style="font-size:20px">psychology</span>
         <div id="chat-title-area">
-          <p style="font-weight:700;font-size:14px">FinanceAI Assistant</p>
-          <p id="session-label">${isVendor ? 'Vendor Copilot' : 'Finance Intelligence'}</p>
+          <p style="font-weight:700;font-size:14px">${copilotName}</p>
+          <p id="session-label">Powered by Tijori Intelligence</p>
         </div>
         <button id="chat-history-btn" class="chat-hdr-btn" title="Chat History">
           <span class="material-symbols-outlined" style="font-size:16px">history</span>
@@ -391,7 +403,7 @@ async function _loadNotifications(dropdown, badge) {
       <div id="chat-body">
         <div id="chat-panel">
           <div id="chat-messages">
-            <div class="chat-msg ai">Namaste! I'm your Finance AI assistant. Ask me anything about invoices, budgets, or spend analytics.</div>
+            <div class="chat-msg ai">Namaste! I'm your ${copilotName}. Ask me anything about invoices, budgets, or spend analytics.</div>
           </div>
           <div id="chat-input-row">
             <input id="chat-input" type="text" placeholder="Ask about invoices, spend, anomalies..." />
@@ -463,10 +475,41 @@ async function _loadNotifications(dropdown, badge) {
         return groups;
     }
 
+    function _mdToHtml(text) {
+        if (!text) return '';
+        let html = text
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.+?)\*/g, '<em>$1</em>')
+            .replace(/`(.+?)`/g, '<code style="background:#e8f0f1;padding:1px 4px;border-radius:3px;font-size:12px">$1</code>');
+        const lines = html.split('\n');
+        const out = []; let inList = false; let listType = null;
+        for (const raw of lines) {
+            const ul = raw.match(/^[-•*]\s+(.*)/);
+            const ol = raw.match(/^\d+\.\s+(.*)/);
+            if (ul) {
+                if (!inList || listType !== 'ul') { if (inList) out.push(`</${listType}>`); out.push('<ul style="margin:4px 0 4px 16px;padding:0">'); inList = true; listType = 'ul'; }
+                out.push(`<li style="margin:2px 0">${ul[1]}</li>`);
+            } else if (ol) {
+                if (!inList || listType !== 'ol') { if (inList) out.push(`</${listType}>`); out.push('<ol style="margin:4px 0 4px 16px;padding:0">'); inList = true; listType = 'ol'; }
+                out.push(`<li style="margin:2px 0">${ol[1]}</li>`);
+            } else {
+                if (inList) { out.push(`</${listType}>`); inList = false; listType = null; }
+                out.push(raw === '' ? '<br>' : `<span>${raw}</span><br>`);
+            }
+        }
+        if (inList) out.push(`</${listType}>`);
+        return out.join('');
+    }
+
     function addMsg(text, type = 'ai') {
         const el = document.createElement('div');
         el.className = `chat-msg ${type}`;
-        el.textContent = text;
+        if (type === 'ai' || type === 'loading') {
+            el.innerHTML = _mdToHtml(text);
+        } else {
+            el.textContent = text;
+        }
         messages.appendChild(el);
         messages.scrollTop = messages.scrollHeight;
         return el;
@@ -570,8 +613,8 @@ async function _loadNotifications(dropdown, badge) {
     function startNewChat() {
         currentSessionId = null;
         clearMessages();
-        addMsg('Namaste! I\'m your Finance AI assistant. Ask me anything about invoices, budgets, or spend analytics.', 'ai');
-        sessionLabel.textContent = isVendor ? 'Vendor Copilot' : 'Finance Intelligence';
+        addMsg(`Namaste! I'm your ${copilotName}. Ask me anything about invoices, budgets, or spend analytics.`, 'ai');
+        sessionLabel.textContent = 'Powered by Tijori Intelligence';
         showHistoryPanel(false);
         setTimeout(() => input.focus(), 50);
     }

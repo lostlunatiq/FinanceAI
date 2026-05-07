@@ -1,0 +1,186 @@
+date,amount,type,description
+2025-05-01,2845600.0,outflow,Monthly Salary - All Employees (via payroll)
+2025-05-03,67200.0,outflow,"ERP License - SAP S/4HANA, Oracle NetSuite"
+2025-05-05,245000,outflow,"Factory Rent - MIDC Industrial Area, Pune"
+2025-05-06,1125480.0,inflow,Customer receipt - Tata Steel Ltd
+2025-05-08,78450.0,outflow,TDS Payment - Income Tax Dept (Challan 281)
+2025-05-08,18920.0,outflow,Internet & Telecom - Jio Enterprise Fiber
+2025-05-10,156300.0,outflow,Azure Cloud Services - Monthly invoice
+2025-05-12,683720.0,inflow,Customer receipt - Mahindra & Mahindra
+2025-05-14,72500.0,outflow,Group Mediclaim Insurance - Star Health
+2025-05-15,345000.0,inflow,Customer receipt - Larsen & Toubro
+2025-05-18,128640.0,outflow,Raw Material Purchase - Steel & Alloys
+2025-05-20,94230.0,outflow,GST Payment - GSTN portal (GSTR-3B)
+2025-05-22,267500.0,inflow,Customer receipt - Bajaj Auto Ltd
+2025-05-23,83200.0,outflow,"Logistics & Freight - Blue Dart, Gati"
+2025-05-25,47890.0,outflow,Professional Fees - Statutory Auditor
+2025-05-29,15640.0,inflow,FD Interest Income - SBI Corporate Account
+2025-06-02,2912350.0,outflow,Monthly Salary - All Employees (via payroll)
+2025-06-03,19480.0,outflow,Internet & Telecom - Jio Enterprise Fiber
+2025-06-05,245000,outflow,"Factory Rent - MIDC Industrial Area, Pune"
+2025-06-05,71800.0,outflow,"ERP License - SAP S/4HANA, Oracle NetSuite"
+2025-06-07,86720.0,outflow,TDS Payment - Income Tax Dept (Challan 281)
+2025-06-08,892340.0,inflow,Customer receipt - Tata Motors
+2025-06-10,168450.0,outflow,Azure Cloud Services - Monthly invoice
+2025-06-12,425680.0,inflow,Customer receipt - Godrej Industries
+2025-06-13,192500.0,outflow,Raw Material Purchase - Polymer & Plastics
+2025-06-15,283190.0,inflow,Advance payment - Government tender
+2025-06-15,187430.0,outflow,Advance Tax Payment - Income Tax Dept
+2025-06-17,534280.0,inflow,Customer receipt - Larsen & Toubro
+2025-06-18,143600.0,outflow,Equipment Maintenance - Annual AMC
+2025-06-20,102870.0,outflow,GST Payment - GSTN portal (GSTR-3B)
+2025-06-22,35200.0,outflow,Travel & Conveyance - Site visit expenses
+2025-06-24,612450.0,inflow,Customer receipt - Mahindra & Mahindra
+2025-06-29,14280.0,inflow,FD Interest Income - SBI Corporate Account
+2025-07-01,2786920.0,outflow,Monthly Salary - All Employees (via payroll)
+2025-07-03,65400.0,outflow,"ERP License - SAP S/4HANA, Oracle NetSuite"
+2025-07-05,245000,outflow,"Factory Rent - MIDC Industrial Area, Pune"
+2025-07-07,72340.0,outflow,TDS Payment - Income Tax Dept (Challan 281)
+2025-07-08,172890.0,outflow,Azure Cloud Services - Monthly invoice
+2025-07-08,19150.0,outflow,Internet & Telecom - Jio Enterprise Fiber
+2025-07-10,748920.0,inflow,Customer receipt - Ashok Leyland
+2025-07-12,356780.0,inflow,Customer receipt - Bajaj Auto Ltd
+2025-07-14,89340.0,inflow,GST Input Tax Credit Refund - GSTN
+2025-07-16,267100.0,outflow,Raw Material Purchase - Electronics Components
+2025-07-20,113560.0,outflow,GST Payment - GSTN portal (GSTR-3B)
+2025-07-22,28400.0,outflow,Travel & Conveyance - Client meetings
+2025-07-25,423670.0,inflow,Customer receipt - Larsen & Toubro
+2025-07-29,16120.0,inflow,FD Interest Income - SBI Corporate Account
+2025-08-01,3124580.0,outflow,Monthly Salary - All Employees (via payroll)
+2025-08-04,73600.0,outflow,"ERP License - SAP S/4HANA, Oracle NetSuite"
+2025-08-05,245000,outflow,"Factory Rent - MIDC Industrial Area, Pune"
+2025-08-07,91200.0,outflow,TDS Payment - Income Tax Dept (Challan 281)
+2025-08-08,18790.0,outflow,Internet & Telecom - Jio Enterprise Fiber
+2025-08-09,165430.0,outflow,Azure Cloud Services - Monthly invoice
+2025-08-11,1345200.0,inflow,Customer receipt - Tata Steel Ltd
+2025-08-13,68500.0,outflow,Group Mediclaim Insurance - Star Health
+2025-08-15,412890.0,inflow,Customer receipt - Godrej Industries
+2025-08-17,178340.0,outflow,Warehouse Operations - 3PL Charges
+2025-08-20,98760.0,outflow,GST Payment - GSTN portal (GSTR-3B)
+2025-08-22,324500.0,inflow,Customer receipt - Bajaj Auto Ltd
+2025-08-23,58900.0,outflow,Professional Fees - Tax Consultant
+2025-08-25,186720.0,inflow,Customer receipt - Tata Motors
+2025-08-29,13890.0,inflow,FD Interest Income - SBI Corporate Account
+2025-09-02,2967840.0,outflow,Monthly Salary - All Employees (via payroll)
+2025-09-04,827500.0,inflow,Customer receipt - Adani Ports
+2025-09-05,245000,outflow,"Factory Rent - MIDC Industrial Area, Pune"
+2025-09-05,68900.0,outflow,"ERP License - SAP S/4HANA, Oracle NetSuite"
+2025-09-07,83560.0,outflow,TDS Payment - Income Tax Dept (Challan 281)
+2025-09-08,19340.0,outflow,Internet & Telecom - Jio Enterprise Fiber
+2025-09-09,176280.0,outflow,Azure Cloud Services - Monthly invoice
+2025-09-11,562340.0,inflow,Customer receipt - Mahindra & Mahindra
+2025-09-13,487290.0,inflow,Customer receipt - Larsen & Toubro
+2025-09-14,342180.0,inflow,Advance payment - Export order (USD conversion)
+2025-09-15,196540.0,outflow,Advance Tax Payment - Income Tax Dept
+2025-09-18,284300.0,outflow,Raw Material Purchase - Steel & Alloys
+2025-09-20,124890.0,outflow,GST Payment - GSTN portal (GSTR-3B)
+2025-09-22,156780.0,outflow,Machinery Upgrade - CNC Lathe
+2025-09-25,213450.0,inflow,Customer receipt - Bajaj Auto Ltd
+2025-09-29,15470.0,inflow,FD Interest Income - SBI Corporate Account
+2025-10-01,2834560.0,outflow,Monthly Salary - All Employees (via payroll)
+2025-10-03,62800.0,outflow,"ERP License - SAP S/4HANA, Oracle NetSuite"
+2025-10-05,245000,outflow,"Factory Rent - MIDC Industrial Area, Pune"
+2025-10-07,78940.0,outflow,TDS Payment - Income Tax Dept (Challan 281)
+2025-10-08,18650.0,outflow,Internet & Telecom - Jio Enterprise Fiber
+2025-10-09,158230.0,outflow,Azure Cloud Services - Monthly invoice
+2025-10-11,956730.0,inflow,Customer receipt - Tata Steel Ltd
+2025-10-13,102340.0,inflow,GST Input Tax Credit Refund - GSTN
+2025-10-15,387650.0,inflow,Customer receipt - Ashok Leyland
+2025-10-17,125800.0,outflow,"Logistics & Freight - Blue Dart, Gati"
+2025-10-20,137280.0,outflow,GST Payment - GSTN portal (GSTR-3B)
+2025-10-20,42560.0,outflow,Travel & Conveyance - Trade fair expenses
+2025-10-22,624870.0,inflow,Customer receipt - Godrej Industries
+2025-10-25,289340.0,inflow,Customer receipt - Larsen & Toubro
+2025-10-28,178920.0,inflow,Customer receipt - Tata Motors
+2025-10-29,16890.0,inflow,FD Interest Income - SBI Corporate Account
+2025-11-03,2918740.0,outflow,Monthly Salary - All Employees (via payroll)
+2025-11-04,70200.0,outflow,"ERP License - SAP S/4HANA, Oracle NetSuite"
+2025-11-05,245000,outflow,"Factory Rent - MIDC Industrial Area, Pune"
+2025-11-06,19870.0,outflow,Internet & Telecom - Jio Enterprise Fiber
+2025-11-07,95230.0,outflow,TDS Payment - Income Tax Dept (Challan 281)
+2025-11-08,467890.0,inflow,Advance payment - Government contract milestone
+2025-11-10,1087560.0,inflow,Customer receipt - Adani Ports
+2025-11-12,162340.0,outflow,Azure Cloud Services - Monthly invoice
+2025-11-13,74200.0,outflow,Group Mediclaim Insurance - Star Health
+2025-11-15,542380.0,inflow,Customer receipt - Mahindra & Mahindra
+2025-11-17,67800.0,outflow,Professional Fees - Company Secretary
+2025-11-20,145670.0,outflow,GST Payment - GSTN portal (GSTR-3B)
+2025-11-22,312450.0,inflow,Customer receipt - Bajaj Auto Ltd
+2025-11-25,198760.0,inflow,Customer receipt - Tata Motors
+2025-11-29,14560.0,inflow,FD Interest Income - SBI Corporate Account
+2025-12-01,2756340.0,outflow,Monthly Salary - All Employees (via payroll)
+2025-12-03,64500.0,outflow,"ERP License - SAP S/4HANA, Oracle NetSuite"
+2025-12-05,245000,outflow,"Factory Rent - MIDC Industrial Area, Pune"
+2025-12-06,18340.0,outflow,Internet & Telecom - Jio Enterprise Fiber
+2025-12-07,67890.0,outflow,TDS Payment - Income Tax Dept (Challan 281)
+2025-12-08,823450.0,inflow,Customer receipt - Tata Steel Ltd
+2025-12-10,174560.0,outflow,Azure Cloud Services - Monthly invoice
+2025-12-12,356720.0,inflow,Customer receipt - Larsen & Toubro
+2025-12-15,218940.0,outflow,Advance Tax Payment - Income Tax Dept
+2025-12-17,213560.0,outflow,Raw Material Purchase - Chemicals & Solvents
+2025-12-18,167890.0,outflow,Warehouse Operations - 3PL Charges
+2025-12-20,108340.0,outflow,GST Payment - GSTN portal (GSTR-3B)
+2025-12-22,245670.0,inflow,Customer receipt - Godrej Industries
+2025-12-24,478920.0,inflow,Customer receipt - Ashok Leyland
+2025-12-29,17230.0,inflow,FD Interest Income - SBI Corporate Account
+2026-01-02,2689450.0,outflow,Monthly Salary - All Employees (via payroll)
+2026-01-05,245000,outflow,"Factory Rent - MIDC Industrial Area, Pune"
+2026-01-06,67300.0,outflow,"ERP License - SAP S/4HANA, Oracle NetSuite"
+2026-01-07,74560.0,outflow,TDS Payment - Income Tax Dept (Challan 281)
+2026-01-08,19560.0,outflow,Internet & Telecom - Jio Enterprise Fiber
+2026-01-09,162890.0,outflow,Azure Cloud Services - Monthly invoice
+2026-01-12,712340.0,inflow,Customer receipt - Adani Ports
+2026-01-14,97650.0,inflow,GST Input Tax Credit Refund - GSTN
+2026-01-16,342890.0,inflow,Customer receipt - Mahindra & Mahindra
+2026-01-20,89670.0,outflow,GST Payment - GSTN portal (GSTR-3B)
+2026-01-22,456780.0,inflow,Customer receipt - Tata Motors
+2026-01-25,198340.0,inflow,Customer receipt - Bajaj Auto Ltd
+2026-01-29,13940.0,inflow,FD Interest Income - SBI Corporate Account
+2026-02-02,2834120.0,outflow,Monthly Salary - All Employees (via payroll)
+2026-02-04,73400.0,outflow,"ERP License - SAP S/4HANA, Oracle NetSuite"
+2026-02-05,245000,outflow,"Factory Rent - MIDC Industrial Area, Pune"
+2026-02-06,19120.0,outflow,Internet & Telecom - Jio Enterprise Fiber
+2026-02-07,89340.0,outflow,TDS Payment - Income Tax Dept (Challan 281)
+2026-02-08,567890.0,inflow,Customer receipt - Larsen & Toubro
+2026-02-10,178560.0,outflow,Azure Cloud Services - Monthly invoice
+2026-02-12,289340.0,inflow,Advance payment - Export order (EUR conversion)
+2026-02-14,412560.0,inflow,Customer receipt - Tata Steel Ltd
+2026-02-16,82300.0,outflow,Group Mediclaim Insurance - Star Health
+2026-02-17,134560.0,outflow,Machinery Maintenance - Annual overhaul
+2026-02-20,112890.0,outflow,GST Payment - GSTN portal (GSTR-3B)
+2026-02-22,387450.0,inflow,Customer receipt - Godrej Industries
+2026-02-24,523680.0,inflow,Customer receipt - Adani Ports
+2026-02-25,45670.0,outflow,Travel & Conveyance - Client site visits
+2026-02-28,78900.0,outflow,Professional Fees - Legal counsel
+2026-03-01,14890.0,inflow,FD Interest Income - SBI Corporate Account
+2026-03-02,2945670.0,outflow,Monthly Salary - All Employees (via payroll)
+2026-03-04,68700.0,outflow,"ERP License - SAP S/4HANA, Oracle NetSuite"
+2026-03-05,245000,outflow,"Factory Rent - MIDC Industrial Area, Pune"
+2026-03-06,18780.0,outflow,Internet & Telecom - Jio Enterprise Fiber
+2026-03-07,82450.0,outflow,TDS Payment - Income Tax Dept (Challan 281)
+2026-03-09,167890.0,outflow,Azure Cloud Services - Monthly invoice
+2026-03-10,945230.0,inflow,Customer receipt - Tata Steel Ltd
+2026-03-12,187650.0,outflow,Raw Material Purchase - Steel & Alloys
+2026-03-14,324560.0,inflow,Customer receipt - Ashok Leyland
+2026-03-15,278340.0,outflow,Advance Tax Payment - Income Tax Dept
+2026-03-18,478920.0,inflow,Customer receipt - Mahindra & Mahindra
+2026-03-20,134560.0,outflow,GST Payment - GSTN portal (GSTR-3B)
+2026-03-22,234560.0,inflow,Customer receipt - Bajaj Auto Ltd
+2026-03-25,345670.0,inflow,Customer receipt - Larsen & Toubro
+2026-03-29,15670.0,inflow,FD Interest Income - SBI Corporate Account
+2026-04-01,3126780.0,outflow,Monthly Salary - All Employees (via payroll)
+2026-04-03,74500.0,outflow,"ERP License - SAP S/4HANA, Oracle NetSuite"
+2026-04-05,245000,outflow,"Factory Rent - MIDC Industrial Area, Pune"
+2026-04-05,19450.0,outflow,Internet & Telecom - Jio Enterprise Fiber
+2026-04-07,96780.0,outflow,TDS Payment - Income Tax Dept (Challan 281)
+2026-04-08,812340.0,inflow,Customer receipt - Adani Ports
+2026-04-10,184560.0,outflow,Azure Cloud Services - Monthly invoice
+2026-04-12,567890.0,inflow,Customer receipt - Tata Motors
+2026-04-14,112340.0,inflow,GST Input Tax Credit Refund - GSTN
+2026-04-15,198560.0,outflow,"Logistics & Freight - Delhivery, DTDC"
+2026-04-18,389670.0,inflow,Customer receipt - Godrej Industries
+2026-04-20,156780.0,outflow,GST Payment - GSTN portal (GSTR-3B)
+2026-04-22,43560.0,outflow,Travel & Conveyance - Sales team trips
+2026-04-25,278340.0,inflow,Customer receipt - Bajaj Auto Ltd
+2026-04-28,456120.0,inflow,Customer receipt - Larsen & Toubro
+2026-04-29,16340.0,inflow,FD Interest Income - SBI Corporate Account

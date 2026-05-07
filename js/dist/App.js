@@ -10,7 +10,7 @@ const gradeToRoleKey = (grade, isSuperuser, isVendor, username, dept) => {
   if (isSuperuser) return 'CFO';
   if (grade >= 4) return 'Finance Admin';
   if (grade >= 3) return 'Finance Manager';
-  if (grade >= 2) return 'Finance Manager';
+  if (grade >= 2) return 'Dept Head';
 
   // Grade 1 logic: Finance dept or specific l1_approver get Clerk view, others get Employee view
   if (dept === 'Finance' || username === 'l1_approver') return 'AP Clerk';
@@ -28,11 +28,15 @@ const ROLE_CONFIG = {
   },
   'Finance Admin': {
     homeScreen: 'dashboard',
-    nav: ['dashboard', 'ai-hub', 'ap-hub', 'ar', 'expenses', 'vendors', 'budget', 'guardrails', 'anomaly', 'gst-recon', 'tds-compliance', 'policy-compliance', 'reports', 'iam', 'audit', 'settings']
+    nav: ['dashboard', 'ai-hub', 'ap-hub', 'ar', 'expenses', 'vendors', 'budget', 'guardrails', 'anomaly', 'policy-compliance', 'reports', 'iam', 'audit', 'settings']
   },
   'Finance Manager': {
     homeScreen: 'fm-home',
     nav: ['fm-home', 'ai-hub', 'ap-hub', 'expenses', 'budget', 'guardrails', 'anomaly', 'spend-analytics', 'dept-variance', 'po-match', 'reports', 'audit', 'settings']
+  },
+  'Dept Head': {
+    homeScreen: 'fm-home',
+    nav: ['fm-home', 'ai-hub', 'ap-hub', 'expenses', 'budget', 'anomaly', 'audit', 'settings']
   },
   'AP Clerk': {
     homeScreen: 'clerk-home',
@@ -40,12 +44,21 @@ const ROLE_CONFIG = {
   },
   'Employee': {
     homeScreen: 'emp-home',
-    nav: ['emp-home', 'expenses', 'settings']
+    nav: ['emp-home', 'settings']
   },
   'Vendor': {
     homeScreen: 'vendor-portal',
     nav: ['vendor-portal', 'settings']
   }
+};
+const getCopilotLabel = roleKey => {
+  if (roleKey === 'CFO') return 'CFO Copilot';
+  if (roleKey === 'Finance Admin') return 'Finance Admin Copilot';
+  if (roleKey === 'Finance Manager') return 'Finance Manager Copilot';
+  if (roleKey === 'Dept Head') return 'Department Copilot';
+  if (roleKey === 'Vendor') return 'Vendor Assistant';
+  if (roleKey === 'Employee') return 'Expense Assistant';
+  return 'My Copilot';
 };
 const NAV_LABELS = {
   'dashboard': {
@@ -69,7 +82,7 @@ const NAV_LABELS = {
     icon: '⬡'
   },
   'ai-hub': {
-    label: 'CFO Copilot',
+    label: 'AI Copilot',
     icon: '✦'
   },
   'ap-hub': {
@@ -107,14 +120,6 @@ const NAV_LABELS = {
   'vendor-risk': {
     label: 'Vendor Risk',
     icon: '◬'
-  },
-  'gst-recon': {
-    label: 'GST Reconciliation',
-    icon: '◧'
-  },
-  'tds-compliance': {
-    label: 'TDS Compliance',
-    icon: '◩'
   },
   'policy-compliance': {
     label: 'Policy Compliance',
@@ -168,13 +173,11 @@ const BREADCRUMBS = {
   'ar': ['Accounts Receivable'],
   'ar-raise': ['Accounts Receivable', 'Raise Invoice'],
   'ar-customer': ['Accounts Receivable', 'Customer Detail'],
-  'ai-hub': ['CFO Copilot'],
+  'ai-hub': ['__COPILOT__'],
   'reports': ['Reports & Analytics'],
   'spend-analytics': ['AI Intelligence', 'Spend Analysis'],
   'working-capital': ['AI Intelligence', 'Working Capital'],
   'vendor-risk': ['AI Intelligence', 'Vendor Risk Score'],
-  'gst-recon': ['Compliance', 'GST Reconciliation'],
-  'tds-compliance': ['Compliance', 'TDS Tracker'],
   'policy-compliance': ['Compliance', 'Policy Check'],
   'dept-variance': ['Analytics', 'Dept Variance'],
   'po-match': ['Operations', 'PO Matching']
@@ -437,6 +440,7 @@ const AppShell = ({
     if (!item) return null;
     const active = screen === id || id === 'ap-hub' && screen === 'ap-match';
     const badge = navBadges[id]; // ✅ live from backend
+    const label = id === 'ai-hub' ? getCopilotLabel(roleKey) : id === 'expenses' && roleKey === 'Employee' ? 'My Expenses' : item.label;
     return /*#__PURE__*/React.createElement("button", {
       key: id,
       onClick: () => onNavigate(id),
@@ -483,7 +487,7 @@ const AppShell = ({
       style: {
         flex: 1
       }
-    }, item.label), badge && /*#__PURE__*/React.createElement("span", {
+    }, label), badge && /*#__PURE__*/React.createElement("span", {
       style: {
         background: badge.color,
         color: 'white',
@@ -646,7 +650,7 @@ const AppShell = ({
       color: i === arr.length - 1 ? '#0F172A' : '#94A3B8',
       fontWeight: i === arr.length - 1 ? 600 : 400
     }
-  }, crumb)))), /*#__PURE__*/React.createElement("div", {
+  }, crumb === '__COPILOT__' ? getCopilotLabel(roleKey) : crumb === 'Expense Management' && roleKey === 'Employee' ? 'My Expenses' : crumb)))), /*#__PURE__*/React.createElement("div", {
     style: {
       position: 'relative'
     }
@@ -1182,22 +1186,12 @@ const SCREEN_MAP = {
     onNavigate: nav,
     onBack: back
   }),
-  'gst-recon': (nav, back, roleKey, ctx) => React.createElement(GSTReconScreen, {
-    role: roleKey,
-    onNavigate: nav,
-    onBack: back
-  }),
-  'tds-compliance': (nav, back, roleKey, ctx) => React.createElement(TDSComplianceScreen, {
+  'dept-variance': (nav, back, roleKey, ctx) => React.createElement(DeptVarianceScreen, {
     role: roleKey,
     onNavigate: nav,
     onBack: back
   }),
   'policy-compliance': (nav, back, roleKey, ctx) => React.createElement(PolicyComplianceScreen, {
-    role: roleKey,
-    onNavigate: nav,
-    onBack: back
-  }),
-  'dept-variance': (nav, back, roleKey, ctx) => React.createElement(DeptVarianceScreen, {
     role: roleKey,
     onNavigate: nav,
     onBack: back

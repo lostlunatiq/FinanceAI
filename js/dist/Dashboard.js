@@ -1,5 +1,150 @@
 // Tijori AI — CFO Command Center Dashboard
 
+const InteractiveCashFlow = ({
+  months,
+  projected,
+  bandHigh,
+  bandLow,
+  cw,
+  ch,
+  px,
+  py,
+  minV,
+  maxV
+}) => {
+  const linePath = projected.map((v, i) => `${i === 0 ? 'M' : 'L'} ${px(i)} ${py(v)}`).join(' ');
+  const bandPath = [...bandHigh.map((v, i) => `${i === 0 ? 'M' : 'L'} ${px(i)} ${py(v)}`), ...[...bandLow].reverse().map((v, i) => `L ${px(bandLow.length - 1 - i)} ${py(v)}`), 'Z'].join(' ');
+  return /*#__PURE__*/React.createElement(Card, {
+    style: {
+      padding: '24px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: '20px'
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bricolage Grotesque', sans-serif",
+      fontWeight: 700,
+      fontSize: '17px',
+      color: '#0F172A'
+    }
+  }, "90-Day Cash Flow Projection"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#94A3B8',
+      marginTop: '4px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "With 85% confidence bands \xB7 Live")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '16px',
+      fontSize: '11px',
+      color: '#64748B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontWeight: 500
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '5px'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 10,
+      height: 3,
+      background: '#E8783B',
+      borderRadius: 2,
+      display: 'inline-block'
+    }
+  }), "Projected"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '5px'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 10,
+      height: 10,
+      background: 'rgba(232,120,59,0.2)',
+      borderRadius: 2,
+      display: 'inline-block'
+    }
+  }), "Confidence Band"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'relative'
+    }
+  }, /*#__PURE__*/React.createElement("svg", {
+    width: "100%",
+    viewBox: `0 0 ${cw} ${ch}`,
+    style: {
+      overflow: 'visible'
+    }
+  }, [0, 0.25, 0.5, 0.75, 1].map((t, i) => {
+    const yy = 20 + t * (ch - 40);
+    const val = (maxV - t * (maxV - minV)).toFixed(1);
+    return /*#__PURE__*/React.createElement("g", {
+      key: i
+    }, /*#__PURE__*/React.createElement("line", {
+      x1: 48,
+      y1: yy,
+      x2: cw - 24,
+      y2: yy,
+      stroke: "#F1F0EE",
+      strokeWidth: "1"
+    }), /*#__PURE__*/React.createElement("text", {
+      x: 40,
+      y: yy + 4,
+      fontSize: "9",
+      fill: "#94A3B8",
+      textAnchor: "end",
+      fontFamily: "Plus Jakarta Sans"
+    }, val));
+  }), months.map((m, i) => /*#__PURE__*/React.createElement("text", {
+    key: i,
+    x: px(i),
+    y: ch - 4,
+    fontSize: "10",
+    fill: "#94A3B8",
+    textAnchor: "middle",
+    fontFamily: "Plus Jakarta Sans"
+  }, m)), /*#__PURE__*/React.createElement("path", {
+    d: bandPath,
+    fill: "rgba(232,120,59,0.12)"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: linePath,
+    fill: "none",
+    stroke: "#E8783B",
+    strokeWidth: "2.5",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    filter: "url(#glow)"
+  }), projected.map((v, i) => /*#__PURE__*/React.createElement("circle", {
+    key: i,
+    cx: px(i),
+    cy: py(v),
+    r: "4",
+    fill: "white",
+    stroke: "#E8783B",
+    strokeWidth: "2"
+  })), /*#__PURE__*/React.createElement("defs", null, /*#__PURE__*/React.createElement("filter", {
+    id: "glow"
+  }, /*#__PURE__*/React.createElement("feGaussianBlur", {
+    stdDeviation: "2",
+    result: "blur"
+  }), /*#__PURE__*/React.createElement("feMerge", null, /*#__PURE__*/React.createElement("feMergeNode", {
+    in: "blur"
+  }), /*#__PURE__*/React.createElement("feMergeNode", {
+    in: "SourceGraphic"
+  })))))));
+};
 const AIActionCard = ({
   ac
 }) => {
@@ -97,13 +242,6 @@ const DashboardScreen = ({
       setQueueBills((bills || []).slice(0, 3));
       setIntel(i);
       const expenses = Array.isArray(exp) ? exp : exp?.results || [];
-      const tdsLiab = expenses.filter(e => e.status !== 'PAID').reduce((sum, e) => sum + parseFloat(e.tds_amount || 0), 0);
-      const gstLiab = expenses.filter(e => e.status !== 'PAID' && e.gstin).reduce((sum, e) => sum + parseFloat(e.total_amount || 0) * 0.18, 0);
-      setComplianceData({
-        tds: tdsLiab,
-        gst: gstLiab,
-        count: expenses.filter(e => e.status !== 'PAID' && (parseFloat(e.tds_amount) > 0 || e.gstin)).length
-      });
     } catch (e) {}
     setLoading(false);
   }, []);
@@ -426,164 +564,18 @@ const DashboardScreen = ({
       opacity: 0,
       animationFillMode: 'forwards'
     }
-  }, /*#__PURE__*/React.createElement(Card, {
-    style: {
-      padding: '24px'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      marginBottom: '20px'
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontFamily: "'Bricolage Grotesque', sans-serif",
-      fontWeight: 700,
-      fontSize: '17px',
-      color: '#0F172A'
-    }
-  }, "90-Day Cash Flow Projection"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: '12px',
-      color: '#94A3B8',
-      marginTop: '4px',
-      fontFamily: "'Plus Jakarta Sans', sans-serif"
-    }
-  }, "With 85% confidence bands \xB7 Updated 12m ago")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '16px',
-      fontSize: '11px',
-      color: '#64748B',
-      fontFamily: "'Plus Jakarta Sans', sans-serif",
-      fontWeight: 500
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '5px'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      width: 10,
-      height: 3,
-      background: '#E8783B',
-      borderRadius: 2,
-      display: 'inline-block'
-    }
-  }), "Projected"), /*#__PURE__*/React.createElement("span", {
-    style: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '5px'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      width: 10,
-      height: 10,
-      background: 'rgba(232,120,59,0.2)',
-      borderRadius: 2,
-      display: 'inline-block'
-    }
-  }), "Confidence Band"))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      position: 'relative'
-    }
-  }, /*#__PURE__*/React.createElement("svg", {
-    width: "100%",
-    viewBox: `0 0 ${cw} ${ch}`,
-    style: {
-      overflow: 'visible'
-    }
-  }, [0, 0.25, 0.5, 0.75, 1].map((t, i) => {
-    const yy = 20 + t * (ch - 40);
-    const val = Math.round(maxV - t * (maxV - minV));
-    return /*#__PURE__*/React.createElement("g", {
-      key: i
-    }, /*#__PURE__*/React.createElement("line", {
-      x1: 48,
-      y1: yy,
-      x2: cw - 24,
-      y2: yy,
-      stroke: "#F1F0EE",
-      strokeWidth: "1"
-    }), /*#__PURE__*/React.createElement("text", {
-      x: 40,
-      y: yy + 4,
-      fontSize: "9",
-      fill: "#94A3B8",
-      textAnchor: "end",
-      fontFamily: "Plus Jakarta Sans"
-    }, val));
-  }), months.map((m, i) => /*#__PURE__*/React.createElement("text", {
-    key: i,
-    x: px(i),
-    y: ch - 4,
-    fontSize: "10",
-    fill: "#94A3B8",
-    textAnchor: "middle",
-    fontFamily: "Plus Jakarta Sans"
-  }, m)), /*#__PURE__*/React.createElement("path", {
-    d: bandPath,
-    fill: "rgba(232,120,59,0.12)"
-  }), /*#__PURE__*/React.createElement("path", {
-    d: linePath,
-    fill: "none",
-    stroke: "#E8783B",
-    strokeWidth: "2.5",
-    strokeLinecap: "round",
-    strokeLinejoin: "round",
-    filter: "url(#glow)"
-  }), projected.map((v, i) => /*#__PURE__*/React.createElement("circle", {
-    key: i,
-    cx: px(i),
-    cy: py(v),
-    r: "4",
-    fill: "white",
-    stroke: "#E8783B",
-    strokeWidth: "2"
-  })), /*#__PURE__*/React.createElement("defs", null, /*#__PURE__*/React.createElement("filter", {
-    id: "glow"
-  }, /*#__PURE__*/React.createElement("feGaussianBlur", {
-    stdDeviation: "2",
-    result: "blur"
-  }), /*#__PURE__*/React.createElement("feMerge", null, /*#__PURE__*/React.createElement("feMergeNode", {
-    in: "blur"
-  }), /*#__PURE__*/React.createElement("feMergeNode", {
-    in: "SourceGraphic"
-  }))))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      position: 'absolute',
-      top: '20%',
-      right: '22%',
-      background: 'rgba(255,255,255,0.92)',
-      backdropFilter: 'blur(8px)',
-      border: '1px solid #F1F0EE',
-      borderRadius: '12px',
-      padding: '10px 14px',
-      boxShadow: '0 4px 20px rgba(0,0,0,0.1)'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontFamily: "'Bricolage Grotesque', sans-serif",
-      fontWeight: 700,
-      fontSize: '13px',
-      color: '#E8783B'
-    }
-  }, "\u26A1 Critical Peak"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: '11px',
-      color: '#475569',
-      fontFamily: "'Plus Jakarta Sans', sans-serif",
-      marginTop: '2px'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    id: "current-month-year"
-  }, "Loading..."), ": \u20B95.2Cr projected")))), /*#__PURE__*/React.createElement(Card, {
+  }, /*#__PURE__*/React.createElement(InteractiveCashFlow, {
+    months: months,
+    projected: projected,
+    bandHigh: bandHigh,
+    bandLow: bandLow,
+    cw: cw,
+    ch: ch,
+    px: px,
+    py: py,
+    minV: minV,
+    maxV: maxV
+  }), /*#__PURE__*/React.createElement(Card, {
     style: {
       padding: '0',
       overflow: 'hidden'
@@ -872,95 +864,7 @@ const DashboardScreen = ({
       color: r.color,
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, r.val))))), /*#__PURE__*/React.createElement(Card, {
-    style: {
-      padding: '24px',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      gridColumn: 'span 1'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontFamily: "'Bricolage Grotesque', sans-serif",
-      fontWeight: 700,
-      fontSize: '17px',
-      color: '#0F172A',
-      marginBottom: '12px'
-    }
-  }, "Treasury & Compliance"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: '12px',
-      color: '#64748B',
-      fontFamily: "'Plus Jakarta Sans', sans-serif",
-      marginBottom: '16px'
-    }
-  }, "Estimated Tax Liabilities (TDS/GST)"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: '10px 0',
-      borderBottom: '1px solid #F8F7F5'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: '13px',
-      color: '#475569',
-      fontFamily: "'Plus Jakarta Sans', sans-serif"
-    }
-  }, "TDS Payable"), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: '14px',
-      fontWeight: 700,
-      color: '#E8783B',
-      fontFamily: "'Bricolage Grotesque', sans-serif"
-    }
-  }, fmtAmt(complianceData.tds))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: '10px 0',
-      borderBottom: '1px solid #F8F7F5'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: '13px',
-      color: '#475569',
-      fontFamily: "'Plus Jakarta Sans', sans-serif"
-    }
-  }, "Estimated GST Input"), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: '14px',
-      fontWeight: 700,
-      color: '#10B981',
-      fontFamily: "'Bricolage Grotesque', sans-serif"
-    }
-  }, fmtAmt(complianceData.gst))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: '10px 0'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: '13px',
-      color: '#475569',
-      fontFamily: "'Plus Jakarta Sans', sans-serif"
-    }
-  }, "Compliance Invoices"), /*#__PURE__*/React.createElement("span", {
-    style: {
-      background: '#F1F5F9',
-      color: '#475569',
-      padding: '2px 8px',
-      borderRadius: '999px',
-      fontSize: '11px',
-      fontWeight: 700,
-      fontFamily: "'Plus Jakarta Sans', sans-serif"
-    }
-  }, complianceData.count, " Pending"))), /*#__PURE__*/React.createElement("div", {
+  }, r.val))))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       flexDirection: 'column',

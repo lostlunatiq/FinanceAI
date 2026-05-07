@@ -267,12 +267,17 @@
           <div id="upload-zone" class="border-2 border-dashed border-outline-variant rounded-xl p-4 text-center cursor-pointer hover:bg-surface-container-low transition-colors">
             <span class="material-symbols-outlined text-[24px] text-primary block mb-1">cloud_upload</span>
             <p class="text-sm font-semibold text-on-surface">Click to upload receipt</p>
-            <p class="text-xs text-on-surface-variant mt-1">PDF, JPG, PNG (max 10MB)</p>
+            <p class="text-xs text-on-surface-variant mt-1">AI will extract amount & details automatically</p>
             <input type="file" id="exp-file" class="hidden" accept="image/*,.pdf">
           </div>
           <div id="upload-status" class="hidden mt-2 flex items-center gap-2 text-xs text-primary font-semibold">
             <span id="upload-spinner" class="material-symbols-outlined animate-spin text-[14px]">refresh</span>
             <span id="upload-text">Uploading...</span>
+          </div>
+          <div id="ocr-result-bar" class="hidden mt-2 p-2.5 bg-primary/5 border border-primary/20 rounded-lg">
+            <p class="text-xs font-bold text-primary mb-1">AI Confidence: <span id="ocr-conf-val"></span></p>
+            <div class="h-1.5 bg-outline-variant rounded-full"><div id="ocr-conf-fill" class="h-full bg-primary rounded-full transition-all"></div></div>
+            <p class="text-xs text-on-surface-variant mt-1" id="ocr-autofill-note"></p>
           </div>
         </div>
         <div id="form-error" class="hidden p-3 bg-error-container text-on-error-container text-sm rounded-lg"></div>
@@ -322,14 +327,21 @@
 <script src="/frontend/shared/api.js"></script>
 <script src="/frontend/shared/auth.js"></script>
 <script>
-// ── Constants ──────────────────────────────────────────────────────────────
-const GRADE_LIMITS = {
-    1: { Travel: 5000,  Food: 1000,  Stay: 3000,  Training: 10000, Office: 2000,  Misc: 1000  },
-    2: { Travel: 15000, Food: 3000,  Stay: 8000,  Training: 25000, Office: 5000,  Misc: 3000  },
-    3: { Travel: 50000, Food: 10000, Stay: 25000, Training: 75000, Office: 15000, Misc: 10000 },
-    4: { Travel: 150000,Food: 30000, Stay: 75000, Training: 200000,Office: 50000, Misc: 30000 },
-    5: { Travel: 999999,Food: 99999, Stay: 999999,Training: 999999,Office: 999999,Misc: 99999 },
-};
+// ── Constants (limits loaded from API at init) ─────────────────────────────
+let GRADE_LIMITS = {};  // populated by _loadApprovalLimits()
+
+async function _loadApprovalLimits() {
+    try {
+        const rows = await window.api.approvalAuthority();
+        if (!Array.isArray(rows)) return;
+        rows.forEach(row => {
+            const g = row.grade;
+            const cap = row.approval_limit >= 999999999 ? 999999 : Math.round(row.approval_limit || 0);
+            GRADE_LIMITS[g] = {};
+            Object.keys(CATEGORY_ICONS).forEach(cat => { GRADE_LIMITS[g][cat] = cap; });
+        });
+    } catch (_) {}
+}
 
 const CATEGORY_ICONS = {
     Travel: '✈️', Food: '🍽️', Stay: '🏨', Training: '📚', Office: '🖊️', Misc: '📦'
@@ -364,6 +376,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (grade >= 2) document.getElementById('tab-team').classList.remove('hidden');
     if (grade >= 4) document.getElementById('tab-all').classList.remove('hidden');
 
+    // Load approval limits from API before rendering UI that depends on them
+    await _loadApprovalLimits();
+
     // Show grade limits card
     _renderGradeLimitsCard(grade);
 
@@ -371,8 +386,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     await _loadExpenses();
 
     // KPI grade limit
-    const maxLimit = Math.max(...Object.values(GRADE_LIMITS[grade] || {}));
-    document.getElementById('kpi-grade-limit').textContent = `₹${maxLimit.toLocaleString('en-IN')}`;
+    const gradeVals = Object.values(GRADE_LIMITS[grade] || {});
+    const maxLimit = gradeVals.length ? Math.max(...gradeVals) : 0;
+    document.getElementById('kpi-grade-limit').textContent = maxLimit ? `₹${maxLimit.toLocaleString('en-IN')}` : '—';
     document.getElementById('kpi-grade-desc').textContent = `max (${AUTH._gradeLabel(grade)})`;
 
     // Tabs
@@ -766,6 +782,7 @@ function _openModal(grade) {
         <input type="file" id="exp-file" class="hidden" accept="image/*,.pdf">`;
     document.getElementById('exp-file').addEventListener('change', _handleUpload);
     document.getElementById('upload-status').classList.add('hidden');
+    document.getElementById('ocr-result-bar').classList.add('hidden');
     document.getElementById('form-error').classList.add('hidden');
     document.getElementById('expense-form').reset();
     document.getElementById('amount-limit-info').classList.add('hidden');
@@ -822,16 +839,52 @@ function _updateLimitBar() {
 async function _handleUpload() {
     const file = document.getElementById('exp-file').files[0];
     if (!file) return;
-    const statusEl = document.getElementById('upload-status');
-    const textEl = document.getElementById('upload-text');
+    const statusEl  = document.getElementById('upload-status');
+    const textEl    = document.getElementById('upload-text');
+    const spinnerEl = document.getElementById('upload-spinner');
+    const ocrBar    = document.getElementById('ocr-result-bar');
+    ocrBar.classList.add('hidden');
     statusEl.classList.remove('hidden');
+    spinnerEl.classList.remove('hidden');
     textEl.textContent = 'Uploading...';
     try {
-        const result = await window.api.uploadFile(file);
-        uploadedFileId = result.id;
-        textEl.textContent = `✅ ${file.name}`;
-        document.getElementById('upload-spinner').classList.add('hidden');
+        const uploaded = await window.api.uploadFile(file);
+        uploadedFileId = uploaded.id;
+        textEl.textContent = 'Extracting data with AI...';
+        try {
+            const ocr = await window.api.runOCRSync(uploadedFileId);
+            spinnerEl.classList.add('hidden');
+            if (ocr.status === 'COMPLETE' && ocr.extracted_fields) {
+                const f = ocr.extracted_fields;
+                const pct = Math.round((ocr.confidence || 0) * 100);
+                // Auto-fill amount if extracted
+                if (f.total_amount) {
+                    const amtEl = document.getElementById('exp-amount');
+                    if (amtEl && !amtEl.value) { amtEl.value = parseFloat(f.total_amount).toFixed(2); _updateLimitBar(); }
+                }
+                // Auto-fill description if empty
+                if (f.business_purpose || f.description) {
+                    const descEl = document.getElementById('exp-description');
+                    if (descEl && !descEl.value) descEl.value = f.business_purpose || f.description || '';
+                }
+                ocrBar.classList.remove('hidden');
+                document.getElementById('ocr-conf-val').textContent = `${pct}%`;
+                document.getElementById('ocr-conf-fill').style.width = `${pct}%`;
+                const filled = [];
+                if (f.total_amount) filled.push('amount');
+                if (f.business_purpose || f.description) filled.push('description');
+                document.getElementById('ocr-autofill-note').textContent =
+                    filled.length ? `Auto-filled: ${filled.join(', ')}. Review before submitting.` : 'Extracted — please fill details manually.';
+                textEl.textContent = `✅ ${file.name}`;
+            } else {
+                textEl.textContent = `✅ ${file.name} (fill manually)`;
+            }
+        } catch (_ocrErr) {
+            spinnerEl.classList.add('hidden');
+            textEl.textContent = `✅ ${file.name}`;
+        }
     } catch (e) {
+        spinnerEl.classList.add('hidden');
         textEl.textContent = `⚠️ Upload failed — ${e.message}`;
     }
 }

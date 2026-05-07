@@ -8,8 +8,8 @@
     "@babel/standalone": "^7.29.2"
   },
   "scripts": {
-    "build:js": "babel js/ --out-dir js/dist/ --presets @babel/preset-react",
-    "build:js:watch": "babel js/ --out-dir js/dist/ --presets @babel/preset-react --watch",
+    "build:js": "babel js/ --out-dir js/dist/ --presets @babel/preset-react --ignore \"js/dist\"",
+    "build:js:watch": "babel js/ --out-dir js/dist/ --presets @babel/preset-react --ignore \"js/dist\" --watch",
     "start": "bash ./start_dev.sh",
     "dev": "npm run build:js:watch",
     "docker:build": "docker compose build --no-cache",

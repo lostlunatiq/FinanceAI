@@ -107,9 +107,12 @@ const ARScreen = ({
           const age = Math.floor((now - due) / (1000 * 60 * 60 * 24));
           const amt = Number(b.total_amount || 0);
           const backendStatus = b.status || b._status || '';
+          const isApproved = backendStatus === 'APPROVED';
           let status;
           if (['PAID', 'POSTED_D365', 'BOOKED_D365'].includes(backendStatus)) {
             status = 'PAID';
+          } else if (['PENDING_D365', 'BOOKED_D365'].includes(backendStatus)) {
+            status = 'PARTIALLY_PAID';
           } else if (age > 0 && !['SUBMITTED', 'PENDING_L1', 'PENDING_L2', 'PENDING_HOD', 'PENDING_FIN_L1', 'PENDING_FIN_L2', 'PENDING_FIN_HEAD', 'PENDING_CFO'].includes(backendStatus)) {
             status = 'OVERDUE';
           } else {
@@ -134,7 +137,8 @@ const ARScreen = ({
             age: age > 0 ? age : 0,
             status,
             rawId: b.id,
-            backendStatus
+            backendStatus,
+            canSettle: isApproved // Only APPROVED bills can be settled
           };
         });
         setInvoiceList(mapped);
@@ -169,10 +173,15 @@ const ARScreen = ({
   }, []);
   const [remindMsg, setRemindMsg] = React.useState('');
   const [remindLoading, setRemindLoading] = React.useState(null);
+
+  // Filter logic — robust match for all status values
   const filtered = invoiceList.filter(inv => {
     if (filter === 'All') return true;
-    const f = filter.toUpperCase().replace(' ', '_');
-    return inv.status === f;
+    if (filter === 'Unpaid') return inv.status === 'UNPAID';
+    if (filter === 'Overdue') return inv.status === 'OVERDUE';
+    if (filter === 'Paid') return inv.status === 'PAID';
+    if (filter === 'Partial') return inv.status === 'PARTIALLY_PAID';
+    return inv.status === filter.toUpperCase();
   });
 
   // Compute real KPIs from invoice list
@@ -438,6 +447,9 @@ const ARScreen = ({
     label: `Overdue (${invoiceList.filter(i => i.status === 'OVERDUE').length})`,
     val: 'Overdue'
   }, {
+    label: `Partial (${invoiceList.filter(i => i.status === 'PARTIALLY_PAID').length})`,
+    val: 'Partial'
+  }, {
     label: `Paid (${invoiceList.filter(i => i.status === 'PAID').length})`,
     val: 'Paid'
   }].map(f => /*#__PURE__*/React.createElement("button", {
@@ -544,9 +556,10 @@ const ARScreen = ({
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
-      gap: '5px'
+      gap: '5px',
+      alignItems: 'center'
     }
-  }, ['APPROVED', 'UNPAID', 'OVERDUE'].includes(inv.status) && inv.status !== 'PAID' && /*#__PURE__*/React.createElement(Btn, {
+  }, inv.canSettle && inv.status !== 'PAID' && /*#__PURE__*/React.createElement(Btn, {
     variant: "green",
     small: true,
     onClick: () => {
@@ -558,7 +571,19 @@ const ARScreen = ({
       });
       setPaymentMsg('');
     }
-  }, "Record Payment"), inv.status === 'OVERDUE' && /*#__PURE__*/React.createElement(Btn, {
+  }, "Record Payment"), !inv.canSettle && inv.status !== 'PAID' && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '10px',
+      color: '#F59E0B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontWeight: 700,
+      background: '#FEF3C7',
+      padding: '2px 8px',
+      borderRadius: '999px',
+      whiteSpace: 'nowrap'
+    },
+    title: "This bill is pending approval in AP Hub"
+  }, "\u23F3 Awaiting Approval"), inv.status === 'OVERDUE' && /*#__PURE__*/React.createElement(Btn, {
     variant: "secondary",
     small: true,
     disabled: remindLoading === inv.rawId,
@@ -668,7 +693,7 @@ const ARScreen = ({
   }, "\u2713 ", remindMsg), recordPaymentModal && /*#__PURE__*/React.createElement(TjModal, {
     open: true,
     onClose: () => setRecordPaymentModal(null),
-    title: "Record Payment",
+    title: "Record Vendor Payment",
     accentColor: "#065F46",
     width: 440
   }, /*#__PURE__*/React.createElement("div", {
@@ -702,7 +727,15 @@ const ARScreen = ({
       letterSpacing: '-1px',
       marginTop: '4px'
     }
-  }, recordPaymentModal.amount)), /*#__PURE__*/React.createElement("div", {
+  }, recordPaymentModal.amount), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#065F46',
+      marginTop: '6px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontWeight: 600
+    }
+  }, "\u2713 Approved \u2014 ready for settlement via NEFT/RTGS")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       alignItems: 'flex-end',
@@ -786,20 +819,29 @@ const ARScreen = ({
       setPaymentMsg('Processing...');
       try {
         await window.TijoriAPI.BillsAPI.settle(inv.rawId, paymentForm.utr, 'NEFT', '');
+
+        // ✅ Mark PAID in-place — invoice stays visible, does NOT disappear
         setInvoiceList(list => list.map(i => i.id === inv.id ? {
           ...i,
-          status: 'PAID'
+          status: 'PAID',
+          canSettle: false
         } : i));
-        setPaymentMsg('✓ Payment recorded successfully! Email notification sent.');
+
+        // Switch filter to 'All' so user can see the newly PAID invoice
+        setFilter('All');
+        setPaymentMsg('✓ Payment of ₹' + enteredAmt.toLocaleString('en-IN') + ' recorded! Invoice marked PAID.');
+
+        // Close modal after 2s — invoice stays in list
         setTimeout(() => {
           setRecordPaymentModal(null);
           setPaymentMsg('');
-        }, 1200);
-        setTimeout(() => loadData(), 2500);
+          // Refresh from backend after modal closes
+          loadData();
+        }, 2000);
       } catch (e) {
         const msg = e.message || '';
         if (msg.includes('approved') || msg.includes('status') || msg.includes('400')) {
-          setPaymentMsg('⚠ This bill must be approved in AP Hub before payment can be recorded.');
+          setPaymentMsg('⚠ This bill must be first approved in AP Hub.');
         } else {
           setPaymentMsg('Payment failed: ' + (msg || 'Server error'));
         }

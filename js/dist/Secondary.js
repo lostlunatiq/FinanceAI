@@ -671,7 +671,7 @@ const VendorsScreen = ({
 
 // ─── EXPENSE MANAGEMENT ───────────────────────────────────────────────────────
 
-const EXP_CATEGORIES_LIST = ['Travel', 'Software & Licences', 'Infrastructure', 'Marketing & Events', 'HR & Recruitment', 'Legal & Compliance', 'Office Supplies', 'Professional Services', 'Utilities', 'Other'];
+const EXP_CATEGORIES_LIST = ['Travel', 'Meals & Entertainment', 'Accommodation', 'Local Conveyance', 'Office Supplies', 'Software & Subscriptions', 'Marketing & Events', 'Training & Development', 'Medical / Wellness', 'Client Reimbursement', 'Courier & Logistics', 'Infrastructure', 'HR & Recruitment', 'Legal & Compliance', 'Professional Services', 'Miscellaneous'];
 const EXPENSES_DATA = [{
   id: 'EXP-2024-441',
   employee: 'Aisha Nair',
@@ -755,12 +755,14 @@ const ExpensesScreen = ({
   onNavigate
 }) => {
   const [panelOpen, setPanelOpen] = React.useState(false);
+  const [expMode, setExpMode] = React.useState('auto'); // 'auto' | 'manual'
   const [uploadDone, setUploadDone] = React.useState(false);
   const [expCategory, setExpCategory] = React.useState('Travel');
   const [aiCatAccepted, setAiCatAccepted] = React.useState(false);
   const [expAmount, setExpAmount] = React.useState('');
   const [expDate, setExpDate] = React.useState('');
   const [expDesc, setExpDesc] = React.useState('');
+  const [expMerchant, setExpMerchant] = React.useState('');
   const [expandedRow, setExpandedRow] = React.useState(null);
   const [expenses, setExpenses] = React.useState([]);
   const [loadingExp, setLoadingExp] = React.useState(true);
@@ -773,10 +775,13 @@ const ExpensesScreen = ({
   const [uploadedFileRef, setUploadedFileRef] = React.useState(null);
   const [ocrLoading, setOcrLoading] = React.useState(false);
   const [ocrResult, setOcrResult] = React.useState(null);
+  const [crossCheck, setCrossCheck] = React.useState(null); // { status: 'match'|'mismatch', fields: [...] }
   const [submitLoading, setSubmitLoading] = React.useState(false);
   const [submitError, setSubmitError] = React.useState('');
   const currentRole = propRole || localStorage.getItem('tj_role') || 'CFO';
   const isVendor = currentRole === 'Vendor';
+  const isGrade2Plus = !['Employee', 'Vendor'].includes(currentRole);
+  const handleBulkUpload = () => window.ModalUtils?.show('Bulk upload via Excel/CSV — coming soon.', 'info');
   const inferredCategory = React.useMemo(() => {
     const text = [ocrResult?.extracted_fields?.merchant_name, ocrResult?.raw_text, expDesc].filter(Boolean).join(' ').toLowerCase();
     if (!text) return {
@@ -869,6 +874,7 @@ const ExpensesScreen = ({
     setSubmitError('');
     setUploadedFileRef(null);
     setUploadDone(false);
+    setCrossCheck(null);
     try {
       const {
         FilesAPI
@@ -881,22 +887,92 @@ const ExpensesScreen = ({
       let ocr;
       try {
         ocr = await FilesAPI.ocr(uploaded.id);
-      } catch (ocrErr) {
+      } catch (_) {
         ocr = generateFakeOcrData();
       }
       if (!ocr) ocr = generateFakeOcrData();
       setOcrResult(ocr);
-      if (ocr.extracted_fields && Object.keys(ocr.extracted_fields).length > 0) {
-        const f = ocr.extracted_fields;
+      const f = ocr.extracted_fields || {};
+      if (expMode === 'auto') {
+        // Auto mode — fill ALL extracted fields into the form
         if (f.total_amount) setExpAmount(String(f.total_amount));
         if (f.invoice_date) setExpDate(f.invoice_date);
-        const merchantName = f.merchant_name || f.vendor_name || f.supplier_name;
-        if (merchantName && !expDesc) {
-          setExpDesc(`Receipt from ${merchantName}`);
+        const merchant = f.merchant_name || f.vendor_name || f.supplier_name || '';
+        if (merchant) {
+          setExpMerchant(merchant);
+          if (!expDesc) setExpDesc(`Receipt from ${merchant}`);
         }
+        if (f.description || f.purpose) setExpDesc(f.description || f.purpose);
+      } else {
+        // Manual mode — cross-check doc data vs what user entered
+        const checks = [];
+        if (f.total_amount && expAmount) {
+          const docAmt = parseFloat(f.total_amount);
+          const entAmt = parseFloat(expAmount);
+          const diff = Math.abs(docAmt - entAmt);
+          const pct = entAmt > 0 ? diff / entAmt * 100 : 0;
+          checks.push({
+            field: 'Amount',
+            doc: `₹${docAmt.toLocaleString('en-IN')}`,
+            entered: `₹${entAmt.toLocaleString('en-IN')}`,
+            ok: pct <= 5,
+            note: pct > 5 ? `${pct.toFixed(1)}% difference` : 'Matches'
+          });
+        }
+        if (f.invoice_date && expDate) {
+          const docDate = f.invoice_date?.slice(0, 10);
+          checks.push({
+            field: 'Date',
+            doc: docDate,
+            entered: expDate,
+            ok: docDate === expDate,
+            note: docDate === expDate ? 'Matches' : 'Date mismatch'
+          });
+        }
+        const merchant = f.merchant_name || f.vendor_name || f.supplier_name;
+        if (merchant) checks.push({
+          field: 'Merchant/Vendor',
+          doc: merchant,
+          entered: expMerchant || expDesc || '(not entered)',
+          ok: null,
+          note: 'FYI'
+        });
+        if (f.gstin) checks.push({
+          field: 'GSTIN',
+          doc: f.gstin,
+          entered: '—',
+          ok: null,
+          note: 'Extracted from doc'
+        });
+        if (f.invoice_no || f.invoice_number) checks.push({
+          field: 'Invoice No.',
+          doc: f.invoice_no || f.invoice_number,
+          entered: '—',
+          ok: null,
+          note: 'Extracted from doc'
+        });
+        if (f.pre_gst_amount) checks.push({
+          field: 'Pre-GST Amount',
+          doc: `₹${Number(f.pre_gst_amount).toLocaleString('en-IN')}`,
+          entered: '—',
+          ok: null,
+          note: 'Extracted from doc'
+        });
+        if (f.cgst || f.sgst || f.igst) checks.push({
+          field: 'Tax (CGST/SGST/IGST)',
+          doc: `₹${Number((f.cgst || 0) + (f.sgst || 0) + (f.igst || 0)).toLocaleString('en-IN')}`,
+          entered: '—',
+          ok: null,
+          note: 'Extracted from doc'
+        });
+        const hasMismatch = checks.some(c => c.ok === false);
+        setCrossCheck({
+          status: hasMismatch ? 'mismatch' : 'match',
+          fields: checks
+        });
       }
       if (ocr.status === 'FAILED' || !(ocr.confidence > 0)) {
-        setSubmitError(ocr.error || 'OCR could not extract fields. You can still fill the bill manually.');
+        setSubmitError(ocr.error || 'OCR unavailable — please verify details manually.');
       }
     } catch (err) {
       setUploadDone(false);
@@ -925,17 +1001,24 @@ const ExpensesScreen = ({
         } : {}),
         ...(uploadedFileRef ? {
           file_id: uploadedFileRef
-        } : {})
+        } : {}),
+        ...(crossCheck ? {
+          doc_cross_check: crossCheck
+        } : {}),
+        submission_mode: expMode
       };
       await BillsAPI.submitExpense(payload);
       setPanelOpen(false);
       setExpAmount('');
       setExpDate('');
       setExpDesc('');
+      setExpMerchant('');
       setUploadDone(false);
       setUploadedFileRef(null);
       setOcrResult(null);
       setAiCatAccepted(false);
+      setCrossCheck(null);
+      setExpMode('auto');
       BillsAPI.listExpenses().then(data => setExpenses(data || [])).catch(() => {});
     } catch (err) {
       setSubmitError(err.message || 'Submit failed.');
@@ -983,14 +1066,24 @@ const ExpensesScreen = ({
   const pendingSpend = expenses.filter(e => (e.status || '').startsWith('PENDING')).reduce((s, e) => s + parseFloat(e.total_amount || 0), 0);
   const paidSpend = expenses.filter(e => e.status === 'PAID').reduce((s, e) => s + parseFloat(e.total_amount || 0), 0);
   const fmtS = n => n >= 100000 ? `₹${(n / 100000).toFixed(1)}L` : `₹${Math.round(n).toLocaleString('en-IN')}`;
+  const isEmployee = currentRole === 'Employee';
   return /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '32px'
     }
   }, /*#__PURE__*/React.createElement(SectionHeader, {
-    title: "Internal Expenses",
-    subtitle: "Manage employee reimbursements and operational expenditures.",
-    right: /*#__PURE__*/React.createElement(Btn, {
+    title: isEmployee ? 'My Expenses' : 'Expense Management',
+    subtitle: isEmployee ? 'File reimbursements and track your expense claims.' : 'Manage employee reimbursements and operational expenditures.',
+    right: /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: '8px'
+      }
+    }, isGrade2Plus && /*#__PURE__*/React.createElement(Btn, {
+      variant: "secondary",
+      icon: /*#__PURE__*/React.createElement("span", null, "\uD83D\uDCCA"),
+      onClick: handleBulkUpload
+    }, "Bulk Upload (Excel/CSV)"), /*#__PURE__*/React.createElement(Btn, {
       variant: "primary",
       icon: /*#__PURE__*/React.createElement("span", null, "+"),
       onClick: () => {
@@ -998,8 +1091,10 @@ const ExpensesScreen = ({
         setUploadDone(false);
         setAiCatAccepted(false);
         setExpAmount('');
+        setCrossCheck(null);
+        setExpMode('auto');
       }
-    }, "File Expense")
+    }, "File Expense"))
   }), /*#__PURE__*/React.createElement(StatsRow, {
     cards: [{
       label: 'Pending Approval',
@@ -1784,30 +1879,69 @@ const ExpensesScreen = ({
   }, reviewLoading ? 'Processing…' : '✓ Approve'))), /*#__PURE__*/React.createElement(SidePanel, {
     open: panelOpen,
     onClose: () => setPanelOpen(false),
-    title: "File Internal Expense"
+    title: "File Expense Claim"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      border: `1.5px dashed ${ocrFailed ? '#F59E0B' : uploadDone ? '#10B981' : '#E2E8F0'}`,
+      display: 'flex',
+      background: '#F1F5F9',
+      borderRadius: '10px',
+      padding: '3px',
+      marginBottom: '20px'
+    }
+  }, [['auto', '✦ Auto Extract (AI)', 'Upload receipt → AI fills form'], ['manual', '✏ Manual Entry', 'Fill form → verify with receipt']].map(([mode, label, sub]) => /*#__PURE__*/React.createElement("button", {
+    key: mode,
+    onClick: () => {
+      setExpMode(mode);
+      setCrossCheck(null);
+      setOcrResult(null);
+      setUploadDone(false);
+      setUploadedFileRef(null);
+      setExpAmount('');
+      setExpDate('');
+      setExpDesc('');
+      setExpMerchant('');
+    },
+    style: {
+      flex: 1,
+      padding: '8px 6px',
+      borderRadius: '8px',
+      border: 'none',
+      cursor: 'pointer',
+      background: expMode === mode ? 'white' : 'transparent',
+      boxShadow: expMode === mode ? '0 1px 4px rgba(0,0,0,0.12)' : 'none',
+      transition: 'all 150ms',
+      textAlign: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      fontWeight: 700,
+      color: expMode === mode ? '#E8783B' : '#64748B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, label), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '10px',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginTop: '2px'
+    }
+  }, sub)))), expMode === 'auto' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      border: `1.5px dashed ${ocrFailed ? '#F59E0B' : uploadDone ? '#10B981' : '#C7D2FE'}`,
       borderRadius: '12px',
       padding: '24px',
       textAlign: 'center',
       marginBottom: '20px',
-      background: ocrFailed ? '#FFFBEB' : uploadDone ? '#F0FDF4' : '#FAFAF8',
-      cursor: ocrFailed || !uploadDone ? 'pointer' : 'default',
-      transition: 'all 200ms',
-      position: 'relative'
-    },
-    onMouseEnter: e => {
-      if (ocrFailed || !uploadDone) e.currentTarget.style.borderColor = '#E8783B';
-    },
-    onMouseLeave: e => {
-      e.currentTarget.style.borderColor = ocrFailed ? '#F59E0B' : uploadDone ? '#10B981' : '#E2E8F0';
+      background: ocrFailed ? '#FFFBEB' : uploadDone ? '#F0FDF4' : 'linear-gradient(135deg,#F8F7FF,#FFF8F5)',
+      cursor: !uploadDone ? 'pointer' : 'default',
+      transition: 'all 200ms'
     },
     onClick: () => {
-      if (ocrFailed || !uploadDone) document.getElementById('exp-file-input').click();
+      if (!uploadDone) document.getElementById('exp-file-auto').click();
     }
   }, /*#__PURE__*/React.createElement("input", {
-    id: "exp-file-input",
+    id: "exp-file-auto",
     type: "file",
     accept: ".pdf,.jpg,.jpeg,.png",
     style: {
@@ -1820,41 +1954,30 @@ const ExpensesScreen = ({
     }
   }), /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: '28px',
+      fontSize: '32px',
       marginBottom: '8px'
     }
-  }, ocrLoading ? '⏳' : ocrFailed ? '⚠️' : uploadDone ? '✅' : '📄'), /*#__PURE__*/React.createElement("div", {
+  }, ocrLoading ? '⏳' : uploadDone ? '✅' : '📄'), /*#__PURE__*/React.createElement("div", {
     style: {
       fontWeight: 700,
       fontSize: '13px',
-      color: ocrLoading ? '#5B21B6' : ocrFailed ? '#92400E' : uploadDone ? '#065F46' : '#0F172A',
+      color: ocrLoading ? '#5B21B6' : uploadDone ? '#065F46' : '#0F172A',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, ocrLoading ? 'Receipt uploaded — AI extracting details…' : ocrFailed ? 'Invoice uploaded — OCR unavailable, fill manually below' : uploadDone ? 'Receipt uploaded — fields pre-filled below' : 'Upload receipt for AI extraction'), /*#__PURE__*/React.createElement("div", {
+  }, ocrLoading ? 'Extracting all details from document…' : uploadDone ? 'Document processed — form filled below' : 'Upload your receipt / bill'), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: '12px',
       color: '#94A3B8',
       marginTop: '4px',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, uploadDone ? ocrResult ? ocrSucceeded ? `OCR confidence: ${Math.round((ocrResult.confidence || 0) * 100)}%` : 'OCR unavailable — manual entry mode' : 'Ready below' : 'Drag & drop or click to browse · PDF, JPG, PNG'), uploadedFileRef && /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: '10px'
-    }
-  }, /*#__PURE__*/React.createElement(Btn, {
-    variant: "secondary",
-    small: true,
-    onClick: e => {
-      e.stopPropagation();
-      window.TijoriAPI.FilesAPI.open(uploadedFileRef);
-    }
-  }, "View Uploaded Document")), !uploadDone && !ocrLoading && /*#__PURE__*/React.createElement("div", {
+  }, uploadDone && ocrResult ? `AI Confidence: ${Math.round((ocrResult.confidence || 0) * 100)}%` : 'PDF, JPG, PNG · AI will extract all fields automatically'), !uploadDone && /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: '10px',
       display: 'inline-flex',
       alignItems: 'center',
       gap: '6px',
-      background: 'linear-gradient(135deg, rgba(232,120,59,0.1), rgba(139,92,246,0.1))',
+      background: 'rgba(139,92,246,0.08)',
       border: '1px solid #EDE9FE',
       borderRadius: '999px',
       padding: '4px 12px'
@@ -1868,9 +1991,133 @@ const ExpensesScreen = ({
       fontWeight: 600,
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "AI Powered \u2014 auto-extracts line items"))), expAmount && budgetInfo && /*#__PURE__*/React.createElement("div", {
+  }, "Extracts amount, date, GST, merchant & more")), uploadedFileRef && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: '8px'
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    small: true,
+    onClick: e => {
+      e.stopPropagation();
+      window.TijoriAPI.FilesAPI.open(uploadedFileRef);
+    }
+  }, "View Document"))), ocrResult && ocrSucceeded && /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '12px 14px',
+      background: '#F0FDF4',
+      border: '1px solid #BBF7D0',
+      borderRadius: '10px',
+      marginBottom: '16px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '10px',
+      fontWeight: 700,
+      color: '#065F46',
+      textTransform: 'uppercase',
+      letterSpacing: '0.08em',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginBottom: '8px'
+    }
+  }, "\u2726 AI Extracted \u2014 All Fields"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: '6px'
+    }
+  }, Object.entries(ocrResult.extracted_fields || {}).filter(([k, v]) => v != null && v !== '').map(([k, v]) => /*#__PURE__*/React.createElement("div", {
+    key: k,
+    style: {
+      background: 'white',
+      borderRadius: '6px',
+      padding: '7px 10px',
+      border: '1px solid #D1FAE5'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '9px',
+      fontWeight: 700,
+      color: '#94A3B8',
+      textTransform: 'uppercase',
+      letterSpacing: '0.06em',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, k.replace(/_/g, ' ')), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      fontWeight: 600,
+      color: '#0F172A',
+      fontFamily: "'JetBrains Mono', monospace",
+      marginTop: '2px',
+      wordBreak: 'break-all'
+    }
+  }, String(v))))))), expMode === 'manual' && /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '10px 14px',
+      background: '#F8F7F5',
+      borderRadius: '10px',
+      marginBottom: '16px',
+      fontSize: '12px',
+      color: '#64748B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      lineHeight: 1.5
+    }
+  }, "\u270F Fill the form below. You can attach a receipt at the end \u2014 AI will cross-check your entries with the document and flag any discrepancies for the approver."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: '12px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '10px',
+      fontWeight: 700,
+      color: '#94A3B8',
+      textTransform: 'uppercase',
+      letterSpacing: '0.08em',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginBottom: '6px'
+    }
+  }, "Category"), /*#__PURE__*/React.createElement("select", {
+    value: expCategory,
+    onChange: e => setExpCategory(e.target.value),
+    style: {
+      width: '100%',
+      padding: '9px 12px',
+      border: '1.5px solid #E2E8F0',
+      borderRadius: '8px',
+      fontSize: '13px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      outline: 'none',
+      background: 'white'
+    }
+  }, EXP_CATEGORIES_LIST.map(c => /*#__PURE__*/React.createElement("option", {
+    key: c,
+    value: c
+  }, c)))), /*#__PURE__*/React.createElement(TjInput, {
+    label: "Amount (\u20B9)",
+    placeholder: "0.00",
+    type: "number",
+    value: expAmount,
+    onChange: e => setExpAmount(e.target.value)
+  }), /*#__PURE__*/React.createElement(TjInput, {
+    label: "Date",
+    type: "date",
+    value: expDate,
+    onChange: e => setExpDate(e.target.value)
+  }), /*#__PURE__*/React.createElement(TjInput, {
+    label: "Merchant / Vendor Name",
+    placeholder: "e.g. IndiGo Airlines, Swiggy\u2026",
+    value: expMerchant,
+    onChange: e => setExpMerchant(e.target.value)
+  }), /*#__PURE__*/React.createElement(TjTextarea, {
+    label: "Description / Purpose",
+    placeholder: "Brief description of the expense\u2026",
+    rows: 2,
+    value: expDesc,
+    onChange: e => setExpDesc(e.target.value)
+  }), expAmount && budgetInfo && /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '10px 14px',
       borderRadius: '10px',
       background: budgetColor === '#EF4444' ? '#FEF2F2' : budgetColor === '#F59E0B' ? '#FFFBEB' : '#F0FDF4',
       border: `1px solid ${budgetColor === '#EF4444' ? '#FECACA' : budgetColor === '#F59E0B' ? '#FDE68A' : '#BBF7D0'}`,
@@ -1884,7 +2131,7 @@ const ExpensesScreen = ({
       textTransform: 'uppercase',
       letterSpacing: '0.08em',
       fontFamily: "'Plus Jakarta Sans', sans-serif",
-      marginBottom: '6px'
+      marginBottom: '4px'
     }
   }, "Budget Impact"), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -1893,58 +2140,145 @@ const ExpensesScreen = ({
       color: budgetColor,
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, expCategory, " \xB7 \u20B9", (budgetInfo.rem / 100000).toFixed(1), "L remaining of \u20B9", (budgetInfo.total / 100000).toFixed(1), "L total"), /*#__PURE__*/React.createElement("div", {
+  }, expCategory, " \xB7 \u20B9", (budgetInfo.rem / 100000).toFixed(1), "L remaining"), /*#__PURE__*/React.createElement("div", {
     style: {
       height: 4,
       background: '#F1F5F9',
       borderRadius: 2,
       overflow: 'hidden',
-      marginTop: '8px'
+      marginTop: '6px'
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       height: '100%',
       width: `${budgetPct}%`,
       background: budgetColor,
-      borderRadius: 2,
-      transition: 'width 400ms ease'
+      borderRadius: 2
     }
-  })), budgetPct < 20 && /*#__PURE__*/React.createElement("div", {
+  }))), expMode === 'manual' && /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: '11px',
-      color: '#991B1B',
-      marginTop: '6px',
-      fontFamily: "'Plus Jakarta Sans', sans-serif",
-      fontWeight: 600
+      marginBottom: '16px'
     }
-  }, "\u26A0 Less than 20% budget remaining \u2014 Finance will be notified")), !expAmount && /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
     style: {
-      padding: '10px 14px',
-      background: '#F8F7F5',
-      borderRadius: '8px',
-      marginBottom: '16px',
-      fontSize: '12px',
+      fontSize: '10px',
+      fontWeight: 700,
       color: '#94A3B8',
+      textTransform: 'uppercase',
+      letterSpacing: '0.08em',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginBottom: '8px'
+    }
+  }, "Attach Receipt (for verification)"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      border: `1.5px dashed ${uploadDone ? '#10B981' : '#E2E8F0'}`,
+      borderRadius: '10px',
+      padding: '16px',
+      textAlign: 'center',
+      cursor: !uploadDone ? 'pointer' : 'default',
+      background: uploadDone ? '#F0FDF4' : '#FAFAF8'
+    },
+    onClick: () => {
+      if (!uploadDone) document.getElementById('exp-file-manual').click();
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "exp-file-manual",
+    type: "file",
+    accept: ".pdf,.jpg,.jpeg,.png",
+    style: {
+      display: 'none'
+    },
+    onChange: e => {
+      const f = e.target.files[0];
+      if (f) handleExpFileSelect(f);
+      e.target.value = '';
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '22px',
+      marginBottom: '6px'
+    }
+  }, ocrLoading ? '⏳' : uploadDone ? '✅' : '📎'), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      fontWeight: 600,
+      color: uploadDone ? '#065F46' : '#0F172A',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
     }
-  }, "Budget impact preview will appear once you enter an amount."), /*#__PURE__*/React.createElement(TjInput, {
-    label: "Amount (\u20B9)",
-    placeholder: "0.00",
-    type: "number",
-    value: expAmount,
-    onChange: e => setExpAmount(e.target.value)
-  }), /*#__PURE__*/React.createElement(TjInput, {
-    label: "Date",
-    type: "date",
-    value: expDate,
-    onChange: e => setExpDate(e.target.value)
-  }), /*#__PURE__*/React.createElement(TjTextarea, {
-    label: "Description / Purpose",
-    placeholder: "Brief description of the expense\u2026",
-    rows: 3,
-    value: expDesc,
-    onChange: e => setExpDesc(e.target.value)
-  }), submitError && /*#__PURE__*/React.createElement("div", {
+  }, ocrLoading ? 'Uploading & cross-checking…' : uploadDone ? 'Receipt attached — cross-check done' : 'Click to attach receipt'), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginTop: '3px'
+    }
+  }, "AI will compare doc data with your entries"), uploadedFileRef && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: '8px'
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    small: true,
+    onClick: e => {
+      e.stopPropagation();
+      window.TijoriAPI.FilesAPI.open(uploadedFileRef);
+    }
+  }, "View Document"))), crossCheck && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: '10px',
+      padding: '12px 14px',
+      background: crossCheck.status === 'mismatch' ? '#FEF3C7' : '#F0FDF4',
+      border: `1px solid ${crossCheck.status === 'mismatch' ? '#FDE68A' : '#BBF7D0'}`,
+      borderRadius: '10px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      fontWeight: 700,
+      color: crossCheck.status === 'mismatch' ? '#92400E' : '#065F46',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginBottom: '8px'
+    }
+  }, crossCheck.status === 'mismatch' ? '⚠ Document Mismatch Detected — Approver will be notified' : '✓ Document verified — entries match'), crossCheck.fields.map((f, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      padding: '6px 0',
+      borderTop: i > 0 ? '1px solid rgba(0,0,0,0.06)' : 'none',
+      gap: '10px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      fontWeight: 600,
+      color: '#475569',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      minWidth: 80
+    }
+  }, f.field), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      fontSize: '11px',
+      color: '#64748B',
+      fontFamily: "'JetBrains Mono', monospace"
+    }
+  }, "Doc: ", f.doc), f.entered && f.entered !== '—' && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#64748B',
+      fontFamily: "'JetBrains Mono', monospace"
+    }
+  }, "You: ", f.entered), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '10px',
+      fontWeight: 700,
+      color: f.ok === false ? '#DC2626' : f.ok === true ? '#059669' : '#6B7280',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      flexShrink: 0
+    }
+  }, f.ok === false ? `⚠ ${f.note}` : f.ok === true ? '✓' : f.note))))), submitError && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: '12px',
       color: '#EF4444',
@@ -1959,7 +2293,7 @@ const ExpensesScreen = ({
     },
     onClick: handleExpSubmit,
     disabled: submitLoading || ocrLoading
-  }, submitLoading ? 'Submitting…' : 'Submit for Approval')));
+  }, submitLoading ? 'Submitting…' : crossCheck?.status === 'mismatch' ? 'Submit Anyway (with mismatch flag)' : 'Submit for Approval')));
 };
 
 // ─── BUDGET MANAGEMENT ────────────────────────────────────────────────────────
@@ -2313,7 +2647,31 @@ const BudgetDetailDrawer = ({
       animation: 'spin 0.8s linear infinite',
       margin: '0 auto'
     }
-  })) : util ? /*#__PURE__*/React.createElement(React.Fragment, null, util.monthly_spend && util.monthly_spend.length > 0 && /*#__PURE__*/React.createElement("div", {
+  })) : util ? /*#__PURE__*/React.createElement(React.Fragment, null, (() => {
+    const isVendorBudget = budget.name && budget.name.toLowerCase().includes('vendor');
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginBottom: 16,
+        padding: '8px 14px',
+        background: isVendorBudget ? '#FEF3C7' : '#EFF6FF',
+        borderRadius: 10,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 16
+      }
+    }, isVendorBudget ? '🏭' : '🏢'), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 12,
+        fontWeight: 700,
+        color: isVendorBudget ? '#92400E' : '#1D4ED8',
+        fontFamily: "'Plus Jakarta Sans', sans-serif"
+      }
+    }, isVendorBudget ? 'Vendor Budget — Tracks external vendor payments only' : 'Department Budget — Tracks internal employee expenses only'));
+  })(), util.monthly_spend && util.monthly_spend.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: 20
     }
@@ -2329,12 +2687,12 @@ const BudgetDetailDrawer = ({
     }
   }, "Monthly Spend"), /*#__PURE__*/React.createElement(MiniBarChart, {
     height: 100,
-    color: "#E8783B",
+    color: budget.name && budget.name.toLowerCase().includes('vendor') ? '#F59E0B' : '#E8783B',
     data: util.monthly_spend.map(m => ({
       label: m.month?.slice(5),
       value: m.amount
     }))
-  })), util.top_vendors && util.top_vendors.length > 0 && /*#__PURE__*/React.createElement("div", {
+  })), budget.name && budget.name.toLowerCase().includes('vendor') && util.top_vendors && util.top_vendors.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: 20
     }
@@ -2394,11 +2752,22 @@ const BudgetDetailDrawer = ({
       style: {
         height: '100%',
         width: `${pct}%`,
-        background: '#E8783B',
+        background: '#F59E0B',
         borderRadius: 2
       }
     })));
-  }))), util.top_employees && util.top_employees.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }))), budget.name && budget.name.toLowerCase().includes('vendor') && (!util.top_vendors || util.top_vendors.length === 0) && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 20,
+      padding: '16px',
+      background: '#FFFBEB',
+      borderRadius: 10,
+      border: '1px solid #FDE68A',
+      fontSize: 12,
+      color: '#92400E',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "\uD83C\uDFED No vendor invoices recorded against this budget yet."), !(budget.name && budget.name.toLowerCase().includes('vendor')) && util.top_employees && util.top_employees.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: 20
     }
@@ -2462,7 +2831,18 @@ const BudgetDetailDrawer = ({
         borderRadius: 2
       }
     })));
-  }))), /*#__PURE__*/React.createElement("div", {
+  }))), !(budget.name && budget.name.toLowerCase().includes('vendor')) && (!util.top_employees || util.top_employees.length === 0) && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 20,
+      padding: '16px',
+      background: '#EFF6FF',
+      borderRadius: 10,
+      border: '1px solid #BFDBFE',
+      fontSize: 12,
+      color: '#1D4ED8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "\uD83C\uDFE2 No employee expenses recorded in this department budget yet."), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'grid',
       gridTemplateColumns: '1fr 1fr',
@@ -2603,7 +2983,7 @@ const BudgetScreen = ({
     }
   }, /*#__PURE__*/React.createElement(SectionHeader, {
     title: "Budget Management",
-    subtitle: "Departmental budgets with real-time utilization, vendor breakdown, and monthly spend trends.",
+    subtitle: "Department budgets track employee expenses \xB7 Vendor budgets track supplier payments.",
     right: /*#__PURE__*/React.createElement("div", {
       style: {
         display: 'flex',
@@ -2830,9 +3210,58 @@ const BudgetScreen = ({
     onClose: () => setCreateOpen(false),
     title: "Create New Budget",
     width: 500
-  }, /*#__PURE__*/React.createElement(TjInput, {
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      marginBottom: 16
+    }
+  }, [{
+    label: '🏢 Department Budget',
+    hint: 'Tracks employee expenses by dept',
+    prefix: ''
+  }, {
+    label: '🏭 Vendor Budget',
+    hint: 'Tracks external vendor payments',
+    prefix: 'Vendor '
+  }].map(t => {
+    const active = t.prefix === 'Vendor ' ? newBudget.name.startsWith('Vendor ') : !newBudget.name.startsWith('Vendor ');
+    return /*#__PURE__*/React.createElement("button", {
+      key: t.label,
+      onClick: () => {
+        const baseName = newBudget.name.replace(/^Vendor\s*/i, '');
+        setNewBudget(p => ({
+          ...p,
+          name: t.prefix + baseName
+        }));
+      },
+      style: {
+        flex: 1,
+        padding: '10px 12px',
+        borderRadius: 10,
+        border: `2px solid ${active ? '#E8783B' : '#E2E8F0'}`,
+        background: active ? '#FFF7ED' : 'white',
+        cursor: 'pointer',
+        textAlign: 'left'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        fontWeight: 700,
+        color: active ? '#C2410C' : '#64748B',
+        fontFamily: "'Plus Jakarta Sans', sans-serif"
+      }
+    }, t.label), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: '#94A3B8',
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        marginTop: 2
+      }
+    }, t.hint));
+  })), /*#__PURE__*/React.createElement(TjInput, {
     label: "Budget Name *",
-    placeholder: "Engineering Q3 2026",
+    placeholder: newBudget.name.startsWith('Vendor ') ? 'Vendor AWS Cloud 2026' : 'Engineering Q3 2026',
     value: newBudget.name,
     onChange: e => setNewBudget(p => ({
       ...p,
@@ -4640,6 +5069,9 @@ const VendorPortalScreen = ({
   const [multiInvoices, setMultiInvoices] = React.useState(null);
   const [multiSubmitted, setMultiSubmitted] = React.useState({});
   const [multiSubmitting, setMultiSubmitting] = React.useState({});
+  const [vendorMode, setVendorMode] = React.useState('auto'); // 'auto' | 'manual'
+  const [vendorCrossCheck, setVendorCrossCheck] = React.useState(null);
+  const [manualReceiptLoading, setManualReceiptLoading] = React.useState(false);
   const {
     VendorAPI,
     FilesAPI
@@ -4721,6 +5153,50 @@ const VendorPortalScreen = ({
       setOcrLoading(false);
     }
   };
+  const handleManualReceiptSelect = async file => {
+    if (!file) return;
+    setManualReceiptLoading(true);
+    setSubmitError('');
+    setVendorCrossCheck(null);
+    try {
+      const uploaded = await FilesAPI.upload(file);
+      setFileRef(uploaded.id);
+      const ocr = await FilesAPI.ocr(uploaded.id);
+      setOcrResult(ocr);
+      if (ocr.extracted_fields && ocr.confidence > 0) {
+        const f = ocr.extracted_fields;
+        const items = [];
+        const check = (label, entered, docVal, isAmt) => {
+          if (!docVal || !entered) return;
+          const a = isAmt ? parseFloat(entered) : entered.trim().toLowerCase();
+          const b = isAmt ? parseFloat(docVal) : String(docVal).trim().toLowerCase();
+          const mismatch = isAmt ? Math.abs(a - b) > 0.5 : a !== b;
+          items.push({
+            field: label,
+            entered: isAmt ? '₹' + parseFloat(entered).toLocaleString('en-IN') : entered,
+            doc: isAmt ? '₹' + parseFloat(docVal).toLocaleString('en-IN') : String(docVal),
+            ok: !mismatch
+          });
+        };
+        check('Total Amount', formData.total_amount, f.total_amount, true);
+        check('Invoice #', formData.invoice_number, f.invoice_number, false);
+        check('Invoice Date', formData.invoice_date, f.invoice_date, false);
+        check('CGST', formData.cgst, f.cgst, true);
+        check('SGST', formData.sgst, f.sgst, true);
+        check('IGST', formData.igst, f.igst, true);
+        check('Pre-GST Amount', formData.pre_gst_amount, f.pre_gst_amount, true);
+        const hasMismatch = items.some(i => !i.ok);
+        setVendorCrossCheck({
+          status: hasMismatch ? 'mismatch' : 'match',
+          items
+        });
+      }
+    } catch (err) {
+      setSubmitError('Receipt OCR failed: ' + (err.message || 'Unknown error'));
+    } finally {
+      setManualReceiptLoading(false);
+    }
+  };
   const handleSubmit = async () => {
     if (!formData.total_amount) {
       setSubmitError('Amount is required.');
@@ -4743,6 +5219,10 @@ const VendorPortalScreen = ({
         } : {}),
         ...(fileRef ? {
           invoice_file: fileRef
+        } : {}),
+        submission_mode: vendorMode,
+        ...(vendorCrossCheck ? {
+          doc_cross_check: vendorCrossCheck
         } : {})
       };
       await VendorAPI.submitBill(payload);
@@ -4765,6 +5245,8 @@ const VendorPortalScreen = ({
       });
       setFileRef(null);
       setOcrResult(null);
+      setVendorCrossCheck(null);
+      setVendorMode('auto');
       loadBills();
     } catch (err) {
       setSubmitError(err.message || 'Submit failed.');
@@ -5472,10 +5954,70 @@ const VendorPortalScreen = ({
       setSubmitOpen(false);
       setMultiInvoices(null);
       setMultiSubmitted({});
+      setVendorCrossCheck(null);
+      setVendorMode('auto');
     },
     title: "Submit Invoice",
-    width: 520
-  }, (() => {
+    width: 540
+  }, !multiInvoices && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      background: '#F1F5F9',
+      borderRadius: '10px',
+      padding: '3px',
+      marginBottom: '18px',
+      gap: '2px'
+    }
+  }, [['auto', '⚡ Auto Extract', 'Upload receipt, AI fills all fields'], ['manual', '✏️ Manual Entry', 'Fill form, attach receipt for cross-check']].map(([mode, label, hint]) => /*#__PURE__*/React.createElement("button", {
+    key: mode,
+    onClick: () => {
+      setVendorMode(mode);
+      setOcrResult(null);
+      setFileRef(null);
+      setVendorCrossCheck(null);
+      setFormData({
+        invoice_number: '',
+        invoice_date: '',
+        business_purpose: '',
+        pre_gst_amount: '',
+        cgst: '',
+        sgst: '',
+        igst: '',
+        total_amount: '',
+        gstin: '',
+        pan: '',
+        tds_section: '',
+        vendor_name_ocr: '',
+        bank_account: '',
+        bank_ifsc: ''
+      });
+    },
+    style: {
+      flex: 1,
+      padding: '8px 6px',
+      borderRadius: '8px',
+      border: 'none',
+      cursor: 'pointer',
+      background: vendorMode === mode ? 'white' : 'transparent',
+      boxShadow: vendorMode === mode ? '0 1px 4px rgba(0,0,0,0.12)' : 'none',
+      transition: 'all 150ms',
+      textAlign: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      fontWeight: 700,
+      color: vendorMode === mode ? '#E8783B' : '#64748B',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, label), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '10px',
+      color: vendorMode === mode ? '#92400E' : '#94A3B8',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginTop: '2px'
+    }
+  }, hint)))), vendorMode === 'auto' && !multiInvoices && (() => {
     const ocrOk = ocrResult && ocrResult.confidence > 0 && ocrResult.status === 'COMPLETE';
     const ocrFail = ocrResult && !ocrOk;
     const borderColor = ocrOk ? '#10B981' : ocrFail ? '#EF4444' : ocrLoading ? '#E8783B' : '#E2E8F0';
@@ -5946,13 +6488,157 @@ const VendorPortalScreen = ({
       ...f,
       business_purpose: e.target.value
     }))
-  }), submitError && /*#__PURE__*/React.createElement("div", {
+  }), vendorMode === 'manual' && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: '14px',
+      border: '1px solid #E2E8F0',
+      borderRadius: '12px',
+      padding: '14px',
+      background: '#FAFAF8'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      fontWeight: 700,
+      color: '#64748B',
+      textTransform: 'uppercase',
+      letterSpacing: '0.08em',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      marginBottom: '10px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px'
+    }
+  }, /*#__PURE__*/React.createElement(AIBadge, {
+    small: true
+  }), " Attach Receipt (AI Cross-check)"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      border: `1.5px dashed ${vendorCrossCheck ? vendorCrossCheck.status === 'mismatch' ? '#EF4444' : '#10B981' : manualReceiptLoading ? '#E8783B' : '#CBD5E1'}`,
+      borderRadius: '10px',
+      padding: '16px',
+      textAlign: 'center',
+      position: 'relative',
+      overflow: 'hidden',
+      background: vendorCrossCheck ? vendorCrossCheck.status === 'mismatch' ? '#FEF2F2' : '#F0FDF4' : 'white'
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "file",
+    accept: ".pdf,.jpg,.jpeg,.png",
+    style: {
+      position: 'absolute',
+      inset: 0,
+      opacity: 0,
+      cursor: 'pointer',
+      width: '100%',
+      height: '100%'
+    },
+    onChange: e => {
+      if (e.target.files[0]) handleManualReceiptSelect(e.target.files[0]);
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '22px',
+      marginBottom: '6px'
+    }
+  }, manualReceiptLoading ? '⏳' : vendorCrossCheck ? vendorCrossCheck.status === 'mismatch' ? '⚠️' : '✅' : '📎'), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      fontWeight: 700,
+      color: manualReceiptLoading ? '#92400E' : vendorCrossCheck ? vendorCrossCheck.status === 'mismatch' ? '#991B1B' : '#065F46' : '#475569',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, manualReceiptLoading ? 'AI cross-checking your receipt…' : vendorCrossCheck ? vendorCrossCheck.status === 'mismatch' ? 'Mismatches found — flagged for approver' : 'All fields match receipt' : 'Click to attach receipt for cross-check'), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#94A3B8',
+      marginTop: '3px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, manualReceiptLoading ? 'Do not close this window' : 'PDF, JPG, PNG · Optional but recommended')), vendorCrossCheck && vendorCrossCheck.items && vendorCrossCheck.items.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: '10px'
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: '100%',
+      borderCollapse: 'collapse',
+      fontSize: '11px',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+    style: {
+      background: '#F1F5F9'
+    }
+  }, ['Field', 'You Entered', 'From Receipt', ''].map(h => /*#__PURE__*/React.createElement("th", {
+    key: h,
+    style: {
+      padding: '6px 8px',
+      textAlign: 'left',
+      color: '#64748B',
+      fontWeight: 700,
+      textTransform: 'uppercase',
+      letterSpacing: '0.06em',
+      fontSize: '10px'
+    }
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, vendorCrossCheck.items.map((item, i) => /*#__PURE__*/React.createElement("tr", {
+    key: i,
+    style: {
+      borderTop: '1px solid #F1F0EE',
+      background: !item.ok ? 'rgba(254,242,242,0.6)' : 'white'
+    }
+  }, /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '6px 8px',
+      color: '#475569',
+      fontWeight: 600
+    }
+  }, item.field), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '6px 8px',
+      color: '#0F172A',
+      fontFamily: "'JetBrains Mono', monospace",
+      fontSize: '11px'
+    }
+  }, item.entered || '—'), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '6px 8px',
+      color: '#0F172A',
+      fontFamily: "'JetBrains Mono', monospace",
+      fontSize: '11px'
+    }
+  }, item.doc || '—'), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '6px 8px'
+    }
+  }, item.ok ? /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: '#10B981',
+      fontWeight: 700
+    }
+  }, "\u2713") : /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: '#EF4444',
+      fontWeight: 700
+    }
+  }, "\u2717")))))), vendorCrossCheck.status === 'mismatch' && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: '8px',
+      background: '#FFF7ED',
+      border: '1px solid #FED7AA',
+      borderRadius: '8px',
+      padding: '8px 12px',
+      fontSize: '11px',
+      color: '#92400E',
+      fontFamily: "'Plus Jakarta Sans', sans-serif"
+    }
+  }, "Mismatches will be flagged to the reviewer. You can still submit \u2014 the approver will see the discrepancy report."))), submitError && /*#__PURE__*/React.createElement("div", {
     style: {
       background: '#FEE2E2',
       border: '1px solid #FECACA',
       borderRadius: '8px',
       padding: '10px 14px',
       marginBottom: '12px',
+      marginTop: '10px',
       fontSize: '12px',
       color: '#991B1B',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
@@ -5964,6 +6650,7 @@ const VendorPortalScreen = ({
       borderRadius: '10px',
       padding: '10px 14px',
       marginBottom: '16px',
+      marginTop: '12px',
       fontSize: '12px',
       color: '#92400E',
       fontFamily: "'Plus Jakarta Sans', sans-serif"
@@ -5980,8 +6667,8 @@ const VendorPortalScreen = ({
   }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
     variant: "primary",
     onClick: handleSubmit,
-    disabled: submitting || ocrLoading
-  }, submitting ? 'Submitting…' : 'Submit for Approval')))), /*#__PURE__*/React.createElement(FloatingCopilot, {
+    disabled: submitting || ocrLoading || manualReceiptLoading
+  }, submitting ? 'Submitting…' : vendorCrossCheck?.status === 'mismatch' ? 'Submit Anyway (flagged)' : 'Submit for Approval')))), /*#__PURE__*/React.createElement(FloatingCopilot, {
     role: role
   }));
 };

@@ -690,9 +690,66 @@ const NotificationsAPI = {
   },
 };
 
+// ── Accounts Receivable API ────────────────────────────────────────────────────
+const ARAPI = {
+  // Dashboard KPIs
+  async dashboard() {
+    return apiFetch('/invoices/ar/dashboard/');
+  },
+  // Customer management
+  async listCustomers(params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return apiFetch(`/invoices/ar/customers/${qs ? '?' + qs : ''}`);
+  },
+  async createCustomer(data) {
+    return apiFetch('/invoices/ar/customers/', { method: 'POST', body: JSON.stringify(data) });
+  },
+  async getCustomer(id) {
+    return apiFetch(`/invoices/ar/customers/${id}/`);
+  },
+  async updateCustomer(id, data) {
+    return apiFetch(`/invoices/ar/customers/${id}/`, { method: 'PATCH', body: JSON.stringify(data) });
+  },
+  // AR Invoice management
+  async listInvoices(params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return apiFetch(`/invoices/ar/invoices/${qs ? '?' + qs : ''}`);
+  },
+  async createInvoice(data) {
+    return apiFetch('/invoices/ar/invoices/', { method: 'POST', body: JSON.stringify(data) });
+  },
+  async getInvoice(id) {
+    return apiFetch(`/invoices/ar/invoices/${id}/`);
+  },
+  // Upload invoice PDF (the file we send to customer)
+  async uploadInvoiceFile(id, file) {
+    const fd = new FormData();
+    fd.append('file', file);
+    const token = localStorage.getItem('tijori_token');
+    const res = await fetch(`/api/v1/invoices/ar/invoices/${id}/upload/`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Upload failed' }));
+      throw new APIError(err.error || 'Upload failed', res.status, err);
+    }
+    return res.json();
+  },
+  // Record payment received from customer
+  async recordPayment(invoiceId, data) {
+    return apiFetch(`/invoices/ar/invoices/${invoiceId}/payment/`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+};
+
 // ── Export to window ──────────────────────────────────────────────────────────
 window.TijoriAPI = {
   Auth, AuthAPI, DashboardAPI, BillsAPI, VendorAPI, FilesAPI, AnomalyAPI,
   AuditAPI, NotificationsAPI, BudgetAPI, NLQueryAPI, ChatSessionAPI, AnalyticsAPI, FeedbackAPI,
+  ARAPI,
   APIError, expenseToAnomaly, anomalyFlagToType,
 };
